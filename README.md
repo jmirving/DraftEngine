@@ -11,7 +11,7 @@ python3 -m http.server 8000
 2. Open:
 `http://localhost:8000/public/index.html`
 
-The app opens on `Workflow` by default. `Champion Explorer` is available from secondary `Tools` navigation.
+The app opens on `Workflow` by default. `Team Config`, `User Config`, and `Champion Explorer` are available from the side menu.
 
 Primary surfaces:
 - `Workflow` (intent-based: Build Team, Evaluate Team, Criteria Build)

@@ -171,7 +171,7 @@ const state = {
 const elements = {
   statusBanner: document.querySelector("#status-banner"),
   tabTriggers: Array.from(document.querySelectorAll("button[data-tab]")),
-  primaryTabs: Array.from(document.querySelectorAll(".primary-tab")),
+  sideMenuLinks: Array.from(document.querySelectorAll(".side-menu-link")),
   tabExplorer: document.querySelector("#tab-explorer"),
   tabWorkflow: document.querySelector("#tab-workflow"),
   tabTeamConfig: document.querySelector("#tab-team-config"),
@@ -414,7 +414,7 @@ function setTab(tabName) {
   const resolvedTab = validTabs.has(tabName) ? tabName : "workflow";
   state.activeTab = resolvedTab;
 
-  for (const button of elements.primaryTabs) {
+  for (const button of elements.sideMenuLinks) {
     const isActive = button.dataset.tab === resolvedTab;
     button.classList.toggle("is-active", isActive);
   }
