@@ -92,6 +92,7 @@
               <h2 id="builder-workflow-title">Draft Workflow</h2>
               <p id="builder-intent-help" class="meta"></p>
               <div id="builder-stage-chips" class="stage-chip-row"></div>
+              <p id="builder-stage-progress" class="meta"></p>
               <p id="builder-stage-help" class="meta"></p>
               <ul id="builder-first-run-hints" class="hint-list" hidden></ul>
             </section>
@@ -161,6 +162,9 @@
                 <h2 id="builder-stage-validate-title">2) Validate</h2>
                 <p id="builder-stage-validate-meta" class="meta">Required checks map directly to enabled toggles.</p>
                 <p id="builder-checks-readiness" class="meta"></p>
+                <div class="button-row">
+                  <button id="builder-back-setup" class="ghost" type="button">Back to Setup</button>
+                </div>
                 <div id="builder-team-context" class="team-context"></div>
                 <h3>Required Checks</h3>
                 <ul id="builder-required-checks" class="check-list"></ul>
@@ -181,6 +185,9 @@
               <section id="builder-stage-inspect" class="panel stage-panel">
                 <h2 id="builder-stage-inspect-title">3) Inspect</h2>
                 <p id="builder-stage-inspect-meta" class="meta">Inspect a node to see slot-level impact and cumulative reasons that increase its score.</p>
+                <div class="button-row">
+                  <button id="builder-back-validate" class="ghost" type="button">Back to Validate</button>
+                </div>
                 <div class="tree-toolbar">
                   <label>
                     Density

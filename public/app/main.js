@@ -191,6 +191,7 @@ const elements = {
   builderWorkflowTitle: document.querySelector("#builder-workflow-title"),
   builderIntentHelp: document.querySelector("#builder-intent-help"),
   builderIntentSwitch: document.querySelector("#builder-intent-switch"),
+  builderStageProgress: document.querySelector("#builder-stage-progress"),
   builderApplyPreset: document.querySelector("#builder-apply-preset"),
   builderOpenTeamConfig: document.querySelector("#builder-open-team-config"),
   builderTeamName: document.querySelector("#builder-team-name"),
@@ -216,7 +217,9 @@ const elements = {
   builderMaxDepth: document.querySelector("#builder-max-depth"),
   builderMaxBranch: document.querySelector("#builder-max-branch"),
   builderContinueValidate: document.querySelector("#builder-continue-validate"),
+  builderBackSetup: document.querySelector("#builder-back-setup"),
   builderGenerate: document.querySelector("#builder-generate"),
+  builderBackValidate: document.querySelector("#builder-back-validate"),
   builderClear: document.querySelector("#builder-clear"),
   builderInspectRoot: document.querySelector("#builder-inspect-root"),
   builderDraftOrder: document.querySelector("#builder-draft-order"),
@@ -319,8 +322,10 @@ function renderBuilderStageGuide() {
   elements.builderStageChips.innerHTML = "";
   for (let index = 0; index < stageSteps.length; index += 1) {
     const step = stageSteps[index];
-    const chip = document.createElement("span");
+    const chip = document.createElement("button");
+    chip.type = "button";
     chip.className = "stage-chip";
+    const isReachable = index <= currentStageIndex;
 
     if (index < currentStageIndex) {
       chip.classList.add("is-done");
@@ -332,6 +337,17 @@ function renderBuilderStageGuide() {
       chip.textContent = `${step.label} - Next`;
     }
 
+    if (!isReachable) {
+      chip.classList.add("is-locked");
+      chip.disabled = true;
+      chip.title = "Complete the current stage first.";
+    } else {
+      chip.addEventListener("click", () => {
+        setBuilderStage(step.key);
+        renderBuilder();
+      });
+    }
+
     elements.builderStageChips.append(chip);
   }
 
@@ -340,6 +356,7 @@ function renderBuilderStageGuide() {
     radio.checked = radio.value === state.builder.intent;
   }
 
+  elements.builderStageProgress.textContent = `Current stage: ${currentStageIndex + 1} of ${stageSteps.length}`;
   elements.builderStageHelp.textContent = stageHelp;
   const hintMessages = [
     "1. Use Setup to pick your team context and any locked champions.",
@@ -357,6 +374,9 @@ function renderBuilderStageGuide() {
   elements.builderStageSetup.classList.toggle("is-current-stage", state.builder.stage === "setup");
   elements.builderStageValidate.classList.toggle("is-current-stage", state.builder.stage === "validate");
   elements.builderStageInspect.classList.toggle("is-current-stage", state.builder.stage === "inspect");
+  elements.builderStageSetup.hidden = state.builder.stage !== "setup";
+  elements.builderStageValidate.hidden = state.builder.stage !== "validate";
+  elements.builderStageInspect.hidden = state.builder.stage !== "inspect";
 
   elements.builderGenerate.disabled = state.builder.stage === "setup";
   elements.builderInspectRoot.disabled = !state.builder.tree;
@@ -2185,6 +2205,12 @@ function attachEvents() {
     setStatus(getIntentMode().generateReadyStatus);
   });
 
+  elements.builderBackSetup.addEventListener("click", () => {
+    setBuilderStage("setup");
+    renderBuilder();
+    setStatus("Returned to Setup.");
+  });
+
   for (const slot of SLOTS) {
     elements.slotSelects[slot].addEventListener("change", () => {
       const selected = elements.slotSelects[slot].value || null;
@@ -2251,6 +2277,12 @@ function attachEvents() {
       return;
     }
     inspectNode(state.builder.tree, "0", "Root Team");
+  });
+
+  elements.builderBackValidate.addEventListener("click", () => {
+    setBuilderStage("validate");
+    renderBuilder();
+    setStatus("Returned to Validate.");
   });
 
   elements.treeExpandAll.addEventListener("click", () => {

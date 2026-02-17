@@ -12,6 +12,7 @@ python3 -m http.server 8000
 `http://localhost:8000/public/index.html`
 
 The app opens on `Workflow` by default. `Team Config`, `User Config`, and `Champion Explorer` are available from the side menu.
+Workflow is stage-focused: one guided stage is shown at a time (Setup -> Validate -> Inspect).
 
 Primary surfaces:
 - `Workflow` (intent-based: Build Team, Evaluate Team, Criteria Build)

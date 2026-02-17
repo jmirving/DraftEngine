@@ -169,6 +169,17 @@ h3 {
   background: #fffefa;
 }
 
+button.stage-chip {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+
+button.stage-chip.is-locked {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .stage-chip.is-current {
   border-color: var(--accent);
   background: #fff1eb;
@@ -311,7 +322,7 @@ button.ghost {
 .builder-grid {
   display: grid;
   gap: 0.9rem;
-  grid-template-columns: minmax(280px, 340px) minmax(280px, 1fr) minmax(340px, 1fr);
+  grid-template-columns: 1fr;
   align-items: start;
 }
 
