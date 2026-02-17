@@ -1,0 +1,25 @@
+{
+  "teamDefault": "TTT",
+  "recommendation": {
+    "weights": {
+      "HardEngage": 10,
+      "Frontline": 8,
+      "Waveclear": 8,
+      "Disengage": 6,
+      "AntiTank": 5,
+      "ZoneControl": 5,
+      "PickThreat": 4,
+      "DiveThreat": 4,
+      "SideLaneThreat": 4,
+      "Poke": 3,
+      "FogThreat": 3,
+      "FollowUpEngage": 3,
+      "FrontToBackDPS": 3,
+      "EarlyPriority": 2
+    }
+  },
+  "treeDefaults": {
+    "maxDepth": 4,
+    "maxBranch": 8
+  }
+}

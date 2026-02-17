@@ -1,0 +1,7 @@
+Default to Tree Builder, not Explorer
+Make Explorer something users can find if they want but not something they see right away
+The Explorer page does not use modern UX best practices, update it to do so - request a list of best practices if needed.
+The Tree Builder page does not use modern UX best practices, update it to do so - request a list of best practices if needed.
+If Preview is the same as the Collapse/Expand arrows, get rid of Preview. Otherwise, make preview do something
+Node score increase reasons are not visible starting on 3rd champion or later
+Add a way to visualize the trees

@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DraftEngine</title>
+    <link rel="stylesheet" href="./app/styles.css" />
+  </head>
+  <body>
+    <div class="bg-shape bg-shape-a"></div>
+    <div class="bg-shape bg-shape-b"></div>
+    <main class="layout">
+      <header class="hero">
+        <p class="kicker">DraftEngine</p>
+        <h1>Possibility Tree Builder</h1>
+        <p class="subtitle">
+          Explore champions, configure composition constraints, and generate deterministic next-pick trees.
+        </p>
+      </header>
+
+      <nav class="tabs">
+        <button class="tab is-active" data-tab="builder" type="button">Tree Builder</button>
+        <button class="tab tab-secondary" data-tab="explorer" type="button">Explorer</button>
+      </nav>
+
+      <section id="status-banner" class="status-banner" hidden></section>
+
+      <section id="tab-explorer" class="tab-panel">
+        <div class="panel">
+          <h2>Explorer Filters</h2>
+          <p class="meta">Modern filter block: combine multi-select filters and clear include/exclude logic to find comps faster.</p>
+          <div class="button-row">
+            <button id="explorer-clear-all" class="ghost" type="button">Clear All Filters</button>
+          </div>
+          <div class="grid grid-3">
+            <label>
+              Search
+              <input id="explorer-search" type="search" placeholder="Champion name" />
+            </label>
+            <label>
+              Roles (multi-select)
+              <select id="explorer-role" multiple size="6"></select>
+            </label>
+            <label>
+              Damage Type (multi-select)
+              <select id="explorer-damage" multiple size="6"></select>
+            </label>
+            <label>
+              Scaling
+              <select id="explorer-scaling"></select>
+            </label>
+            <label>
+              Sort Cards
+              <select id="explorer-sort"></select>
+            </label>
+            <label>
+              Include Tags
+              <select id="explorer-include-tags" multiple size="6"></select>
+            </label>
+            <label>
+              Exclude Tags
+              <select id="explorer-exclude-tags" multiple size="6"></select>
+            </label>
+            <div class="explorer-tag-actions">
+              <button id="explorer-clear-include" class="ghost" type="button">Clear Include Tags</button>
+              <button id="explorer-clear-exclude" class="ghost" type="button">Clear Exclude Tags</button>
+            </div>
+          </div>
+          <p class="meta">Include and Exclude tags are mutually exclusive. Selecting one removes it from the other.</p>
+        </div>
+        <div class="panel">
+          <h2>Champion Cards</h2>
+          <p id="explorer-count" class="meta"></p>
+          <div id="explorer-results" class="card-grid"></div>
+        </div>
+      </section>
+
+      <section id="tab-builder" class="tab-panel is-active">
+        <section id="builder-stage-guide" class="panel stage-guide" aria-live="polite">
+          <h2>Guided Flow</h2>
+          <div id="builder-stage-chips" class="stage-chip-row"></div>
+          <p id="builder-stage-help" class="meta"></p>
+          <ul id="builder-first-run-hints" class="hint-list" hidden></ul>
+        </section>
+        <div class="builder-grid">
+          <aside id="builder-stage-setup" class="panel stage-panel">
+            <h2>1) Setup</h2>
+            <p class="meta">Set current team state and generation constraints. Team-specific mode uses role pools; None mode uses all role-eligible champions.</p>
+            <div class="stack">
+              <div class="button-row">
+                <button id="builder-apply-preset" type="button" class="ghost">Apply Recommended Preset</button>
+              </div>
+              <label>
+                Team
+                <select id="builder-team"></select>
+              </label>
+              <p id="builder-team-help" class="meta"></p>
+              <div class="slot-grid">
+                <label><span id="slot-label-Top">Top</span><select id="slot-Top"></select></label>
+                <label><span id="slot-label-Jungle">Jungle</span><select id="slot-Jungle"></select></label>
+                <label><span id="slot-label-Mid">Mid</span><select id="slot-Mid"></select></label>
+                <label><span id="slot-label-ADC">ADC</span><select id="slot-ADC"></select></label>
+                <label><span id="slot-label-Support">Support</span><select id="slot-Support"></select></label>
+              </div>
+              <div class="draft-order-block">
+                <h3>Node Draft Order</h3>
+                <p class="meta">Drag roles to reorder priority. Generation always fills the first unfilled role in this order.</p>
+                <p id="builder-next-role-readout" class="meta"></p>
+                <ul id="builder-draft-order" class="draft-order-list"></ul>
+              </div>
+              <details class="advanced-controls">
+                <summary>Advanced Controls</summary>
+                <div class="stack advanced-controls-content">
+                  <fieldset id="builder-toggles" class="toggle-group">
+                    <legend>Required Toggles</legend>
+                  </fieldset>
+                  <label>
+                    Excluded Champions
+                    <input id="builder-excluded-search" type="search" placeholder="Filter champion list" />
+                  </label>
+                  <div id="builder-excluded-options" class="excluded-options"></div>
+                  <p class="meta">Multi-select checklist. Excluded champions are never offered in selectors or generated tree nodes.</p>
+                  <div id="builder-excluded-pills" class="chip-row"></div>
+                  <div class="grid grid-2">
+                    <label>
+                      maxDepth
+                      <input id="builder-max-depth" type="number" min="1" max="5" step="1" />
+                    </label>
+                    <label>
+                      maxBranch
+                      <input id="builder-max-branch" type="number" min="1" max="25" step="1" />
+                    </label>
+                  </div>
+                </div>
+              </details>
+              <div class="button-row sticky-actions">
+                <button id="builder-continue-validate" type="button">Continue to Validate</button>
+                <button id="builder-clear" type="button" class="ghost">Clear Team</button>
+              </div>
+            </div>
+          </aside>
+
+          <section id="builder-stage-validate" class="panel stage-panel">
+            <h2>2) Validate</h2>
+            <p class="meta">Required checks map directly to enabled toggles. Optional checks are shown for context.</p>
+            <div id="builder-team-context" class="team-context"></div>
+            <h3>Required Checks</h3>
+            <ul id="builder-required-checks" class="check-list"></ul>
+            <div class="optional-checks-header">
+              <h3>Optional Checks</h3>
+              <button id="builder-toggle-optional-checks" class="ghost" type="button">Show Optional Checks</button>
+            </div>
+            <ul id="builder-optional-checks" class="check-list" hidden></ul>
+            <div>
+              <h3>Missing Needs</h3>
+              <ul id="builder-missing-needs" class="missing-list"></ul>
+            </div>
+            <div class="button-row">
+              <button id="builder-generate" type="button">Generate Tree</button>
+            </div>
+          </section>
+
+          <section id="builder-stage-inspect" class="panel stage-panel">
+            <h2>3) Inspect</h2>
+            <p class="meta">Inspect a node to see slot-level impact and cumulative reasons that increase its score.</p>
+            <div class="tree-toolbar">
+              <label>
+                Density
+                <select id="tree-density">
+                  <option value="summary">Summary</option>
+                  <option value="detailed">Detailed</option>
+                </select>
+              </label>
+              <label>
+                Search Node
+                <input id="tree-search" type="search" placeholder="Champion, role, or slot value" />
+              </label>
+              <label>
+                Min Score
+                <input id="tree-min-score" type="number" step="1" min="0" value="0" />
+              </label>
+            </div>
+            <div class="button-row">
+              <button id="builder-inspect-root" type="button">Inspect Root Team</button>
+              <button id="tree-expand-all" type="button" class="ghost">Expand All</button>
+              <button id="tree-collapse-all" type="button" class="ghost">Collapse All</button>
+            </div>
+            <div id="builder-tree-summary" class="tree-summary"></div>
+            <div class="panel tree-map-panel">
+              <h3>Tree Map</h3>
+              <p class="meta">Graph view of expansion depth. Click any node marker to inspect it.</p>
+              <svg id="builder-tree-map" class="tree-map" viewBox="0 0 900 320" preserveAspectRatio="xMidYMid meet"></svg>
+            </div>
+            <div id="builder-tree" class="tree"></div>
+            <div id="builder-preview" class="preview"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./app/main.js"></script>
+  </body>
+</html>

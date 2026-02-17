@@ -1,0 +1,12 @@
+Do a small overhaul of the Filters UI block to ensure it is up to date with latest UI standards.
+Champion images are likely not big enough to see the whole champion, note: this is a ratio problem not a raw size problem
+We will need to do a champion backfill - make this a TODO bead but don't take action on it.
+We will need to do a tag backfill - make this a TODO bead but don't take action on it.
+Do a small overhaul of the Tree Builder to ensure it is up to date with latest UI standards.
+Make there be another option for "Team" like "none" and include an explanation of what selecting it does
+If a team is selected, player names should be included next to the roles
+If a champion is selected for a role, that role should not be an option for "Next Role"
+It may be better to have "Node Draft Order" that is a drag and drop rearrangable list of all 5 roles
+Excluded champions is still not multi-select and still looks like a pre-filled list not a selection box
+Purpose of Preview is still unclear
+Node scores appear to cap at 50

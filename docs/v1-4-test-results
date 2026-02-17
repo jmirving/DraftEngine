@@ -1,0 +1,130 @@
+# DraftFlow v1.4 UX Review and Wireframe-Level Spec
+
+## Scope
+Evaluate current Tree Builder + Explorer UX for ease of use and understanding, then define concrete v1.4 design changes with implementation beads.
+
+## Current UX Assessment
+
+### Positive
+- Three-step framing exists and gives users a directional model.
+- Domain language is mostly consistent (roles, checks, inspect, node).
+- Required checks are visible near team state.
+- Node inspection state is visible in a dedicated status bar.
+- Primary generation and inspection actions are present.
+
+### Negative
+- Initial screen has high cognitive load due to dense, equally weighted cards.
+- Role/team state appears in multiple places, causing duplication and confusion.
+- Warning styling is noisy and lacks clear severity semantics.
+- Tree visualization defaults to dense output before user orientation.
+- Next best action is unclear after setup completion.
+- Tree Builder/Explorer navigation competes with the in-page step model.
+
+## v1.4 UX Intent
+- Reduce first-load complexity.
+- Make next action explicit at every stage.
+- Remove duplicated state presentation.
+- Make failed checks actionable.
+- Default to summary views before deep/detail views.
+
+## Wireframe-Level Specification
+
+### Global Information Architecture
+- Keep `Tree Builder` as default landing view.
+- Keep `Explorer` as secondary navigation destination.
+- Preserve three-stage mental model, but implement explicit stage states:
+  - `Stage 1: Setup`
+  - `Stage 2: Validate`
+  - `Stage 3: Generate + Inspect`
+- Display stage chip states globally: `Incomplete`, `Ready`, `Done`.
+
+### Tree Builder Layout
+- Left column: `Setup` card (single source of truth)
+- Middle column: `Checks + Team Context` card
+- Right column: `Tree View + Inspect` card
+
+### Stage 1: Setup Card
+- Team selector with inline explanation.
+- Role assignment controls.
+- Node draft order control.
+- Advanced generation controls hidden under `Advanced` accordion by default.
+- One primary button only: `Continue to Validate`.
+
+### Stage 2: Checks + Team Context Card
+- Compact read-only team summary chips (no duplicated editable controls).
+- Check list grouped by severity:
+  - `Required`
+  - `Optional`
+  - `Passed`
+- Each failed required check row includes:
+  - Short failure reason.
+  - At least one remediation hint.
+- Default filter on open: `Required only`.
+- One primary button only: `Generate Tree` (enabled only when required checks satisfy configured policy).
+
+### Stage 3: Tree View + Inspect Card
+- Default view mode: `Summary`.
+- Summary mode shows top branches and aggregate metrics.
+- `Detailed` mode reveals full node/edge density.
+- Controls unified in one row:
+  - `Density: Summary | Detailed`
+  - `Expand all`
+  - `Collapse all`
+  - `Search node`
+- Inspect panel shows:
+  - Slot-level impact for current pick.
+  - Cumulative rationale for current path.
+  - Current score and score delta from parent.
+
+## Change Decisions
+
+### Remove
+- Duplicate editable role state blocks outside Setup card.
+- Always-expanded optional warning lists.
+- Ambiguous controls that overlap with expand/collapse behavior.
+
+### Add
+- Stage status chips and explicit stage progression.
+- First-run helper hints.
+- Recommended preset defaults for first session.
+- Node search and compare affordances.
+
+### Consolidate
+- Team + roles + draft-order controls into one Setup surface.
+- Tree control actions into one unified toolbar.
+- Check visual language into one severity taxonomy.
+
+### Expand
+- Node inspect explanation beyond single-slot to cumulative path rationale.
+- Tree interaction model with filtering and comparison.
+
+### Default
+- App landing: Tree Builder.
+- Checks filter: Required only.
+- Tree density: Summary mode.
+- First-run setup: prefilled recommended preset.
+
+## Beads: Epic and Task Mapping
+
+| Epic ID | Epic Title | Task ID | Task Title | Spec Coverage |
+|---|---|---|---|---|
+| draftflow-17 | v1.4 UX: Guided setup flow and action clarity | draftflow-17.1 | Define guided stage flow with one primary CTA per stage | Stage model, primary action clarity |
+| draftflow-17 | v1.4 UX: Guided setup flow and action clarity | draftflow-17.2 | Consolidate team setup controls into a single Setup panel | Remove duplicated editable state |
+| draftflow-17 | v1.4 UX: Guided setup flow and action clarity | draftflow-17.3 | Progressively disclose advanced generation controls | Advanced accordion behavior |
+| draftflow-17 | v1.4 UX: Guided setup flow and action clarity | draftflow-17.4 | Add step completion chips and inline first-run hints | Status chips + onboarding hints |
+| draftflow-17 | v1.4 UX: Guided setup flow and action clarity | draftflow-17.5 | Implement first-run defaults and recommended preset | Default preset policy |
+| draftflow-18 | v1.4 UX: Check system clarity and actionable feedback | draftflow-18.1 | Refactor checks list into actionable requirement rows | Why failed + how to fix |
+| draftflow-18 | v1.4 UX: Check system clarity and actionable feedback | draftflow-18.2 | Standardize check severity taxonomy and visual semantics | Required/optional/passed states |
+| draftflow-18 | v1.4 UX: Check system clarity and actionable feedback | draftflow-18.3 | Default checks view to required-only with optional expansion | Noise reduction default |
+| draftflow-18 | v1.4 UX: Check system clarity and actionable feedback | draftflow-18.4 | Expand node inspection with role-level and cumulative rationale | Inspect panel explainability |
+| draftflow-19 | v1.4 UX: Tree view readability and exploration controls | draftflow-19.1 | Default tree rendering to summary mode with top branches | First-load readability |
+| draftflow-19 | v1.4 UX: Tree view readability and exploration controls | draftflow-19.2 | Unify tree controls with density modes and global expand/collapse | Control discoverability |
+| draftflow-19 | v1.4 UX: Tree view readability and exploration controls | draftflow-19.3 | Add tree node search, filter, and compare interactions | Exploration ergonomics |
+| draftflow-19 | v1.4 UX: Tree view readability and exploration controls | draftflow-19.4 | Improve graph legibility with spacing and emphasis refinements | Visual readability |
+
+## Acceptance Criteria (v1.4 UX)
+- First-time user can generate first tree without external explanation.
+- No editable team-role controls are duplicated across stages.
+- Failed required checks always provide reason and remediation hint.
+- Default tree view is readable at first glance without manual collapse.
+- User can identify next primary action in under 3 seconds per stage.

@@ -1,0 +1,24 @@
+Explorer:
+Tags should be a multi-select
+Tags should be de-selectable
+Include and Exclude tags should be mutually exclusive upon selection
+Damage type should be multi-select
+Champion cards should be sortable by alpha and role at minimum
+Explorer Nice to have:
+Role should be multi-select capable to allow for flex picks
+Damage type should have a "none" or similar
+Champion cards should have the champion image
+Tree builder:
+UI improvements are required
+Intent is not clear for any column
+Generate action options should be visible without scrolling
+What does next role do?
+Excluded champions seems like a pre-filled list, not a single select option.
+Excluded champions should be multi select
+Max depth should default to 4 (allowing a full team to be created)
+Current Team + Checks is very difficult to understand
+Current Team Checks are not the same as Required Toggles
+Tree View preview doesn't appear to do anything
+Support (last in the tree view) has all options open with no option to minimuze
+No minimize all available
+Redundancy penalty should be removed

@@ -1,0 +1,4 @@
+# Beads configuration for this repository.
+# JSONL-only mode keeps issue state in .beads/issues.jsonl.
+issue-prefix: "draftflow"
+no-db: true
