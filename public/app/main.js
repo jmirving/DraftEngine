@@ -14,14 +14,116 @@ import {
 const NO_FILTER = "__NO_FILTER__";
 const NONE_TEAM_ID = "__NONE_TEAM__";
 const FIRST_RUN_PRESET_KEY = "draftflow.builderPresetApplied.v1";
+const USER_PREFS_STORAGE_KEY = "draftflow.userPrefs.v1";
+const TEAM_CONFIG_STORAGE_KEY = "draftflow.teamConfig.v1";
 
 const CHAMPION_IMAGE_OVERRIDES = Object.freeze({
   VelKoz: "Velkoz"
 });
 
+const USER_PREF_DEFAULTS = Object.freeze({
+  defaultIntent: "build",
+  defaultTreeDensity: "summary",
+  showOptionalChecksByDefault: false,
+  autoApplyPresetOnLoad: true
+});
+
+const INTENT_CONFIG = Object.freeze({
+  build: {
+    workflowTitle: "Build Team Workflow",
+    intentHelp: "Focus on assembling a draft and generating next-pick options.",
+    stages: [
+      {
+        key: "setup",
+        label: "1) Setup",
+        panelTitle: "1) Setup",
+        panelMeta: "Set current team state and generation constraints.",
+        help: "Set team context, role picks, and generation constraints."
+      },
+      {
+        key: "validate",
+        label: "2) Validate",
+        panelTitle: "2) Validate",
+        panelMeta: "Required checks map directly to enabled toggles.",
+        help: "Review required checks and missing needs before generating."
+      },
+      {
+        key: "inspect",
+        label: "3) Inspect",
+        panelTitle: "3) Inspect",
+        panelMeta: "Inspect a node to see slot-level impact and cumulative reasons that increase its score.",
+        help: "Inspect generated nodes and apply a selected path when ready."
+      }
+    ],
+    continueLabel: "Continue to Validate",
+    generateLabel: "Generate Tree",
+    generateReadyStatus: "Setup complete. Review required checks, then generate the tree."
+  },
+  evaluate: {
+    workflowTitle: "Evaluate Team Workflow",
+    intentHelp: "Focus on assessing an existing draft and generating upgrade paths.",
+    stages: [
+      {
+        key: "setup",
+        label: "1) Setup Team",
+        panelTitle: "1) Setup Team",
+        panelMeta: "Load your current team state and adjust constraints.",
+        help: "Set current team inputs for evaluation."
+      },
+      {
+        key: "validate",
+        label: "2) Evaluate",
+        panelTitle: "2) Evaluate",
+        panelMeta: "Assess required/optional checks based on current team completeness.",
+        help: "Assess composition readiness and identify gaps."
+      },
+      {
+        key: "inspect",
+        label: "3) Explore Upgrades",
+        panelTitle: "3) Explore Upgrades",
+        panelMeta: "Inspect suggested upgrade paths and compare alternatives.",
+        help: "Inspect recommendation branches and compare node outcomes."
+      }
+    ],
+    continueLabel: "Review Team Checks",
+    generateLabel: "Generate Upgrade Tree",
+    generateReadyStatus: "Team setup captured. Review evaluation checks, then generate upgrade paths."
+  },
+  criteria: {
+    workflowTitle: "Criteria Build Workflow",
+    intentHelp: "Focus on constraints and requirement tuning before candidate generation.",
+    stages: [
+      {
+        key: "setup",
+        label: "1) Set Criteria",
+        panelTitle: "1) Set Criteria",
+        panelMeta: "Tune requirements, exclusions, and generation parameters first.",
+        help: "Set constraints and exclusions before generation."
+      },
+      {
+        key: "validate",
+        label: "2) Check Impact",
+        panelTitle: "2) Check Impact",
+        panelMeta: "Preview readiness impact of your current criteria set.",
+        help: "Review requirement impact and expected missing needs."
+      },
+      {
+        key: "inspect",
+        label: "3) Inspect Results",
+        panelTitle: "3) Inspect Results",
+        panelMeta: "Inspect how criteria shape ranked branch outcomes.",
+        help: "Inspect generated branches under current constraints."
+      }
+    ],
+    continueLabel: "Preview Criteria Impact",
+    generateLabel: "Run Criteria Tree",
+    generateReadyStatus: "Criteria captured. Review impact, then run the criteria tree."
+  }
+});
+
 const state = {
   data: null,
-  activeTab: "builder",
+  activeTab: "workflow",
   explorer: {
     search: "",
     roles: [],
@@ -31,10 +133,18 @@ const state = {
     excludeTags: [],
     sortBy: "alpha-asc"
   },
+  teamConfig: {
+    defaultTeamId: null,
+    activeTeamId: null
+  },
+  userConfig: {
+    ...USER_PREF_DEFAULTS
+  },
   builder: {
+    intent: USER_PREF_DEFAULTS.defaultIntent,
     stage: "setup",
     showFirstRunHints: false,
-    showOptionalChecks: false,
+    showOptionalChecks: USER_PREF_DEFAULTS.showOptionalChecksByDefault,
     teamId: "",
     teamState: createEmptyTeamState(),
     draftOrder: [...SLOTS],
@@ -60,9 +170,12 @@ const state = {
 
 const elements = {
   statusBanner: document.querySelector("#status-banner"),
-  tabButtons: Array.from(document.querySelectorAll(".tab")),
+  tabTriggers: Array.from(document.querySelectorAll("button[data-tab]")),
+  primaryTabs: Array.from(document.querySelectorAll(".primary-tab")),
   tabExplorer: document.querySelector("#tab-explorer"),
-  tabBuilder: document.querySelector("#tab-builder"),
+  tabWorkflow: document.querySelector("#tab-workflow"),
+  tabTeamConfig: document.querySelector("#tab-team-config"),
+  tabUserConfig: document.querySelector("#tab-user-config"),
   explorerSearch: document.querySelector("#explorer-search"),
   explorerRole: document.querySelector("#explorer-role"),
   explorerDamage: document.querySelector("#explorer-damage"),
@@ -75,9 +188,20 @@ const elements = {
   explorerClearExclude: document.querySelector("#explorer-clear-exclude"),
   explorerCount: document.querySelector("#explorer-count"),
   explorerResults: document.querySelector("#explorer-results"),
-  builderTeam: document.querySelector("#builder-team"),
+  builderWorkflowTitle: document.querySelector("#builder-workflow-title"),
+  builderIntentHelp: document.querySelector("#builder-intent-help"),
+  builderIntentSwitch: document.querySelector("#builder-intent-switch"),
   builderApplyPreset: document.querySelector("#builder-apply-preset"),
+  builderOpenTeamConfig: document.querySelector("#builder-open-team-config"),
+  builderTeamName: document.querySelector("#builder-team-name"),
   builderTeamHelp: document.querySelector("#builder-team-help"),
+  builderStageSetupTitle: document.querySelector("#builder-stage-setup-title"),
+  builderStageSetupMeta: document.querySelector("#builder-stage-setup-meta"),
+  builderStageValidateTitle: document.querySelector("#builder-stage-validate-title"),
+  builderStageValidateMeta: document.querySelector("#builder-stage-validate-meta"),
+  builderStageInspectTitle: document.querySelector("#builder-stage-inspect-title"),
+  builderStageInspectMeta: document.querySelector("#builder-stage-inspect-meta"),
+  builderChecksReadiness: document.querySelector("#builder-checks-readiness"),
   builderStageChips: document.querySelector("#builder-stage-chips"),
   builderStageHelp: document.querySelector("#builder-stage-help"),
   builderFirstRunHints: document.querySelector("#builder-first-run-hints"),
@@ -110,6 +234,20 @@ const elements = {
   builderPreview: document.querySelector("#builder-preview"),
   treeExpandAll: document.querySelector("#tree-expand-all"),
   treeCollapseAll: document.querySelector("#tree-collapse-all"),
+  teamConfigDefaultTeam: document.querySelector("#team-config-default-team"),
+  teamConfigActiveTeam: document.querySelector("#team-config-active-team"),
+  teamConfigDefaultHelp: document.querySelector("#team-config-default-help"),
+  teamConfigActiveHelp: document.querySelector("#team-config-active-help"),
+  teamConfigApplyActive: document.querySelector("#team-config-apply-active"),
+  teamConfigPoolSummary: document.querySelector("#team-config-pool-summary"),
+  teamConfigPoolGrid: document.querySelector("#team-config-pool-grid"),
+  userConfigDefaultIntent: document.querySelector("#user-config-default-intent"),
+  userConfigDefaultDensity: document.querySelector("#user-config-default-density"),
+  userConfigShowOptional: document.querySelector("#user-config-show-optional"),
+  userConfigAutoPreset: document.querySelector("#user-config-auto-preset"),
+  userConfigSave: document.querySelector("#user-config-save"),
+  userConfigReset: document.querySelector("#user-config-reset"),
+  userConfigFeedback: document.querySelector("#user-config-feedback"),
   slotSelects: Object.fromEntries(
     SLOTS.map((slot) => [slot, document.querySelector(`#slot-${slot}`)])
   ),
@@ -117,24 +255,6 @@ const elements = {
     SLOTS.map((slot) => [slot, document.querySelector(`#slot-label-${slot}`)])
   )
 };
-
-const BUILDER_STAGE_STEPS = Object.freeze([
-  {
-    key: "setup",
-    label: "1) Setup",
-    help: "Set team context, role picks, and generation constraints."
-  },
-  {
-    key: "validate",
-    label: "2) Validate",
-    help: "Review required checks and missing needs before generating."
-  },
-  {
-    key: "inspect",
-    label: "3) Inspect",
-    help: "Inspect generated nodes and apply a selected path when ready."
-  }
-]);
 
 function setStatus(message, isError = false) {
   if (!message) {
@@ -147,8 +267,16 @@ function setStatus(message, isError = false) {
   elements.statusBanner.style.borderLeftColor = isError ? "#9c3f1e" : "#cc5b34";
 }
 
+function getIntentMode() {
+  return INTENT_CONFIG[state.builder.intent] ?? INTENT_CONFIG.build;
+}
+
+function getBuilderStageSteps() {
+  return getIntentMode().stages;
+}
+
 function getBuilderStageIndex(stage) {
-  return BUILDER_STAGE_STEPS.findIndex((step) => step.key === stage);
+  return getBuilderStageSteps().findIndex((step) => step.key === stage);
 }
 
 function setBuilderStage(stage) {
@@ -160,7 +288,7 @@ function setBuilderStage(stage) {
 
 function resetBuilderTreeState() {
   state.builder.tree = null;
-  state.builder.treeDensity = "summary";
+  state.builder.treeDensity = state.userConfig.defaultTreeDensity === "detailed" ? "detailed" : "summary";
   state.builder.treeSearch = "";
   state.builder.treeMinScore = 0;
   state.builder.previewTeam = null;
@@ -172,12 +300,25 @@ function resetBuilderTreeState() {
 }
 
 function renderBuilderStageGuide() {
+  const intentMode = getIntentMode();
+  const stageSteps = getBuilderStageSteps();
   const currentStageIndex = getBuilderStageIndex(state.builder.stage);
-  const stageHelp = BUILDER_STAGE_STEPS[currentStageIndex]?.help ?? "";
+  const stageHelp = stageSteps[currentStageIndex]?.help ?? "";
+
+  elements.builderWorkflowTitle.textContent = intentMode.workflowTitle;
+  elements.builderIntentHelp.textContent = intentMode.intentHelp;
+  elements.builderStageSetupTitle.textContent = intentMode.stages[0].panelTitle;
+  elements.builderStageSetupMeta.textContent = intentMode.stages[0].panelMeta;
+  elements.builderStageValidateTitle.textContent = intentMode.stages[1].panelTitle;
+  elements.builderStageValidateMeta.textContent = intentMode.stages[1].panelMeta;
+  elements.builderStageInspectTitle.textContent = intentMode.stages[2].panelTitle;
+  elements.builderStageInspectMeta.textContent = intentMode.stages[2].panelMeta;
+  elements.builderContinueValidate.textContent = intentMode.continueLabel;
+  elements.builderGenerate.textContent = intentMode.generateLabel;
 
   elements.builderStageChips.innerHTML = "";
-  for (let index = 0; index < BUILDER_STAGE_STEPS.length; index += 1) {
-    const step = BUILDER_STAGE_STEPS[index];
+  for (let index = 0; index < stageSteps.length; index += 1) {
+    const step = stageSteps[index];
     const chip = document.createElement("span");
     chip.className = "stage-chip";
 
@@ -192,6 +333,11 @@ function renderBuilderStageGuide() {
     }
 
     elements.builderStageChips.append(chip);
+  }
+
+  const intentRadios = elements.builderIntentSwitch.querySelectorAll("input[name='builder-intent']");
+  for (const radio of intentRadios) {
+    radio.checked = radio.value === state.builder.intent;
   }
 
   elements.builderStageHelp.textContent = stageHelp;
@@ -264,13 +410,29 @@ function normalizeNoFilterMultiSelection(values, select) {
 }
 
 function setTab(tabName) {
-  state.activeTab = tabName;
-  for (const button of elements.tabButtons) {
-    const isActive = button.dataset.tab === tabName;
+  const validTabs = new Set(["workflow", "team-config", "user-config", "explorer"]);
+  const resolvedTab = validTabs.has(tabName) ? tabName : "workflow";
+  state.activeTab = resolvedTab;
+
+  for (const button of elements.primaryTabs) {
+    const isActive = button.dataset.tab === resolvedTab;
     button.classList.toggle("is-active", isActive);
   }
-  elements.tabExplorer.classList.toggle("is-active", tabName === "explorer");
-  elements.tabBuilder.classList.toggle("is-active", tabName === "builder");
+
+  elements.tabExplorer.classList.toggle("is-active", resolvedTab === "explorer");
+  elements.tabWorkflow.classList.toggle("is-active", resolvedTab === "workflow");
+  elements.tabTeamConfig.classList.toggle("is-active", resolvedTab === "team-config");
+  elements.tabUserConfig.classList.toggle("is-active", resolvedTab === "user-config");
+
+  if (resolvedTab === "team-config" && state.data) {
+    renderTeamConfig();
+  }
+  if (resolvedTab === "user-config") {
+    renderUserConfig();
+  }
+  if (resolvedTab === "explorer" && state.data) {
+    renderExplorer();
+  }
 }
 
 async function fetchText(path) {
@@ -413,6 +575,10 @@ function getSlotLabel(slot) {
 }
 
 function updateTeamHelpAndSlotLabels() {
+  elements.builderTeamName.textContent = state.builder.teamId === NONE_TEAM_ID
+    ? "Active team: None (global role pools)"
+    : `Active team: ${state.builder.teamId}`;
+
   if (state.builder.teamId === NONE_TEAM_ID) {
     elements.builderTeamHelp.textContent =
       "None mode: candidates for each slot come from champion role eligibility (no team pool restrictions).";
@@ -426,21 +592,46 @@ function updateTeamHelpAndSlotLabels() {
   }
 }
 
-function initializeBuilderControls() {
+function getTeamSelectOptions() {
   const teamOptions = Object.keys(state.data.teamPools)
     .sort((left, right) => left.localeCompare(right))
     .map((teamId) => ({ value: teamId, label: teamId }));
-
-  replaceOptions(elements.builderTeam, [
+  return [
     { value: NONE_TEAM_ID, label: "None (global role pools)" },
     ...teamOptions
-  ]);
+  ];
+}
 
-  state.builder.teamId = state.data.config.teamDefault && state.data.teamPools[state.data.config.teamDefault]
-    ? state.data.config.teamDefault
-    : NONE_TEAM_ID;
+function normalizeConfiguredTeamId(teamId) {
+  if (teamId === NONE_TEAM_ID) {
+    return NONE_TEAM_ID;
+  }
+  if (typeof teamId === "string" && state.data.teamPools[teamId]) {
+    return teamId;
+  }
+  return NONE_TEAM_ID;
+}
 
-  elements.builderTeam.value = state.builder.teamId;
+function getPoolsForTeam(teamId) {
+  if (teamId === NONE_TEAM_ID) {
+    return state.data.noneTeamPools;
+  }
+  return state.data.teamPools[teamId] ?? state.data.noneTeamPools;
+}
+
+function initializeBuilderControls() {
+  const candidateDefaultTeamId = state.teamConfig.defaultTeamId ?? state.data.config.teamDefault ?? NONE_TEAM_ID;
+  const candidateActiveTeamId = state.teamConfig.activeTeamId ?? candidateDefaultTeamId;
+  state.teamConfig.defaultTeamId = normalizeConfiguredTeamId(
+    candidateDefaultTeamId
+  );
+  state.teamConfig.activeTeamId = normalizeConfiguredTeamId(
+    candidateActiveTeamId
+  );
+  state.builder.teamId = state.teamConfig.activeTeamId;
+  state.builder.intent = INTENT_CONFIG[state.userConfig.defaultIntent] ? state.userConfig.defaultIntent : "build";
+  state.builder.showOptionalChecks = Boolean(state.userConfig.showOptionalChecksByDefault);
+  state.builder.treeDensity = state.userConfig.defaultTreeDensity === "detailed" ? "detailed" : "summary";
 
   elements.builderToggles.innerHTML = "<legend>Required Toggles</legend>";
   for (const key of Object.keys(DEFAULT_REQUIREMENT_TOGGLES)) {
@@ -475,6 +666,68 @@ function syncBuilderToggleInputs() {
   }
 }
 
+function renderTeamConfig() {
+  elements.teamConfigDefaultTeam.value = state.teamConfig.defaultTeamId;
+  elements.teamConfigActiveTeam.value = state.teamConfig.activeTeamId;
+
+  elements.teamConfigDefaultHelp.textContent = state.teamConfig.defaultTeamId === NONE_TEAM_ID
+    ? "Default preset team is None (global role pools)."
+    : `Default preset team is ${state.teamConfig.defaultTeamId}.`;
+
+  elements.teamConfigActiveHelp.textContent = state.teamConfig.activeTeamId === NONE_TEAM_ID
+    ? "Workflow currently uses global role pools."
+    : `Workflow currently uses ${state.teamConfig.activeTeamId} role pools.`;
+
+  const pools = getPoolsForTeam(state.teamConfig.activeTeamId);
+  const roleCounts = SLOTS.map((slot) => `${slot}: ${(pools[slot] ?? []).length}`);
+  elements.teamConfigPoolSummary.textContent = `${state.teamConfig.activeTeamId === NONE_TEAM_ID ? "None" : state.teamConfig.activeTeamId} pool sizes -> ${roleCounts.join(" | ")}`;
+
+  elements.teamConfigPoolGrid.innerHTML = "";
+  for (const slot of SLOTS) {
+    const card = document.createElement("article");
+    card.className = "summary-card";
+
+    const title = document.createElement("strong");
+    title.textContent = slot;
+
+    const count = document.createElement("p");
+    count.className = "meta";
+    const champions = [...(pools[slot] ?? [])].sort((left, right) => left.localeCompare(right));
+    count.textContent = `${champions.length} champion${champions.length === 1 ? "" : "s"} in pool.`;
+
+    const list = document.createElement("p");
+    list.className = "meta";
+    list.textContent = champions.length > 0 ? champions.join(", ") : "No champions configured.";
+
+    card.append(title, count, list);
+    elements.teamConfigPoolGrid.append(card);
+  }
+}
+
+function initializeTeamConfigControls() {
+  const options = getTeamSelectOptions();
+  replaceOptions(elements.teamConfigDefaultTeam, options);
+  replaceOptions(elements.teamConfigActiveTeam, options);
+  renderTeamConfig();
+}
+
+function renderUserConfigFeedback(message, isError = false) {
+  elements.userConfigFeedback.textContent = message;
+  elements.userConfigFeedback.style.color = isError ? "var(--warn)" : "var(--muted)";
+}
+
+function renderUserConfig() {
+  elements.userConfigDefaultIntent.value = state.userConfig.defaultIntent;
+  elements.userConfigDefaultDensity.value = state.userConfig.defaultTreeDensity;
+  elements.userConfigShowOptional.checked = state.userConfig.showOptionalChecksByDefault;
+  elements.userConfigAutoPreset.checked = state.userConfig.autoApplyPresetOnLoad;
+}
+
+function initializeUserConfigControls() {
+  renderUserConfig();
+  renderUserConfigFeedback("");
+}
+
 function tryReadPresetFlag() {
   try {
     return window.localStorage.getItem(FIRST_RUN_PRESET_KEY) === "true";
@@ -491,25 +744,83 @@ function tryWritePresetFlag() {
   }
 }
 
+function tryReadJsonStorage(key, fallback) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) {
+      return fallback;
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return fallback;
+    }
+    return parsed;
+  } catch {
+    return fallback;
+  }
+}
+
+function tryWriteJsonStorage(key, value) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function loadStoredUserConfig() {
+  const stored = tryReadJsonStorage(USER_PREFS_STORAGE_KEY, {});
+  const defaultIntent = typeof stored.defaultIntent === "string" && INTENT_CONFIG[stored.defaultIntent]
+    ? stored.defaultIntent
+    : USER_PREF_DEFAULTS.defaultIntent;
+  const defaultTreeDensity = stored.defaultTreeDensity === "detailed" ? "detailed" : USER_PREF_DEFAULTS.defaultTreeDensity;
+  const showOptionalChecksByDefault = Boolean(stored.showOptionalChecksByDefault);
+  const autoApplyPresetOnLoad = stored.autoApplyPresetOnLoad === undefined
+    ? USER_PREF_DEFAULTS.autoApplyPresetOnLoad
+    : Boolean(stored.autoApplyPresetOnLoad);
+
+  state.userConfig = {
+    defaultIntent,
+    defaultTreeDensity,
+    showOptionalChecksByDefault,
+    autoApplyPresetOnLoad
+  };
+}
+
+function loadStoredTeamConfig() {
+  const stored = tryReadJsonStorage(TEAM_CONFIG_STORAGE_KEY, {});
+  state.teamConfig.defaultTeamId = typeof stored.defaultTeamId === "string" ? stored.defaultTeamId : null;
+  state.teamConfig.activeTeamId = typeof stored.activeTeamId === "string" ? stored.activeTeamId : null;
+}
+
+function saveTeamConfig() {
+  tryWriteJsonStorage(TEAM_CONFIG_STORAGE_KEY, state.teamConfig);
+}
+
+function saveUserConfig() {
+  return tryWriteJsonStorage(USER_PREFS_STORAGE_KEY, state.userConfig);
+}
+
 function applyRecommendedPreset(options = {}) {
   const firstRunOnly = Boolean(options.firstRunOnly);
-  if (firstRunOnly && tryReadPresetFlag()) {
+  const alreadyApplied = tryReadPresetFlag();
+  if (firstRunOnly && alreadyApplied) {
     return false;
   }
 
-  const configDefaultTeam = state.data.config.teamDefault;
-  const defaultTeamId = configDefaultTeam && state.data.teamPools[configDefaultTeam]
-    ? configDefaultTeam
-    : NONE_TEAM_ID;
+  const defaultTeamId = normalizeConfiguredTeamId(state.teamConfig.defaultTeamId);
 
   state.builder.teamId = defaultTeamId;
+  state.teamConfig.activeTeamId = defaultTeamId;
   state.builder.teamState = createEmptyTeamState();
   state.builder.draftOrder = [...SLOTS];
+  state.builder.intent = INTENT_CONFIG[state.userConfig.defaultIntent] ? state.userConfig.defaultIntent : "build";
   state.builder.toggles = { ...DEFAULT_REQUIREMENT_TOGGLES };
-  state.builder.showOptionalChecks = false;
+  state.builder.showOptionalChecks = Boolean(state.userConfig.showOptionalChecksByDefault);
   state.builder.excludedChampions = [];
   state.builder.excludedSearch = "";
-  state.builder.treeDensity = "summary";
+  state.builder.treeDensity = state.userConfig.defaultTreeDensity === "detailed" ? "detailed" : "summary";
   state.builder.treeSearch = "";
   state.builder.treeMinScore = 0;
 
@@ -519,19 +830,20 @@ function applyRecommendedPreset(options = {}) {
   state.builder.maxBranch = Number.isFinite(rawBranch) ? Math.max(1, rawBranch) : 8;
 
   resetBuilderTreeState();
+  state.builder.treeDensity = state.userConfig.defaultTreeDensity === "detailed" ? "detailed" : "summary";
   setBuilderStage("setup");
-  state.builder.showFirstRunHints = true;
+  state.builder.showFirstRunHints = firstRunOnly && !alreadyApplied;
 
-  elements.builderTeam.value = state.builder.teamId;
   elements.builderMaxDepth.value = String(state.builder.maxDepth);
   elements.builderMaxBranch.value = String(state.builder.maxBranch);
   elements.builderExcludedSearch.value = "";
   elements.treeSearch.value = "";
   elements.treeMinScore.value = "0";
-  elements.treeDensity.value = "summary";
+  elements.treeDensity.value = state.builder.treeDensity;
   syncBuilderToggleInputs();
 
   tryWritePresetFlag();
+  saveTeamConfig();
   return true;
 }
 
@@ -738,6 +1050,17 @@ function renderTeamContext() {
   }
 }
 
+function getTeamCompletionInfo() {
+  const filledSlots = SLOTS.filter((slot) => Boolean(state.builder.teamState[slot])).length;
+  if (filledSlots === 0) {
+    return { filledSlots, totalSlots: SLOTS.length, completionState: "empty" };
+  }
+  if (filledSlots === SLOTS.length) {
+    return { filledSlots, totalSlots: SLOTS.length, completionState: "full" };
+  }
+  return { filledSlots, totalSlots: SLOTS.length, completionState: "partial" };
+}
+
 function humanizeCheckName(checkName) {
   return checkName.replace(/([a-z])([A-Z])/g, "$1 $2");
 }
@@ -827,6 +1150,34 @@ function buildCheckRow(checkName, result, checkEvaluation) {
 }
 
 function renderChecks() {
+  const completion = getTeamCompletionInfo();
+  if (completion.completionState === "empty") {
+    elements.builderChecksReadiness.textContent = "No champions selected yet. Add at least one pick to start requirement evaluation.";
+    elements.builderRequiredChecks.innerHTML = "";
+    elements.builderOptionalChecks.innerHTML = "";
+    elements.builderOptionalChecks.hidden = true;
+    elements.builderToggleOptionalChecks.textContent = "Optional checks available after picks";
+    elements.builderToggleOptionalChecks.disabled = true;
+
+    const requiredRow = document.createElement("li");
+    requiredRow.className = "check is-optional";
+    requiredRow.textContent = "Readiness checks are waiting for your first champion selection.";
+    elements.builderRequiredChecks.append(requiredRow);
+
+    elements.builderMissingNeeds.innerHTML = "";
+    const missingRow = document.createElement("li");
+    missingRow.textContent = "No missing-need warnings yet (team is empty).";
+    elements.builderMissingNeeds.append(missingRow);
+    return;
+  }
+
+  elements.builderToggleOptionalChecks.disabled = false;
+  if (completion.completionState === "partial") {
+    elements.builderChecksReadiness.textContent = `${completion.filledSlots}/${completion.totalSlots} slots filled. Missing checks can be expected while the draft is incomplete.`;
+  } else {
+    elements.builderChecksReadiness.textContent = "Team is full. Resolve any failed required checks before locking draft recommendations.";
+  }
+
   const checkEvaluation = evaluateCompositionChecks(
     state.builder.teamState,
     state.data.championsByName,
@@ -1689,7 +2040,7 @@ function syncTagMutualExclusion(changed) {
 }
 
 function attachEvents() {
-  for (const button of elements.tabButtons) {
+  for (const button of elements.tabTriggers) {
     button.addEventListener("click", () => setTab(button.dataset.tab));
   }
 
@@ -1750,8 +2101,22 @@ function attachEvents() {
   elements.builderApplyPreset.addEventListener("click", () => {
     applyRecommendedPreset();
     syncSlotSelectOptions();
+    renderTeamConfig();
     renderBuilder();
     setStatus("Recommended preset applied.");
+  });
+
+  elements.builderIntentSwitch.addEventListener("change", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement) || target.name !== "builder-intent") {
+      return;
+    }
+    if (!INTENT_CONFIG[target.value]) {
+      return;
+    }
+    state.builder.intent = target.value;
+    setBuilderStage("setup");
+    renderBuilder();
   });
 
   elements.builderToggleOptionalChecks.addEventListener("click", () => {
@@ -1777,15 +2142,6 @@ function attachEvents() {
     elements.treeMinScore.value = String(state.builder.treeMinScore);
     renderTree();
     renderTreeMap();
-  });
-
-  elements.builderTeam.addEventListener("change", () => {
-    state.builder.teamId = elements.builderTeam.value;
-    state.builder.teamState = createEmptyTeamState();
-    resetBuilderTreeState();
-    setBuilderStage("setup");
-    syncSlotSelectOptions();
-    renderBuilder();
   });
 
   elements.builderToggles.addEventListener("change", (event) => {
@@ -1826,7 +2182,7 @@ function attachEvents() {
   elements.builderContinueValidate.addEventListener("click", () => {
     setBuilderStage("validate");
     renderBuilder();
-    setStatus("Setup complete. Review required checks, then generate the tree.");
+    setStatus(getIntentMode().generateReadyStatus);
   });
 
   for (const slot of SLOTS) {
@@ -1904,19 +2260,81 @@ function attachEvents() {
   elements.treeCollapseAll.addEventListener("click", () => {
     setAllTreeDetails(false);
   });
+
+  elements.teamConfigDefaultTeam.addEventListener("change", () => {
+    state.teamConfig.defaultTeamId = normalizeConfiguredTeamId(elements.teamConfigDefaultTeam.value);
+    saveTeamConfig();
+    renderTeamConfig();
+  });
+
+  elements.teamConfigActiveTeam.addEventListener("change", () => {
+    state.teamConfig.activeTeamId = normalizeConfiguredTeamId(elements.teamConfigActiveTeam.value);
+    saveTeamConfig();
+    renderTeamConfig();
+  });
+
+  elements.teamConfigApplyActive.addEventListener("click", () => {
+    state.builder.teamId = normalizeConfiguredTeamId(state.teamConfig.activeTeamId);
+    state.teamConfig.activeTeamId = state.builder.teamId;
+    state.builder.teamState = createEmptyTeamState();
+    resetBuilderTreeState();
+    setBuilderStage("setup");
+    syncSlotSelectOptions();
+    saveTeamConfig();
+    renderTeamConfig();
+    renderBuilder();
+    setTab("workflow");
+    setStatus(`Applied ${state.builder.teamId === NONE_TEAM_ID ? "None" : state.builder.teamId} as active workflow team.`);
+  });
+
+  elements.userConfigSave.addEventListener("click", () => {
+    const nextIntent = elements.userConfigDefaultIntent.value;
+    state.userConfig.defaultIntent = INTENT_CONFIG[nextIntent] ? nextIntent : USER_PREF_DEFAULTS.defaultIntent;
+    state.userConfig.defaultTreeDensity = elements.userConfigDefaultDensity.value === "detailed" ? "detailed" : "summary";
+    state.userConfig.showOptionalChecksByDefault = elements.userConfigShowOptional.checked;
+    state.userConfig.autoApplyPresetOnLoad = elements.userConfigAutoPreset.checked;
+
+    const saved = saveUserConfig();
+
+    state.builder.intent = state.userConfig.defaultIntent;
+    state.builder.showOptionalChecks = state.userConfig.showOptionalChecksByDefault;
+    if (!state.builder.tree) {
+      state.builder.treeDensity = state.userConfig.defaultTreeDensity;
+    }
+    renderBuilder();
+    renderUserConfig();
+    renderUserConfigFeedback(saved ? "Preferences saved." : "Preferences could not be persisted in local storage.", !saved);
+  });
+
+  elements.userConfigReset.addEventListener("click", () => {
+    state.userConfig = { ...USER_PREF_DEFAULTS };
+    const saved = saveUserConfig();
+    renderUserConfig();
+    renderUserConfigFeedback(saved ? "Preferences reset to defaults." : "Defaults applied in memory, but local storage is unavailable.", !saved);
+  });
 }
 
 async function init() {
   try {
     setStatus("Loading local data files...");
-    setTab("builder");
+    setTab("workflow");
     await loadMvpData();
+    loadStoredUserConfig();
+    loadStoredTeamConfig();
     initializeExplorerControls();
     initializeBuilderControls();
-    const appliedPreset = applyRecommendedPreset({ firstRunOnly: true });
+    initializeTeamConfigControls();
+    initializeUserConfigControls();
+
+    let appliedPreset = false;
+    if (state.userConfig.autoApplyPresetOnLoad) {
+      appliedPreset = applyRecommendedPreset({ firstRunOnly: false });
+    }
+
     attachEvents();
     syncSlotSelectOptions();
-    renderExplorer();
+    renderTeamConfig();
+    renderUserConfig();
     renderBuilder();
     setStatus(
       appliedPreset

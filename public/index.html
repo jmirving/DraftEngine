@@ -12,20 +12,32 @@
     <main class="layout">
       <header class="hero">
         <p class="kicker">DraftEngine</p>
-        <h1>Possibility Tree Builder</h1>
+        <h1>Intent-Based Draft Workflow</h1>
         <p class="subtitle">
-          Explore champions, configure composition constraints, and generate deterministic next-pick trees.
+          Choose your draft intent, validate composition readiness, and inspect deterministic next-pick trees.
         </p>
       </header>
 
-      <nav class="tabs">
-        <button class="tab is-active" data-tab="builder" type="button">Tree Builder</button>
-        <button class="tab tab-secondary" data-tab="explorer" type="button">Explorer</button>
+      <nav class="tabs primary-tabs">
+        <button class="tab primary-tab is-active" data-tab="workflow" type="button">Workflow</button>
+        <button class="tab primary-tab" data-tab="team-config" type="button">Team Config</button>
+        <button class="tab primary-tab" data-tab="user-config" type="button">User Config</button>
       </nav>
+      <div class="tools-nav">
+        <span class="tools-label">Tools</span>
+        <button class="tool-link" data-tab="explorer" type="button">Open Champion Explorer</button>
+      </div>
 
       <section id="status-banner" class="status-banner" hidden></section>
 
       <section id="tab-explorer" class="tab-panel">
+        <div class="panel">
+          <div class="button-row">
+            <button id="explorer-back-workflow" class="ghost" data-tab="workflow" type="button">Back to Workflow</button>
+          </div>
+          <h2>Champion Explorer</h2>
+          <p class="meta">Secondary tool surface for broad champion discovery and filtering.</p>
+        </div>
         <div class="panel">
           <h2>Explorer Filters</h2>
           <p class="meta">Modern filter block: combine multi-select filters and clear include/exclude logic to find comps faster.</p>
@@ -75,25 +87,30 @@
         </div>
       </section>
 
-      <section id="tab-builder" class="tab-panel is-active">
+      <section id="tab-workflow" class="tab-panel is-active">
         <section id="builder-stage-guide" class="panel stage-guide" aria-live="polite">
-          <h2>Guided Flow</h2>
+          <h2 id="builder-workflow-title">Draft Workflow</h2>
+          <p id="builder-intent-help" class="meta"></p>
           <div id="builder-stage-chips" class="stage-chip-row"></div>
           <p id="builder-stage-help" class="meta"></p>
           <ul id="builder-first-run-hints" class="hint-list" hidden></ul>
         </section>
         <div class="builder-grid">
           <aside id="builder-stage-setup" class="panel stage-panel">
-            <h2>1) Setup</h2>
-            <p class="meta">Set current team state and generation constraints. Team-specific mode uses role pools; None mode uses all role-eligible champions.</p>
+            <h2 id="builder-stage-setup-title">1) Setup</h2>
+            <p id="builder-stage-setup-meta" class="meta">Set current team state and generation constraints.</p>
             <div class="stack">
+              <fieldset id="builder-intent-switch" class="toggle-group">
+                <legend>Intent</legend>
+                <label class="toggle-item"><input type="radio" name="builder-intent" value="build" checked /> <span>Build Team</span></label>
+                <label class="toggle-item"><input type="radio" name="builder-intent" value="evaluate" /> <span>Evaluate Team</span></label>
+                <label class="toggle-item"><input type="radio" name="builder-intent" value="criteria" /> <span>Criteria Build</span></label>
+              </fieldset>
               <div class="button-row">
                 <button id="builder-apply-preset" type="button" class="ghost">Apply Recommended Preset</button>
+                <button id="builder-open-team-config" type="button" class="ghost" data-tab="team-config">Open Team Config</button>
               </div>
-              <label>
-                Team
-                <select id="builder-team"></select>
-              </label>
+              <p id="builder-team-name" class="meta"></p>
               <p id="builder-team-help" class="meta"></p>
               <div class="slot-grid">
                 <label><span id="slot-label-Top">Top</span><select id="slot-Top"></select></label>
@@ -141,8 +158,9 @@
           </aside>
 
           <section id="builder-stage-validate" class="panel stage-panel">
-            <h2>2) Validate</h2>
-            <p class="meta">Required checks map directly to enabled toggles. Optional checks are shown for context.</p>
+            <h2 id="builder-stage-validate-title">2) Validate</h2>
+            <p id="builder-stage-validate-meta" class="meta">Required checks map directly to enabled toggles.</p>
+            <p id="builder-checks-readiness" class="meta"></p>
             <div id="builder-team-context" class="team-context"></div>
             <h3>Required Checks</h3>
             <ul id="builder-required-checks" class="check-list"></ul>
@@ -161,8 +179,8 @@
           </section>
 
           <section id="builder-stage-inspect" class="panel stage-panel">
-            <h2>3) Inspect</h2>
-            <p class="meta">Inspect a node to see slot-level impact and cumulative reasons that increase its score.</p>
+            <h2 id="builder-stage-inspect-title">3) Inspect</h2>
+            <p id="builder-stage-inspect-meta" class="meta">Inspect a node to see slot-level impact and cumulative reasons that increase its score.</p>
             <div class="tree-toolbar">
               <label>
                 Density
@@ -194,6 +212,66 @@
             <div id="builder-tree" class="tree"></div>
             <div id="builder-preview" class="preview"></div>
           </section>
+        </div>
+      </section>
+
+      <section id="tab-team-config" class="tab-panel">
+        <div class="panel">
+          <h2>Team Configuration</h2>
+          <p class="meta">Dedicated surface for team defaults and roster-pool context used by workflow generation.</p>
+          <div class="grid grid-2">
+            <label>
+              Default Team for Preset
+              <select id="team-config-default-team"></select>
+            </label>
+            <label>
+              Active Team for Workflow
+              <select id="team-config-active-team"></select>
+            </label>
+          </div>
+          <p id="team-config-default-help" class="meta"></p>
+          <p id="team-config-active-help" class="meta"></p>
+          <div class="button-row">
+            <button id="team-config-apply-active" type="button">Apply Active Team to Workflow</button>
+            <button id="team-config-open-workflow" class="ghost" data-tab="workflow" type="button">Back to Workflow</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Roster Pool Preview</h2>
+          <p id="team-config-pool-summary" class="meta"></p>
+          <div id="team-config-pool-grid" class="grid grid-2"></div>
+        </div>
+      </section>
+
+      <section id="tab-user-config" class="tab-panel">
+        <div class="panel">
+          <h2>User Configuration</h2>
+          <p class="meta">Personalize default intent and workflow behavior.</p>
+          <div class="grid grid-2">
+            <label>
+              Default Intent
+              <select id="user-config-default-intent">
+                <option value="build">Build Team</option>
+                <option value="evaluate">Evaluate Team</option>
+                <option value="criteria">Criteria Build</option>
+              </select>
+            </label>
+            <label>
+              Default Tree Density
+              <select id="user-config-default-density">
+                <option value="summary">Summary</option>
+                <option value="detailed">Detailed</option>
+              </select>
+            </label>
+          </div>
+          <label class="toggle-item"><input id="user-config-show-optional" type="checkbox" /> <span>Show optional checks by default</span></label>
+          <label class="toggle-item"><input id="user-config-auto-preset" type="checkbox" /> <span>Auto-apply recommended preset on load</span></label>
+          <div class="button-row">
+            <button id="user-config-save" type="button">Save Preferences</button>
+            <button id="user-config-reset" class="ghost" type="button">Reset Preferences</button>
+            <button id="user-config-open-workflow" class="ghost" data-tab="workflow" type="button">Back to Workflow</button>
+          </div>
+          <p id="user-config-feedback" class="meta"></p>
         </div>
       </section>
     </main>

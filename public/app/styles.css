@@ -101,6 +101,10 @@ h3 {
   margin-bottom: 1rem;
 }
 
+.primary-tabs {
+  margin-bottom: 0.45rem;
+}
+
 .tab {
   border: 1px solid var(--border);
   background: var(--surface);
@@ -119,6 +123,33 @@ h3 {
 
 .tab-secondary {
   opacity: 0.78;
+}
+
+.tools-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.tools-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.tool-link {
+  width: auto;
+  margin-top: 0;
+  border: 1px dashed var(--accent-soft);
+  background: #fff8f2;
+  color: #6b2a12;
+  border-radius: 999px;
+  padding: 0.35rem 0.72rem;
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 .tab-panel {
@@ -337,6 +368,10 @@ button.ghost {
 .toggle-item input {
   width: auto;
   margin: 0;
+}
+
+#builder-intent-switch {
+  background: #fffefa;
 }
 
 .button-row {
@@ -759,5 +794,14 @@ button.ghost {
   .optional-checks-header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .tools-nav {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tool-link {
+    width: 100%;
   }
 }

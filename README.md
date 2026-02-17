@@ -11,7 +11,12 @@ python3 -m http.server 8000
 2. Open:
 `http://localhost:8000/public/index.html`
 
-The app opens on `Tree Builder` by default. `Explorer` remains available from the secondary tab.
+The app opens on `Workflow` by default. `Champion Explorer` is available from secondary `Tools` navigation.
+
+Primary surfaces:
+- `Workflow` (intent-based: Build Team, Evaluate Team, Criteria Build)
+- `Team Config` (team defaults + role-pool preview)
+- `User Config` (personal defaults and preferences)
 
 ## Data Inputs
 
@@ -45,7 +50,7 @@ Tree defaults:
 - Tree generation is deterministic for identical inputs.
 - Candidate scoring does not apply redundancy penalties.
 - Tree expansion priority follows configurable Node Draft Order.
-- Team selector supports `None` mode (global role-eligible champion pools).
+- Team configuration supports `None` mode (global role-eligible champion pools).
 - Tree view includes both an outline and a visual Tree Map graph.
 - Excluded champions are filtered from selectors and tree output.
 - Candidate generation is constrained by team role pools.
