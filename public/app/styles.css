@@ -25,6 +25,10 @@ body {
     radial-gradient(circle at 88% 14%, #ffe8dc 0%, transparent 40%), var(--bg);
 }
 
+body.nav-open {
+  overflow: hidden;
+}
+
 .bg-shape {
   position: fixed;
   inset: auto;
@@ -95,11 +99,45 @@ h3 {
   max-width: 80ch;
 }
 
+.hero-actions {
+  margin-top: 0.65rem;
+}
+
+.nav-toggle {
+  display: none;
+  width: auto;
+  min-width: 8.5rem;
+  padding-inline: 0.8rem;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: minmax(210px, 240px) minmax(0, 1fr);
   gap: 0.9rem;
   align-items: start;
+}
+
+.nav-drawer {
+  min-width: 0;
+}
+
+.nav-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(24, 30, 34, 0.38);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+  z-index: 8;
+}
+
+.nav-overlay.is-open {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .side-menu {
@@ -109,11 +147,20 @@ h3 {
 
 .side-menu-link {
   text-align: left;
-  margin-top: 0.35rem;
+  margin-top: 0.45rem;
   background: #fff8f2;
   color: #6b2a12;
   border: 1px solid var(--accent-soft);
+  border-radius: 12px;
+  padding: 0.56rem 0.66rem;
+  min-height: 2.4rem;
   font-weight: 700;
+  transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+}
+
+.side-menu-link:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(113, 54, 27, 0.14);
 }
 
 .side-menu-link.is-active {
@@ -142,15 +189,6 @@ h3 {
 
 .stage-guide {
   margin-bottom: 0.8rem;
-}
-
-.guidance-list {
-  margin: 0 0 0.7rem 0;
-  padding-left: 1.1rem;
-  color: var(--muted);
-  font-size: 0.84rem;
-  display: grid;
-  gap: 0.18rem;
 }
 
 .stage-guide-actions {
@@ -791,12 +829,45 @@ button.ghost {
 }
 
 @media (max-width: 1100px) {
+  .layout {
+    padding-top: 0.9rem;
+  }
+
+  .nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .app-shell {
     grid-template-columns: 1fr;
   }
 
+  .nav-overlay {
+    display: block;
+  }
+
+  .nav-drawer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(84vw, 320px);
+    padding: 0.85rem 0.75rem;
+    transform: translateX(-105%);
+    transition: transform 180ms ease;
+    z-index: 9;
+  }
+
+  .nav-drawer.is-open {
+    transform: translateX(0);
+  }
+
   .side-menu {
     position: static;
+    margin: 0;
+    max-height: calc(100vh - 1.7rem);
+    overflow: auto;
   }
 
   .builder-grid {

@@ -11,30 +11,42 @@
     <div class="bg-shape bg-shape-b"></div>
     <main class="layout">
       <header class="hero">
-        <p class="kicker">DraftEngine</p>
-        <h1>Composition Draft Workflow</h1>
-          <p class="subtitle">
-          Configure team context, analyze composition readiness, and inspect deterministic next-pick trees.
+        <p id="hero-kicker" class="kicker">DraftEngine</p>
+        <h1 id="hero-title">Build a Composition</h1>
+        <p id="hero-subtitle" class="subtitle">
+          Configure team context, shape compositions, and inspect deterministic next-pick trees.
         </p>
+        <div class="hero-actions">
+          <button
+            id="nav-toggle"
+            class="ghost nav-toggle"
+            type="button"
+            aria-controls="nav-drawer"
+            aria-expanded="false"
+          >
+            Menu
+          </button>
+        </div>
       </header>
 
       <div class="app-shell">
-        <aside class="panel side-menu">
-          <h2>Navigation</h2>
-          <p class="meta">Workflow is your default page. Open these secondary pages when needed.</p>
-          <button class="side-menu-link" data-tab="team-config" type="button">Team Context</button>
-          <button class="side-menu-link" data-tab="player-config" type="button">Player Config</button>
-          <button class="side-menu-link" data-tab="explorer" type="button">Champion Explorer</button>
+        <aside id="nav-drawer" class="nav-drawer" aria-label="Primary">
+          <nav class="panel side-menu">
+            <h2 id="nav-title">Navigation</h2>
+            <p id="nav-meta" class="meta">Switch between workflow and configuration pages.</p>
+            <button class="side-menu-link is-active" data-tab="workflow" type="button">Workflow</button>
+            <button class="side-menu-link" data-tab="team-config" type="button">Team Context</button>
+            <button class="side-menu-link" data-tab="player-config" type="button">Player Pools</button>
+            <button class="side-menu-link" data-tab="explorer" type="button">Champion Explorer</button>
+          </nav>
         </aside>
+        <button id="nav-overlay" class="nav-overlay" type="button" aria-label="Close navigation"></button>
 
         <div class="main-content">
           <section id="tab-explorer" class="tab-panel">
             <div class="panel">
-              <div class="button-row">
-                <button id="explorer-back-workflow" class="ghost" data-tab="workflow" type="button">Back to Workflow</button>
-              </div>
-              <h2>Champion Explorer</h2>
-              <p class="meta">Secondary tool surface for broad champion discovery and filtering.</p>
+              <h2 id="explorer-title">Champion Explorer</h2>
+              <p id="explorer-meta" class="meta">Browse champions and filter by role, damage profile, scaling, and tags.</p>
             </div>
             <div class="panel">
               <h2>Explorer Filters</h2>
@@ -88,18 +100,15 @@
           <section id="tab-workflow" class="tab-panel is-active">
             <section id="builder-stage-guide" class="panel stage-guide" aria-live="polite">
               <h2 id="builder-workflow-title">Draft Workflow</h2>
-              <ul id="builder-intent-help-list" class="guidance-list"></ul>
               <div class="button-row stage-guide-actions">
-                <button id="builder-continue-validate" type="button">Continue to Inspection</button>
+                <button id="builder-continue-validate" type="button">Review Composition</button>
                 <button id="builder-clear" type="button" class="ghost">Clear Composition</button>
               </div>
-              <p id="builder-stage-progress" class="meta" hidden></p>
-              <p id="builder-stage-help" class="meta" hidden></p>
             </section>
             <div class="builder-grid">
               <aside id="builder-stage-setup" class="panel stage-panel">
                 <h2 id="builder-stage-setup-title">Setup</h2>
-                <p id="builder-stage-setup-meta" class="meta">Set current composition state and generation constraints.</p>
+                <p id="builder-stage-setup-meta" class="meta">Set team context, lock known picks, and adjust generation constraints.</p>
                 <div class="stack">
                   <label>
                     Active Team
@@ -187,8 +196,8 @@
               </aside>
 
               <section id="builder-stage-inspect" class="panel stage-panel">
-                <h2 id="builder-stage-inspect-title">Inspect</h2>
-                <p id="builder-stage-inspect-meta" class="meta">Inspect a node to see slot-level impact and cumulative reasons that increase its score.</p>
+                <h2 id="builder-stage-inspect-title">Review</h2>
+                <p id="builder-stage-inspect-meta" class="meta">Review checks, generate options, and inspect slot-level node impact.</p>
                 <p id="builder-checks-readiness" class="meta"></p>
                 <div id="builder-team-context" class="team-context"></div>
                 <h3>Required Checks</h3>
@@ -241,29 +250,23 @@
 
           <section id="tab-team-config" class="tab-panel">
             <div class="panel">
-              <div class="button-row">
-                <button id="team-config-back-workflow" class="ghost" data-tab="workflow" type="button">Back to Workflow</button>
-              </div>
-              <h2>Team Context</h2>
-              <p class="meta">Dedicated surface for team defaults and roster-pool context used by composition generation.</p>
+              <h2 id="team-config-title">Team Context</h2>
+              <p id="team-config-meta" class="meta">Set default and active team context for composition workflow.</p>
               <div class="grid grid-2">
                 <label>
-                  Default Team for Preset
+                  Default Team
                   <select id="team-config-default-team"></select>
                 </label>
                 <label>
-                  Active Team for Workflow
+                  Active Team
                   <select id="team-config-active-team"></select>
                 </label>
               </div>
               <p id="team-config-default-help" class="meta"></p>
               <p id="team-config-active-help" class="meta"></p>
-              <div class="button-row">
-                <button id="team-config-apply-active" type="button">Apply Active Team to Workflow</button>
-              </div>
             </div>
             <div class="panel">
-              <h2>Roster Pool Preview</h2>
+              <h2>Role Pool Preview</h2>
               <p id="team-config-pool-summary" class="meta"></p>
               <div id="team-config-pool-grid" class="grid grid-2"></div>
             </div>
@@ -271,11 +274,8 @@
 
           <section id="tab-player-config" class="tab-panel">
             <div class="panel">
-              <div class="button-row">
-                <button id="player-config-back-workflow" class="ghost" data-tab="workflow" type="button">Back to Workflow</button>
-              </div>
-              <h2>Player Config</h2>
-              <p class="meta">Edit individual player champion pools used by workflow team context.</p>
+              <h2 id="player-config-title">Player Pools</h2>
+              <p id="player-config-meta" class="meta">Edit each player's champion pools for the selected team.</p>
               <div class="grid grid-2">
                 <label>
                   Team
