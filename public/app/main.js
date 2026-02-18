@@ -123,6 +123,7 @@ const elements = {
   explorerResults: document.querySelector("#explorer-results"),
   builderWorkflowTitle: document.querySelector("#builder-workflow-title"),
   builderIntentHelp: document.querySelector("#builder-intent-help"),
+  builderStageGuide: document.querySelector("#builder-stage-guide"),
   builderSetupInputGuidance: document.querySelector("#builder-setup-input-guidance"),
   builderStageProgress: document.querySelector("#builder-stage-progress"),
   builderApplyPreset: document.querySelector("#builder-apply-preset"),
@@ -232,6 +233,13 @@ function resetBuilderTreeState() {
   state.builder.compareNodeB = null;
 }
 
+function scrollCurrentStageIntoView() {
+  const target = state.builder.stage === "inspect"
+    ? elements.builderStageInspect
+    : elements.builderStageSetup;
+  target?.scrollIntoView({ block: "start" });
+}
+
 function renderBuilderStageGuide() {
   const intentMode = getIntentMode();
   const stageSteps = getBuilderStageSteps();
@@ -261,22 +269,24 @@ function renderBuilderStageGuide() {
 
     if (index < currentStageIndex) {
       chip.classList.add("is-done");
-      chip.textContent = `${step.label} - Done`;
+      chip.textContent = step.label;
     } else if (index === currentStageIndex) {
       chip.classList.add("is-current");
-      chip.textContent = `${step.label} - Active`;
+      chip.textContent = step.label;
     } else {
-      chip.textContent = `${step.label} - Next`;
+      chip.textContent = step.label;
     }
 
     if (!isReachable) {
       chip.classList.add("is-locked");
       chip.disabled = true;
+      chip.textContent = `${step.label} (Locked)`;
       chip.title = "Complete the current stage first.";
     } else {
       chip.addEventListener("click", () => {
         setBuilderStage(step.key);
         renderBuilder();
+        scrollCurrentStageIntoView();
       });
     }
 
@@ -2127,6 +2137,7 @@ function attachEvents() {
   elements.builderContinueValidate.addEventListener("click", () => {
     setBuilderStage("inspect");
     renderBuilder();
+    scrollCurrentStageIntoView();
     setStatus(getIntentMode().generateReadyStatus);
   });
 
@@ -2201,6 +2212,7 @@ function attachEvents() {
   elements.builderBackValidate.addEventListener("click", () => {
     setBuilderStage("setup");
     renderBuilder();
+    scrollCurrentStageIntoView();
     setStatus("Returned to Setup.");
   });
 
