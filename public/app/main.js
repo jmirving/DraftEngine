@@ -36,19 +36,19 @@ const INTENT_CONFIG = Object.freeze({
       {
         key: "setup",
         label: "1) Setup",
-        panelTitle: "1) Setup",
+        panelTitle: "Setup",
         panelMeta: "Set current composition state and generation constraints.",
         help: "Set team context and lock any known picks."
       },
       {
         key: "inspect",
         label: "2) Inspect",
-        panelTitle: "2) Inspect",
+        panelTitle: "Inspect",
         panelMeta: "Review checks, generate options, and inspect nodes to see slot-level impact and cumulative rationale.",
         help: "Analyze composition readiness, generate options, and inspect nodes before applying a path."
       }
     ],
-    continueLabel: "Continue to Inspect",
+    continueLabel: "Continue to Inspection",
     generateLabel: "Generate Tree",
     generateReadyStatus: "Setup captured. Review checks and generate the tree from Inspect."
   }
@@ -153,7 +153,6 @@ const elements = {
   builderGenerate: document.querySelector("#builder-generate"),
   builderBackValidate: document.querySelector("#builder-back-validate"),
   builderClear: document.querySelector("#builder-clear"),
-  builderInspectRoot: document.querySelector("#builder-inspect-root"),
   builderDraftOrder: document.querySelector("#builder-draft-order"),
   builderNextRoleReadout: document.querySelector("#builder-next-role-readout"),
   builderTeamContext: document.querySelector("#builder-team-context"),
@@ -297,7 +296,7 @@ function renderBuilderStageGuide() {
   elements.builderStageHelp.textContent = stageHelp;
   const hintMessages = [
     "1. Use Setup to pick your team context and any locked champions.",
-    "2. Continue to Inspect to review checks and generate options.",
+    "2. Use Continue to Inspection to review checks and generate options.",
     "3. Inspect generated nodes before applying a path."
   ];
   elements.builderFirstRunHints.innerHTML = "";
@@ -314,7 +313,7 @@ function renderBuilderStageGuide() {
   elements.builderStageInspect.hidden = state.builder.stage !== "inspect";
 
   elements.builderGenerate.disabled = state.builder.stage === "setup";
-  elements.builderInspectRoot.disabled = !state.builder.tree;
+  elements.builderContinueValidate.disabled = state.builder.stage !== "setup";
 }
 
 function createOption(value, label) {
@@ -2158,7 +2157,7 @@ function attachEvents() {
 
   elements.builderGenerate.addEventListener("click", () => {
     if (state.builder.stage === "setup") {
-      setStatus("Continue to Inspect before generating the tree.");
+      setStatus("Use Continue to Inspection before generating the tree.");
       return;
     }
 
@@ -2199,14 +2198,6 @@ function attachEvents() {
     syncSlotSelectOptions();
     renderBuilder();
     setStatus("Current composition cleared.");
-  });
-
-  elements.builderInspectRoot.addEventListener("click", () => {
-    if (!state.builder.tree) {
-      setStatus("Generate a tree before inspecting nodes.");
-      return;
-    }
-    inspectNode(state.builder.tree, "0", "Root Composition");
   });
 
   elements.builderBackValidate.addEventListener("click", () => {

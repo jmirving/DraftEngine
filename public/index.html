@@ -27,7 +27,7 @@
           <button class="side-menu-link" data-tab="explorer" type="button">Champion Explorer</button>
           <div class="side-menu-actions">
             <h3>Workflow Actions</h3>
-            <button id="builder-inspect-root" type="button">Inspect Root Composition</button>
+            <button id="builder-continue-validate" type="button">Continue to Inspection</button>
             <button id="builder-clear" type="button" class="ghost">Clear Composition</button>
           </div>
         </aside>
@@ -96,14 +96,18 @@
             <section id="builder-stage-guide" class="panel stage-guide" aria-live="polite">
               <h2 id="builder-workflow-title">Draft Workflow</h2>
               <p id="builder-intent-help" class="meta"></p>
-              <div id="builder-stage-chips" class="stage-chip-row"></div>
-              <p id="builder-stage-progress" class="meta"></p>
-              <p id="builder-stage-help" class="meta"></p>
+              <div id="builder-stage-chips" class="stage-chip-row" hidden></div>
+              <p id="builder-stage-progress" class="meta" hidden></p>
+              <p id="builder-stage-help" class="meta" hidden></p>
               <ul id="builder-first-run-hints" class="hint-list" hidden></ul>
             </section>
             <div class="builder-grid">
               <aside id="builder-stage-setup" class="panel stage-panel">
-                <h2 id="builder-stage-setup-title">1) Setup</h2>
+                <h2 id="builder-stage-setup-title">Setup</h2>
+                <div class="panel-tab-row">
+                  <button class="panel-tab is-active" type="button" aria-selected="true">Setup</button>
+                  <button class="panel-tab is-locked" type="button" aria-selected="false" disabled>Inspect (Locked)</button>
+                </div>
                 <p id="builder-stage-setup-meta" class="meta">Set current composition state and generation constraints.</p>
                 <p id="builder-setup-input-guidance" class="meta">Fill all slots for composition analysis, fill some for guided suggestions, or leave slots empty to build from scratch.</p>
                 <div class="stack">
@@ -155,19 +159,17 @@
                       </div>
                     </div>
                   </details>
-                  <div class="button-row sticky-actions">
-                    <button id="builder-continue-validate" type="button">Continue to Inspect</button>
-                  </div>
                 </div>
               </aside>
 
               <section id="builder-stage-inspect" class="panel stage-panel">
-                <h2 id="builder-stage-inspect-title">2) Inspect</h2>
+                <h2 id="builder-stage-inspect-title">Inspect</h2>
+                <div class="panel-tab-row">
+                  <button id="builder-back-validate" class="panel-tab" type="button" aria-selected="false">Setup</button>
+                  <button class="panel-tab is-active" type="button" aria-selected="true" disabled>Inspect</button>
+                </div>
                 <p id="builder-stage-inspect-meta" class="meta">Inspect a node to see slot-level impact and cumulative reasons that increase its score.</p>
                 <p id="builder-checks-readiness" class="meta"></p>
-                <div class="button-row">
-                  <button id="builder-back-validate" class="ghost" type="button">Back to Setup</button>
-                </div>
                 <div id="builder-team-context" class="team-context"></div>
                 <h3>Required Checks</h3>
                 <ul id="builder-required-checks" class="check-list"></ul>

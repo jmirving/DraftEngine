@@ -134,6 +134,39 @@ h3 {
   margin: 0;
 }
 
+.panel-tab-row {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.55rem;
+}
+
+button.panel-tab {
+  width: auto;
+  margin: 0;
+  padding: 0.18rem 0.58rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fffefa;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button.panel-tab.is-active {
+  border-color: var(--accent);
+  background: #fff1eb;
+  color: #6b2a12;
+}
+
+button.panel-tab.is-locked {
+  opacity: 0.7;
+}
+
+button.panel-tab:disabled {
+  cursor: not-allowed;
+}
+
 .tab-panel {
   display: none;
 }
