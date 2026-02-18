@@ -88,7 +88,7 @@
           <section id="tab-workflow" class="tab-panel is-active">
             <section id="builder-stage-guide" class="panel stage-guide" aria-live="polite">
               <h2 id="builder-workflow-title">Draft Workflow</h2>
-              <p id="builder-intent-help" class="meta"></p>
+              <ul id="builder-intent-help-list" class="guidance-list"></ul>
               <div class="button-row stage-guide-actions">
                 <button id="builder-continue-validate" type="button">Continue to Inspection</button>
                 <button id="builder-clear" type="button" class="ghost">Clear Composition</button>
@@ -105,50 +105,52 @@
                     Active Team
                     <select id="builder-active-team"></select>
                   </label>
-                  <p id="builder-team-name" class="meta"></p>
                   <p id="builder-team-help" class="meta"></p>
-                  <div class="slot-list">
-                    <label class="slot-row" id="slot-row-Top" data-slot="Top">
-                      <div class="slot-row-head">
-                        <span id="slot-order-Top" class="slot-order">#1</span>
-                        <span id="slot-label-Top">Top</span>
-                        <span id="slot-status-Top" class="slot-status">Pending</span>
-                      </div>
-                      <select id="slot-Top"></select>
-                    </label>
-                    <label class="slot-row" id="slot-row-Jungle" data-slot="Jungle">
-                      <div class="slot-row-head">
-                        <span id="slot-order-Jungle" class="slot-order">#2</span>
-                        <span id="slot-label-Jungle">Jungle</span>
-                        <span id="slot-status-Jungle" class="slot-status">Pending</span>
-                      </div>
-                      <select id="slot-Jungle"></select>
-                    </label>
-                    <label class="slot-row" id="slot-row-Mid" data-slot="Mid">
-                      <div class="slot-row-head">
-                        <span id="slot-order-Mid" class="slot-order">#3</span>
-                        <span id="slot-label-Mid">Mid</span>
-                        <span id="slot-status-Mid" class="slot-status">Pending</span>
-                      </div>
-                      <select id="slot-Mid"></select>
-                    </label>
-                    <label class="slot-row" id="slot-row-ADC" data-slot="ADC">
-                      <div class="slot-row-head">
-                        <span id="slot-order-ADC" class="slot-order">#4</span>
-                        <span id="slot-label-ADC">ADC</span>
-                        <span id="slot-status-ADC" class="slot-status">Pending</span>
-                      </div>
-                      <select id="slot-ADC"></select>
-                    </label>
-                    <label class="slot-row" id="slot-row-Support" data-slot="Support">
-                      <div class="slot-row-head">
-                        <span id="slot-order-Support" class="slot-order">#5</span>
-                        <span id="slot-label-Support">Support</span>
-                        <span id="slot-status-Support" class="slot-status">Pending</span>
-                      </div>
-                      <select id="slot-Support"></select>
-                    </label>
-                  </div>
+                  <section class="slot-inputs-block">
+                    <h3>Player Slots</h3>
+                    <div class="slot-list">
+                      <label class="slot-row" id="slot-row-Top" data-slot="Top">
+                        <div class="slot-row-head">
+                          <span id="slot-order-Top" class="slot-order">#1</span>
+                          <span id="slot-label-Top">Top</span>
+                          <span id="slot-status-Top" class="slot-status">Pending</span>
+                        </div>
+                        <select id="slot-Top"></select>
+                      </label>
+                      <label class="slot-row" id="slot-row-Jungle" data-slot="Jungle">
+                        <div class="slot-row-head">
+                          <span id="slot-order-Jungle" class="slot-order">#2</span>
+                          <span id="slot-label-Jungle">Jungle</span>
+                          <span id="slot-status-Jungle" class="slot-status">Pending</span>
+                        </div>
+                        <select id="slot-Jungle"></select>
+                      </label>
+                      <label class="slot-row" id="slot-row-Mid" data-slot="Mid">
+                        <div class="slot-row-head">
+                          <span id="slot-order-Mid" class="slot-order">#3</span>
+                          <span id="slot-label-Mid">Mid</span>
+                          <span id="slot-status-Mid" class="slot-status">Pending</span>
+                        </div>
+                        <select id="slot-Mid"></select>
+                      </label>
+                      <label class="slot-row" id="slot-row-ADC" data-slot="ADC">
+                        <div class="slot-row-head">
+                          <span id="slot-order-ADC" class="slot-order">#4</span>
+                          <span id="slot-label-ADC">ADC</span>
+                          <span id="slot-status-ADC" class="slot-status">Pending</span>
+                        </div>
+                        <select id="slot-ADC"></select>
+                      </label>
+                      <label class="slot-row" id="slot-row-Support" data-slot="Support">
+                        <div class="slot-row-head">
+                          <span id="slot-order-Support" class="slot-order">#5</span>
+                          <span id="slot-label-Support">Support</span>
+                          <span id="slot-status-Support" class="slot-status">Pending</span>
+                        </div>
+                        <select id="slot-Support"></select>
+                      </label>
+                    </div>
+                  </section>
                   <p id="builder-setup-feedback" class="error-inline" hidden></p>
                   <div class="draft-order-block">
                     <h3>Node Draft Order</h3>

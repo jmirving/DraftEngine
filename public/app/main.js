@@ -30,7 +30,11 @@ const USER_PREF_DEFAULTS = Object.freeze({
 const INTENT_CONFIG = Object.freeze({
   compose: {
     workflowTitle: "Build a Composition",
-    intentHelp: "Fill all slots for composition analysis, fill some for guided suggestions, or leave slots empty to build from scratch.",
+    intentHelp: [
+      "Fill all slots for composition analysis.",
+      "Fill some slots for guided suggestions.",
+      "Leave slots empty to build from scratch."
+    ],
     stages: [
       {
         key: "setup",
@@ -118,13 +122,12 @@ const elements = {
   explorerCount: document.querySelector("#explorer-count"),
   explorerResults: document.querySelector("#explorer-results"),
   builderWorkflowTitle: document.querySelector("#builder-workflow-title"),
-  builderIntentHelp: document.querySelector("#builder-intent-help"),
+  builderIntentHelpList: document.querySelector("#builder-intent-help-list"),
   builderStageGuide: document.querySelector("#builder-stage-guide"),
   builderStageProgress: document.querySelector("#builder-stage-progress"),
   builderSetupFeedback: document.querySelector("#builder-setup-feedback"),
   builderInspectFeedback: document.querySelector("#builder-inspect-feedback"),
   builderActiveTeam: document.querySelector("#builder-active-team"),
-  builderTeamName: document.querySelector("#builder-team-name"),
   builderTeamHelp: document.querySelector("#builder-team-help"),
   builderStageSetupTitle: document.querySelector("#builder-stage-setup-title"),
   builderStageSetupMeta: document.querySelector("#builder-stage-setup-meta"),
@@ -257,7 +260,12 @@ function renderBuilderStageGuide() {
   const stageHelp = stageSteps[currentStageIndex]?.help ?? "";
 
   elements.builderWorkflowTitle.textContent = intentMode.workflowTitle;
-  elements.builderIntentHelp.textContent = intentMode.intentHelp;
+  elements.builderIntentHelpList.innerHTML = "";
+  for (const message of intentMode.intentHelp) {
+    const row = document.createElement("li");
+    row.textContent = message;
+    elements.builderIntentHelpList.append(row);
+  }
   elements.builderStageSetupTitle.textContent = intentMode.stages[0].panelTitle;
   elements.builderStageSetupMeta.textContent = intentMode.stages[0].panelMeta;
   elements.builderStageInspectTitle.textContent = intentMode.stages[1].panelTitle;
@@ -490,10 +498,6 @@ function getSlotLabel(slot) {
 }
 
 function updateTeamHelpAndSlotLabels() {
-  elements.builderTeamName.textContent = state.builder.teamId === NONE_TEAM_ID
-    ? "Using global role pools."
-    : `Using ${state.builder.teamId} role pools.`;
-
   if (state.builder.teamId === NONE_TEAM_ID) {
     elements.builderTeamHelp.textContent =
       "Candidates come from champion role eligibility without team restrictions.";
