@@ -22,7 +22,7 @@
         <aside class="panel side-menu">
           <h2>Side Menu</h2>
           <p class="meta">Workflow is your default page. Open these secondary pages when needed.</p>
-          <button class="side-menu-link" data-tab="team-config" type="button">Composition Context</button>
+          <button class="side-menu-link" data-tab="team-config" type="button">Team Context</button>
           <button class="side-menu-link" data-tab="user-config" type="button">User Config</button>
           <button class="side-menu-link" data-tab="explorer" type="button">Champion Explorer</button>
         </aside>
@@ -109,7 +109,7 @@
                   </fieldset>
                   <div class="button-row">
                     <button id="builder-apply-preset" type="button" class="ghost">Apply Recommended Preset</button>
-                    <button id="builder-open-team-config" type="button" class="ghost" data-tab="team-config">Open Composition Context</button>
+                    <button id="builder-open-team-config" type="button" class="ghost" data-tab="team-config">Open Team Context</button>
                   </div>
                   <p id="builder-team-name" class="meta"></p>
                   <p id="builder-team-help" class="meta"></p>
@@ -227,22 +227,22 @@
               <div class="button-row">
                 <button id="team-config-back-workflow" class="ghost" data-tab="workflow" type="button">Back to Workflow</button>
               </div>
-              <h2>Composition Context</h2>
-              <p class="meta">Dedicated surface for defaults and roster-pool context used by composition generation.</p>
+              <h2>Team Context</h2>
+              <p class="meta">Dedicated surface for team defaults and roster-pool context used by composition generation.</p>
               <div class="grid grid-2">
                 <label>
-                  Default Context for Preset
+                  Default Team for Preset
                   <select id="team-config-default-team"></select>
                 </label>
                 <label>
-                  Active Context for Workflow
+                  Active Team for Workflow
                   <select id="team-config-active-team"></select>
                 </label>
               </div>
               <p id="team-config-default-help" class="meta"></p>
               <p id="team-config-active-help" class="meta"></p>
               <div class="button-row">
-                <button id="team-config-apply-active" type="button">Apply Active Context to Workflow</button>
+                <button id="team-config-apply-active" type="button">Apply Active Team to Workflow</button>
               </div>
             </div>
             <div class="panel">

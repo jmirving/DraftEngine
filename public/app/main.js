@@ -39,7 +39,7 @@ const INTENT_CONFIG = Object.freeze({
         label: "1) Setup",
         panelTitle: "1) Setup",
         panelMeta: "Set current composition state and generation constraints.",
-        help: "Set composition context, role picks, and generation constraints."
+        help: "Set team context, role picks, and generation constraints."
       },
       {
         key: "validate",
@@ -361,7 +361,7 @@ function renderBuilderStageGuide() {
   elements.builderStageProgress.textContent = `Current stage: ${currentStageIndex + 1} of ${stageSteps.length}`;
   elements.builderStageHelp.textContent = stageHelp;
   const hintMessages = [
-    "1. Use Setup to pick your composition context and any locked champions.",
+    "1. Use Setup to pick your team context and any locked champions.",
     "2. Continue to Validate and resolve required checks as needed.",
     "3. Generate the tree, then inspect nodes before applying a path."
   ];
@@ -598,15 +598,15 @@ function getSlotLabel(slot) {
 
 function updateTeamHelpAndSlotLabels() {
   elements.builderTeamName.textContent = state.builder.teamId === NONE_TEAM_ID
-    ? "Active composition context: None (global role pools)"
-    : `Active composition context: ${state.builder.teamId}`;
+    ? "Active team context: None (global role pools)"
+    : `Active team context: ${state.builder.teamId}`;
 
   if (state.builder.teamId === NONE_TEAM_ID) {
     elements.builderTeamHelp.textContent =
       "None mode: candidates for each slot come from champion role eligibility (no team pool restrictions).";
   } else {
     elements.builderTeamHelp.textContent =
-      "Context mode: candidates for each slot are constrained to the selected composition pool.";
+      "Team mode: candidates for each slot are constrained to the selected team's configured pools.";
   }
 
   for (const slot of SLOTS) {
@@ -2329,7 +2329,7 @@ function attachEvents() {
     renderTeamConfig();
     renderBuilder();
     setTab("workflow");
-    setStatus(`Applied ${state.builder.teamId === NONE_TEAM_ID ? "None" : state.builder.teamId} as active workflow composition context.`);
+    setStatus(`Applied ${state.builder.teamId === NONE_TEAM_ID ? "None" : state.builder.teamId} as active workflow team context.`);
   });
 
   elements.userConfigSave.addEventListener("click", () => {
