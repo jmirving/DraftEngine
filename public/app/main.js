@@ -8,6 +8,7 @@ import {
   createEmptyTeamState,
   evaluateCompositionChecks,
   generatePossibilityTree,
+  scoreNodeFromChecks,
   normalizeTeamState
 } from "../../src/index.js";
 
@@ -30,15 +31,15 @@ const USER_PREF_DEFAULTS = Object.freeze({
 
 const INTENT_CONFIG = Object.freeze({
   build: {
-    workflowTitle: "Build Team Workflow",
-    intentHelp: "Focus on assembling a draft and generating next-pick options.",
+    workflowTitle: "Build Composition Workflow",
+    intentHelp: "Provide partial or empty inputs and generate best-fit composition completions.",
     stages: [
       {
         key: "setup",
         label: "1) Setup",
         panelTitle: "1) Setup",
-        panelMeta: "Set current team state and generation constraints.",
-        help: "Set team context, role picks, and generation constraints."
+        panelMeta: "Set current composition state and generation constraints.",
+        help: "Set composition context, role picks, and generation constraints."
       },
       {
         key: "validate",
@@ -60,38 +61,38 @@ const INTENT_CONFIG = Object.freeze({
     generateReadyStatus: "Setup complete. Review required checks, then generate the tree."
   },
   evaluate: {
-    workflowTitle: "Evaluate Team Workflow",
-    intentHelp: "Focus on assessing an existing draft and generating upgrade paths.",
+    workflowTitle: "Evaluate Composition Workflow",
+    intentHelp: "Input an existing composition to evaluate score, pros/cons, and optional upgrade paths.",
     stages: [
       {
         key: "setup",
-        label: "1) Setup Team",
-        panelTitle: "1) Setup Team",
-        panelMeta: "Load your current team state and adjust constraints.",
-        help: "Set current team inputs for evaluation."
+        label: "1) Setup Composition",
+        panelTitle: "1) Setup Composition",
+        panelMeta: "Load your current composition state and adjust constraints.",
+        help: "Set current composition inputs for evaluation."
       },
       {
         key: "validate",
-        label: "2) Evaluate",
-        panelTitle: "2) Evaluate",
-        panelMeta: "Assess required/optional checks based on current team completeness.",
-        help: "Assess composition readiness and identify gaps."
+        label: "2) Score + Gaps",
+        panelTitle: "2) Score + Gaps",
+        panelMeta: "Assess score, required/optional checks, and missing needs for the current composition.",
+        help: "Review composition pros/cons and identify required gaps."
       },
       {
         key: "inspect",
-        label: "3) Explore Upgrades",
-        panelTitle: "3) Explore Upgrades",
-        panelMeta: "Inspect suggested upgrade paths and compare alternatives.",
+        label: "3) Explore Upgrades (Optional)",
+        panelTitle: "3) Explore Upgrades (Optional)",
+        panelMeta: "Optionally inspect suggested upgrade paths and compare alternatives.",
         help: "Inspect recommendation branches and compare node outcomes."
       }
     ],
-    continueLabel: "Review Team Checks",
-    generateLabel: "Generate Upgrade Tree",
-    generateReadyStatus: "Team setup captured. Review evaluation checks, then generate upgrade paths."
+    continueLabel: "Evaluate Composition",
+    generateLabel: "Generate Upgrade Options",
+    generateReadyStatus: "Composition captured. Review score and gaps, then generate optional upgrade paths."
   },
   criteria: {
-    workflowTitle: "Criteria Build Workflow",
-    intentHelp: "Focus on constraints and requirement tuning before candidate generation.",
+    workflowTitle: "Criteria-Driven Build Workflow",
+    intentHelp: "Mandate composition features first, then generate candidates that satisfy your criteria.",
     stages: [
       {
         key: "setup",
@@ -115,9 +116,9 @@ const INTENT_CONFIG = Object.freeze({
         help: "Inspect generated branches under current constraints."
       }
     ],
-    continueLabel: "Preview Criteria Impact",
-    generateLabel: "Run Criteria Tree",
-    generateReadyStatus: "Criteria captured. Review impact, then run the criteria tree."
+    continueLabel: "Review Criteria Impact",
+    generateLabel: "Generate Criteria-Constrained Options",
+    generateReadyStatus: "Criteria captured. Review impact, then generate constrained options."
   }
 });
 
@@ -162,7 +163,7 @@ const state = {
     previewTeam: null,
     selectedNodeId: null,
     selectedNodeReasons: [],
-    selectedNodeTitle: "Root Team",
+    selectedNodeTitle: "Root Composition",
     compareNodeA: null,
     compareNodeB: null
   }
@@ -209,6 +210,7 @@ const elements = {
   builderStageSetup: document.querySelector("#builder-stage-setup"),
   builderStageValidate: document.querySelector("#builder-stage-validate"),
   builderStageInspect: document.querySelector("#builder-stage-inspect"),
+  builderAdvancedControls: document.querySelector("#builder-advanced-controls"),
   builderToggles: document.querySelector("#builder-toggles"),
   builderToggleOptionalChecks: document.querySelector("#builder-toggle-optional-checks"),
   builderExcludedSearch: document.querySelector("#builder-excluded-search"),
@@ -297,7 +299,7 @@ function resetBuilderTreeState() {
   state.builder.previewTeam = null;
   state.builder.selectedNodeId = null;
   state.builder.selectedNodeReasons = [];
-  state.builder.selectedNodeTitle = "Root Team";
+  state.builder.selectedNodeTitle = "Root Composition";
   state.builder.compareNodeA = null;
   state.builder.compareNodeB = null;
 }
@@ -359,7 +361,7 @@ function renderBuilderStageGuide() {
   elements.builderStageProgress.textContent = `Current stage: ${currentStageIndex + 1} of ${stageSteps.length}`;
   elements.builderStageHelp.textContent = stageHelp;
   const hintMessages = [
-    "1. Use Setup to pick your team context and any locked champions.",
+    "1. Use Setup to pick your composition context and any locked champions.",
     "2. Continue to Validate and resolve required checks as needed.",
     "3. Generate the tree, then inspect nodes before applying a path."
   ];
@@ -596,15 +598,15 @@ function getSlotLabel(slot) {
 
 function updateTeamHelpAndSlotLabels() {
   elements.builderTeamName.textContent = state.builder.teamId === NONE_TEAM_ID
-    ? "Active team: None (global role pools)"
-    : `Active team: ${state.builder.teamId}`;
+    ? "Active composition context: None (global role pools)"
+    : `Active composition context: ${state.builder.teamId}`;
 
   if (state.builder.teamId === NONE_TEAM_ID) {
     elements.builderTeamHelp.textContent =
       "None mode: candidates for each slot come from champion role eligibility (no team pool restrictions).";
   } else {
     elements.builderTeamHelp.textContent =
-      "Team mode: candidates for each slot are constrained to the selected team's configured pools.";
+      "Context mode: candidates for each slot are constrained to the selected composition pool.";
   }
 
   for (const slot of SLOTS) {
@@ -1186,23 +1188,31 @@ function renderChecks() {
 
     elements.builderMissingNeeds.innerHTML = "";
     const missingRow = document.createElement("li");
-    missingRow.textContent = "No missing-need warnings yet (team is empty).";
+    missingRow.textContent = "No missing-need warnings yet (composition is empty).";
     elements.builderMissingNeeds.append(missingRow);
     return;
   }
 
   elements.builderToggleOptionalChecks.disabled = false;
-  if (completion.completionState === "partial") {
-    elements.builderChecksReadiness.textContent = `${completion.filledSlots}/${completion.totalSlots} slots filled. Missing checks can be expected while the draft is incomplete.`;
-  } else {
-    elements.builderChecksReadiness.textContent = "Team is full. Resolve any failed required checks before locking draft recommendations.";
-  }
 
   const checkEvaluation = evaluateCompositionChecks(
     state.builder.teamState,
     state.data.championsByName,
     state.builder.toggles
   );
+  const compositionScore = scoreNodeFromChecks(checkEvaluation);
+  const checkResults = Object.values(checkEvaluation.checks);
+  const requiredResults = checkResults.filter((result) => Boolean(result.required));
+  const requiredPassedCount = requiredResults.filter((result) => Boolean(result.satisfied)).length;
+  const requiredFailedCount = requiredResults.length - requiredPassedCount;
+
+  if (state.builder.intent === "evaluate") {
+    elements.builderChecksReadiness.textContent = `Composition score: ${compositionScore}. Required checks passed: ${requiredPassedCount}/${requiredResults.length}. ${requiredFailedCount > 0 ? `${requiredFailedCount} required gap(s) remain.` : "No required gaps."}`;
+  } else if (completion.completionState === "partial") {
+    elements.builderChecksReadiness.textContent = `${completion.filledSlots}/${completion.totalSlots} slots filled. Missing checks can be expected while the draft is incomplete.`;
+  } else {
+    elements.builderChecksReadiness.textContent = "Composition is full. Resolve any failed required checks before locking draft recommendations.";
+  }
 
   elements.builderRequiredChecks.innerHTML = "";
   elements.builderOptionalChecks.innerHTML = "";
@@ -1517,7 +1527,7 @@ function renderPreview() {
   impactSummary.textContent =
     changedCount > 0
       ? `Applying this node changes ${changedCount} slot${changedCount === 1 ? "" : "s"}.`
-      : "This node matches the current team state.";
+      : "This node matches the current composition state.";
   wrapper.append(impactSummary);
 
   if (state.builder.selectedNodeReasons.length > 0) {
@@ -1589,7 +1599,7 @@ function renderPreview() {
     setBuilderStage("setup");
     syncSlotSelectOptions();
     renderBuilder();
-    setStatus("Applied selected node to current team.");
+    setStatus("Applied selected node to current composition.");
   });
   wrapper.append(applyButton);
 
@@ -1678,10 +1688,10 @@ function renderTreeNode(node, depth = 0, nodeId = "0", visibleIds = null) {
   const title = document.createElement("strong");
   const titleText = node.addedChampion
     ? `${node.addedRole}: ${node.addedChampion}`
-    : "Root Team";
+    : "Root Composition";
   title.textContent = titleText;
   const score = document.createElement("small");
-  score.textContent = `Node score: ${node.score}`;
+  score.textContent = `Composition score: ${node.score}`;
   titleRow.append(title, score);
 
   const action = document.createElement("button");
@@ -1812,7 +1822,7 @@ function renderTreeSummary(visibleIds) {
 
     const score = document.createElement("p");
     score.className = "meta";
-    score.textContent = `Node score ${entry.node.score}, candidate score ${entry.node.candidateScore ?? 0}.`;
+    score.textContent = `Composition score ${entry.node.score}, candidate score ${entry.node.candidateScore ?? 0}.`;
 
     const actions = document.createElement("div");
     actions.className = "button-row";
@@ -1847,7 +1857,7 @@ function renderTree() {
   if (!state.builder.tree) {
     const empty = document.createElement("p");
     empty.className = "meta";
-    empty.textContent = "Generate a tree to see ranked next additions.";
+    empty.textContent = "Generate a tree to see ranked next composition additions.";
     elements.builderTree.append(empty);
     return;
   }
@@ -1973,12 +1983,12 @@ function renderTreeMap() {
     circle.setAttribute("class", circleClass);
     circle.setAttribute(
       "aria-label",
-      entry.node.addedChampion ? `${entry.node.addedRole} ${entry.node.addedChampion}` : "Root Team"
+      entry.node.addedChampion ? `${entry.node.addedRole} ${entry.node.addedChampion}` : "Root Composition"
     );
     circle.addEventListener("click", () => {
       const title = entry.node.addedChampion
         ? `${entry.node.addedRole}: ${entry.node.addedChampion}`
-        : "Root Team";
+        : "Root Composition";
       inspectNode(entry.node, entry.id, title);
     });
     elements.builderTreeMap.append(circle);
@@ -2136,6 +2146,9 @@ function attachEvents() {
     }
     state.builder.intent = target.value;
     setBuilderStage("setup");
+    if (elements.builderAdvancedControls && state.builder.intent === "criteria") {
+      elements.builderAdvancedControls.open = true;
+    }
     renderBuilder();
   });
 
@@ -2249,7 +2262,7 @@ function attachEvents() {
       state.builder.previewTeam = null;
       state.builder.selectedNodeId = null;
       state.builder.selectedNodeReasons = [];
-      state.builder.selectedNodeTitle = "Root Team";
+      state.builder.selectedNodeTitle = "Root Composition";
       state.builder.compareNodeA = null;
       state.builder.compareNodeB = null;
       setBuilderStage("inspect");
@@ -2268,7 +2281,7 @@ function attachEvents() {
     setBuilderStage("setup");
     syncSlotSelectOptions();
     renderBuilder();
-    setStatus("Current team cleared.");
+    setStatus("Current composition cleared.");
   });
 
   elements.builderInspectRoot.addEventListener("click", () => {
@@ -2276,7 +2289,7 @@ function attachEvents() {
       setStatus("Generate a tree before inspecting nodes.");
       return;
     }
-    inspectNode(state.builder.tree, "0", "Root Team");
+    inspectNode(state.builder.tree, "0", "Root Composition");
   });
 
   elements.builderBackValidate.addEventListener("click", () => {
@@ -2316,7 +2329,7 @@ function attachEvents() {
     renderTeamConfig();
     renderBuilder();
     setTab("workflow");
-    setStatus(`Applied ${state.builder.teamId === NONE_TEAM_ID ? "None" : state.builder.teamId} as active workflow team.`);
+    setStatus(`Applied ${state.builder.teamId === NONE_TEAM_ID ? "None" : state.builder.teamId} as active workflow composition context.`);
   });
 
   elements.userConfigSave.addEventListener("click", () => {

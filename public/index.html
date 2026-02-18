@@ -13,8 +13,8 @@
       <header class="hero">
         <p class="kicker">DraftEngine</p>
         <h1>Intent-Based Draft Workflow</h1>
-        <p class="subtitle">
-          Choose your draft intent, validate composition readiness, and inspect deterministic next-pick trees.
+          <p class="subtitle">
+          Choose your composition intent, validate readiness, and inspect deterministic next-pick trees.
         </p>
       </header>
 
@@ -22,7 +22,7 @@
         <aside class="panel side-menu">
           <h2>Side Menu</h2>
           <p class="meta">Workflow is your default page. Open these secondary pages when needed.</p>
-          <button class="side-menu-link" data-tab="team-config" type="button">Team Config</button>
+          <button class="side-menu-link" data-tab="team-config" type="button">Composition Context</button>
           <button class="side-menu-link" data-tab="user-config" type="button">User Config</button>
           <button class="side-menu-link" data-tab="explorer" type="button">Champion Explorer</button>
         </aside>
@@ -99,17 +99,17 @@
             <div class="builder-grid">
               <aside id="builder-stage-setup" class="panel stage-panel">
                 <h2 id="builder-stage-setup-title">1) Setup</h2>
-                <p id="builder-stage-setup-meta" class="meta">Set current team state and generation constraints.</p>
+                <p id="builder-stage-setup-meta" class="meta">Set current composition state and generation constraints.</p>
                 <div class="stack">
                   <fieldset id="builder-intent-switch" class="toggle-group">
                     <legend>Intent</legend>
-                    <label class="toggle-item"><input type="radio" name="builder-intent" value="build" checked /> <span>Build Team</span></label>
-                    <label class="toggle-item"><input type="radio" name="builder-intent" value="evaluate" /> <span>Evaluate Team</span></label>
+                    <label class="toggle-item"><input type="radio" name="builder-intent" value="build" checked /> <span>Build Composition</span></label>
+                    <label class="toggle-item"><input type="radio" name="builder-intent" value="evaluate" /> <span>Evaluate Composition</span></label>
                     <label class="toggle-item"><input type="radio" name="builder-intent" value="criteria" /> <span>Criteria Build</span></label>
                   </fieldset>
                   <div class="button-row">
                     <button id="builder-apply-preset" type="button" class="ghost">Apply Recommended Preset</button>
-                    <button id="builder-open-team-config" type="button" class="ghost" data-tab="team-config">Open Team Config</button>
+                    <button id="builder-open-team-config" type="button" class="ghost" data-tab="team-config">Open Composition Context</button>
                   </div>
                   <p id="builder-team-name" class="meta"></p>
                   <p id="builder-team-help" class="meta"></p>
@@ -126,7 +126,7 @@
                     <p id="builder-next-role-readout" class="meta"></p>
                     <ul id="builder-draft-order" class="draft-order-list"></ul>
                   </div>
-                  <details class="advanced-controls">
+                  <details id="builder-advanced-controls" class="advanced-controls">
                     <summary>Advanced Controls</summary>
                     <div class="stack advanced-controls-content">
                       <fieldset id="builder-toggles" class="toggle-group">
@@ -153,7 +153,7 @@
                   </details>
                   <div class="button-row sticky-actions">
                     <button id="builder-continue-validate" type="button">Continue to Validate</button>
-                    <button id="builder-clear" type="button" class="ghost">Clear Team</button>
+                    <button id="builder-clear" type="button" class="ghost">Clear Composition</button>
                   </div>
                 </div>
               </aside>
@@ -206,7 +206,7 @@
                   </label>
                 </div>
                 <div class="button-row">
-                  <button id="builder-inspect-root" type="button">Inspect Root Team</button>
+                  <button id="builder-inspect-root" type="button">Inspect Root Composition</button>
                   <button id="tree-expand-all" type="button" class="ghost">Expand All</button>
                   <button id="tree-collapse-all" type="button" class="ghost">Collapse All</button>
                 </div>
@@ -227,22 +227,22 @@
               <div class="button-row">
                 <button id="team-config-back-workflow" class="ghost" data-tab="workflow" type="button">Back to Workflow</button>
               </div>
-              <h2>Team Configuration</h2>
-              <p class="meta">Dedicated surface for team defaults and roster-pool context used by workflow generation.</p>
+              <h2>Composition Context</h2>
+              <p class="meta">Dedicated surface for defaults and roster-pool context used by composition generation.</p>
               <div class="grid grid-2">
                 <label>
-                  Default Team for Preset
+                  Default Context for Preset
                   <select id="team-config-default-team"></select>
                 </label>
                 <label>
-                  Active Team for Workflow
+                  Active Context for Workflow
                   <select id="team-config-active-team"></select>
                 </label>
               </div>
               <p id="team-config-default-help" class="meta"></p>
               <p id="team-config-active-help" class="meta"></p>
               <div class="button-row">
-                <button id="team-config-apply-active" type="button">Apply Active Team to Workflow</button>
+                <button id="team-config-apply-active" type="button">Apply Active Context to Workflow</button>
               </div>
             </div>
             <div class="panel">
@@ -263,8 +263,8 @@
                 <label>
                   Default Intent
                   <select id="user-config-default-intent">
-                    <option value="build">Build Team</option>
-                    <option value="evaluate">Evaluate Team</option>
+                    <option value="build">Build Composition</option>
+                    <option value="evaluate">Evaluate Composition</option>
                     <option value="criteria">Criteria Build</option>
                   </select>
                 </label>
