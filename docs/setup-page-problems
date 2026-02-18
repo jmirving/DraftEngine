@@ -1,0 +1,5 @@
+"Build Team Workflow" should be "Build a Composition"
+Build/Evaluate/Criteria should all be removed/combined.
+Setup should clearly indicate (via ui and/or explicit text) that champion slots can be filled in either fully (to get composition analysis), partially (to get composition suggestions), or not at all (for composition building)
+This should allow a consolidation of Validate/Inspect potentially
+Active Team should be a selection item and default to the default set in Team Context.

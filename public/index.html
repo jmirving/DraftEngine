@@ -12,9 +12,9 @@
     <main class="layout">
       <header class="hero">
         <p class="kicker">DraftEngine</p>
-        <h1>Intent-Based Draft Workflow</h1>
+        <h1>Composition Draft Workflow</h1>
           <p class="subtitle">
-          Choose your composition intent, validate readiness, and inspect deterministic next-pick trees.
+          Configure team context, analyze composition readiness, and inspect deterministic next-pick trees.
         </p>
       </header>
 
@@ -100,17 +100,16 @@
               <aside id="builder-stage-setup" class="panel stage-panel">
                 <h2 id="builder-stage-setup-title">1) Setup</h2>
                 <p id="builder-stage-setup-meta" class="meta">Set current composition state and generation constraints.</p>
+                <p id="builder-setup-input-guidance" class="meta">Fill all slots for composition analysis, fill some for guided suggestions, or leave slots empty to build from scratch.</p>
                 <div class="stack">
-                  <fieldset id="builder-intent-switch" class="toggle-group">
-                    <legend>Intent</legend>
-                    <label class="toggle-item"><input type="radio" name="builder-intent" value="build" checked /> <span>Build Composition</span></label>
-                    <label class="toggle-item"><input type="radio" name="builder-intent" value="evaluate" /> <span>Evaluate Composition</span></label>
-                    <label class="toggle-item"><input type="radio" name="builder-intent" value="criteria" /> <span>Criteria Build</span></label>
-                  </fieldset>
                   <div class="button-row">
                     <button id="builder-apply-preset" type="button" class="ghost">Apply Recommended Preset</button>
                     <button id="builder-open-team-config" type="button" class="ghost" data-tab="team-config">Open Team Context</button>
                   </div>
+                  <label>
+                    Active Team
+                    <select id="builder-active-team"></select>
+                  </label>
                   <p id="builder-team-name" class="meta"></p>
                   <p id="builder-team-help" class="meta"></p>
                   <div class="slot-grid">
@@ -258,24 +257,14 @@
                 <button id="user-config-back-workflow" class="ghost" data-tab="workflow" type="button">Back to Workflow</button>
               </div>
               <h2>User Configuration</h2>
-              <p class="meta">Personalize default intent and workflow behavior.</p>
-              <div class="grid grid-2">
-                <label>
-                  Default Intent
-                  <select id="user-config-default-intent">
-                    <option value="build">Build Composition</option>
-                    <option value="evaluate">Evaluate Composition</option>
-                    <option value="criteria">Criteria Build</option>
-                  </select>
-                </label>
-                <label>
-                  Default Tree Density
-                  <select id="user-config-default-density">
-                    <option value="summary">Summary</option>
-                    <option value="detailed">Detailed</option>
-                  </select>
-                </label>
-              </div>
+              <p class="meta">Personalize workflow behavior.</p>
+              <label>
+                Default Tree Density
+                <select id="user-config-default-density">
+                  <option value="summary">Summary</option>
+                  <option value="detailed">Detailed</option>
+                </select>
+              </label>
               <label class="toggle-item"><input id="user-config-show-optional" type="checkbox" /> <span>Show optional checks by default</span></label>
               <label class="toggle-item"><input id="user-config-auto-preset" type="checkbox" /> <span>Auto-apply recommended preset on load</span></label>
               <div class="button-row">

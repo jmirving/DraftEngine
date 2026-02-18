@@ -23,102 +23,41 @@ const CHAMPION_IMAGE_OVERRIDES = Object.freeze({
 });
 
 const USER_PREF_DEFAULTS = Object.freeze({
-  defaultIntent: "build",
   defaultTreeDensity: "summary",
   showOptionalChecksByDefault: false,
   autoApplyPresetOnLoad: true
 });
 
 const INTENT_CONFIG = Object.freeze({
-  build: {
-    workflowTitle: "Build Composition Workflow",
-    intentHelp: "Provide partial or empty inputs and generate best-fit composition completions.",
+  compose: {
+    workflowTitle: "Build a Composition",
+    intentHelp: "Use setup to evaluate a full composition, get suggestions from a partial composition, or build from scratch.",
     stages: [
       {
         key: "setup",
         label: "1) Setup",
         panelTitle: "1) Setup",
         panelMeta: "Set current composition state and generation constraints.",
-        help: "Set team context, role picks, and generation constraints."
+        help: "Set team context and lock any known picks."
       },
       {
         key: "validate",
-        label: "2) Validate",
-        panelTitle: "2) Validate",
-        panelMeta: "Required checks map directly to enabled toggles.",
-        help: "Review required checks and missing needs before generating."
+        label: "2) Analyze",
+        panelTitle: "2) Analyze",
+        panelMeta: "Review checks, missing needs, and composition score before generating options.",
+        help: "Use this stage for composition analysis and readiness review."
       },
       {
         key: "inspect",
-        label: "3) Inspect",
-        panelTitle: "3) Inspect",
+        label: "3) Generate + Inspect",
+        panelTitle: "3) Generate + Inspect",
         panelMeta: "Inspect a node to see slot-level impact and cumulative reasons that increase its score.",
-        help: "Inspect generated nodes and apply a selected path when ready."
+        help: "Generate options and inspect generated nodes before applying a path."
       }
     ],
-    continueLabel: "Continue to Validate",
+    continueLabel: "Continue to Analyze",
     generateLabel: "Generate Tree",
-    generateReadyStatus: "Setup complete. Review required checks, then generate the tree."
-  },
-  evaluate: {
-    workflowTitle: "Evaluate Composition Workflow",
-    intentHelp: "Input an existing composition to evaluate score, pros/cons, and optional upgrade paths.",
-    stages: [
-      {
-        key: "setup",
-        label: "1) Setup Composition",
-        panelTitle: "1) Setup Composition",
-        panelMeta: "Load your current composition state and adjust constraints.",
-        help: "Set current composition inputs for evaluation."
-      },
-      {
-        key: "validate",
-        label: "2) Score + Gaps",
-        panelTitle: "2) Score + Gaps",
-        panelMeta: "Assess score, required/optional checks, and missing needs for the current composition.",
-        help: "Review composition pros/cons and identify required gaps."
-      },
-      {
-        key: "inspect",
-        label: "3) Explore Upgrades (Optional)",
-        panelTitle: "3) Explore Upgrades (Optional)",
-        panelMeta: "Optionally inspect suggested upgrade paths and compare alternatives.",
-        help: "Inspect recommendation branches and compare node outcomes."
-      }
-    ],
-    continueLabel: "Evaluate Composition",
-    generateLabel: "Generate Upgrade Options",
-    generateReadyStatus: "Composition captured. Review score and gaps, then generate optional upgrade paths."
-  },
-  criteria: {
-    workflowTitle: "Criteria-Driven Build Workflow",
-    intentHelp: "Mandate composition features first, then generate candidates that satisfy your criteria.",
-    stages: [
-      {
-        key: "setup",
-        label: "1) Set Criteria",
-        panelTitle: "1) Set Criteria",
-        panelMeta: "Tune requirements, exclusions, and generation parameters first.",
-        help: "Set constraints and exclusions before generation."
-      },
-      {
-        key: "validate",
-        label: "2) Check Impact",
-        panelTitle: "2) Check Impact",
-        panelMeta: "Preview readiness impact of your current criteria set.",
-        help: "Review requirement impact and expected missing needs."
-      },
-      {
-        key: "inspect",
-        label: "3) Inspect Results",
-        panelTitle: "3) Inspect Results",
-        panelMeta: "Inspect how criteria shape ranked branch outcomes.",
-        help: "Inspect generated branches under current constraints."
-      }
-    ],
-    continueLabel: "Review Criteria Impact",
-    generateLabel: "Generate Criteria-Constrained Options",
-    generateReadyStatus: "Criteria captured. Review impact, then generate constrained options."
+    generateReadyStatus: "Setup captured. Review analysis details, then generate the tree."
   }
 });
 
@@ -142,7 +81,7 @@ const state = {
     ...USER_PREF_DEFAULTS
   },
   builder: {
-    intent: USER_PREF_DEFAULTS.defaultIntent,
+    intent: "compose",
     stage: "setup",
     showFirstRunHints: false,
     showOptionalChecks: USER_PREF_DEFAULTS.showOptionalChecksByDefault,
@@ -191,10 +130,11 @@ const elements = {
   explorerResults: document.querySelector("#explorer-results"),
   builderWorkflowTitle: document.querySelector("#builder-workflow-title"),
   builderIntentHelp: document.querySelector("#builder-intent-help"),
-  builderIntentSwitch: document.querySelector("#builder-intent-switch"),
+  builderSetupInputGuidance: document.querySelector("#builder-setup-input-guidance"),
   builderStageProgress: document.querySelector("#builder-stage-progress"),
   builderApplyPreset: document.querySelector("#builder-apply-preset"),
   builderOpenTeamConfig: document.querySelector("#builder-open-team-config"),
+  builderActiveTeam: document.querySelector("#builder-active-team"),
   builderTeamName: document.querySelector("#builder-team-name"),
   builderTeamHelp: document.querySelector("#builder-team-help"),
   builderStageSetupTitle: document.querySelector("#builder-stage-setup-title"),
@@ -246,7 +186,6 @@ const elements = {
   teamConfigApplyActive: document.querySelector("#team-config-apply-active"),
   teamConfigPoolSummary: document.querySelector("#team-config-pool-summary"),
   teamConfigPoolGrid: document.querySelector("#team-config-pool-grid"),
-  userConfigDefaultIntent: document.querySelector("#user-config-default-intent"),
   userConfigDefaultDensity: document.querySelector("#user-config-default-density"),
   userConfigShowOptional: document.querySelector("#user-config-show-optional"),
   userConfigAutoPreset: document.querySelector("#user-config-auto-preset"),
@@ -273,7 +212,7 @@ function setStatus(message, isError = false) {
 }
 
 function getIntentMode() {
-  return INTENT_CONFIG[state.builder.intent] ?? INTENT_CONFIG.build;
+  return INTENT_CONFIG.compose;
 }
 
 function getBuilderStageSteps() {
@@ -320,6 +259,10 @@ function renderBuilderStageGuide() {
   elements.builderStageInspectMeta.textContent = intentMode.stages[2].panelMeta;
   elements.builderContinueValidate.textContent = intentMode.continueLabel;
   elements.builderGenerate.textContent = intentMode.generateLabel;
+  if (elements.builderSetupInputGuidance) {
+    elements.builderSetupInputGuidance.textContent =
+      "Fill all slots for composition analysis, fill some for guided suggestions, or leave slots empty to build from scratch.";
+  }
 
   elements.builderStageChips.innerHTML = "";
   for (let index = 0; index < stageSteps.length; index += 1) {
@@ -353,16 +296,11 @@ function renderBuilderStageGuide() {
     elements.builderStageChips.append(chip);
   }
 
-  const intentRadios = elements.builderIntentSwitch.querySelectorAll("input[name='builder-intent']");
-  for (const radio of intentRadios) {
-    radio.checked = radio.value === state.builder.intent;
-  }
-
   elements.builderStageProgress.textContent = `Current stage: ${currentStageIndex + 1} of ${stageSteps.length}`;
   elements.builderStageHelp.textContent = stageHelp;
   const hintMessages = [
     "1. Use Setup to pick your team context and any locked champions.",
-    "2. Continue to Validate and resolve required checks as needed.",
+    "2. Continue to Analyze and review required checks and missing needs.",
     "3. Generate the tree, then inspect nodes before applying a path."
   ];
   elements.builderFirstRunHints.innerHTML = "";
@@ -643,17 +581,16 @@ function getPoolsForTeam(teamId) {
 
 function initializeBuilderControls() {
   const candidateDefaultTeamId = state.teamConfig.defaultTeamId ?? state.data.config.teamDefault ?? NONE_TEAM_ID;
-  const candidateActiveTeamId = state.teamConfig.activeTeamId ?? candidateDefaultTeamId;
   state.teamConfig.defaultTeamId = normalizeConfiguredTeamId(
     candidateDefaultTeamId
   );
-  state.teamConfig.activeTeamId = normalizeConfiguredTeamId(
-    candidateActiveTeamId
-  );
+  state.teamConfig.activeTeamId = state.teamConfig.defaultTeamId;
   state.builder.teamId = state.teamConfig.activeTeamId;
-  state.builder.intent = INTENT_CONFIG[state.userConfig.defaultIntent] ? state.userConfig.defaultIntent : "build";
+  state.builder.intent = "compose";
   state.builder.showOptionalChecks = Boolean(state.userConfig.showOptionalChecksByDefault);
   state.builder.treeDensity = state.userConfig.defaultTreeDensity === "detailed" ? "detailed" : "summary";
+  replaceOptions(elements.builderActiveTeam, getTeamSelectOptions());
+  elements.builderActiveTeam.value = state.builder.teamId;
 
   elements.builderToggles.innerHTML = "<legend>Required Toggles</legend>";
   for (const key of Object.keys(DEFAULT_REQUIREMENT_TOGGLES)) {
@@ -739,7 +676,6 @@ function renderUserConfigFeedback(message, isError = false) {
 }
 
 function renderUserConfig() {
-  elements.userConfigDefaultIntent.value = state.userConfig.defaultIntent;
   elements.userConfigDefaultDensity.value = state.userConfig.defaultTreeDensity;
   elements.userConfigShowOptional.checked = state.userConfig.showOptionalChecksByDefault;
   elements.userConfigAutoPreset.checked = state.userConfig.autoApplyPresetOnLoad;
@@ -793,9 +729,6 @@ function tryWriteJsonStorage(key, value) {
 
 function loadStoredUserConfig() {
   const stored = tryReadJsonStorage(USER_PREFS_STORAGE_KEY, {});
-  const defaultIntent = typeof stored.defaultIntent === "string" && INTENT_CONFIG[stored.defaultIntent]
-    ? stored.defaultIntent
-    : USER_PREF_DEFAULTS.defaultIntent;
   const defaultTreeDensity = stored.defaultTreeDensity === "detailed" ? "detailed" : USER_PREF_DEFAULTS.defaultTreeDensity;
   const showOptionalChecksByDefault = Boolean(stored.showOptionalChecksByDefault);
   const autoApplyPresetOnLoad = stored.autoApplyPresetOnLoad === undefined
@@ -803,7 +736,6 @@ function loadStoredUserConfig() {
     : Boolean(stored.autoApplyPresetOnLoad);
 
   state.userConfig = {
-    defaultIntent,
     defaultTreeDensity,
     showOptionalChecksByDefault,
     autoApplyPresetOnLoad
@@ -837,7 +769,7 @@ function applyRecommendedPreset(options = {}) {
   state.teamConfig.activeTeamId = defaultTeamId;
   state.builder.teamState = createEmptyTeamState();
   state.builder.draftOrder = [...SLOTS];
-  state.builder.intent = INTENT_CONFIG[state.userConfig.defaultIntent] ? state.userConfig.defaultIntent : "build";
+  state.builder.intent = "compose";
   state.builder.toggles = { ...DEFAULT_REQUIREMENT_TOGGLES };
   state.builder.showOptionalChecks = Boolean(state.userConfig.showOptionalChecksByDefault);
   state.builder.excludedChampions = [];
@@ -1206,12 +1138,10 @@ function renderChecks() {
   const requiredPassedCount = requiredResults.filter((result) => Boolean(result.satisfied)).length;
   const requiredFailedCount = requiredResults.length - requiredPassedCount;
 
-  if (state.builder.intent === "evaluate") {
-    elements.builderChecksReadiness.textContent = `Composition score: ${compositionScore}. Required checks passed: ${requiredPassedCount}/${requiredResults.length}. ${requiredFailedCount > 0 ? `${requiredFailedCount} required gap(s) remain.` : "No required gaps."}`;
-  } else if (completion.completionState === "partial") {
-    elements.builderChecksReadiness.textContent = `${completion.filledSlots}/${completion.totalSlots} slots filled. Missing checks can be expected while the draft is incomplete.`;
+  if (completion.completionState === "partial") {
+    elements.builderChecksReadiness.textContent = `Composition score: ${compositionScore}. ${completion.filledSlots}/${completion.totalSlots} slots filled. Required checks passed: ${requiredPassedCount}/${requiredResults.length}.`;
   } else {
-    elements.builderChecksReadiness.textContent = "Composition is full. Resolve any failed required checks before locking draft recommendations.";
+    elements.builderChecksReadiness.textContent = `Composition score: ${compositionScore}. Required checks passed: ${requiredPassedCount}/${requiredResults.length}. ${requiredFailedCount > 0 ? `${requiredFailedCount} required gap(s) remain.` : "No required gaps."}`;
   }
 
   elements.builderRequiredChecks.innerHTML = "";
@@ -2007,6 +1937,7 @@ function renderTreeMap() {
 
 function renderBuilder() {
   renderBuilderStageGuide();
+  elements.builderActiveTeam.value = state.builder.teamId;
   elements.treeDensity.value = state.builder.treeDensity;
   elements.treeSearch.value = state.builder.treeSearch;
   elements.treeMinScore.value = String(state.builder.treeMinScore);
@@ -2136,20 +2067,16 @@ function attachEvents() {
     setStatus("Recommended preset applied.");
   });
 
-  elements.builderIntentSwitch.addEventListener("change", (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLInputElement) || target.name !== "builder-intent") {
-      return;
-    }
-    if (!INTENT_CONFIG[target.value]) {
-      return;
-    }
-    state.builder.intent = target.value;
+  elements.builderActiveTeam.addEventListener("change", () => {
+    state.builder.teamId = normalizeConfiguredTeamId(elements.builderActiveTeam.value);
+    state.teamConfig.activeTeamId = state.builder.teamId;
+    saveTeamConfig();
     setBuilderStage("setup");
-    if (elements.builderAdvancedControls && state.builder.intent === "criteria") {
-      elements.builderAdvancedControls.open = true;
-    }
+    resetBuilderTreeState();
+    syncSlotSelectOptions();
+    renderTeamConfig();
     renderBuilder();
+    setStatus(`Active team set to ${state.builder.teamId === NONE_TEAM_ID ? "None" : state.builder.teamId}.`);
   });
 
   elements.builderToggleOptionalChecks.addEventListener("click", () => {
@@ -2241,7 +2168,7 @@ function attachEvents() {
 
   elements.builderGenerate.addEventListener("click", () => {
     if (state.builder.stage === "setup") {
-      setStatus("Continue to Validate before generating the tree.");
+      setStatus("Continue to Analyze before generating the tree.");
       return;
     }
 
@@ -2295,7 +2222,7 @@ function attachEvents() {
   elements.builderBackValidate.addEventListener("click", () => {
     setBuilderStage("validate");
     renderBuilder();
-    setStatus("Returned to Validate.");
+    setStatus("Returned to Analyze.");
   });
 
   elements.treeExpandAll.addEventListener("click", () => {
@@ -2308,8 +2235,14 @@ function attachEvents() {
 
   elements.teamConfigDefaultTeam.addEventListener("change", () => {
     state.teamConfig.defaultTeamId = normalizeConfiguredTeamId(elements.teamConfigDefaultTeam.value);
+    state.teamConfig.activeTeamId = state.teamConfig.defaultTeamId;
+    state.builder.teamId = state.teamConfig.activeTeamId;
+    setBuilderStage("setup");
+    resetBuilderTreeState();
+    syncSlotSelectOptions();
     saveTeamConfig();
     renderTeamConfig();
+    renderBuilder();
   });
 
   elements.teamConfigActiveTeam.addEventListener("change", () => {
@@ -2333,15 +2266,13 @@ function attachEvents() {
   });
 
   elements.userConfigSave.addEventListener("click", () => {
-    const nextIntent = elements.userConfigDefaultIntent.value;
-    state.userConfig.defaultIntent = INTENT_CONFIG[nextIntent] ? nextIntent : USER_PREF_DEFAULTS.defaultIntent;
     state.userConfig.defaultTreeDensity = elements.userConfigDefaultDensity.value === "detailed" ? "detailed" : "summary";
     state.userConfig.showOptionalChecksByDefault = elements.userConfigShowOptional.checked;
     state.userConfig.autoApplyPresetOnLoad = elements.userConfigAutoPreset.checked;
 
     const saved = saveUserConfig();
 
-    state.builder.intent = state.userConfig.defaultIntent;
+    state.builder.intent = "compose";
     state.builder.showOptionalChecks = state.userConfig.showOptionalChecksByDefault;
     if (!state.builder.tree) {
       state.builder.treeDensity = state.userConfig.defaultTreeDensity;
