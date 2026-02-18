@@ -122,6 +122,18 @@ h3 {
   color: #fff7f2;
 }
 
+.side-menu-actions {
+  margin-top: 0.75rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 0.45rem;
+}
+
+.side-menu-actions h3 {
+  margin: 0;
+}
+
 .tab-panel {
   display: none;
 }

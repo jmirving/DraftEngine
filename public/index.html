@@ -20,11 +20,16 @@
 
       <div class="app-shell">
         <aside class="panel side-menu">
-          <h2>Side Menu</h2>
+          <h2>Navigation</h2>
           <p class="meta">Workflow is your default page. Open these secondary pages when needed.</p>
           <button class="side-menu-link" data-tab="team-config" type="button">Team Context</button>
           <button class="side-menu-link" data-tab="user-config" type="button">User Config</button>
           <button class="side-menu-link" data-tab="explorer" type="button">Champion Explorer</button>
+          <div class="side-menu-actions">
+            <h3>Workflow Actions</h3>
+            <button id="builder-inspect-root" type="button">Inspect Root Composition</button>
+            <button id="builder-clear" type="button" class="ghost">Clear Composition</button>
+          </div>
         </aside>
 
         <div class="main-content">
@@ -152,7 +157,6 @@
                   </details>
                   <div class="button-row sticky-actions">
                     <button id="builder-continue-validate" type="button">Continue to Inspect</button>
-                    <button id="builder-clear" type="button" class="ghost">Clear Composition</button>
                   </div>
                 </div>
               </aside>
@@ -197,7 +201,6 @@
                   </label>
                 </div>
                 <div class="button-row">
-                  <button id="builder-inspect-root" type="button">Inspect Root Composition</button>
                   <button id="tree-expand-all" type="button" class="ghost">Expand All</button>
                   <button id="tree-collapse-all" type="button" class="ghost">Collapse All</button>
                 </div>
