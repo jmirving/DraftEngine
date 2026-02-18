@@ -23,7 +23,7 @@
           <h2>Navigation</h2>
           <p class="meta">Workflow is your default page. Open these secondary pages when needed.</p>
           <button class="side-menu-link" data-tab="team-config" type="button">Team Context</button>
-          <button class="side-menu-link" data-tab="user-config" type="button">User Config</button>
+          <button class="side-menu-link" data-tab="player-config" type="button">Player Config</button>
           <button class="side-menu-link" data-tab="explorer" type="button">Champion Explorer</button>
         </aside>
 
@@ -269,27 +269,22 @@
             </div>
           </section>
 
-          <section id="tab-user-config" class="tab-panel">
+          <section id="tab-player-config" class="tab-panel">
             <div class="panel">
               <div class="button-row">
-                <button id="user-config-back-workflow" class="ghost" data-tab="workflow" type="button">Back to Workflow</button>
+                <button id="player-config-back-workflow" class="ghost" data-tab="workflow" type="button">Back to Workflow</button>
               </div>
-              <h2>User Configuration</h2>
-              <p class="meta">Personalize workflow behavior.</p>
-              <label>
-                Default Tree Density
-                <select id="user-config-default-density">
-                  <option value="summary">Summary</option>
-                  <option value="detailed">Detailed</option>
-                </select>
-              </label>
-              <label class="toggle-item"><input id="user-config-show-optional" type="checkbox" /> <span>Show optional checks by default</span></label>
-              <label class="toggle-item"><input id="user-config-auto-preset" type="checkbox" /> <span>Auto-apply recommended preset on load</span></label>
-              <div class="button-row">
-                <button id="user-config-save" type="button">Save Preferences</button>
-                <button id="user-config-reset" class="ghost" type="button">Reset Preferences</button>
+              <h2>Player Config</h2>
+              <p class="meta">Edit individual player champion pools used by workflow team context.</p>
+              <div class="grid grid-2">
+                <label>
+                  Team
+                  <select id="player-config-team"></select>
+                </label>
               </div>
-              <p id="user-config-feedback" class="meta"></p>
+              <p id="player-config-summary" class="meta"></p>
+              <p id="player-config-feedback" class="meta"></p>
+              <div id="player-config-grid" class="grid grid-2"></div>
             </div>
           </section>
         </div>

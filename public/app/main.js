@@ -14,17 +14,16 @@ import {
 
 const NO_FILTER = "__NO_FILTER__";
 const NONE_TEAM_ID = "__NONE_TEAM__";
-const USER_PREFS_STORAGE_KEY = "draftflow.userPrefs.v1";
 const TEAM_CONFIG_STORAGE_KEY = "draftflow.teamConfig.v1";
+const PLAYER_CONFIG_STORAGE_KEY = "draftflow.playerConfig.v1";
 
 const CHAMPION_IMAGE_OVERRIDES = Object.freeze({
   VelKoz: "Velkoz"
 });
 
-const USER_PREF_DEFAULTS = Object.freeze({
+const BUILDER_DEFAULTS = Object.freeze({
   defaultTreeDensity: "summary",
-  showOptionalChecksByDefault: false,
-  autoApplyPresetOnLoad: true
+  showOptionalChecksByDefault: false
 });
 
 const INTENT_CONFIG = Object.freeze({
@@ -72,13 +71,14 @@ const state = {
     defaultTeamId: null,
     activeTeamId: null
   },
-  userConfig: {
-    ...USER_PREF_DEFAULTS
+  playerConfig: {
+    teamId: null,
+    byTeam: {}
   },
   builder: {
     intent: "compose",
     stage: "setup",
-    showOptionalChecks: USER_PREF_DEFAULTS.showOptionalChecksByDefault,
+    showOptionalChecks: BUILDER_DEFAULTS.showOptionalChecksByDefault,
     teamId: "",
     teamState: createEmptyTeamState(),
     draftOrder: [...SLOTS],
@@ -108,7 +108,7 @@ const elements = {
   tabExplorer: document.querySelector("#tab-explorer"),
   tabWorkflow: document.querySelector("#tab-workflow"),
   tabTeamConfig: document.querySelector("#tab-team-config"),
-  tabUserConfig: document.querySelector("#tab-user-config"),
+  tabPlayerConfig: document.querySelector("#tab-player-config"),
   explorerSearch: document.querySelector("#explorer-search"),
   explorerRole: document.querySelector("#explorer-role"),
   explorerDamage: document.querySelector("#explorer-damage"),
@@ -170,12 +170,10 @@ const elements = {
   teamConfigApplyActive: document.querySelector("#team-config-apply-active"),
   teamConfigPoolSummary: document.querySelector("#team-config-pool-summary"),
   teamConfigPoolGrid: document.querySelector("#team-config-pool-grid"),
-  userConfigDefaultDensity: document.querySelector("#user-config-default-density"),
-  userConfigShowOptional: document.querySelector("#user-config-show-optional"),
-  userConfigAutoPreset: document.querySelector("#user-config-auto-preset"),
-  userConfigSave: document.querySelector("#user-config-save"),
-  userConfigReset: document.querySelector("#user-config-reset"),
-  userConfigFeedback: document.querySelector("#user-config-feedback"),
+  playerConfigTeam: document.querySelector("#player-config-team"),
+  playerConfigSummary: document.querySelector("#player-config-summary"),
+  playerConfigFeedback: document.querySelector("#player-config-feedback"),
+  playerConfigGrid: document.querySelector("#player-config-grid"),
   slotSelects: Object.fromEntries(
     SLOTS.map((slot) => [slot, document.querySelector(`#slot-${slot}`)])
   ),
@@ -235,7 +233,7 @@ function setBuilderStage(stage) {
 
 function resetBuilderTreeState() {
   state.builder.tree = null;
-  state.builder.treeDensity = state.userConfig.defaultTreeDensity === "detailed" ? "detailed" : "summary";
+  state.builder.treeDensity = BUILDER_DEFAULTS.defaultTreeDensity;
   state.builder.treeSearch = "";
   state.builder.treeMinScore = 0;
   state.builder.previewTeam = null;
@@ -333,7 +331,7 @@ function normalizeNoFilterMultiSelection(values, select) {
 }
 
 function setTab(tabName) {
-  const validTabs = new Set(["workflow", "team-config", "user-config", "explorer"]);
+  const validTabs = new Set(["workflow", "team-config", "player-config", "explorer"]);
   const resolvedTab = validTabs.has(tabName) ? tabName : "workflow";
   state.activeTab = resolvedTab;
 
@@ -345,13 +343,13 @@ function setTab(tabName) {
   elements.tabExplorer.classList.toggle("is-active", resolvedTab === "explorer");
   elements.tabWorkflow.classList.toggle("is-active", resolvedTab === "workflow");
   elements.tabTeamConfig.classList.toggle("is-active", resolvedTab === "team-config");
-  elements.tabUserConfig.classList.toggle("is-active", resolvedTab === "user-config");
+  elements.tabPlayerConfig.classList.toggle("is-active", resolvedTab === "player-config");
 
   if (resolvedTab === "team-config" && state.data) {
     renderTeamConfig();
   }
-  if (resolvedTab === "user-config") {
-    renderUserConfig();
+  if (resolvedTab === "player-config" && state.data) {
+    renderPlayerConfig();
   }
   if (resolvedTab === "explorer" && state.data) {
     renderExplorer();
@@ -390,17 +388,97 @@ function buildNoneTeamPools(champions) {
   return pools;
 }
 
-function buildTeamPlayersByRole(teamPoolEntries) {
-  const mapping = {};
+function compareSlots(left, right) {
+  return SLOTS.indexOf(left) - SLOTS.indexOf(right);
+}
+
+function normalizePoolPlayerName(playerName, role) {
+  const normalizedName = typeof playerName === "string" ? playerName.trim() : "";
+  return normalizedName || `${role} Player`;
+}
+
+function buildPlayerPoolsByTeam(teamPoolEntries) {
+  const byTeam = {};
   for (const entry of teamPoolEntries) {
-    if (!entry.player) {
-      continue;
+    if (!byTeam[entry.team]) {
+      byTeam[entry.team] = {};
     }
-    if (!mapping[entry.team]) {
-      mapping[entry.team] = {};
+
+    const playerName = normalizePoolPlayerName(entry.player, entry.role);
+    const playerKey = `${entry.role}::${playerName}`;
+    if (!byTeam[entry.team][playerKey]) {
+      byTeam[entry.team][playerKey] = {
+        id: playerKey,
+        player: playerName,
+        role: entry.role,
+        champions: []
+      };
     }
-    if (!mapping[entry.team][entry.role]) {
-      mapping[entry.team][entry.role] = entry.player;
+
+    if (!byTeam[entry.team][playerKey].champions.includes(entry.champion)) {
+      byTeam[entry.team][playerKey].champions.push(entry.champion);
+    }
+  }
+
+  const normalized = {};
+  for (const [teamId, playersByKey] of Object.entries(byTeam)) {
+    const players = Object.values(playersByKey);
+    for (const player of players) {
+      player.champions.sort((left, right) => left.localeCompare(right));
+    }
+    players.sort((left, right) => {
+      const roleCmp = compareSlots(left.role, right.role);
+      if (roleCmp !== 0) {
+        return roleCmp;
+      }
+      return left.player.localeCompare(right.player);
+    });
+    normalized[teamId] = players;
+  }
+  return normalized;
+}
+
+function clonePlayerPoolsByTeam(playerPoolsByTeam) {
+  const clone = {};
+  for (const [teamId, players] of Object.entries(playerPoolsByTeam)) {
+    clone[teamId] = players.map((player) => ({
+      id: player.id,
+      player: player.player,
+      role: player.role,
+      champions: [...player.champions]
+    }));
+  }
+  return clone;
+}
+
+function buildTeamPoolsFromPlayerPools(playerPoolsByTeam) {
+  const poolsByTeam = {};
+  for (const [teamId, players] of Object.entries(playerPoolsByTeam)) {
+    const pools = createEmptyRolePools();
+    for (const player of players) {
+      const slot = player.role;
+      for (const champion of player.champions) {
+        if (!pools[slot].includes(champion)) {
+          pools[slot].push(champion);
+        }
+      }
+    }
+    for (const slot of SLOTS) {
+      pools[slot].sort((left, right) => left.localeCompare(right));
+    }
+    poolsByTeam[teamId] = pools;
+  }
+  return poolsByTeam;
+}
+
+function buildTeamPlayersByRoleFromPlayerPools(playerPoolsByTeam) {
+  const mapping = {};
+  for (const [teamId, players] of Object.entries(playerPoolsByTeam)) {
+    mapping[teamId] = {};
+    for (const player of players) {
+      if (!mapping[teamId][player.role]) {
+        mapping[teamId][player.role] = player.player;
+      }
     }
   }
   return mapping;
@@ -419,10 +497,16 @@ async function loadMvpData() {
     configJsonText
   });
 
+  const basePlayerPoolsByTeam = buildPlayerPoolsByTeam(loaded.teamPoolEntries);
+  const playerPoolsByTeam = clonePlayerPoolsByTeam(basePlayerPoolsByTeam);
+
   state.data = {
     ...loaded,
     noneTeamPools: buildNoneTeamPools(loaded.champions),
-    teamPlayersByRole: buildTeamPlayersByRole(loaded.teamPoolEntries)
+    defaultPlayerPoolsByTeam: basePlayerPoolsByTeam,
+    playerPoolsByTeam,
+    teamPools: buildTeamPoolsFromPlayerPools(playerPoolsByTeam),
+    teamPlayersByRole: buildTeamPlayersByRoleFromPlayerPools(playerPoolsByTeam)
   };
 }
 
@@ -546,8 +630,8 @@ function initializeBuilderControls() {
   state.teamConfig.activeTeamId = state.teamConfig.defaultTeamId;
   state.builder.teamId = state.teamConfig.activeTeamId;
   state.builder.intent = "compose";
-  state.builder.showOptionalChecks = Boolean(state.userConfig.showOptionalChecksByDefault);
-  state.builder.treeDensity = state.userConfig.defaultTreeDensity === "detailed" ? "detailed" : "summary";
+  state.builder.showOptionalChecks = BUILDER_DEFAULTS.showOptionalChecksByDefault;
+  state.builder.treeDensity = BUILDER_DEFAULTS.defaultTreeDensity;
   replaceOptions(elements.builderActiveTeam, getTeamSelectOptions());
   elements.builderActiveTeam.value = state.builder.teamId;
 
@@ -629,20 +713,99 @@ function initializeTeamConfigControls() {
   renderTeamConfig();
 }
 
-function renderUserConfigFeedback(message, isError = false) {
-  elements.userConfigFeedback.textContent = message;
-  elements.userConfigFeedback.style.color = isError ? "var(--warn)" : "var(--muted)";
+function syncDerivedTeamDataFromPlayerConfig() {
+  state.data.playerPoolsByTeam = clonePlayerPoolsByTeam(state.playerConfig.byTeam);
+  state.data.teamPools = buildTeamPoolsFromPlayerPools(state.data.playerPoolsByTeam);
+  state.data.teamPlayersByRole = buildTeamPlayersByRoleFromPlayerPools(state.data.playerPoolsByTeam);
 }
 
-function renderUserConfig() {
-  elements.userConfigDefaultDensity.value = state.userConfig.defaultTreeDensity;
-  elements.userConfigShowOptional.checked = state.userConfig.showOptionalChecksByDefault;
-  elements.userConfigAutoPreset.checked = state.userConfig.autoApplyPresetOnLoad;
+function normalizePlayerConfigTeamId(teamId) {
+  if (typeof teamId === "string" && state.playerConfig.byTeam[teamId]) {
+    return teamId;
+  }
+  const teamIds = Object.keys(state.playerConfig.byTeam).sort((left, right) => left.localeCompare(right));
+  return teamIds[0] ?? "";
 }
 
-function initializeUserConfigControls() {
-  renderUserConfig();
-  renderUserConfigFeedback("");
+function renderPlayerConfigFeedback(message, isError = false) {
+  elements.playerConfigFeedback.textContent = message;
+  elements.playerConfigFeedback.style.color = isError ? "var(--warn)" : "var(--muted)";
+}
+
+function renderPlayerConfig() {
+  state.playerConfig.teamId = normalizePlayerConfigTeamId(state.playerConfig.teamId);
+  const teamOptions = Object.keys(state.playerConfig.byTeam)
+    .sort((left, right) => left.localeCompare(right))
+    .map((teamId) => ({ value: teamId, label: teamId }));
+
+  replaceOptions(elements.playerConfigTeam, teamOptions);
+  elements.playerConfigTeam.value = state.playerConfig.teamId;
+
+  const players = state.playerConfig.byTeam[state.playerConfig.teamId] ?? [];
+  const summary = players.map((player) => `${player.role}: ${player.champions.length}`).join(" | ");
+  elements.playerConfigSummary.textContent = summary
+    ? `Pool sizes -> ${summary}`
+    : "No players are configured for this team.";
+
+  elements.playerConfigGrid.innerHTML = "";
+
+  for (const player of players) {
+    const card = document.createElement("article");
+    card.className = "player-config-card";
+
+    const title = document.createElement("h3");
+    title.textContent = player.player;
+
+    const roleMeta = document.createElement("p");
+    roleMeta.className = "meta";
+    roleMeta.textContent = `Role: ${player.role}`;
+
+    const countMeta = document.createElement("p");
+    countMeta.className = "meta";
+    countMeta.textContent = `${player.champions.length} champion${player.champions.length === 1 ? "" : "s"} in pool.`;
+
+    const label = document.createElement("label");
+    label.textContent = "Champion Pool";
+
+    const select = document.createElement("select");
+    select.multiple = true;
+    select.size = 12;
+    select.className = "player-pool-select";
+
+    const roleEligible = state.data.noneTeamPools[player.role] ?? [];
+    for (const championName of roleEligible) {
+      select.append(createOption(championName, championName));
+    }
+    setMultiSelectValues(select, player.champions);
+
+    select.addEventListener("change", () => {
+      player.champions = Array.from(new Set(getMultiSelectValues(select))).sort((left, right) => left.localeCompare(right));
+      syncDerivedTeamDataFromPlayerConfig();
+      const saved = savePlayerConfig();
+      state.teamConfig.defaultTeamId = normalizeConfiguredTeamId(state.teamConfig.defaultTeamId);
+      state.teamConfig.activeTeamId = normalizeConfiguredTeamId(state.teamConfig.activeTeamId);
+      state.builder.teamId = normalizeConfiguredTeamId(state.builder.teamId);
+      setBuilderStage("setup");
+      resetBuilderTreeState();
+      syncSlotSelectOptions();
+      renderTeamConfig();
+      renderBuilder();
+      renderPlayerConfig();
+      renderPlayerConfigFeedback(
+        saved ? `Saved pool updates for ${player.player}.` : "Pool updates applied in memory, but local storage is unavailable.",
+        !saved
+      );
+    });
+
+    label.append(select);
+    card.append(title, roleMeta, countMeta, label);
+    elements.playerConfigGrid.append(card);
+  }
+}
+
+function initializePlayerConfigControls() {
+  renderPlayerConfig();
+  renderPlayerConfigFeedback("");
 }
 
 function tryReadJsonStorage(key, fallback) {
@@ -670,21 +833,6 @@ function tryWriteJsonStorage(key, value) {
   }
 }
 
-function loadStoredUserConfig() {
-  const stored = tryReadJsonStorage(USER_PREFS_STORAGE_KEY, {});
-  const defaultTreeDensity = stored.defaultTreeDensity === "detailed" ? "detailed" : USER_PREF_DEFAULTS.defaultTreeDensity;
-  const showOptionalChecksByDefault = Boolean(stored.showOptionalChecksByDefault);
-  const autoApplyPresetOnLoad = stored.autoApplyPresetOnLoad === undefined
-    ? USER_PREF_DEFAULTS.autoApplyPresetOnLoad
-    : Boolean(stored.autoApplyPresetOnLoad);
-
-  state.userConfig = {
-    defaultTreeDensity,
-    showOptionalChecksByDefault,
-    autoApplyPresetOnLoad
-  };
-}
-
 function loadStoredTeamConfig() {
   const stored = tryReadJsonStorage(TEAM_CONFIG_STORAGE_KEY, {});
   state.teamConfig.defaultTeamId = typeof stored.defaultTeamId === "string" ? stored.defaultTeamId : null;
@@ -695,8 +843,78 @@ function saveTeamConfig() {
   tryWriteJsonStorage(TEAM_CONFIG_STORAGE_KEY, state.teamConfig);
 }
 
-function saveUserConfig() {
-  return tryWriteJsonStorage(USER_PREFS_STORAGE_KEY, state.userConfig);
+function savePlayerConfig() {
+  return tryWriteJsonStorage(PLAYER_CONFIG_STORAGE_KEY, state.playerConfig);
+}
+
+function loadStoredPlayerConfig() {
+  state.playerConfig.byTeam = clonePlayerPoolsByTeam(state.data.defaultPlayerPoolsByTeam);
+  const stored = tryReadJsonStorage(PLAYER_CONFIG_STORAGE_KEY, {});
+  const allowedChampionNames = new Set(Object.keys(state.data.championsByName));
+
+  if (stored.byTeam && typeof stored.byTeam === "object" && !Array.isArray(stored.byTeam)) {
+    for (const [teamId, storedPlayers] of Object.entries(stored.byTeam)) {
+      if (!state.playerConfig.byTeam[teamId] || !Array.isArray(storedPlayers)) {
+        continue;
+      }
+
+      const playersById = {};
+      for (const candidate of storedPlayers) {
+        if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+          continue;
+        }
+
+        const role = typeof candidate.role === "string" ? candidate.role : "";
+        if (!SLOTS.includes(role)) {
+          continue;
+        }
+
+        const playerName = normalizePoolPlayerName(candidate.player, role);
+        const playerId = `${role}::${playerName}`;
+        if (!playersById[playerId]) {
+          playersById[playerId] = {
+            id: playerId,
+            player: playerName,
+            role,
+            champions: []
+          };
+        }
+
+        const champions = Array.isArray(candidate.champions) ? candidate.champions : [];
+        for (const champion of champions) {
+          if (typeof champion !== "string" || !allowedChampionNames.has(champion)) {
+            continue;
+          }
+          if (!playersById[playerId].champions.includes(champion)) {
+            playersById[playerId].champions.push(champion);
+          }
+        }
+      }
+
+      const normalizedPlayers = Object.values(playersById);
+      for (const player of normalizedPlayers) {
+        const roleEligible = new Set(state.data.noneTeamPools[player.role] ?? []);
+        player.champions = player.champions.filter((champion) => roleEligible.has(champion));
+        player.champions.sort((left, right) => left.localeCompare(right));
+      }
+      normalizedPlayers.sort((left, right) => {
+        const roleCmp = compareSlots(left.role, right.role);
+        if (roleCmp !== 0) {
+          return roleCmp;
+        }
+        return left.player.localeCompare(right.player);
+      });
+
+      if (normalizedPlayers.length > 0) {
+        state.playerConfig.byTeam[teamId] = normalizedPlayers;
+      }
+    }
+  }
+
+  state.playerConfig.teamId = normalizePlayerConfigTeamId(
+    typeof stored.teamId === "string" ? stored.teamId : null
+  );
+  syncDerivedTeamDataFromPlayerConfig();
 }
 
 function applyRecommendedPreset() {
@@ -708,10 +926,10 @@ function applyRecommendedPreset() {
   state.builder.draftOrder = [...SLOTS];
   state.builder.intent = "compose";
   state.builder.toggles = { ...DEFAULT_REQUIREMENT_TOGGLES };
-  state.builder.showOptionalChecks = Boolean(state.userConfig.showOptionalChecksByDefault);
+  state.builder.showOptionalChecks = BUILDER_DEFAULTS.showOptionalChecksByDefault;
   state.builder.excludedChampions = [];
   state.builder.excludedSearch = "";
-  state.builder.treeDensity = state.userConfig.defaultTreeDensity === "detailed" ? "detailed" : "summary";
+  state.builder.treeDensity = BUILDER_DEFAULTS.defaultTreeDensity;
   state.builder.treeSearch = "";
   state.builder.treeMinScore = 0;
 
@@ -721,7 +939,7 @@ function applyRecommendedPreset() {
   state.builder.maxBranch = Number.isFinite(rawBranch) ? Math.max(1, rawBranch) : 8;
 
   resetBuilderTreeState();
-  state.builder.treeDensity = state.userConfig.defaultTreeDensity === "detailed" ? "detailed" : "summary";
+  state.builder.treeDensity = BUILDER_DEFAULTS.defaultTreeDensity;
   setBuilderStage("setup");
 
   elements.builderMaxDepth.value = String(state.builder.maxDepth);
@@ -2192,28 +2410,14 @@ function attachEvents() {
     clearBuilderFeedback();
   });
 
-  elements.userConfigSave.addEventListener("click", () => {
-    state.userConfig.defaultTreeDensity = elements.userConfigDefaultDensity.value === "detailed" ? "detailed" : "summary";
-    state.userConfig.showOptionalChecksByDefault = elements.userConfigShowOptional.checked;
-    state.userConfig.autoApplyPresetOnLoad = elements.userConfigAutoPreset.checked;
-
-    const saved = saveUserConfig();
-
-    state.builder.intent = "compose";
-    state.builder.showOptionalChecks = state.userConfig.showOptionalChecksByDefault;
-    if (!state.builder.tree) {
-      state.builder.treeDensity = state.userConfig.defaultTreeDensity;
-    }
-    renderBuilder();
-    renderUserConfig();
-    renderUserConfigFeedback(saved ? "Preferences saved." : "Preferences could not be persisted in local storage.", !saved);
-  });
-
-  elements.userConfigReset.addEventListener("click", () => {
-    state.userConfig = { ...USER_PREF_DEFAULTS };
-    const saved = saveUserConfig();
-    renderUserConfig();
-    renderUserConfigFeedback(saved ? "Preferences reset to defaults." : "Defaults applied in memory, but local storage is unavailable.", !saved);
+  elements.playerConfigTeam.addEventListener("change", () => {
+    state.playerConfig.teamId = normalizePlayerConfigTeamId(elements.playerConfigTeam.value);
+    const saved = savePlayerConfig();
+    renderPlayerConfig();
+    renderPlayerConfigFeedback(
+      saved ? "" : "Player-config team selection changed in memory, but local storage is unavailable.",
+      !saved
+    );
   });
 }
 
@@ -2221,21 +2425,18 @@ async function init() {
   try {
     setTab("workflow");
     await loadMvpData();
-    loadStoredUserConfig();
+    loadStoredPlayerConfig();
     loadStoredTeamConfig();
     initializeExplorerControls();
     initializeBuilderControls();
     initializeTeamConfigControls();
-    initializeUserConfigControls();
-
-    if (state.userConfig.autoApplyPresetOnLoad) {
-      applyRecommendedPreset();
-    }
+    initializePlayerConfigControls();
+    applyRecommendedPreset();
 
     attachEvents();
     syncSlotSelectOptions();
     renderTeamConfig();
-    renderUserConfig();
+    renderPlayerConfig();
     renderBuilder();
     clearBuilderFeedback();
   } catch (error) {
