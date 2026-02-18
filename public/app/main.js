@@ -131,7 +131,6 @@ const elements = {
   builderStageInspectTitle: document.querySelector("#builder-stage-inspect-title"),
   builderStageInspectMeta: document.querySelector("#builder-stage-inspect-meta"),
   builderChecksReadiness: document.querySelector("#builder-checks-readiness"),
-  builderStageChips: document.querySelector("#builder-stage-chips"),
   builderStageHelp: document.querySelector("#builder-stage-help"),
   builderStageSetup: document.querySelector("#builder-stage-setup"),
   builderStageInspect: document.querySelector("#builder-stage-inspect"),
@@ -145,7 +144,6 @@ const elements = {
   builderMaxBranch: document.querySelector("#builder-max-branch"),
   builderContinueValidate: document.querySelector("#builder-continue-validate"),
   builderGenerate: document.querySelector("#builder-generate"),
-  builderBackValidate: document.querySelector("#builder-back-validate"),
   builderClear: document.querySelector("#builder-clear"),
   builderDraftOrder: document.querySelector("#builder-draft-order"),
   builderNextRoleReadout: document.querySelector("#builder-next-role-readout"),
@@ -266,40 +264,6 @@ function renderBuilderStageGuide() {
   elements.builderStageInspectMeta.textContent = intentMode.stages[1].panelMeta;
   elements.builderContinueValidate.textContent = intentMode.continueLabel;
   elements.builderGenerate.textContent = intentMode.generateLabel;
-
-  elements.builderStageChips.innerHTML = "";
-  for (let index = 0; index < stageSteps.length; index += 1) {
-    const step = stageSteps[index];
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = "stage-chip";
-    const isReachable = index <= currentStageIndex;
-
-    if (index < currentStageIndex) {
-      chip.classList.add("is-done");
-      chip.textContent = step.label;
-    } else if (index === currentStageIndex) {
-      chip.classList.add("is-current");
-      chip.textContent = step.label;
-    } else {
-      chip.textContent = step.label;
-    }
-
-    if (!isReachable) {
-      chip.classList.add("is-locked");
-      chip.disabled = true;
-      chip.textContent = `${step.label} (Locked)`;
-      chip.title = "Complete the current stage first.";
-    } else {
-      chip.addEventListener("click", () => {
-        setBuilderStage(step.key);
-        renderBuilder();
-        scrollCurrentStageIntoView();
-      });
-    }
-
-    elements.builderStageChips.append(chip);
-  }
 
   elements.builderStageProgress.textContent = `Current stage: ${currentStageIndex + 1} of ${stageSteps.length}`;
   elements.builderStageHelp.textContent = stageHelp;
@@ -2182,13 +2146,6 @@ function attachEvents() {
     syncSlotSelectOptions();
     clearBuilderFeedback();
     renderBuilder();
-  });
-
-  elements.builderBackValidate.addEventListener("click", () => {
-    setBuilderStage("setup");
-    setInspectFeedback("");
-    renderBuilder();
-    scrollCurrentStageIntoView();
   });
 
   elements.treeExpandAll.addEventListener("click", () => {

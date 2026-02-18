@@ -25,11 +25,6 @@
           <button class="side-menu-link" data-tab="team-config" type="button">Team Context</button>
           <button class="side-menu-link" data-tab="user-config" type="button">User Config</button>
           <button class="side-menu-link" data-tab="explorer" type="button">Champion Explorer</button>
-          <div class="side-menu-actions">
-            <h3>Workflow Actions</h3>
-            <button id="builder-continue-validate" type="button">Continue to Inspection</button>
-            <button id="builder-clear" type="button" class="ghost">Clear Composition</button>
-          </div>
         </aside>
 
         <div class="main-content">
@@ -94,17 +89,16 @@
             <section id="builder-stage-guide" class="panel stage-guide" aria-live="polite">
               <h2 id="builder-workflow-title">Draft Workflow</h2>
               <p id="builder-intent-help" class="meta"></p>
-              <div id="builder-stage-chips" class="stage-chip-row" hidden></div>
+              <div class="button-row stage-guide-actions">
+                <button id="builder-continue-validate" type="button">Continue to Inspection</button>
+                <button id="builder-clear" type="button" class="ghost">Clear Composition</button>
+              </div>
               <p id="builder-stage-progress" class="meta" hidden></p>
               <p id="builder-stage-help" class="meta" hidden></p>
             </section>
             <div class="builder-grid">
               <aside id="builder-stage-setup" class="panel stage-panel">
                 <h2 id="builder-stage-setup-title">Setup</h2>
-                <div class="panel-tab-row">
-                  <button class="panel-tab is-active" type="button" aria-selected="true">Setup</button>
-                  <button class="panel-tab is-locked" type="button" aria-selected="false" disabled>Inspect (Locked)</button>
-                </div>
                 <p id="builder-stage-setup-meta" class="meta">Set current composition state and generation constraints.</p>
                 <div class="stack">
                   <label>
@@ -192,10 +186,6 @@
 
               <section id="builder-stage-inspect" class="panel stage-panel">
                 <h2 id="builder-stage-inspect-title">Inspect</h2>
-                <div class="panel-tab-row">
-                  <button id="builder-back-validate" class="panel-tab" type="button" aria-selected="false">Setup</button>
-                  <button class="panel-tab is-active" type="button" aria-selected="true" disabled>Inspect</button>
-                </div>
                 <p id="builder-stage-inspect-meta" class="meta">Inspect a node to see slot-level impact and cumulative reasons that increase its score.</p>
                 <p id="builder-checks-readiness" class="meta"></p>
                 <div id="builder-team-context" class="team-context"></div>
