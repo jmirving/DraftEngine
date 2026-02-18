@@ -14,7 +14,6 @@ import {
 
 const NO_FILTER = "__NO_FILTER__";
 const NONE_TEAM_ID = "__NONE_TEAM__";
-const FIRST_RUN_PRESET_KEY = "draftflow.builderPresetApplied.v1";
 const USER_PREFS_STORAGE_KEY = "draftflow.userPrefs.v1";
 const TEAM_CONFIG_STORAGE_KEY = "draftflow.teamConfig.v1";
 
@@ -31,7 +30,7 @@ const USER_PREF_DEFAULTS = Object.freeze({
 const INTENT_CONFIG = Object.freeze({
   compose: {
     workflowTitle: "Build a Composition",
-    intentHelp: "Use setup to evaluate a full composition, get suggestions from a partial composition, or build from scratch.",
+    intentHelp: "Fill all slots for composition analysis, fill some for guided suggestions, or leave slots empty to build from scratch.",
     stages: [
       {
         key: "setup",
@@ -49,8 +48,7 @@ const INTENT_CONFIG = Object.freeze({
       }
     ],
     continueLabel: "Continue to Inspection",
-    generateLabel: "Generate Tree",
-    generateReadyStatus: "Setup captured. Review checks and generate the tree from Inspect."
+    generateLabel: "Generate Tree"
   }
 });
 
@@ -76,7 +74,6 @@ const state = {
   builder: {
     intent: "compose",
     stage: "setup",
-    showFirstRunHints: false,
     showOptionalChecks: USER_PREF_DEFAULTS.showOptionalChecksByDefault,
     teamId: "",
     teamState: createEmptyTeamState(),
@@ -102,7 +99,6 @@ const state = {
 };
 
 const elements = {
-  statusBanner: document.querySelector("#status-banner"),
   tabTriggers: Array.from(document.querySelectorAll("button[data-tab]")),
   sideMenuLinks: Array.from(document.querySelectorAll(".side-menu-link")),
   tabExplorer: document.querySelector("#tab-explorer"),
@@ -124,10 +120,9 @@ const elements = {
   builderWorkflowTitle: document.querySelector("#builder-workflow-title"),
   builderIntentHelp: document.querySelector("#builder-intent-help"),
   builderStageGuide: document.querySelector("#builder-stage-guide"),
-  builderSetupInputGuidance: document.querySelector("#builder-setup-input-guidance"),
   builderStageProgress: document.querySelector("#builder-stage-progress"),
-  builderApplyPreset: document.querySelector("#builder-apply-preset"),
-  builderOpenTeamConfig: document.querySelector("#builder-open-team-config"),
+  builderSetupFeedback: document.querySelector("#builder-setup-feedback"),
+  builderInspectFeedback: document.querySelector("#builder-inspect-feedback"),
   builderActiveTeam: document.querySelector("#builder-active-team"),
   builderTeamName: document.querySelector("#builder-team-name"),
   builderTeamHelp: document.querySelector("#builder-team-help"),
@@ -138,7 +133,6 @@ const elements = {
   builderChecksReadiness: document.querySelector("#builder-checks-readiness"),
   builderStageChips: document.querySelector("#builder-stage-chips"),
   builderStageHelp: document.querySelector("#builder-stage-help"),
-  builderFirstRunHints: document.querySelector("#builder-first-run-hints"),
   builderStageSetup: document.querySelector("#builder-stage-setup"),
   builderStageInspect: document.querySelector("#builder-stage-inspect"),
   builderAdvancedControls: document.querySelector("#builder-advanced-controls"),
@@ -186,18 +180,37 @@ const elements = {
   ),
   slotLabels: Object.fromEntries(
     SLOTS.map((slot) => [slot, document.querySelector(`#slot-label-${slot}`)])
+  ),
+  slotRows: Object.fromEntries(
+    SLOTS.map((slot) => [slot, document.querySelector(`#slot-row-${slot}`)])
+  ),
+  slotOrderBadges: Object.fromEntries(
+    SLOTS.map((slot) => [slot, document.querySelector(`#slot-order-${slot}`)])
+  ),
+  slotStatusBadges: Object.fromEntries(
+    SLOTS.map((slot) => [slot, document.querySelector(`#slot-status-${slot}`)])
   )
 };
 
-function setStatus(message, isError = false) {
-  if (!message) {
-    elements.statusBanner.hidden = true;
-    elements.statusBanner.textContent = "";
+function setInlineFeedback(target, message) {
+  if (!target) {
     return;
   }
-  elements.statusBanner.hidden = false;
-  elements.statusBanner.textContent = message;
-  elements.statusBanner.style.borderLeftColor = isError ? "#9c3f1e" : "#cc5b34";
+  target.textContent = message;
+  target.hidden = !message;
+}
+
+function setSetupFeedback(message) {
+  setInlineFeedback(elements.builderSetupFeedback, message);
+}
+
+function setInspectFeedback(message) {
+  setInlineFeedback(elements.builderInspectFeedback, message);
+}
+
+function clearBuilderFeedback() {
+  setSetupFeedback("");
+  setInspectFeedback("");
 }
 
 function getIntentMode() {
@@ -253,10 +266,6 @@ function renderBuilderStageGuide() {
   elements.builderStageInspectMeta.textContent = intentMode.stages[1].panelMeta;
   elements.builderContinueValidate.textContent = intentMode.continueLabel;
   elements.builderGenerate.textContent = intentMode.generateLabel;
-  if (elements.builderSetupInputGuidance) {
-    elements.builderSetupInputGuidance.textContent =
-      "Fill all slots for composition analysis, fill some for guided suggestions, or leave slots empty to build from scratch.";
-  }
 
   elements.builderStageChips.innerHTML = "";
   for (let index = 0; index < stageSteps.length; index += 1) {
@@ -294,18 +303,6 @@ function renderBuilderStageGuide() {
 
   elements.builderStageProgress.textContent = `Current stage: ${currentStageIndex + 1} of ${stageSteps.length}`;
   elements.builderStageHelp.textContent = stageHelp;
-  const hintMessages = [
-    "1. Use Setup to pick your team context and any locked champions.",
-    "2. Use Continue to Inspection to review checks and generate options.",
-    "3. Inspect generated nodes before applying a path."
-  ];
-  elements.builderFirstRunHints.innerHTML = "";
-  for (const message of hintMessages) {
-    const row = document.createElement("li");
-    row.textContent = message;
-    elements.builderFirstRunHints.append(row);
-  }
-  elements.builderFirstRunHints.hidden = !state.builder.showFirstRunHints;
 
   elements.builderStageSetup.classList.toggle("is-current-stage", state.builder.stage === "setup");
   elements.builderStageInspect.classList.toggle("is-current-stage", state.builder.stage === "inspect");
@@ -530,15 +527,15 @@ function getSlotLabel(slot) {
 
 function updateTeamHelpAndSlotLabels() {
   elements.builderTeamName.textContent = state.builder.teamId === NONE_TEAM_ID
-    ? "Active team context: None (global role pools)"
-    : `Active team context: ${state.builder.teamId}`;
+    ? "Using global role pools."
+    : `Using ${state.builder.teamId} role pools.`;
 
   if (state.builder.teamId === NONE_TEAM_ID) {
     elements.builderTeamHelp.textContent =
-      "None mode: candidates for each slot come from champion role eligibility (no team pool restrictions).";
+      "Candidates come from champion role eligibility without team restrictions.";
   } else {
     elements.builderTeamHelp.textContent =
-      "Team mode: candidates for each slot are constrained to the selected team's configured pools.";
+      "Candidates for each slot are constrained to this team's configured pools.";
   }
 
   for (const slot of SLOTS) {
@@ -680,22 +677,6 @@ function initializeUserConfigControls() {
   renderUserConfigFeedback("");
 }
 
-function tryReadPresetFlag() {
-  try {
-    return window.localStorage.getItem(FIRST_RUN_PRESET_KEY) === "true";
-  } catch {
-    return false;
-  }
-}
-
-function tryWritePresetFlag() {
-  try {
-    window.localStorage.setItem(FIRST_RUN_PRESET_KEY, "true");
-  } catch {
-    // Ignore storage failures (private browsing or restricted environments).
-  }
-}
-
 function tryReadJsonStorage(key, fallback) {
   try {
     const raw = window.localStorage.getItem(key);
@@ -750,13 +731,7 @@ function saveUserConfig() {
   return tryWriteJsonStorage(USER_PREFS_STORAGE_KEY, state.userConfig);
 }
 
-function applyRecommendedPreset(options = {}) {
-  const firstRunOnly = Boolean(options.firstRunOnly);
-  const alreadyApplied = tryReadPresetFlag();
-  if (firstRunOnly && alreadyApplied) {
-    return false;
-  }
-
+function applyRecommendedPreset() {
   const defaultTeamId = normalizeConfiguredTeamId(state.teamConfig.defaultTeamId);
 
   state.builder.teamId = defaultTeamId;
@@ -780,7 +755,6 @@ function applyRecommendedPreset(options = {}) {
   resetBuilderTreeState();
   state.builder.treeDensity = state.userConfig.defaultTreeDensity === "detailed" ? "detailed" : "summary";
   setBuilderStage("setup");
-  state.builder.showFirstRunHints = firstRunOnly && !alreadyApplied;
 
   elements.builderMaxDepth.value = String(state.builder.maxDepth);
   elements.builderMaxBranch.value = String(state.builder.maxBranch);
@@ -790,7 +764,6 @@ function applyRecommendedPreset(options = {}) {
   elements.treeDensity.value = state.builder.treeDensity;
   syncBuilderToggleInputs();
 
-  tryWritePresetFlag();
   saveTeamConfig();
   return true;
 }
@@ -1271,6 +1244,26 @@ function getActiveNextRole() {
 function renderDraftOrder() {
   elements.builderDraftOrder.innerHTML = "";
 
+  for (let index = 0; index < state.builder.draftOrder.length; index += 1) {
+    const role = state.builder.draftOrder[index];
+    const row = elements.slotRows[role];
+    const orderBadge = elements.slotOrderBadges[role];
+    const statusBadge = elements.slotStatusBadges[role];
+    const filled = Boolean(state.builder.teamState[role]);
+    if (row) {
+      row.style.order = String(index);
+      row.classList.toggle("is-filled", filled);
+    }
+    if (orderBadge) {
+      orderBadge.textContent = `#${index + 1}`;
+    }
+    if (statusBadge) {
+      statusBadge.textContent = filled ? "Filled" : "Pending";
+      statusBadge.classList.toggle("is-filled", filled);
+      statusBadge.classList.toggle("is-pending", !filled);
+    }
+  }
+
   const activeNextRole = getActiveNextRole();
   if (activeNextRole) {
     elements.builderNextRoleReadout.textContent = `Next expansion role: ${getSlotLabel(activeNextRole)}`;
@@ -1522,8 +1515,8 @@ function renderPreview() {
     resetBuilderTreeState();
     setBuilderStage("setup");
     syncSlotSelectOptions();
+    clearBuilderFeedback();
     renderBuilder();
-    setStatus("Applied selected node to current composition.");
   });
   wrapper.append(applyButton);
 
@@ -1540,7 +1533,6 @@ function inspectNode(node, nodeId, nodeTitle) {
   renderTree();
   renderPreview();
   renderTreeMap();
-  setStatus(`Inspecting node ${nodeTitle}.`);
 }
 
 function nodeMatchesTreeSearch(node) {
@@ -1959,18 +1951,19 @@ function validateAndApplySlotSelection(slot, championName) {
 
   const pools = getEffectiveRolePools();
   if (!pools[slot]?.includes(championName)) {
-    setStatus(`${championName} is not in ${slot}'s allowed pool.`, true);
+    setSetupFeedback(`${championName} is not in ${slot}'s allowed pool.`);
     return false;
   }
   if (state.builder.excludedChampions.includes(championName)) {
-    setStatus(`${championName} is excluded and cannot be selected.`, true);
+    setSetupFeedback(`${championName} is excluded and cannot be selected.`);
     return false;
   }
   if (isChampionInOtherSlot(slot, championName)) {
-    setStatus(`${championName} is already selected in another slot.`, true);
+    setSetupFeedback(`${championName} is already selected in another slot.`);
     return false;
   }
 
+  setSetupFeedback("");
   state.builder.teamState[slot] = championName;
   return true;
 }
@@ -2053,14 +2046,6 @@ function attachEvents() {
     renderExplorer();
   });
 
-  elements.builderApplyPreset.addEventListener("click", () => {
-    applyRecommendedPreset();
-    syncSlotSelectOptions();
-    renderTeamConfig();
-    renderBuilder();
-    setStatus("Recommended preset applied.");
-  });
-
   elements.builderActiveTeam.addEventListener("change", () => {
     state.builder.teamId = normalizeConfiguredTeamId(elements.builderActiveTeam.value);
     state.teamConfig.activeTeamId = state.builder.teamId;
@@ -2068,9 +2053,9 @@ function attachEvents() {
     setBuilderStage("setup");
     resetBuilderTreeState();
     syncSlotSelectOptions();
+    clearBuilderFeedback();
     renderTeamConfig();
     renderBuilder();
-    setStatus(`Active team set to ${state.builder.teamId === NONE_TEAM_ID ? "None" : state.builder.teamId}.`);
   });
 
   elements.builderToggleOptionalChecks.addEventListener("click", () => {
@@ -2135,9 +2120,10 @@ function attachEvents() {
 
   elements.builderContinueValidate.addEventListener("click", () => {
     setBuilderStage("inspect");
+    setSetupFeedback("");
+    setInspectFeedback("");
     renderBuilder();
     scrollCurrentStageIntoView();
-    setStatus(getIntentMode().generateReadyStatus);
   });
 
   for (const slot of SLOTS) {
@@ -2151,17 +2137,18 @@ function attachEvents() {
       resetBuilderTreeState();
       syncSlotSelectOptions();
       renderBuilder();
-      setStatus("");
+      setSetupFeedback("");
     });
   }
 
   elements.builderGenerate.addEventListener("click", () => {
     if (state.builder.stage === "setup") {
-      setStatus("Use Continue to Inspection before generating the tree.");
+      setSetupFeedback("Use Continue to Inspection before generating the tree.");
       return;
     }
 
     try {
+      setInspectFeedback("");
       const { teamId, teamPools } = getEnginePoolContext();
       state.builder.tree = generatePossibilityTree({
         teamState: state.builder.teamState,
@@ -2182,12 +2169,9 @@ function attachEvents() {
       state.builder.compareNodeA = null;
       state.builder.compareNodeB = null;
       setBuilderStage("inspect");
-      state.builder.showFirstRunHints = false;
       renderBuilder();
-      const nextRole = getActiveNextRole();
-      setStatus(nextRole ? `Tree generated using draft-order priority. Next role was ${getSlotLabel(nextRole)}.` : "Tree generated.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Failed to generate tree.", true);
+      setInspectFeedback(error instanceof Error ? error.message : "Failed to generate tree.");
     }
   });
 
@@ -2196,15 +2180,15 @@ function attachEvents() {
     resetBuilderTreeState();
     setBuilderStage("setup");
     syncSlotSelectOptions();
+    clearBuilderFeedback();
     renderBuilder();
-    setStatus("Current composition cleared.");
   });
 
   elements.builderBackValidate.addEventListener("click", () => {
     setBuilderStage("setup");
+    setInspectFeedback("");
     renderBuilder();
     scrollCurrentStageIntoView();
-    setStatus("Returned to Setup.");
   });
 
   elements.treeExpandAll.addEventListener("click", () => {
@@ -2244,7 +2228,7 @@ function attachEvents() {
     renderTeamConfig();
     renderBuilder();
     setTab("workflow");
-    setStatus(`Applied ${state.builder.teamId === NONE_TEAM_ID ? "None" : state.builder.teamId} as active workflow team context.`);
+    clearBuilderFeedback();
   });
 
   elements.userConfigSave.addEventListener("click", () => {
@@ -2274,7 +2258,6 @@ function attachEvents() {
 
 async function init() {
   try {
-    setStatus("Loading local data files...");
     setTab("workflow");
     await loadMvpData();
     loadStoredUserConfig();
@@ -2284,9 +2267,8 @@ async function init() {
     initializeTeamConfigControls();
     initializeUserConfigControls();
 
-    let appliedPreset = false;
     if (state.userConfig.autoApplyPresetOnLoad) {
-      appliedPreset = applyRecommendedPreset({ firstRunOnly: false });
+      applyRecommendedPreset();
     }
 
     attachEvents();
@@ -2294,13 +2276,9 @@ async function init() {
     renderTeamConfig();
     renderUserConfig();
     renderBuilder();
-    setStatus(
-      appliedPreset
-        ? "Loaded champions, pools, and defaults from /public/data. Recommended preset applied."
-        : "Loaded champions, pools, and defaults from /public/data."
-    );
+    clearBuilderFeedback();
   } catch (error) {
-    setStatus(error instanceof Error ? error.message : "Failed to initialize app.", true);
+    setSetupFeedback(error instanceof Error ? error.message : "Failed to initialize app.");
   }
 }
 

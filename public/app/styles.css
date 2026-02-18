@@ -176,15 +176,6 @@ button.panel-tab:disabled {
   animation: fade-in 200ms ease;
 }
 
-.status-banner {
-  margin-bottom: 1rem;
-  border: 1px solid var(--border);
-  border-left: 6px solid var(--accent);
-  background: var(--surface);
-  padding: 0.5rem 0.75rem;
-  border-radius: 10px;
-}
-
 .panel {
   background: linear-gradient(165deg, var(--surface), var(--surface-strong));
   border: 1px solid var(--border);
@@ -371,10 +362,62 @@ button.ghost {
   align-items: start;
 }
 
-.slot-grid {
+.slot-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 0.6rem;
+}
+
+.slot-row {
+  display: grid;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fffefa;
+  padding: 0.5rem;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.slot-row.is-filled {
+  border-color: #b7d3be;
+  box-shadow: inset 0 0 0 1px rgba(35, 109, 63, 0.1);
+}
+
+.slot-row-head {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  flex-wrap: wrap;
+}
+
+.slot-order {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fffcf5;
+  color: var(--muted);
+  font-size: 0.72rem;
+  padding: 0.08rem 0.4rem;
+  font-weight: 700;
+}
+
+.slot-status {
+  margin-left: auto;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  padding: 0.08rem 0.38rem;
+  font-weight: 700;
+}
+
+.slot-status.is-pending {
+  color: var(--muted);
+  background: #fffefa;
+}
+
+.slot-status.is-filled {
+  color: var(--good);
+  border-color: #b7d3be;
+  background: #edf7f0;
 }
 
 .toggle-group {

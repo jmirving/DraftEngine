@@ -13,6 +13,8 @@ python3 -m http.server 8000
 
 The app opens on `Workflow` by default. `Team Context`, `User Config`, and `Champion Explorer` are available from the side menu.
 Workflow is stage-focused: one guided stage is shown at a time (Setup -> Inspect).
+Setup keeps team selection and slot inputs in a single vertical list that follows Node Draft Order.
+Feedback is contextual to Setup/Inspect panels (no global status banner).
 
 Primary surfaces:
 - `Workflow` (single mode: Build a Composition)
