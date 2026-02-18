@@ -41,23 +41,16 @@ const INTENT_CONFIG = Object.freeze({
         help: "Set team context and lock any known picks."
       },
       {
-        key: "validate",
-        label: "2) Analyze",
-        panelTitle: "2) Analyze",
-        panelMeta: "Review checks, missing needs, and composition score before generating options.",
-        help: "Use this stage for composition analysis and readiness review."
-      },
-      {
         key: "inspect",
-        label: "3) Generate + Inspect",
-        panelTitle: "3) Generate + Inspect",
-        panelMeta: "Inspect a node to see slot-level impact and cumulative reasons that increase its score.",
-        help: "Generate options and inspect generated nodes before applying a path."
+        label: "2) Inspect",
+        panelTitle: "2) Inspect",
+        panelMeta: "Review checks, generate options, and inspect nodes to see slot-level impact and cumulative rationale.",
+        help: "Analyze composition readiness, generate options, and inspect nodes before applying a path."
       }
     ],
-    continueLabel: "Continue to Analyze",
+    continueLabel: "Continue to Inspect",
     generateLabel: "Generate Tree",
-    generateReadyStatus: "Setup captured. Review analysis details, then generate the tree."
+    generateReadyStatus: "Setup captured. Review checks and generate the tree from Inspect."
   }
 });
 
@@ -139,8 +132,6 @@ const elements = {
   builderTeamHelp: document.querySelector("#builder-team-help"),
   builderStageSetupTitle: document.querySelector("#builder-stage-setup-title"),
   builderStageSetupMeta: document.querySelector("#builder-stage-setup-meta"),
-  builderStageValidateTitle: document.querySelector("#builder-stage-validate-title"),
-  builderStageValidateMeta: document.querySelector("#builder-stage-validate-meta"),
   builderStageInspectTitle: document.querySelector("#builder-stage-inspect-title"),
   builderStageInspectMeta: document.querySelector("#builder-stage-inspect-meta"),
   builderChecksReadiness: document.querySelector("#builder-checks-readiness"),
@@ -148,7 +139,6 @@ const elements = {
   builderStageHelp: document.querySelector("#builder-stage-help"),
   builderFirstRunHints: document.querySelector("#builder-first-run-hints"),
   builderStageSetup: document.querySelector("#builder-stage-setup"),
-  builderStageValidate: document.querySelector("#builder-stage-validate"),
   builderStageInspect: document.querySelector("#builder-stage-inspect"),
   builderAdvancedControls: document.querySelector("#builder-advanced-controls"),
   builderToggles: document.querySelector("#builder-toggles"),
@@ -159,7 +149,6 @@ const elements = {
   builderMaxDepth: document.querySelector("#builder-max-depth"),
   builderMaxBranch: document.querySelector("#builder-max-branch"),
   builderContinueValidate: document.querySelector("#builder-continue-validate"),
-  builderBackSetup: document.querySelector("#builder-back-setup"),
   builderGenerate: document.querySelector("#builder-generate"),
   builderBackValidate: document.querySelector("#builder-back-validate"),
   builderClear: document.querySelector("#builder-clear"),
@@ -253,10 +242,8 @@ function renderBuilderStageGuide() {
   elements.builderIntentHelp.textContent = intentMode.intentHelp;
   elements.builderStageSetupTitle.textContent = intentMode.stages[0].panelTitle;
   elements.builderStageSetupMeta.textContent = intentMode.stages[0].panelMeta;
-  elements.builderStageValidateTitle.textContent = intentMode.stages[1].panelTitle;
-  elements.builderStageValidateMeta.textContent = intentMode.stages[1].panelMeta;
-  elements.builderStageInspectTitle.textContent = intentMode.stages[2].panelTitle;
-  elements.builderStageInspectMeta.textContent = intentMode.stages[2].panelMeta;
+  elements.builderStageInspectTitle.textContent = intentMode.stages[1].panelTitle;
+  elements.builderStageInspectMeta.textContent = intentMode.stages[1].panelMeta;
   elements.builderContinueValidate.textContent = intentMode.continueLabel;
   elements.builderGenerate.textContent = intentMode.generateLabel;
   if (elements.builderSetupInputGuidance) {
@@ -300,8 +287,8 @@ function renderBuilderStageGuide() {
   elements.builderStageHelp.textContent = stageHelp;
   const hintMessages = [
     "1. Use Setup to pick your team context and any locked champions.",
-    "2. Continue to Analyze and review required checks and missing needs.",
-    "3. Generate the tree, then inspect nodes before applying a path."
+    "2. Continue to Inspect to review checks and generate options.",
+    "3. Inspect generated nodes before applying a path."
   ];
   elements.builderFirstRunHints.innerHTML = "";
   for (const message of hintMessages) {
@@ -312,10 +299,8 @@ function renderBuilderStageGuide() {
   elements.builderFirstRunHints.hidden = !state.builder.showFirstRunHints;
 
   elements.builderStageSetup.classList.toggle("is-current-stage", state.builder.stage === "setup");
-  elements.builderStageValidate.classList.toggle("is-current-stage", state.builder.stage === "validate");
   elements.builderStageInspect.classList.toggle("is-current-stage", state.builder.stage === "inspect");
   elements.builderStageSetup.hidden = state.builder.stage !== "setup";
-  elements.builderStageValidate.hidden = state.builder.stage !== "validate";
   elements.builderStageInspect.hidden = state.builder.stage !== "inspect";
 
   elements.builderGenerate.disabled = state.builder.stage === "setup";
@@ -2140,15 +2125,9 @@ function attachEvents() {
   });
 
   elements.builderContinueValidate.addEventListener("click", () => {
-    setBuilderStage("validate");
+    setBuilderStage("inspect");
     renderBuilder();
     setStatus(getIntentMode().generateReadyStatus);
-  });
-
-  elements.builderBackSetup.addEventListener("click", () => {
-    setBuilderStage("setup");
-    renderBuilder();
-    setStatus("Returned to Setup.");
   });
 
   for (const slot of SLOTS) {
@@ -2168,7 +2147,7 @@ function attachEvents() {
 
   elements.builderGenerate.addEventListener("click", () => {
     if (state.builder.stage === "setup") {
-      setStatus("Continue to Analyze before generating the tree.");
+      setStatus("Continue to Inspect before generating the tree.");
       return;
     }
 
@@ -2220,9 +2199,9 @@ function attachEvents() {
   });
 
   elements.builderBackValidate.addEventListener("click", () => {
-    setBuilderStage("validate");
+    setBuilderStage("setup");
     renderBuilder();
-    setStatus("Returned to Analyze.");
+    setStatus("Returned to Setup.");
   });
 
   elements.treeExpandAll.addEventListener("click", () => {

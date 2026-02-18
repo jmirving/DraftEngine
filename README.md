@@ -12,7 +12,7 @@ python3 -m http.server 8000
 `http://localhost:8000/public/index.html`
 
 The app opens on `Workflow` by default. `Team Context`, `User Config`, and `Champion Explorer` are available from the side menu.
-Workflow is stage-focused: one guided stage is shown at a time (Setup -> Analyze -> Generate + Inspect).
+Workflow is stage-focused: one guided stage is shown at a time (Setup -> Inspect).
 
 Primary surfaces:
 - `Workflow` (single mode: Build a Composition)

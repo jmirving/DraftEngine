@@ -151,18 +151,18 @@
                     </div>
                   </details>
                   <div class="button-row sticky-actions">
-                    <button id="builder-continue-validate" type="button">Continue to Validate</button>
+                    <button id="builder-continue-validate" type="button">Continue to Inspect</button>
                     <button id="builder-clear" type="button" class="ghost">Clear Composition</button>
                   </div>
                 </div>
               </aside>
 
-              <section id="builder-stage-validate" class="panel stage-panel">
-                <h2 id="builder-stage-validate-title">2) Validate</h2>
-                <p id="builder-stage-validate-meta" class="meta">Required checks map directly to enabled toggles.</p>
+              <section id="builder-stage-inspect" class="panel stage-panel">
+                <h2 id="builder-stage-inspect-title">2) Inspect</h2>
+                <p id="builder-stage-inspect-meta" class="meta">Inspect a node to see slot-level impact and cumulative reasons that increase its score.</p>
                 <p id="builder-checks-readiness" class="meta"></p>
                 <div class="button-row">
-                  <button id="builder-back-setup" class="ghost" type="button">Back to Setup</button>
+                  <button id="builder-back-validate" class="ghost" type="button">Back to Setup</button>
                 </div>
                 <div id="builder-team-context" class="team-context"></div>
                 <h3>Required Checks</h3>
@@ -178,14 +178,6 @@
                 </div>
                 <div class="button-row">
                   <button id="builder-generate" type="button">Generate Tree</button>
-                </div>
-              </section>
-
-              <section id="builder-stage-inspect" class="panel stage-panel">
-                <h2 id="builder-stage-inspect-title">3) Inspect</h2>
-                <p id="builder-stage-inspect-meta" class="meta">Inspect a node to see slot-level impact and cumulative reasons that increase its score.</p>
-                <div class="button-row">
-                  <button id="builder-back-validate" class="ghost" type="button">Back to Validate</button>
                 </div>
                 <div class="tree-toolbar">
                   <label>
