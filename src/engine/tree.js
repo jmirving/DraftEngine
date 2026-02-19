@@ -60,6 +60,8 @@ function createGenerationStats() {
     nodesKept: 0,
     prunedUnreachable: 0,
     prunedLowCandidateScore: 0,
+    completeDraftLeaves: 0,
+    incompleteDraftLeaves: 0,
     validLeaves: 0,
     incompleteLeaves: 0
   };
@@ -129,6 +131,11 @@ function createLeafBranchPotential(node) {
 
 function finalizeLeafNode(node, stats) {
   node.branchPotential = createLeafBranchPotential(node);
+  if (node.viability.isDraftComplete) {
+    stats.completeDraftLeaves += 1;
+  } else {
+    stats.incompleteDraftLeaves += 1;
+  }
   if (node.branchPotential.validLeafCount > 0) {
     stats.validLeaves += 1;
   } else {
@@ -426,6 +433,8 @@ export function generateNextCandidates({
 
   const scored = [];
   let prunedLowCandidateScoreCount = 0;
+  let filteredTopThreatCount = 0;
+  let eligibleBeforeScoreCount = 0;
 
   for (const championName of pool) {
     if (picked.has(championName) || excluded.has(championName)) {
@@ -438,9 +447,11 @@ export function generateNextCandidates({
     }
 
     if (role === "Top" && currentEvaluation.toggles.topMustBeThreat && !isTopThreatChampion(champion)) {
+      filteredTopThreatCount += 1;
       continue;
     }
 
+    eligibleBeforeScoreCount += 1;
     const candidateScore = scoreCandidate({
       champion,
       currentEvaluation,
@@ -470,7 +481,9 @@ export function generateNextCandidates({
   return {
     role,
     candidates: scored.slice(0, maxBranch),
-    prunedLowCandidateScoreCount
+    prunedLowCandidateScoreCount,
+    filteredTopThreatCount,
+    eligibleBeforeScoreCount
   };
 }
 
@@ -526,6 +539,7 @@ function buildNode({
     viability: {
       remainingSteps,
       unreachableRequired,
+      isDraftComplete: teamComplete,
       isTerminalValid: isTerminal && requiredSummary.requiredGaps === 0
     },
     pathRationale: parentPathRationale,
@@ -547,7 +561,13 @@ function buildNode({
     return finalizeLeafNode(node, generationStats);
   }
 
-  const { role, candidates, prunedLowCandidateScoreCount } = generateNextCandidates({
+  const {
+    role,
+    candidates,
+    prunedLowCandidateScoreCount,
+    filteredTopThreatCount,
+    eligibleBeforeScoreCount
+  } = generateNextCandidates({
     teamState: normalized,
     teamId,
     nextRole: preferredNextRole,
@@ -564,6 +584,18 @@ function buildNode({
 
   if (!role || candidates.length === 0) {
     node.viability.isTerminalValid = requiredSummary.requiredGaps === 0;
+    if (role) {
+      node.viability.blockedRole = role;
+      if (eligibleBeforeScoreCount === 0) {
+        node.viability.blockedReason = filteredTopThreatCount > 0
+          ? "top_threat_filter"
+          : "no_eligible_champions_for_role";
+      } else if (prunedLowCandidateScoreCount >= eligibleBeforeScoreCount) {
+        node.viability.blockedReason = "candidate_score_floor";
+      } else {
+        node.viability.blockedReason = "no_candidates";
+      }
+    }
     return finalizeLeafNode(node, generationStats);
   }
 

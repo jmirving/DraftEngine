@@ -289,6 +289,8 @@ test("tree exposes requiredSummary, viability, and generation stats metadata", (
     nodesKept: expect.any(Number),
     prunedUnreachable: expect.any(Number),
     prunedLowCandidateScore: expect.any(Number),
+    completeDraftLeaves: expect.any(Number),
+    incompleteDraftLeaves: expect.any(Number),
     validLeaves: expect.any(Number),
     incompleteLeaves: expect.any(Number)
   });
@@ -375,6 +377,8 @@ test("hard pruning removes branches with unreachable required checks", () => {
 
   expect(tree.viability.unreachableRequired).toContain("HasWaveclear");
   expect(tree.children.length).toBe(0);
+  expect(tree.viability.isDraftComplete).toBe(false);
+  expect(tree.generationStats.incompleteDraftLeaves).toBeGreaterThan(0);
   expect(tree.generationStats.prunedUnreachable).toBeGreaterThan(0);
 });
 

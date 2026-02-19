@@ -96,7 +96,7 @@ describe("workflow app integration", () => {
     expect(generateButton.disabled).toBe(true);
   });
 
-  test("requires at least one pick before entering review, then allows transition", async () => {
+  test("requires at least one pick before entering review, then auto-generates on transition", async () => {
     const { dom } = await bootApp();
     const doc = dom.window.document;
     const continueButton = doc.querySelector("#builder-continue-validate");
@@ -113,6 +113,7 @@ describe("workflow app integration", () => {
 
     expect(doc.querySelector("#builder-stage-inspect").hidden).toBe(false);
     expect(doc.querySelector("#builder-generate").disabled).toBe(false);
+    expect(doc.querySelectorAll("#builder-tree-map circle").length).toBeGreaterThan(0);
   });
 
   test("invalid slot picks are rejected and excluded picks are cleared from slots", async () => {
@@ -278,7 +279,8 @@ describe("workflow app integration", () => {
     expect(doc.querySelector("#builder-preview").textContent).toContain("Not set");
 
     applyNode.click();
-    expect(state.builder.stage).toBe("setup");
+    expect(state.builder.stage).toBe("inspect");
     expect(doc.querySelector("#builder-preview").textContent).toContain("No node selected");
+    expect(doc.querySelectorAll("#builder-tree-map circle").length).toBeGreaterThan(0);
   });
 });

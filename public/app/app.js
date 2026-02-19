@@ -384,6 +384,10 @@ function resetBuilderTreeState() {
   state.builder.treeDensity = BUILDER_DEFAULTS.defaultTreeDensity;
   state.builder.treeSearch = "";
   state.builder.treeMinScore = 0;
+  clearTreeSelectionState();
+}
+
+function clearTreeSelectionState() {
   state.builder.previewTeam = null;
   state.builder.selectedNodeId = null;
   state.builder.selectedNodeReasons = [];
@@ -876,9 +880,11 @@ function initializeBuilderControls() {
     elements.builderToggles.append(wrapper);
   }
 
-  state.builder.maxDepth = state.data.config.treeDefaults.maxDepth;
+  state.builder.maxDepth = getAutoMaxDepth();
   state.builder.maxBranch = state.data.config.treeDefaults.maxBranch;
   elements.builderMaxDepth.value = String(state.builder.maxDepth);
+  elements.builderMaxDepth.disabled = true;
+  elements.builderMaxDepth.title = "Tree depth is automatic and equals remaining draft slots.";
   elements.builderMaxBranch.value = String(state.builder.maxBranch);
 
   updateTeamHelpAndSlotLabels();
@@ -1177,9 +1183,8 @@ function resetBuilderToDefaults() {
   state.builder.treeMinCandidateScore = 1;
   state.builder.treeValidLeavesOnly = true;
 
-  const rawDepth = Number.parseInt(String(state.data.config.treeDefaults.maxDepth), 10);
   const rawBranch = Number.parseInt(String(state.data.config.treeDefaults.maxBranch), 10);
-  state.builder.maxDepth = Number.isFinite(rawDepth) ? Math.max(1, rawDepth) : 4;
+  state.builder.maxDepth = getAutoMaxDepth();
   state.builder.maxBranch = Number.isFinite(rawBranch) ? Math.max(1, rawBranch) : 8;
 
   resetBuilderTreeState();
@@ -1187,6 +1192,7 @@ function resetBuilderToDefaults() {
   setBuilderStage("setup");
 
   elements.builderMaxDepth.value = String(state.builder.maxDepth);
+  elements.builderMaxDepth.disabled = true;
   elements.builderMaxBranch.value = String(state.builder.maxBranch);
   elements.builderExcludedSearch.value = "";
   elements.treeSearch.value = "";
@@ -1221,6 +1227,52 @@ function getEnginePoolContext() {
     teamId: state.builder.teamId,
     teamPools: state.data.teamPools
   };
+}
+
+function getAutoMaxDepth() {
+  const completion = getTeamCompletionInfo(state.builder.teamState);
+  return completion.totalSlots - completion.filledSlots;
+}
+
+function generateTreeFromCurrentState({ scrollToResults = true } = {}) {
+  const completion = getTeamCompletionInfo(state.builder.teamState);
+  if (completion.completionState === "empty") {
+    setSetupFeedback("Select at least one champion before opening Review.");
+    return false;
+  }
+
+  try {
+    setInspectFeedback("");
+    const { teamId, teamPools } = getEnginePoolContext();
+    state.builder.maxDepth = getAutoMaxDepth();
+    state.builder.tree = generatePossibilityTree({
+      teamState: state.builder.teamState,
+      teamId,
+      roleOrder: state.builder.draftOrder,
+      teamPools,
+      championsByName: state.data.championsByName,
+      toggles: state.builder.toggles,
+      excludedChampions: state.builder.excludedChampions,
+      weights: state.data.config.recommendation.weights,
+      maxDepth: state.builder.maxDepth,
+      maxBranch: state.builder.maxBranch,
+      minCandidateScore: state.builder.treeMinCandidateScore,
+      pruneUnreachableRequired: true,
+      rankGoal: "valid_end_states"
+    });
+    clearTreeSelectionState();
+    setBuilderStage("inspect");
+    renderBuilder();
+    if (scrollToResults) {
+      scrollReviewResultsIntoView();
+    }
+    return true;
+  } catch (error) {
+    setBuilderStage("inspect");
+    setInspectFeedback(error instanceof Error ? error.message : "Failed to generate tree.");
+    renderBuilder();
+    return false;
+  }
 }
 
 function isChampionInOtherSlot(slot, championName) {
@@ -1912,11 +1964,10 @@ function renderPreview() {
   applyButton.textContent = "Apply Node";
   applyButton.addEventListener("click", () => {
     state.builder.teamState = normalizeTeamState(state.builder.previewTeam);
-    resetBuilderTreeState();
-    setBuilderStage("setup");
     syncSlotSelectOptions();
     clearBuilderFeedback();
-    renderBuilder();
+    setSetupFeedback("");
+    generateTreeFromCurrentState({ scrollToResults: false });
   });
   wrapper.append(applyButton);
 
@@ -2089,6 +2140,63 @@ function renderTreeNode(node, depth = 0, nodeId = "0", visibleIds = null) {
   return details;
 }
 
+function collectIncompleteDraftReasons(root) {
+  const flat = flattenTreeForMap(root);
+  const incompleteLeaves = flat
+    .map((entry) => entry.node)
+    .filter((node) => node.children.length === 0 && !node.viability?.isDraftComplete);
+
+  const blockedRoles = new Map();
+  const blockedReasons = new Map();
+  const unreachableRequired = new Set();
+
+  for (const node of incompleteLeaves) {
+    const role = node.viability?.blockedRole;
+    if (role) {
+      blockedRoles.set(role, (blockedRoles.get(role) ?? 0) + 1);
+    }
+    const reason = node.viability?.blockedReason;
+    if (reason) {
+      blockedReasons.set(reason, (blockedReasons.get(reason) ?? 0) + 1);
+    }
+    for (const checkName of node.viability?.unreachableRequired ?? []) {
+      unreachableRequired.add(checkName);
+    }
+  }
+
+  return {
+    incompleteLeafCount: incompleteLeaves.length,
+    blockedRoles,
+    blockedReasons,
+    unreachableRequired: [...unreachableRequired]
+  };
+}
+
+function getTopCountEntry(map) {
+  let bestKey = null;
+  let bestCount = 0;
+  for (const [key, count] of map.entries()) {
+    if (count > bestCount) {
+      bestKey = key;
+      bestCount = count;
+    }
+  }
+  return bestKey ? { key: bestKey, count: bestCount } : null;
+}
+
+function formatBlockedReason(reason, role) {
+  switch (reason) {
+    case "candidate_score_floor":
+      return `most dead-end paths run out at ${role} because all candidates fell below Min Candidate Score (${state.builder.treeMinCandidateScore}).`;
+    case "top_threat_filter":
+      return `most dead-end paths run out at ${role} because top-threat enforcement leaves no legal option.`;
+    case "no_eligible_champions_for_role":
+      return `most dead-end paths run out at ${role} because no eligible champions remain after pool/exclusion/duplicate constraints.`;
+    default:
+      return `most dead-end paths run out at ${role} due to no viable candidates.`;
+  }
+}
+
 function renderTreeSummary(visibleIds) {
   elements.builderTreeSummary.innerHTML = "";
   if (!state.builder.tree) {
@@ -2111,8 +2219,34 @@ function renderTreeSummary(visibleIds) {
       `Visited ${generationStats.nodesVisited}, kept ${generationStats.nodesKept}, ` +
       `pruned unreachable ${generationStats.prunedUnreachable}, ` +
       `pruned low score ${generationStats.prunedLowCandidateScore}, ` +
+      `complete draft leaves ${generationStats.completeDraftLeaves}, incomplete draft leaves ${generationStats.incompleteDraftLeaves}, ` +
       `valid leaves ${generationStats.validLeaves}, incomplete leaves ${generationStats.incompleteLeaves}.`;
     elements.builderTreeSummary.append(statsMeta);
+
+    if (generationStats.completeDraftLeaves === 0) {
+      const hardFail = runtimeDocument.createElement("p");
+      hardFail.className = "meta";
+      hardFail.textContent = "All possible outcomes result in incomplete drafts.";
+      elements.builderTreeSummary.append(hardFail);
+
+      const reasons = collectIncompleteDraftReasons(root);
+      const reasonLine = runtimeDocument.createElement("p");
+      reasonLine.className = "meta";
+
+      if (reasons.unreachableRequired.length > 0) {
+        reasonLine.textContent =
+          `Fail-fast reason: required checks become unreachable on every leaf (${reasons.unreachableRequired.join(", ")}).`;
+      } else {
+        const topRole = getTopCountEntry(reasons.blockedRoles);
+        const topReason = getTopCountEntry(reasons.blockedReasons);
+        if (topRole) {
+          reasonLine.textContent = formatBlockedReason(topReason?.key, topRole.key);
+        } else {
+          reasonLine.textContent = "Fail-fast reason: no branch can finish all five roles with current pools and constraints.";
+        }
+      }
+      elements.builderTreeSummary.append(reasonLine);
+    }
   }
 
   const topHeading = runtimeDocument.createElement("p");
@@ -2140,7 +2274,7 @@ function renderTreeSummary(visibleIds) {
       const guidance = runtimeDocument.createElement("p");
       guidance.className = "meta";
       guidance.textContent =
-        "No viable branches were generated. Increase maxDepth, lower Min Candidate Score, relax required toggles, or pre-fill key slots.";
+        "No viable branches were generated. Depth is automatic to remaining slots. Lower Min Candidate Score, relax required toggles, or pre-fill key slots.";
       elements.builderTreeSummary.append(guidance);
     }
     return;
@@ -2354,8 +2488,11 @@ function renderTreeMap() {
 }
 
 function renderBuilder() {
+  state.builder.maxDepth = getAutoMaxDepth();
   renderBuilderStageGuide();
   elements.builderActiveTeam.value = state.builder.teamId;
+  elements.builderMaxDepth.value = String(state.builder.maxDepth);
+  elements.builderMaxDepth.disabled = true;
   elements.treeDensity.value = state.builder.treeDensity;
   elements.treeSearch.value = state.builder.treeSearch;
   elements.treeMinScore.value = String(state.builder.treeMinScore);
@@ -2560,14 +2697,6 @@ function attachEvents() {
     renderExcludedOptions();
   });
 
-  elements.builderMaxDepth.addEventListener("change", () => {
-    state.builder.maxDepth = Math.max(1, Number.parseInt(elements.builderMaxDepth.value, 10) || 1);
-    elements.builderMaxDepth.value = String(state.builder.maxDepth);
-    setBuilderStage("setup");
-    resetBuilderTreeState();
-    renderBuilder();
-  });
-
   elements.builderMaxBranch.addEventListener("change", () => {
     state.builder.maxBranch = Math.max(1, Number.parseInt(elements.builderMaxBranch.value, 10) || 1);
     elements.builderMaxBranch.value = String(state.builder.maxBranch);
@@ -2577,15 +2706,10 @@ function attachEvents() {
   });
 
   elements.builderContinueValidate.addEventListener("click", () => {
-    const completion = getTeamCompletionInfo(state.builder.teamState);
-    if (completion.completionState === "empty") {
-      setSetupFeedback("Select at least one champion before opening Review.");
+    if (!generateTreeFromCurrentState({ scrollToResults: true })) {
       return;
     }
-    setBuilderStage("inspect");
     setSetupFeedback("");
-    setInspectFeedback("");
-    renderBuilder();
   });
 
   for (const slot of SLOTS) {
@@ -2608,37 +2732,7 @@ function attachEvents() {
       setSetupFeedback(UI_COPY.builder.setupGateMessage);
       return;
     }
-
-    try {
-      setInspectFeedback("");
-      const { teamId, teamPools } = getEnginePoolContext();
-      state.builder.tree = generatePossibilityTree({
-        teamState: state.builder.teamState,
-        teamId,
-        roleOrder: state.builder.draftOrder,
-        teamPools,
-        championsByName: state.data.championsByName,
-        toggles: state.builder.toggles,
-        excludedChampions: state.builder.excludedChampions,
-        weights: state.data.config.recommendation.weights,
-        maxDepth: state.builder.maxDepth,
-        maxBranch: state.builder.maxBranch,
-        minCandidateScore: state.builder.treeMinCandidateScore,
-        pruneUnreachableRequired: true,
-        rankGoal: "valid_end_states"
-      });
-      state.builder.previewTeam = null;
-      state.builder.selectedNodeId = null;
-      state.builder.selectedNodeReasons = [];
-      state.builder.selectedNodeTitle = "Root Composition";
-      state.builder.compareNodeA = null;
-      state.builder.compareNodeB = null;
-      setBuilderStage("inspect");
-      renderBuilder();
-      scrollReviewResultsIntoView();
-    } catch (error) {
-      setInspectFeedback(error instanceof Error ? error.message : "Failed to generate tree.");
-    }
+    generateTreeFromCurrentState({ scrollToResults: true });
   });
 
   elements.builderClear.addEventListener("click", () => {
