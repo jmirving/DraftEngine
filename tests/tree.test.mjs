@@ -82,6 +82,7 @@ test("generatePossibilityTree is deterministic for same inputs", () => {
       requireDamageMix: true,
       requireAntiTank: false,
       requireDisengage: false,
+      requirePrimaryCarry: true,
       topMustBeThreat: true
     },
     excludedChampions: ["Aatrox"],
@@ -228,6 +229,7 @@ test("node scoring can exceed historical low cap for richer comps", () => {
       requireDamageMix: true,
       requireAntiTank: true,
       requireDisengage: true,
+      requirePrimaryCarry: true,
       topMustBeThreat: true
     },
     weights: data.config.recommendation.weights,
@@ -282,13 +284,16 @@ test("tree exposes requiredSummary, viability, and generation stats metadata", (
   expect(tree.viability).toMatchObject({
     remainingSteps: expect.any(Number),
     unreachableRequired: expect.any(Array),
-    isTerminalValid: expect.any(Boolean)
+    isTerminalValid: expect.any(Boolean),
+    fallbackApplied: expect.any(Boolean)
   });
   expect(tree.generationStats).toMatchObject({
     nodesVisited: expect.any(Number),
     nodesKept: expect.any(Number),
     prunedUnreachable: expect.any(Number),
     prunedLowCandidateScore: expect.any(Number),
+    fallbackCandidatesUsed: expect.any(Number),
+    fallbackNodes: expect.any(Number),
     completeDraftLeaves: expect.any(Number),
     incompleteDraftLeaves: expect.any(Number),
     validLeaves: expect.any(Number),
@@ -296,7 +301,40 @@ test("tree exposes requiredSummary, viability, and generation stats metadata", (
   });
 });
 
-test("default minCandidateScore prunes zero-gain candidates; minCandidateScore=0 restores branches", () => {
+test("default minCandidateScore no longer forces dead-end tree for Top=Aatrox baseline", () => {
+  const tree = generatePossibilityTree({
+    teamState: {
+      Top: "Aatrox"
+    },
+    teamId: "TTT",
+    roleOrder: ["Top", "Jungle", "Mid", "ADC", "Support"],
+    teamPools: data.teamPools,
+    championsByName: data.championsByName,
+    toggles: {
+      requireHardEngage: true,
+      requireFrontline: true,
+      requireWaveclear: true,
+      requireDamageMix: true,
+      requireAntiTank: false,
+      requireDisengage: false,
+      requirePrimaryCarry: true,
+      topMustBeThreat: true
+    },
+    weights: data.config.recommendation.weights,
+    maxDepth: 4,
+    maxBranch: 8,
+    minCandidateScore: 1,
+    pruneUnreachableRequired: true,
+    rankGoal: "valid_end_states"
+  });
+
+  // Historical baseline before adaptive/floor-aware scoring was:
+  // completeDraftLeaves=0, validLeaves=0, prunedLowCandidateScore=174.
+  expect(tree.generationStats.completeDraftLeaves).toBeGreaterThan(0);
+  expect(tree.generationStats.validLeaves).toBeGreaterThan(0);
+});
+
+test("adaptive fallback expands below-floor candidates when strict floor prunes all legal options", () => {
   const params = {
     teamState: {
       Mid: "Azir"
@@ -312,22 +350,79 @@ test("default minCandidateScore prunes zero-gain candidates; minCandidateScore=0
       requireDamageMix: false,
       requireAntiTank: false,
       requireDisengage: false,
+      requirePrimaryCarry: false,
       topMustBeThreat: false
     },
     weights: data.config.recommendation.weights,
     maxDepth: 1,
-    maxBranch: 10
+    maxBranch: 10,
+    minCandidateScore: 2
   };
 
-  const defaultFloorTree = generatePossibilityTree(params);
-  const zeroFloorTree = generatePossibilityTree({
-    ...params,
-    minCandidateScore: 0
+  const tree = generatePossibilityTree(params);
+
+  expect(tree.children.length).toBeGreaterThan(0);
+  expect(tree.generationStats.prunedLowCandidateScore).toBeGreaterThan(0);
+  expect(tree.generationStats.fallbackNodes).toBeGreaterThan(0);
+  expect(tree.generationStats.fallbackCandidatesUsed).toBeGreaterThan(0);
+  for (const child of tree.children) {
+    expect(child.passesMinScore).toBe(false);
+  }
+});
+
+test("missing PrimaryCarry gets minimum required-check gain even when configured weight is zero", () => {
+  const championsByName = {
+    UtilityMid: createChampion({
+      name: "UtilityMid",
+      roles: ["Mid"],
+      damageType: "AP"
+    }),
+    TopPrimary: createChampion({
+      name: "TopPrimary",
+      roles: ["Top"],
+      damageType: "AD",
+      tags: { PrimaryCarry: true }
+    })
+  };
+
+  const tree = generatePossibilityTree({
+    teamState: {
+      Mid: "UtilityMid"
+    },
+    teamId: "X",
+    nextRole: "Top",
+    teamPools: {
+      X: {
+        Top: ["TopPrimary"],
+        Jungle: [],
+        Mid: ["UtilityMid"],
+        ADC: [],
+        Support: []
+      }
+    },
+    championsByName,
+    toggles: {
+      requireHardEngage: false,
+      requireFrontline: false,
+      requireWaveclear: false,
+      requireDamageMix: false,
+      requireAntiTank: false,
+      requireDisengage: false,
+      requirePrimaryCarry: true,
+      topMustBeThreat: false
+    },
+    weights: data.config.recommendation.weights,
+    maxDepth: 1,
+    maxBranch: 5,
+    minCandidateScore: 2,
+    pruneUnreachableRequired: false
   });
 
-  expect(defaultFloorTree.children.length).toBe(0);
-  expect(defaultFloorTree.generationStats.prunedLowCandidateScore).toBeGreaterThan(0);
-  expect(zeroFloorTree.children.length).toBeGreaterThan(0);
+  expect(tree.children.length).toBe(1);
+  expect(tree.children[0].addedChampion).toBe("TopPrimary");
+  expect(tree.children[0].candidateScore).toBeGreaterThanOrEqual(2);
+  expect(tree.children[0].passesMinScore).toBe(true);
+  expect(tree.children[0].rationale.some((entry) => entry.includes("required-check floor"))).toBe(true);
 });
 
 test("depth-limited incomplete leaves are never terminal-valid", () => {
@@ -344,6 +439,7 @@ test("depth-limited incomplete leaves are never terminal-valid", () => {
       requireDamageMix: false,
       requireAntiTank: false,
       requireDisengage: false,
+      requirePrimaryCarry: false,
       topMustBeThreat: false
     },
     weights: data.config.recommendation.weights,
@@ -400,6 +496,7 @@ test("hard pruning removes branches with unreachable required checks", () => {
       requireDamageMix: false,
       requireAntiTank: false,
       requireDisengage: false,
+      requirePrimaryCarry: false,
       topMustBeThreat: false
     },
     maxDepth: 1,
@@ -444,6 +541,7 @@ test("top threat requirement can be unreachable by horizon and branch gets prune
       requireDamageMix: false,
       requireAntiTank: false,
       requireDisengage: false,
+      requirePrimaryCarry: false,
       topMustBeThreat: true
     },
     maxDepth: 1,

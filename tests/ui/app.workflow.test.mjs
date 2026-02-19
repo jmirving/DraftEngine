@@ -187,6 +187,120 @@ describe("workflow app integration", () => {
     expect(afterMinScoreCircles).toBe(1);
   });
 
+  test("empty root summary offers recovery CTAs for filters and candidate floor", async () => {
+    const { dom, state } = await bootApp();
+    const doc = dom.window.document;
+    const topSelect = doc.querySelector("#slot-Top");
+    const continueButton = doc.querySelector("#builder-continue-validate");
+    const generateButton = doc.querySelector("#builder-generate");
+    const treeSearch = doc.querySelector("#tree-search");
+    const validLeavesOnly = doc.querySelector("#tree-valid-leaves-only");
+
+    const firstTop = Array.from(topSelect.options).find((option) => option.value);
+    topSelect.value = firstTop.value;
+    topSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    continueButton.click();
+    generateButton.click();
+
+    state.builder.treeMinCandidateScore = 2;
+    state.builder.treeValidLeavesOnly = true;
+    validLeavesOnly.checked = true;
+    state.builder.treeSearch = "blocked";
+    treeSearch.value = "blocked";
+    state.builder.tree = {
+      depth: 0,
+      teamSlots: { Top: firstTop.value, Jungle: null, Mid: null, ADC: null, Support: null },
+      score: 16,
+      requiredSummary: { requiredGaps: 1 },
+      viability: {
+        remainingSteps: 4,
+        unreachableRequired: [],
+        isDraftComplete: false,
+        isTerminalValid: false,
+        fallbackApplied: false
+      },
+      pathRationale: [],
+      branchPotential: {
+        validLeafCount: 0,
+        bestLeafScore: null
+      },
+      children: [
+        {
+          depth: 1,
+          teamSlots: { Top: firstTop.value, Jungle: "Hecarim", Mid: null, ADC: null, Support: null },
+          score: 17,
+          requiredSummary: { requiredGaps: 1 },
+          viability: {
+            remainingSteps: 3,
+            unreachableRequired: [],
+            isDraftComplete: false,
+            isTerminalValid: false,
+            fallbackApplied: true
+          },
+          pathRationale: [],
+          branchPotential: {
+            validLeafCount: 0,
+            bestLeafScore: null
+          },
+          addedRole: "Jungle",
+          addedChampion: "Hecarim",
+          candidateScore: 1,
+          passesMinScore: false,
+          rationale: [],
+          children: []
+        }
+      ],
+      generationStats: {
+        nodesVisited: 2,
+        nodesKept: 2,
+        prunedUnreachable: 0,
+        prunedLowCandidateScore: 1,
+        fallbackCandidatesUsed: 1,
+        fallbackNodes: 1,
+        completeDraftLeaves: 0,
+        incompleteDraftLeaves: 1,
+        validLeaves: 0,
+        incompleteLeaves: 1
+      }
+    };
+
+    treeSearch.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+
+    expect(doc.querySelector("#builder-tree-summary").textContent).toContain("No root branches match current filters.");
+    const clearSearch = Array.from(doc.querySelectorAll("#builder-tree-summary button")).find((button) =>
+      button.textContent.includes("Clear Search")
+    );
+    const showAll = Array.from(doc.querySelectorAll("#builder-tree-summary button")).find((button) =>
+      button.textContent.includes("Show all branches")
+    );
+    const lowerFloor = Array.from(doc.querySelectorAll("#builder-tree-summary button")).find((button) =>
+      button.textContent.includes("Lower Min Candidate Score to 0")
+    );
+
+    expect(clearSearch).toBeTruthy();
+    expect(showAll).toBeTruthy();
+    expect(lowerFloor).toBeTruthy();
+
+    clearSearch.click();
+    expect(treeSearch.value).toBe("");
+    expect(state.builder.treeSearch).toBe("");
+
+    showAll.click();
+    expect(validLeavesOnly.checked).toBe(false);
+    expect(state.builder.treeValidLeavesOnly).toBe(false);
+    expect(doc.querySelectorAll("#builder-tree-summary button").length).toBeGreaterThan(0);
+
+    validLeavesOnly.checked = true;
+    validLeavesOnly.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    const lowerFloorAfterReset = Array.from(doc.querySelectorAll("#builder-tree-summary button")).find((button) =>
+      button.textContent.includes("Lower Min Candidate Score to 0")
+    );
+    lowerFloorAfterReset.click();
+    expect(state.builder.treeMinCandidateScore).toBe(0);
+    expect(state.builder.stage).toBe("setup");
+    expect(state.builder.tree).toBe(null);
+  });
+
   test("team context supports named team labels and None global pool mode", async () => {
     const { dom } = await bootApp();
     const doc = dom.window.document;

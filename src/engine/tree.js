@@ -10,6 +10,8 @@ import { evaluateCompositionChecks, isTopThreatChampion, scoreNodeFromChecks } f
 
 const DEFAULT_MIN_CANDIDATE_SCORE = 1;
 const DEFAULT_RANK_GOAL = "valid_end_states";
+const COMPLETION_PROGRESS_SCORE = 1;
+const MIN_REQUIRED_TAG_SCORE = 1;
 
 function normalizeExclusions(excludedChampions = []) {
   return new Set(excludedChampions.filter((name) => typeof name === "string" && name.trim() !== ""));
@@ -60,6 +62,8 @@ function createGenerationStats() {
     nodesKept: 0,
     prunedUnreachable: 0,
     prunedLowCandidateScore: 0,
+    fallbackCandidatesUsed: 0,
+    fallbackNodes: 0,
     completeDraftLeaves: 0,
     incompleteDraftLeaves: 0,
     validLeaves: 0,
@@ -89,9 +93,14 @@ function scoreCandidate({
 
   for (const tag of currentEvaluation.missingNeeds.tags) {
     if (champion.tags[tag]) {
-      const weight = weights[tag] ?? 0;
-      score += weight;
-      rationale.push(`adds ${tag} (+${weight})`);
+      const configuredWeight = weights[tag] ?? 0;
+      const appliedWeight = configuredWeight > 0 ? configuredWeight : MIN_REQUIRED_TAG_SCORE;
+      score += appliedWeight;
+      rationale.push(
+        configuredWeight > 0
+          ? `adds ${tag} (+${appliedWeight})`
+          : `adds ${tag} (+${appliedWeight}, required-check floor)`
+      );
     }
   }
 
@@ -104,6 +113,9 @@ function scoreCandidate({
     score += 6;
     rationale.push("improves damage mix with AP (+6)");
   }
+
+  score += COMPLETION_PROGRESS_SCORE;
+  rationale.push(`keeps slot progression (+${COMPLETION_PROGRESS_SCORE})`);
 
   return {
     score,
@@ -425,7 +437,11 @@ export function generateNextCandidates({
     return {
       role: null,
       candidates: [],
-      prunedLowCandidateScoreCount: 0
+      prunedLowCandidateScoreCount: 0,
+      filteredTopThreatCount: 0,
+      eligibleBeforeScoreCount: 0,
+      fallbackUsed: false,
+      fallbackCandidateCount: 0
     };
   }
 
@@ -436,6 +452,7 @@ export function generateNextCandidates({
   const currentEvaluation = evaluateCompositionChecks(normalized, championsByName, toggles);
 
   const scored = [];
+  const belowFloor = [];
   let prunedLowCandidateScoreCount = 0;
   let filteredTopThreatCount = 0;
   let eligibleBeforeScoreCount = 0;
@@ -462,32 +479,45 @@ export function generateNextCandidates({
       weights: mergedWeights
     });
 
-    if (candidateScore.score < minCandidateScore) {
-      prunedLowCandidateScoreCount += 1;
-      continue;
-    }
-
-    scored.push({
+    const candidate = {
       role,
       championName,
       score: candidateScore.score,
-      rationale: candidateScore.rationale
-    });
+      rationale: candidateScore.rationale,
+      passesMinScore: candidateScore.score >= minCandidateScore
+    };
+
+    if (!candidate.passesMinScore) {
+      prunedLowCandidateScoreCount += 1;
+      belowFloor.push(candidate);
+      continue;
+    }
+
+    scored.push(candidate);
   }
 
-  scored.sort((left, right) => {
+  const compareCandidates = (left, right) => {
     if (right.score !== left.score) {
       return right.score - left.score;
     }
     return left.championName.localeCompare(right.championName);
-  });
+  };
+
+  scored.sort(compareCandidates);
+  belowFloor.sort(compareCandidates);
+
+  const fallbackUsed = scored.length === 0 && belowFloor.length > 0;
+  const selectedCandidates = fallbackUsed ? belowFloor : scored;
+  const limitedCandidates = selectedCandidates.slice(0, maxBranch);
 
   return {
     role,
-    candidates: scored.slice(0, maxBranch),
+    candidates: limitedCandidates,
     prunedLowCandidateScoreCount,
     filteredTopThreatCount,
-    eligibleBeforeScoreCount
+    eligibleBeforeScoreCount,
+    fallbackUsed,
+    fallbackCandidateCount: fallbackUsed ? limitedCandidates.length : 0
   };
 }
 
@@ -544,7 +574,8 @@ function buildNode({
       remainingSteps,
       unreachableRequired,
       isDraftComplete: teamComplete,
-      isTerminalValid: isTerminalValidDraft(teamComplete, requiredSummary)
+      isTerminalValid: isTerminalValidDraft(teamComplete, requiredSummary),
+      fallbackApplied: false
     },
     pathRationale: parentPathRationale,
     branchPotential: {
@@ -570,7 +601,9 @@ function buildNode({
     candidates,
     prunedLowCandidateScoreCount,
     filteredTopThreatCount,
-    eligibleBeforeScoreCount
+    eligibleBeforeScoreCount,
+    fallbackUsed,
+    fallbackCandidateCount
   } = generateNextCandidates({
     teamState: normalized,
     teamId,
@@ -585,6 +618,11 @@ function buildNode({
     minCandidateScore
   });
   generationStats.prunedLowCandidateScore += prunedLowCandidateScoreCount;
+  if (fallbackUsed) {
+    generationStats.fallbackNodes += 1;
+    generationStats.fallbackCandidatesUsed += fallbackCandidateCount;
+    node.viability.fallbackApplied = true;
+  }
 
   if (!role || candidates.length === 0) {
     node.viability.isTerminalValid = isTerminalValidDraft(node.viability.isDraftComplete, requiredSummary);
@@ -594,10 +632,17 @@ function buildNode({
         node.viability.blockedReason = filteredTopThreatCount > 0
           ? "top_threat_filter"
           : "no_eligible_champions_for_role";
+        node.viability.blockedReasonDetail = filteredTopThreatCount > 0
+          ? "all_candidates_filtered_by_top_threat"
+          : "pool_exclusion_or_duplicate_constraints";
       } else if (prunedLowCandidateScoreCount >= eligibleBeforeScoreCount) {
         node.viability.blockedReason = "candidate_score_floor";
+        node.viability.blockedReasonDetail = requiredSummary.requiredGaps === 0
+          ? "all_below_floor_after_required_checks_satisfied"
+          : "all_below_floor";
       } else {
         node.viability.blockedReason = "no_candidates";
+        node.viability.blockedReasonDetail = "all_candidates_removed_after_generation";
       }
     }
     return finalizeLeafNode(node, generationStats);
@@ -643,6 +688,7 @@ function buildNode({
       addedRole: role,
       addedChampion: candidate.championName,
       candidateScore: candidate.score,
+      passesMinScore: candidate.passesMinScore,
       rationale: candidate.rationale
     });
   }

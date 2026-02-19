@@ -2221,9 +2221,19 @@ function renderTreeSummary(visibleIds) {
       `Visited ${generationStats.nodesVisited}, kept ${generationStats.nodesKept}, ` +
       `pruned unreachable ${generationStats.prunedUnreachable}, ` +
       `pruned low score ${generationStats.prunedLowCandidateScore}, ` +
+      `fallback candidates ${generationStats.fallbackCandidatesUsed ?? 0}, fallback nodes ${generationStats.fallbackNodes ?? 0}, ` +
       `complete draft leaves ${generationStats.completeDraftLeaves}, incomplete draft leaves ${generationStats.incompleteDraftLeaves}, ` +
       `valid leaves ${generationStats.validLeaves}, incomplete leaves ${generationStats.incompleteLeaves}.`;
     elements.builderTreeSummary.append(statsMeta);
+
+    if ((generationStats.fallbackNodes ?? 0) > 0) {
+      const fallbackMeta = runtimeDocument.createElement("p");
+      fallbackMeta.className = "meta";
+      fallbackMeta.textContent =
+        `Adaptive fallback kept ${generationStats.fallbackCandidatesUsed} below-floor candidate(s) ` +
+        `across ${generationStats.fallbackNodes} node(s) to avoid artificial dead-ends.`;
+      elements.builderTreeSummary.append(fallbackMeta);
+    }
 
     if (generationStats.completeDraftLeaves === 0) {
       const hardFail = runtimeDocument.createElement("p");
@@ -2272,6 +2282,56 @@ function renderTreeSummary(visibleIds) {
     empty.className = "meta";
     empty.textContent = "No root branches match current filters. Try disabling 'Valid leaves only', lowering Min Score, or clearing Search.";
     elements.builderTreeSummary.append(empty);
+
+    const quickActions = runtimeDocument.createElement("div");
+    quickActions.className = "button-row";
+
+    if (state.builder.treeValidLeavesOnly) {
+      const showAll = runtimeDocument.createElement("button");
+      showAll.type = "button";
+      showAll.textContent = "Show all branches";
+      showAll.addEventListener("click", () => {
+        state.builder.treeValidLeavesOnly = false;
+        elements.treeValidLeavesOnly.checked = false;
+        renderTree();
+        renderTreeMap();
+      });
+      quickActions.append(showAll);
+    }
+
+    if (state.builder.treeSearch.trim()) {
+      const clearSearch = runtimeDocument.createElement("button");
+      clearSearch.type = "button";
+      clearSearch.className = "ghost";
+      clearSearch.textContent = "Clear Search";
+      clearSearch.addEventListener("click", () => {
+        state.builder.treeSearch = "";
+        elements.treeSearch.value = "";
+        renderTree();
+        renderTreeMap();
+      });
+      quickActions.append(clearSearch);
+    }
+
+    if (state.builder.treeMinCandidateScore > 0) {
+      const lowerCandidateFloor = runtimeDocument.createElement("button");
+      lowerCandidateFloor.type = "button";
+      lowerCandidateFloor.className = "ghost";
+      lowerCandidateFloor.textContent = "Lower Min Candidate Score to 0";
+      lowerCandidateFloor.addEventListener("click", () => {
+        state.builder.treeMinCandidateScore = 0;
+        elements.treeMinCandidateScore.value = "0";
+        setBuilderStage("setup");
+        resetBuilderTreeState();
+        renderBuilder();
+      });
+      quickActions.append(lowerCandidateFloor);
+    }
+
+    if (quickActions.childElementCount > 0) {
+      elements.builderTreeSummary.append(quickActions);
+    }
+
     if (root.children.length === 0) {
       const guidance = runtimeDocument.createElement("p");
       guidance.className = "meta";
@@ -2291,10 +2351,11 @@ function renderTreeSummary(visibleIds) {
 
     const score = runtimeDocument.createElement("p");
     score.className = "meta";
+    const fallbackSuffix = entry.node.passesMinScore === false ? ", below min candidate score floor" : "";
     score.textContent =
       `Composition score ${entry.node.score}, candidate score ${entry.node.candidateScore ?? 0}, ` +
       `required gaps ${entry.node.requiredSummary?.requiredGaps ?? "?"}, ` +
-      `valid leaves ${entry.node.branchPotential?.validLeafCount ?? 0}.`;
+      `valid leaves ${entry.node.branchPotential?.validLeafCount ?? 0}${fallbackSuffix}.`;
 
     const actions = runtimeDocument.createElement("div");
     actions.className = "button-row";

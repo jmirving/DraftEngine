@@ -70,6 +70,12 @@ Requirement toggles default to:
 Tree defaults:
 - `maxDepth=4`
 - `maxBranch=8`
+- `minCandidateScore=1` (UI default)
+
+Tree generation behavior:
+- `minCandidateScore` is a preference threshold, not an absolute feasibility gate.
+- If every legal pick at a node falls below the threshold, adaptive fallback still expands the best legal picks and marks them as below-floor candidates.
+- Summary view reports fallback usage counts in generation stats.
 
 ## Current MVP Constraints
 
@@ -80,5 +86,9 @@ Tree defaults:
 - Tree view includes both an outline and a visual Tree Map graph.
 - Excluded champions are filtered from selectors and tree output.
 - Candidate generation is constrained by team role pools.
+- When tree filters hide all root branches, summary provides one-click recovery actions:
+- `Show all branches` (disables `Valid leaves only`)
+- `Clear Search` (when search text is active)
+- `Lower Min Candidate Score to 0` (returns to setup and clears generated tree)
 - In team mode, slot labels include player names when available.
 - Data ingestion is schema-validated and fails fast on malformed CSV/JSON.
