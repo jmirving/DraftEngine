@@ -226,14 +226,14 @@ const elements = {
 const multiSelectControls = {};
 const checkboxMultiDetailsRegistry = new Set();
 
-function closeOtherCheckboxMultiDetails(activeDetails) {
+function closeCheckboxMultiDetails(keepOpenDetails = null) {
   const stale = [];
   for (const candidate of checkboxMultiDetailsRegistry) {
     if (!candidate.isConnected) {
       stale.push(candidate);
       continue;
     }
-    if (candidate !== activeDetails) {
+    if (candidate !== keepOpenDetails) {
       candidate.open = false;
     }
   }
@@ -449,7 +449,7 @@ function createCheckboxMultiControl({
     shell.classList.toggle("is-open", details.open);
     syncDropdownPanelLayering(details, details.open);
     if (details.open) {
-      closeOtherCheckboxMultiDetails(details);
+      closeCheckboxMultiDetails(details);
     }
   });
 
@@ -2498,6 +2498,18 @@ function syncTagMutualExclusion(changed, includeValuesInput, excludeValuesInput)
 }
 
 function attachEvents() {
+  document.addEventListener("pointerdown", (event) => {
+    const target = event.target;
+    if (!(target instanceof Node)) {
+      closeCheckboxMultiDetails();
+      return;
+    }
+    if (target.closest(".checkbox-multi")) {
+      return;
+    }
+    closeCheckboxMultiDetails();
+  });
+
   elements.navToggle.addEventListener("click", () => {
     setNavOpen(!state.ui.isNavOpen);
   });
