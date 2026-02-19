@@ -158,6 +158,7 @@ const elements = {
   explorerResults: document.querySelector("#explorer-results"),
   builderWorkflowTitle: document.querySelector("#builder-workflow-title"),
   builderStageGuide: document.querySelector("#builder-stage-guide"),
+  builderStageGuideMeta: document.querySelector("#builder-stage-guide-meta"),
   builderSetupFeedback: document.querySelector("#builder-setup-feedback"),
   builderInspectFeedback: document.querySelector("#builder-inspect-feedback"),
   builderActiveTeam: document.querySelector("#builder-active-team"),
@@ -317,14 +318,8 @@ function resetBuilderTreeState() {
   state.builder.compareNodeB = null;
 }
 
-function scrollCurrentStageIntoView() {
-  const target = state.builder.stage === "inspect"
-    ? elements.builderStageInspect
-    : elements.builderStageSetup;
-  target?.scrollIntoView({ block: "start" });
-}
-
 function renderBuilderStageGuide() {
+  const completion = getTeamCompletionInfo();
   elements.builderWorkflowTitle.textContent = UI_COPY.builder.workflowTitle;
   elements.builderStageSetupTitle.textContent = UI_COPY.builder.stages[0].panelTitle;
   elements.builderStageSetupMeta.textContent = UI_COPY.builder.stages[0].panelMeta;
@@ -332,6 +327,13 @@ function renderBuilderStageGuide() {
   elements.builderStageInspectMeta.textContent = UI_COPY.builder.stages[1].panelMeta;
   elements.builderContinueValidate.textContent = UI_COPY.builder.continueLabel;
   elements.builderGenerate.textContent = UI_COPY.builder.generateLabel;
+  if (completion.completionState === "empty") {
+    elements.builderStageGuideMeta.textContent = "Select at least one champion to unlock Review. Partial picks help finish a draft; all five picks evaluate a completed composition.";
+  } else if (completion.completionState === "partial") {
+    elements.builderStageGuideMeta.textContent = "Review is ready. Partial picks can generate finish-out draft options; fill all five slots for full composition evaluation.";
+  } else {
+    elements.builderStageGuideMeta.textContent = "Review is ready. All five slots are filled, so checks evaluate your full composition.";
+  }
 
   elements.builderStageSetup.classList.toggle("is-current-stage", state.builder.stage === "setup");
   elements.builderStageInspect.classList.toggle("is-current-stage", state.builder.stage === "inspect");
@@ -339,7 +341,7 @@ function renderBuilderStageGuide() {
   elements.builderStageInspect.hidden = state.builder.stage !== "inspect";
 
   elements.builderGenerate.disabled = state.builder.stage === "setup";
-  elements.builderContinueValidate.disabled = state.builder.stage !== "setup";
+  elements.builderContinueValidate.disabled = state.builder.stage !== "setup" || completion.completionState === "empty";
 }
 
 function createOption(value, label) {
@@ -2381,11 +2383,15 @@ function attachEvents() {
   });
 
   elements.builderContinueValidate.addEventListener("click", () => {
+    const completion = getTeamCompletionInfo();
+    if (completion.completionState === "empty") {
+      setSetupFeedback("Select at least one champion before opening Review.");
+      return;
+    }
     setBuilderStage("inspect");
     setSetupFeedback("");
     setInspectFeedback("");
     renderBuilder();
-    scrollCurrentStageIntoView();
   });
 
   for (const slot of SLOTS) {
