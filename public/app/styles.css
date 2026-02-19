@@ -178,6 +178,12 @@ h3 {
   animation: fade-in 200ms ease;
 }
 
+.tab-surface.is-active {
+  display: grid;
+  gap: 0.9rem;
+  align-items: start;
+}
+
 .panel {
   background: linear-gradient(165deg, var(--surface), var(--surface-strong));
   border: 1px solid var(--border);
@@ -185,6 +191,37 @@ h3 {
   box-shadow: var(--shadow);
   padding: 1rem;
   margin-bottom: 0.9rem;
+}
+
+.tab-surface .panel {
+  margin-bottom: 0;
+}
+
+.draft-board-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.draft-board-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(204, 91, 52, 0.08), rgba(204, 91, 52, 0) 32%);
+}
+
+.draft-board-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.panel-kicker {
+  margin: 0 0 0.3rem 0;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #9c3f1e;
 }
 
 .stage-guide {
@@ -221,6 +258,45 @@ h3 {
 
 .grid-3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.explorer-filters-grid,
+.team-context-controls,
+.team-pool-grid,
+.player-team-controls,
+.player-pools-grid {
+  display: grid;
+  gap: 0.7rem;
+  align-items: start;
+}
+
+.explorer-filters-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.team-context-controls {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.team-pool-grid {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.player-team-controls {
+  grid-template-columns: minmax(220px, 360px);
+}
+
+.player-pools-grid {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.explorer-filters-grid > label,
+.team-context-controls > label,
+.player-team-controls > label {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fffefa;
+  padding: 0.5rem 0.6rem;
 }
 
 .stack {
@@ -278,7 +354,7 @@ button.ghost {
 
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 0.7rem;
 }
 
@@ -287,6 +363,7 @@ button.ghost {
   border-radius: 12px;
   padding: 0.7rem;
   background: #fffefa;
+  box-shadow: inset 0 3px 0 rgba(204, 91, 52, 0.2);
 }
 
 .champ-name {
@@ -313,6 +390,13 @@ button.ghost {
   display: flex;
   gap: 0.5rem;
   align-items: end;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+}
+
+.explorer-tag-actions button,
+.explorer-toolbar button {
+  width: auto;
 }
 
 .builder-grid {
@@ -737,6 +821,7 @@ button.ghost {
   border-radius: 10px;
   padding: 0.45rem;
   background: #fffcf5;
+  box-shadow: inset 0 3px 0 rgba(204, 91, 52, 0.22);
 }
 
 .summary-card .button-row button {
@@ -748,6 +833,7 @@ button.ghost {
   border-radius: 10px;
   padding: 0.55rem;
   background: #fffefa;
+  box-shadow: inset 0 3px 0 rgba(204, 91, 52, 0.22);
 }
 
 .player-config-card h3 {
@@ -889,6 +975,11 @@ button.ghost {
   .explorer-tag-actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .explorer-tag-actions button,
+  .explorer-toolbar button {
+    width: 100%;
   }
 
   .optional-checks-header {

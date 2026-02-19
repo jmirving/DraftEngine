@@ -37,24 +37,26 @@
             <button class="side-menu-link is-active" data-tab="workflow" type="button">Workflow</button>
             <button class="side-menu-link" data-tab="team-config" type="button">Team Context</button>
             <button class="side-menu-link" data-tab="player-config" type="button">Player Pools</button>
-            <button class="side-menu-link" data-tab="explorer" type="button">Champion Explorer</button>
+            <button class="side-menu-link" data-tab="explorer" type="button">Scouting Board</button>
           </nav>
         </aside>
         <button id="nav-overlay" class="nav-overlay" type="button" aria-label="Close navigation"></button>
 
         <div class="main-content">
-          <section id="tab-explorer" class="tab-panel">
-            <div class="panel">
+          <section id="tab-explorer" class="tab-panel tab-surface">
+            <div class="panel draft-board-panel">
+              <p class="panel-kicker">Scouting</p>
               <h2 id="explorer-title">Champion Explorer</h2>
               <p id="explorer-meta" class="meta">Browse champions and filter by role, damage profile, scaling, and tags.</p>
             </div>
-            <div class="panel">
-              <h2>Explorer Filters</h2>
-              <p class="meta">Modern filter block: combine multi-select filters and clear include/exclude logic to find comps faster.</p>
-              <div class="button-row">
+            <div class="panel draft-board-panel">
+              <p class="panel-kicker">Filter Stack</p>
+              <h2>Draft Filters</h2>
+              <p class="meta">Narrow the candidate board with role, damage, scaling, and tag filters.</p>
+              <div class="button-row explorer-toolbar">
                 <button id="explorer-clear-all" class="ghost" type="button">Clear All Filters</button>
               </div>
-              <div class="grid grid-3">
+              <div class="explorer-filters-grid">
                 <label>
                   Search
                   <input id="explorer-search" type="search" placeholder="Champion name" />
@@ -90,8 +92,9 @@
               </div>
               <p class="meta">Include and Exclude tags are mutually exclusive. Selecting one removes it from the other.</p>
             </div>
-            <div class="panel">
-              <h2>Champion Cards</h2>
+            <div class="panel draft-board-panel">
+              <p class="panel-kicker">Draft Board</p>
+              <h2>Candidate Board</h2>
               <p id="explorer-count" class="meta"></p>
               <div id="explorer-results" class="card-grid"></div>
             </div>
@@ -248,11 +251,12 @@
             </div>
           </section>
 
-          <section id="tab-team-config" class="tab-panel">
-            <div class="panel">
+          <section id="tab-team-config" class="tab-panel tab-surface">
+            <div class="panel draft-board-panel">
+              <p class="panel-kicker">Team Setup</p>
               <h2 id="team-config-title">Team Context</h2>
               <p id="team-config-meta" class="meta">Set default and active team context for composition workflow.</p>
-              <div class="grid grid-2">
+              <div class="team-context-controls">
                 <label>
                   Default Team
                   <select id="team-config-default-team"></select>
@@ -265,18 +269,20 @@
               <p id="team-config-default-help" class="meta"></p>
               <p id="team-config-active-help" class="meta"></p>
             </div>
-            <div class="panel">
-              <h2>Role Pool Preview</h2>
+            <div class="panel draft-board-panel">
+              <p class="panel-kicker">Pool Intelligence</p>
+              <h2>Draft Pool Board</h2>
               <p id="team-config-pool-summary" class="meta"></p>
-              <div id="team-config-pool-grid" class="grid grid-2"></div>
+              <div id="team-config-pool-grid" class="team-pool-grid"></div>
             </div>
           </section>
 
-          <section id="tab-player-config" class="tab-panel">
-            <div class="panel">
+          <section id="tab-player-config" class="tab-panel tab-surface">
+            <div class="panel draft-board-panel">
+              <p class="panel-kicker">Roster Prep</p>
               <h2 id="player-config-title">Player Pools</h2>
               <p id="player-config-meta" class="meta">Edit each player's champion pools for the selected team.</p>
-              <div class="grid grid-2">
+              <div class="player-team-controls">
                 <label>
                   Team
                   <select id="player-config-team"></select>
@@ -284,7 +290,7 @@
               </div>
               <p id="player-config-summary" class="meta"></p>
               <p id="player-config-feedback" class="meta"></p>
-              <div id="player-config-grid" class="grid grid-2"></div>
+              <div id="player-config-grid" class="player-pools-grid"></div>
             </div>
           </section>
         </div>

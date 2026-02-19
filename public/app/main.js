@@ -30,7 +30,7 @@ const UI_COPY = Object.freeze({
   hero: {
     kicker: "DraftEngine",
     title: "Build a Composition",
-    subtitle: "Configure team context, shape compositions, and inspect deterministic next-pick trees."
+    subtitle: "Configure team context, scout candidates, and run deterministic next-pick simulations."
   },
   nav: {
     title: "Navigation",
@@ -41,16 +41,16 @@ const UI_COPY = Object.freeze({
       workflow: "Workflow",
       "team-config": "Team Context",
       "player-config": "Player Pools",
-      explorer: "Champion Explorer"
+      explorer: "Scouting Board"
     }
   },
   panels: {
-    explorerTitle: "Champion Explorer",
-    explorerMeta: "Browse champions and filter by role, damage profile, scaling, and tags.",
-    teamConfigTitle: "Team Context",
-    teamConfigMeta: "Set default and active team context for composition workflow.",
-    playerConfigTitle: "Player Pools",
-    playerConfigMeta: "Edit each player's champion pools for the selected team."
+    explorerTitle: "Scouting Board",
+    explorerMeta: "Scout champion candidates and shape a focused draft board.",
+    teamConfigTitle: "Team Draft Context",
+    teamConfigMeta: "Set the team profile that drives role pools across composition work.",
+    playerConfigTitle: "Player Pool Board",
+    playerConfigMeta: "Tune each player's champion pool before running composition generation."
   },
   builder: {
     workflowTitle: "Build a Composition",
