@@ -2221,6 +2221,7 @@ function renderTreeSummary(visibleIds) {
       `Visited ${generationStats.nodesVisited}, kept ${generationStats.nodesKept}, ` +
       `pruned unreachable ${generationStats.prunedUnreachable}, ` +
       `pruned low score ${generationStats.prunedLowCandidateScore}, ` +
+      `pruned relative score ${generationStats.prunedRelativeCandidateScore ?? 0}, ` +
       `fallback candidates ${generationStats.fallbackCandidatesUsed ?? 0}, fallback nodes ${generationStats.fallbackNodes ?? 0}, ` +
       `complete draft leaves ${generationStats.completeDraftLeaves}, incomplete draft leaves ${generationStats.incompleteDraftLeaves}, ` +
       `valid leaves ${generationStats.validLeaves}, incomplete leaves ${generationStats.incompleteLeaves}.`;

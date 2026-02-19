@@ -12,6 +12,11 @@ const DEFAULT_MIN_CANDIDATE_SCORE = 1;
 const DEFAULT_RANK_GOAL = "valid_end_states";
 const COMPLETION_PROGRESS_SCORE = 1;
 const MIN_REQUIRED_TAG_SCORE = 1;
+const REQUIRED_GAP_DELTA_WEIGHT = 4;
+const REQUIRED_GAP_REMAINING_PENALTY = 2;
+const RELATIVE_SCORE_WINDOW = 3;
+const MIN_RELATIVE_KEEP = 2;
+const MAX_FALLBACK_KEEP = 2;
 
 function normalizeExclusions(excludedChampions = []) {
   return new Set(excludedChampions.filter((name) => typeof name === "string" && name.trim() !== ""));
@@ -62,6 +67,7 @@ function createGenerationStats() {
     nodesKept: 0,
     prunedUnreachable: 0,
     prunedLowCandidateScore: 0,
+    prunedRelativeCandidateScore: 0,
     fallbackCandidatesUsed: 0,
     fallbackNodes: 0,
     completeDraftLeaves: 0,
@@ -229,6 +235,33 @@ function hasReachableChampionForRole({
     }
   }
   return false;
+}
+
+function countReachableChampionsForRole({
+  role,
+  teamPools,
+  teamId,
+  picked,
+  excludedChampions,
+  championsByName,
+  predicate
+}) {
+  const pool = getPoolForRole(teamPools, teamId, role);
+  let count = 0;
+  for (const championName of pool) {
+    if (picked.has(championName) || excludedChampions.has(championName)) {
+      continue;
+    }
+    const champion = championsByName[championName];
+    if (!champion) {
+      continue;
+    }
+    if (!predicate(champion, role)) {
+      continue;
+    }
+    count += 1;
+  }
+  return count;
 }
 
 function hasReachableChampionAcrossRoles({
@@ -428,7 +461,8 @@ export function generateNextCandidates({
   excludedChampions = [],
   weights = {},
   maxBranch = DEFAULT_TREE_SETTINGS.maxBranch,
-  minCandidateScore = DEFAULT_MIN_CANDIDATE_SCORE
+  minCandidateScore = DEFAULT_MIN_CANDIDATE_SCORE,
+  remainingSteps = 0
 }) {
   const normalized = normalizeTeamState(teamState);
   const role = resolveNextRole(normalized, nextRole, roleOrder);
@@ -438,6 +472,7 @@ export function generateNextCandidates({
       role: null,
       candidates: [],
       prunedLowCandidateScoreCount: 0,
+      prunedRelativeCandidateScoreCount: 0,
       filteredTopThreatCount: 0,
       eligibleBeforeScoreCount: 0,
       fallbackUsed: false,
@@ -452,10 +487,12 @@ export function generateNextCandidates({
   const currentEvaluation = evaluateCompositionChecks(normalized, championsByName, toggles);
 
   const scored = [];
-  const belowFloor = [];
   let prunedLowCandidateScoreCount = 0;
+  let prunedRelativeCandidateScoreCount = 0;
   let filteredTopThreatCount = 0;
   let eligibleBeforeScoreCount = 0;
+  const currentRequiredSummary = getRequiredSummary(currentEvaluation.checks);
+  const nextRemainingSteps = Math.max(0, remainingSteps - 1);
 
   for (const championName of pool) {
     if (picked.has(championName) || excluded.has(championName)) {
@@ -486,17 +523,56 @@ export function generateNextCandidates({
       rationale: candidateScore.rationale,
       passesMinScore: candidateScore.score >= minCandidateScore
     };
-
-    if (!candidate.passesMinScore) {
-      prunedLowCandidateScoreCount += 1;
-      belowFloor.push(candidate);
-      continue;
+    const childState = {
+      ...normalized,
+      [role]: championName
+    };
+    const projectedEvaluation = evaluateCompositionChecks(childState, championsByName, toggles);
+    const projectedRequiredSummary = getRequiredSummary(projectedEvaluation.checks);
+    const projectedRoles = getRemainingExpansionRoles({
+      teamState: childState,
+      preferredNextRole: nextRole,
+      roleOrder,
+      remainingSteps: nextRemainingSteps
+    });
+    const projectedPicked = getPickedChampionNames(childState);
+    const projectedRoleSupplies = projectedRoles.map((futureRole) =>
+      countReachableChampionsForRole({
+        role: futureRole,
+        teamPools,
+        teamId,
+        picked: projectedPicked,
+        excludedChampions: excluded,
+        championsByName,
+        predicate(champion, roleToCheck) {
+          if (roleToCheck === "Top" && projectedEvaluation.toggles.topMustBeThreat && !isTopThreatChampion(champion)) {
+            return false;
+          }
+          return true;
+        }
+      })
+    );
+    const minRoleSupply = projectedRoleSupplies.length > 0 ? Math.min(...projectedRoleSupplies) : 0;
+    const requiredGapDelta = currentRequiredSummary.requiredGaps - projectedRequiredSummary.requiredGaps;
+    let viabilityScore = requiredGapDelta * REQUIRED_GAP_DELTA_WEIGHT;
+    viabilityScore -= projectedRequiredSummary.requiredGaps * REQUIRED_GAP_REMAINING_PENALTY;
+    if (projectedRoleSupplies.length > 0) {
+      if (minRoleSupply === 0) {
+        viabilityScore -= 6;
+      } else if (minRoleSupply === 1) {
+        viabilityScore -= 2;
+      } else {
+        viabilityScore += Math.min(2, minRoleSupply - 1);
+      }
     }
-
+    candidate.selectionScore = candidate.score + viabilityScore;
     scored.push(candidate);
   }
 
   const compareCandidates = (left, right) => {
+    if ((right.selectionScore ?? 0) !== (left.selectionScore ?? 0)) {
+      return (right.selectionScore ?? 0) - (left.selectionScore ?? 0);
+    }
     if (right.score !== left.score) {
       return right.score - left.score;
     }
@@ -504,20 +580,50 @@ export function generateNextCandidates({
   };
 
   scored.sort(compareCandidates);
-  belowFloor.sort(compareCandidates);
+  const aboveFloor = scored.filter((candidate) => candidate.passesMinScore);
+  const belowFloor = scored.filter((candidate) => !candidate.passesMinScore);
 
-  const fallbackUsed = scored.length === 0 && belowFloor.length > 0;
-  const selectedCandidates = fallbackUsed ? belowFloor : scored;
-  const limitedCandidates = selectedCandidates.slice(0, maxBranch);
+  let selectedCandidates = [];
+  let fallbackUsed = false;
+  let fallbackCandidateCount = 0;
+
+  if (aboveFloor.length > 0) {
+    const bestSelectionScore = aboveFloor[0].selectionScore ?? 0;
+    let relativeKept = aboveFloor.filter(
+      (candidate) => (candidate.selectionScore ?? 0) >= bestSelectionScore - RELATIVE_SCORE_WINDOW
+    );
+    const minKeepCount = Math.min(aboveFloor.length, Math.max(1, MIN_RELATIVE_KEEP));
+    if (relativeKept.length < minKeepCount) {
+      relativeKept = aboveFloor.slice(0, minKeepCount);
+    }
+    const relativeKeptSet = new Set(relativeKept);
+    prunedRelativeCandidateScoreCount = aboveFloor.filter((candidate) => !relativeKeptSet.has(candidate)).length;
+    selectedCandidates = relativeKept.slice(0, maxBranch);
+    prunedLowCandidateScoreCount = belowFloor.length + prunedRelativeCandidateScoreCount;
+  } else {
+    fallbackUsed = belowFloor.length > 0;
+    if (fallbackUsed) {
+      const bestBelowFloorScore = belowFloor[0].selectionScore ?? 0;
+      const fallbackCandidates = belowFloor.filter(
+        (candidate) => (candidate.selectionScore ?? 0) >= bestBelowFloorScore - RELATIVE_SCORE_WINDOW
+      );
+      const fallbackKeep = Math.min(maxBranch, MAX_FALLBACK_KEEP);
+      selectedCandidates = fallbackCandidates.slice(0, fallbackKeep);
+      fallbackCandidateCount = selectedCandidates.length;
+      prunedRelativeCandidateScoreCount = belowFloor.length - fallbackCandidates.length;
+      prunedLowCandidateScoreCount = belowFloor.length - fallbackCandidateCount;
+    }
+  }
 
   return {
     role,
-    candidates: limitedCandidates,
+    candidates: selectedCandidates,
     prunedLowCandidateScoreCount,
+    prunedRelativeCandidateScoreCount,
     filteredTopThreatCount,
     eligibleBeforeScoreCount,
     fallbackUsed,
-    fallbackCandidateCount: fallbackUsed ? limitedCandidates.length : 0
+    fallbackCandidateCount
   };
 }
 
@@ -600,6 +706,7 @@ function buildNode({
     role,
     candidates,
     prunedLowCandidateScoreCount,
+    prunedRelativeCandidateScoreCount,
     filteredTopThreatCount,
     eligibleBeforeScoreCount,
     fallbackUsed,
@@ -615,9 +722,11 @@ function buildNode({
     excludedChampions,
     weights,
     maxBranch,
-    minCandidateScore
+    minCandidateScore,
+    remainingSteps
   });
   generationStats.prunedLowCandidateScore += prunedLowCandidateScoreCount;
+  generationStats.prunedRelativeCandidateScore += prunedRelativeCandidateScoreCount;
   if (fallbackUsed) {
     generationStats.fallbackNodes += 1;
     generationStats.fallbackCandidatesUsed += fallbackCandidateCount;

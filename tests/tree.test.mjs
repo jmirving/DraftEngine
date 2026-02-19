@@ -292,6 +292,7 @@ test("tree exposes requiredSummary, viability, and generation stats metadata", (
     nodesKept: expect.any(Number),
     prunedUnreachable: expect.any(Number),
     prunedLowCandidateScore: expect.any(Number),
+    prunedRelativeCandidateScore: expect.any(Number),
     fallbackCandidatesUsed: expect.any(Number),
     fallbackNodes: expect.any(Number),
     completeDraftLeaves: expect.any(Number),
@@ -356,7 +357,7 @@ test("adaptive fallback expands below-floor candidates when strict floor prunes 
     weights: data.config.recommendation.weights,
     maxDepth: 1,
     maxBranch: 10,
-    minCandidateScore: 2
+    minCandidateScore: 50
   };
 
   const tree = generatePossibilityTree(params);
@@ -365,9 +366,41 @@ test("adaptive fallback expands below-floor candidates when strict floor prunes 
   expect(tree.generationStats.prunedLowCandidateScore).toBeGreaterThan(0);
   expect(tree.generationStats.fallbackNodes).toBeGreaterThan(0);
   expect(tree.generationStats.fallbackCandidatesUsed).toBeGreaterThan(0);
+  expect(tree.generationStats.fallbackCandidatesUsed).toBeLessThanOrEqual(2);
+  expect(tree.children.length).toBeLessThanOrEqual(2);
   for (const child of tree.children) {
     expect(child.passesMinScore).toBe(false);
   }
+});
+
+test("relative score window prunes weak above-floor candidates while keeping best options", () => {
+  const tree = generatePossibilityTree({
+    teamState: {
+      Mid: "Azir"
+    },
+    teamId: "TTT",
+    nextRole: "Top",
+    teamPools: data.teamPools,
+    championsByName: data.championsByName,
+    toggles: {
+      requireHardEngage: true,
+      requireFrontline: true,
+      requireWaveclear: true,
+      requireDamageMix: true,
+      requireAntiTank: false,
+      requireDisengage: false,
+      requirePrimaryCarry: true,
+      topMustBeThreat: true
+    },
+    weights: data.config.recommendation.weights,
+    maxDepth: 1,
+    maxBranch: 8,
+    minCandidateScore: 1
+  });
+
+  expect(tree.children.length).toBeGreaterThan(0);
+  expect(tree.generationStats.prunedRelativeCandidateScore).toBeGreaterThan(0);
+  expect(tree.generationStats.prunedLowCandidateScore).toBeGreaterThan(0);
 });
 
 test("missing PrimaryCarry gets minimum required-check gain even when configured weight is zero", () => {
