@@ -1850,6 +1850,8 @@ function renderPreview() {
   viabilitySummary.textContent =
     selectedNode?.viability?.isTerminalValid
       ? "This node is a terminal valid composition."
+      : !selectedNode?.viability?.isDraftComplete
+        ? "This node is not terminal valid because the draft is incomplete."
       : `Branch potential: ${selectedNode?.branchPotential?.validLeafCount ?? 0} valid leaf/leaves.`;
   wrapper.append(viabilitySummary);
 

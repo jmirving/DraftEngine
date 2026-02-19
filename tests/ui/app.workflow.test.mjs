@@ -162,6 +162,7 @@ describe("workflow app integration", () => {
     const topSelect = doc.querySelector("#slot-Top");
     const continueButton = doc.querySelector("#builder-continue-validate");
     const generateButton = doc.querySelector("#builder-generate");
+    const validLeavesOnly = doc.querySelector("#tree-valid-leaves-only");
     const treeSearch = doc.querySelector("#tree-search");
     const treeMinScore = doc.querySelector("#tree-min-score");
 
@@ -247,12 +248,15 @@ describe("workflow app integration", () => {
     const topSelect = doc.querySelector("#slot-Top");
     const continueButton = doc.querySelector("#builder-continue-validate");
     const generateButton = doc.querySelector("#builder-generate");
+    const validLeavesOnly = doc.querySelector("#tree-valid-leaves-only");
 
     const firstTop = Array.from(topSelect.options).find((option) => option.value);
     topSelect.value = firstTop.value;
     topSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
     continueButton.click();
     generateButton.click();
+    validLeavesOnly.checked = false;
+    validLeavesOnly.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
 
     const inspectButtons = doc.querySelectorAll("#builder-tree-summary button");
     expect(inspectButtons.length).toBeGreaterThan(0);

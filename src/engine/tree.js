@@ -129,6 +129,10 @@ function createLeafBranchPotential(node) {
   };
 }
 
+function isTerminalValidDraft(isDraftComplete, requiredSummary) {
+  return Boolean(isDraftComplete) && requiredSummary.requiredGaps === 0;
+}
+
 function finalizeLeafNode(node, stats) {
   node.branchPotential = createLeafBranchPotential(node);
   if (node.viability.isDraftComplete) {
@@ -540,7 +544,7 @@ function buildNode({
       remainingSteps,
       unreachableRequired,
       isDraftComplete: teamComplete,
-      isTerminalValid: isTerminal && requiredSummary.requiredGaps === 0
+      isTerminalValid: isTerminalValidDraft(teamComplete, requiredSummary)
     },
     pathRationale: parentPathRationale,
     branchPotential: {
@@ -583,7 +587,7 @@ function buildNode({
   generationStats.prunedLowCandidateScore += prunedLowCandidateScoreCount;
 
   if (!role || candidates.length === 0) {
-    node.viability.isTerminalValid = requiredSummary.requiredGaps === 0;
+    node.viability.isTerminalValid = isTerminalValidDraft(node.viability.isDraftComplete, requiredSummary);
     if (role) {
       node.viability.blockedRole = role;
       if (eligibleBeforeScoreCount === 0) {
@@ -645,7 +649,7 @@ function buildNode({
 
   node.children = builtChildren;
   if (node.children.length === 0) {
-    node.viability.isTerminalValid = requiredSummary.requiredGaps === 0;
+    node.viability.isTerminalValid = isTerminalValidDraft(node.viability.isDraftComplete, requiredSummary);
     return finalizeLeafNode(node, generationStats);
   }
 

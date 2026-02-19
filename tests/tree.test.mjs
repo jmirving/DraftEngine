@@ -330,6 +330,38 @@ test("default minCandidateScore prunes zero-gain candidates; minCandidateScore=0
   expect(zeroFloorTree.children.length).toBeGreaterThan(0);
 });
 
+test("depth-limited incomplete leaves are never terminal-valid", () => {
+  const tree = generatePossibilityTree({
+    teamState: {},
+    teamId: "TTT",
+    nextRole: "Top",
+    teamPools: data.teamPools,
+    championsByName: data.championsByName,
+    toggles: {
+      requireHardEngage: false,
+      requireFrontline: false,
+      requireWaveclear: false,
+      requireDamageMix: false,
+      requireAntiTank: false,
+      requireDisengage: false,
+      topMustBeThreat: false
+    },
+    weights: data.config.recommendation.weights,
+    maxDepth: 1,
+    maxBranch: 5,
+    minCandidateScore: 0,
+    pruneUnreachableRequired: false
+  });
+
+  expect(tree.children.length).toBeGreaterThan(0);
+  for (const child of tree.children) {
+    expect(child.viability.isDraftComplete).toBe(false);
+    expect(child.viability.isTerminalValid).toBe(false);
+    expect(child.branchPotential.validLeafCount).toBe(0);
+  }
+  expect(tree.generationStats.validLeaves).toBe(0);
+});
+
 test("hard pruning removes branches with unreachable required checks", () => {
   const championsByName = {
     ThreatTop: createChampion({
@@ -431,19 +463,30 @@ test("valid-end-state ranking can outrank immediate candidate score", () => {
       roles: ["Mid"],
       damageType: "AP"
     }),
-    TopHardAP: createChampion({
-      name: "TopHardAP",
+    ADCAD: createChampion({
+      name: "ADCAD",
+      roles: ["ADC"],
+      damageType: "AD"
+    }),
+    SupportUtility: createChampion({
+      name: "SupportUtility",
+      roles: ["Support"],
+      damageType: "AP"
+    }),
+    TopHardOnly: createChampion({
+      name: "TopHardOnly",
       roles: ["Top"],
       damageType: "AP",
       tags: { HardEngage: true }
     }),
-    TopADNoHard: createChampion({
-      name: "TopADNoHard",
+    TopFrontlineOnly: createChampion({
+      name: "TopFrontlineOnly",
       roles: ["Top"],
-      damageType: "AD"
+      damageType: "AD",
+      tags: { Frontline: true }
     }),
-    JungleAPHard: createChampion({
-      name: "JungleAPHard",
+    JungleHardOnly: createChampion({
+      name: "JungleHardOnly",
       roles: ["Jungle"],
       damageType: "AP",
       tags: { HardEngage: true }
@@ -452,23 +495,25 @@ test("valid-end-state ranking can outrank immediate candidate score", () => {
 
   const tree = generatePossibilityTree({
     teamState: {
-      Mid: "MidAP"
+      Mid: "MidAP",
+      ADC: "ADCAD",
+      Support: "SupportUtility"
     },
     teamId: "X",
     roleOrder: ["Top", "Jungle", "Mid", "ADC", "Support"],
     teamPools: {
       X: {
-        Top: ["TopHardAP", "TopADNoHard"],
-        Jungle: ["JungleAPHard"],
+        Top: ["TopHardOnly", "TopFrontlineOnly"],
+        Jungle: ["JungleHardOnly"],
         Mid: ["MidAP"],
-        ADC: [],
-        Support: []
+        ADC: ["ADCAD"],
+        Support: ["SupportUtility"]
       }
     },
     championsByName,
     toggles: {
       requireHardEngage: true,
-      requireFrontline: false,
+      requireFrontline: true,
       requireWaveclear: false,
       requireDamageMix: true,
       requireAntiTank: false,
@@ -482,7 +527,7 @@ test("valid-end-state ranking can outrank immediate candidate score", () => {
   });
 
   expect(tree.children.length).toBeGreaterThan(1);
-  expect(tree.children[0].addedChampion).toBe("TopADNoHard");
+  expect(tree.children[0].addedChampion).toBe("TopFrontlineOnly");
   expect(tree.children[0].branchPotential.validLeafCount).toBeGreaterThan(
     tree.children[1].branchPotential.validLeafCount
   );
