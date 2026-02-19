@@ -242,6 +242,21 @@ function closeOtherCheckboxMultiDetails(activeDetails) {
   }
 }
 
+function syncDropdownPanelLayering(details, isOpen) {
+  const panel = details.closest(".draft-board-panel");
+  if (!panel) {
+    return;
+  }
+
+  if (isOpen) {
+    panel.classList.add("has-open-dropdown");
+    return;
+  }
+
+  const hasOpenDropdown = Boolean(panel.querySelector(".checkbox-multi-details[open]"));
+  panel.classList.toggle("has-open-dropdown", hasOpenDropdown);
+}
+
 function setInlineFeedback(target, message) {
   if (!target) {
     return;
@@ -431,6 +446,8 @@ function createCheckboxMultiControl({
   details.className = "checkbox-multi-details";
   checkboxMultiDetailsRegistry.add(details);
   details.addEventListener("toggle", () => {
+    shell.classList.toggle("is-open", details.open);
+    syncDropdownPanelLayering(details, details.open);
     if (details.open) {
       closeOtherCheckboxMultiDetails(details);
     }

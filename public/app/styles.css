@@ -202,6 +202,10 @@ h3 {
   overflow: hidden;
 }
 
+.draft-board-panel.has-open-dropdown {
+  z-index: 40;
+}
+
 #tab-explorer .draft-board-panel,
 #tab-player-config .draft-board-panel {
   overflow: visible;
@@ -283,6 +287,8 @@ h3 {
 
 .explorer-filters-grid {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  position: relative;
+  z-index: 3;
 }
 
 .team-context-controls {
@@ -299,6 +305,8 @@ h3 {
 
 .player-pools-grid {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  position: relative;
+  z-index: 3;
 }
 
 .explorer-filters-grid > label,
@@ -379,6 +387,11 @@ button.ghost {
 .checkbox-multi {
   margin-top: 0.26rem;
   position: relative;
+  z-index: 1;
+}
+
+.checkbox-multi.is-open {
+  z-index: 80;
 }
 
 .checkbox-multi-details {
@@ -415,7 +428,7 @@ button.ghost {
   left: 0;
   right: 0;
   top: calc(100% + 0.24rem);
-  z-index: 22;
+  z-index: 81;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: #fffcf5;
