@@ -241,6 +241,14 @@
                     Min Score
                     <input id="tree-min-score" type="number" step="1" min="0" value="0" />
                   </label>
+                  <label>
+                    Min Candidate Score
+                    <input id="tree-min-candidate-score" type="number" step="1" min="0" value="1" />
+                  </label>
+                  <label class="inline-checkbox">
+                    <input id="tree-valid-leaves-only" type="checkbox" checked />
+                    Valid leaves only
+                  </label>
                 </div>
                 <div class="button-row">
                   <button id="tree-expand-all" type="button" class="ghost">Expand All</button>
@@ -250,6 +258,9 @@
                 <div class="panel tree-map-panel">
                   <h3>Tree Map</h3>
                   <p class="meta">Graph view of expansion depth. Click any node marker to inspect it.</p>
+                  <p id="tree-map-legend" class="meta">
+                    Legend: terminal valid, recoverable, and filtered-context states.
+                  </p>
                   <svg id="builder-tree-map" class="tree-map" viewBox="0 0 900 320" preserveAspectRatio="xMidYMid meet"></svg>
                 </div>
                 <div id="builder-tree" class="tree"></div>

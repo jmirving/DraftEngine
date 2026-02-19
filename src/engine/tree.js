@@ -8,6 +8,9 @@ import {
 } from "../domain/model.js";
 import { evaluateCompositionChecks, isTopThreatChampion, scoreNodeFromChecks } from "./checks.js";
 
+const DEFAULT_MIN_CANDIDATE_SCORE = 1;
+const DEFAULT_RANK_GOAL = "valid_end_states";
+
 function normalizeExclusions(excludedChampions = []) {
   return new Set(excludedChampions.filter((name) => typeof name === "string" && name.trim() !== ""));
 }
@@ -44,6 +47,21 @@ function normalizeWeights(weights = {}) {
   return {
     ...DEFAULT_RECOMMENDATION_WEIGHTS,
     ...weights
+  };
+}
+
+function normalizeRankGoal(rankGoal) {
+  return rankGoal === DEFAULT_RANK_GOAL ? rankGoal : DEFAULT_RANK_GOAL;
+}
+
+function createGenerationStats() {
+  return {
+    nodesVisited: 0,
+    nodesKept: 0,
+    prunedUnreachable: 0,
+    prunedLowCandidateScore: 0,
+    validLeaves: 0,
+    incompleteLeaves: 0
   };
 }
 
@@ -91,6 +109,291 @@ function scoreCandidate({
   };
 }
 
+function getRequiredSummary(checks) {
+  const requiredChecks = Object.values(checks).filter((result) => Boolean(result.required));
+  const requiredTotal = requiredChecks.length;
+  const requiredPassed = requiredChecks.filter((result) => Boolean(result.satisfied)).length;
+  return {
+    requiredTotal,
+    requiredPassed,
+    requiredGaps: requiredTotal - requiredPassed
+  };
+}
+
+function createLeafBranchPotential(node) {
+  return {
+    validLeafCount: node.viability.isTerminalValid ? 1 : 0,
+    bestLeafScore: node.viability.isTerminalValid ? node.score : null
+  };
+}
+
+function finalizeLeafNode(node, stats) {
+  node.branchPotential = createLeafBranchPotential(node);
+  if (node.branchPotential.validLeafCount > 0) {
+    stats.validLeaves += 1;
+  } else {
+    stats.incompleteLeaves += 1;
+  }
+  return node;
+}
+
+function getBestLeafScore(node) {
+  const score = node.branchPotential?.bestLeafScore;
+  return Number.isFinite(score) ? score : Number.NEGATIVE_INFINITY;
+}
+
+function compareChildrenForRank(left, right, rankGoal) {
+  if (rankGoal === DEFAULT_RANK_GOAL) {
+    const leftValidLeaves = left.branchPotential?.validLeafCount ?? 0;
+    const rightValidLeaves = right.branchPotential?.validLeafCount ?? 0;
+    if (rightValidLeaves !== leftValidLeaves) {
+      return rightValidLeaves - leftValidLeaves;
+    }
+
+    const leftBestLeafScore = getBestLeafScore(left);
+    const rightBestLeafScore = getBestLeafScore(right);
+    if (rightBestLeafScore !== leftBestLeafScore) {
+      return rightBestLeafScore - leftBestLeafScore;
+    }
+  }
+
+  if ((right.candidateScore ?? 0) !== (left.candidateScore ?? 0)) {
+    return (right.candidateScore ?? 0) - (left.candidateScore ?? 0);
+  }
+
+  return (left.addedChampion ?? "").localeCompare(right.addedChampion ?? "");
+}
+
+function getRemainingExpansionRoles({
+  teamState,
+  preferredNextRole,
+  roleOrder,
+  remainingSteps
+}) {
+  const roles = [];
+  const projected = normalizeTeamState(teamState);
+  for (let step = 0; step < remainingSteps; step += 1) {
+    const role = resolveNextRole(projected, preferredNextRole, roleOrder);
+    if (!role) {
+      break;
+    }
+    roles.push(role);
+    projected[role] = `__projected__${step}`;
+  }
+  return roles;
+}
+
+function hasReachableChampionForRole({
+  role,
+  teamPools,
+  teamId,
+  picked,
+  excludedChampions,
+  championsByName,
+  predicate
+}) {
+  const pool = getPoolForRole(teamPools, teamId, role);
+  for (const championName of pool) {
+    if (picked.has(championName) || excludedChampions.has(championName)) {
+      continue;
+    }
+    const champion = championsByName[championName];
+    if (!champion) {
+      continue;
+    }
+    if (predicate(champion, role)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function hasReachableChampionAcrossRoles({
+  roles,
+  teamPools,
+  teamId,
+  picked,
+  excludedChampions,
+  championsByName,
+  predicate
+}) {
+  for (const role of roles) {
+    if (
+      hasReachableChampionForRole({
+        role,
+        teamPools,
+        teamId,
+        picked,
+        excludedChampions,
+        championsByName,
+        predicate
+      })
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isDamageTypeOption(champion, damageType) {
+  if (damageType === "AD") {
+    return champion.damageType === "AD" || champion.damageType === "Mixed";
+  }
+  if (damageType === "AP") {
+    return champion.damageType === "AP" || champion.damageType === "Mixed";
+  }
+  return champion.damageType === "Mixed";
+}
+
+export function evaluateRequiredReachability({
+  teamState,
+  teamId,
+  preferredNextRole,
+  roleOrder = SLOTS,
+  teamPools,
+  championsByName,
+  excludedChampions = [],
+  remainingSteps = 0,
+  checkEvaluation = null,
+  toggles = {}
+}) {
+  const normalized = normalizeTeamState(teamState);
+  const evaluation = checkEvaluation ?? evaluateCompositionChecks(normalized, championsByName, toggles);
+  const requiredCheckNames = Object.entries(evaluation.checks)
+    .filter(([, result]) => Boolean(result.required))
+    .map(([checkName]) => checkName);
+  const unmetRequired = requiredCheckNames.filter((checkName) => !evaluation.checks[checkName].satisfied);
+
+  if (unmetRequired.length === 0) {
+    return {
+      remainingRoles: [],
+      unmetRequired,
+      unreachableRequired: []
+    };
+  }
+
+  const roles = getRemainingExpansionRoles({
+    teamState: normalized,
+    preferredNextRole,
+    roleOrder,
+    remainingSteps
+  });
+  const picked = getPickedChampionNames(normalized);
+  const excluded = normalizeExclusions(excludedChampions);
+  const unreachableRequired = [];
+
+  for (const checkName of unmetRequired) {
+    const check = evaluation.checks[checkName];
+    const requirementType = check?.requirementType;
+    let reachable = false;
+
+    if (requirementType === "tag" && check?.requirementTag) {
+      const tag = check.requirementTag;
+      reachable = hasReachableChampionAcrossRoles({
+        roles,
+        teamPools,
+        teamId,
+        picked,
+        excludedChampions: excluded,
+        championsByName,
+        predicate(champion, role) {
+          if (role === "Top" && evaluation.toggles.topMustBeThreat && !isTopThreatChampion(champion)) {
+            return false;
+          }
+          return Boolean(champion.tags[tag]);
+        }
+      });
+    } else if (requirementType === "damage_mix") {
+      const needsAD = evaluation.missingNeeds.needsAD;
+      const needsAP = evaluation.missingNeeds.needsAP;
+      const adReachable = hasReachableChampionAcrossRoles({
+        roles,
+        teamPools,
+        teamId,
+        picked,
+        excludedChampions: excluded,
+        championsByName,
+        predicate(champion, role) {
+          if (role === "Top" && evaluation.toggles.topMustBeThreat && !isTopThreatChampion(champion)) {
+            return false;
+          }
+          return isDamageTypeOption(champion, "AD");
+        }
+      });
+      const apReachable = hasReachableChampionAcrossRoles({
+        roles,
+        teamPools,
+        teamId,
+        picked,
+        excludedChampions: excluded,
+        championsByName,
+        predicate(champion, role) {
+          if (role === "Top" && evaluation.toggles.topMustBeThreat && !isTopThreatChampion(champion)) {
+            return false;
+          }
+          return isDamageTypeOption(champion, "AP");
+        }
+      });
+      const mixedReachable = hasReachableChampionAcrossRoles({
+        roles,
+        teamPools,
+        teamId,
+        picked,
+        excludedChampions: excluded,
+        championsByName,
+        predicate(champion, role) {
+          if (role === "Top" && evaluation.toggles.topMustBeThreat && !isTopThreatChampion(champion)) {
+            return false;
+          }
+          return isDamageTypeOption(champion, "Mixed");
+        }
+      });
+
+      if (needsAD && needsAP) {
+        reachable = mixedReachable || (adReachable && apReachable && roles.length >= 2);
+      } else if (needsAD) {
+        reachable = adReachable;
+      } else if (needsAP) {
+        reachable = apReachable;
+      } else {
+        reachable = true;
+      }
+    } else if (requirementType === "top_threat") {
+      const role = check.requiredRole ?? "Top";
+      const topName = normalized[role];
+      if (topName) {
+        reachable = false;
+      } else if (!roles.includes(role)) {
+        reachable = false;
+      } else {
+        reachable = hasReachableChampionForRole({
+          role,
+          teamPools,
+          teamId,
+          picked,
+          excludedChampions: excluded,
+          championsByName,
+          predicate(champion) {
+            return isTopThreatChampion(champion);
+          }
+        });
+      }
+    } else {
+      reachable = true;
+    }
+
+    if (!reachable) {
+      unreachableRequired.push(checkName);
+    }
+  }
+
+  return {
+    remainingRoles: roles,
+    unmetRequired,
+    unreachableRequired
+  };
+}
+
 export function generateNextCandidates({
   teamState,
   teamId,
@@ -101,7 +404,8 @@ export function generateNextCandidates({
   toggles = {},
   excludedChampions = [],
   weights = {},
-  maxBranch = DEFAULT_TREE_SETTINGS.maxBranch
+  maxBranch = DEFAULT_TREE_SETTINGS.maxBranch,
+  minCandidateScore = DEFAULT_MIN_CANDIDATE_SCORE
 }) {
   const normalized = normalizeTeamState(teamState);
   const role = resolveNextRole(normalized, nextRole, roleOrder);
@@ -109,7 +413,8 @@ export function generateNextCandidates({
   if (!role) {
     return {
       role: null,
-      candidates: []
+      candidates: [],
+      prunedLowCandidateScoreCount: 0
     };
   }
 
@@ -120,6 +425,7 @@ export function generateNextCandidates({
   const currentEvaluation = evaluateCompositionChecks(normalized, championsByName, toggles);
 
   const scored = [];
+  let prunedLowCandidateScoreCount = 0;
 
   for (const championName of pool) {
     if (picked.has(championName) || excluded.has(championName)) {
@@ -141,6 +447,11 @@ export function generateNextCandidates({
       weights: mergedWeights
     });
 
+    if (candidateScore.score < minCandidateScore) {
+      prunedLowCandidateScoreCount += 1;
+      continue;
+    }
+
     scored.push({
       role,
       championName,
@@ -158,7 +469,8 @@ export function generateNextCandidates({
 
   return {
     role,
-    candidates: scored.slice(0, maxBranch)
+    candidates: scored.slice(0, maxBranch),
+    prunedLowCandidateScoreCount
   };
 }
 
@@ -174,12 +486,35 @@ function buildNode({
   weights,
   maxDepth,
   maxBranch,
+  minCandidateScore,
+  pruneUnreachableRequired,
+  rankGoal,
   depth,
-  parentPathRationale = []
+  parentPathRationale = [],
+  generationStats,
+  isRoot = false
 }) {
+  generationStats.nodesVisited += 1;
   const normalized = normalizeTeamState(teamState);
   const checkEvaluation = evaluateCompositionChecks(normalized, championsByName, toggles);
   const nodeScore = scoreNodeFromChecks(checkEvaluation);
+  const requiredSummary = getRequiredSummary(checkEvaluation.checks);
+  const remainingSteps = Math.max(0, maxDepth - depth);
+  const reachability = evaluateRequiredReachability({
+    teamState: normalized,
+    teamId,
+    preferredNextRole,
+    roleOrder,
+    teamPools,
+    championsByName,
+    excludedChampions,
+    remainingSteps,
+    checkEvaluation
+  });
+  const teamComplete = isTeamComplete(normalized);
+  const terminalByDepth = depth >= maxDepth;
+  const isTerminal = terminalByDepth || teamComplete;
+  const unreachableRequired = pruneUnreachableRequired ? reachability.unreachableRequired : [];
 
   const node = {
     depth,
@@ -187,15 +522,32 @@ function buildNode({
     score: nodeScore,
     checks: checkEvaluation.checks,
     missingNeeds: checkEvaluation.missingNeeds,
+    requiredSummary,
+    viability: {
+      remainingSteps,
+      unreachableRequired,
+      isTerminalValid: isTerminal && requiredSummary.requiredGaps === 0
+    },
     pathRationale: parentPathRationale,
+    branchPotential: {
+      validLeafCount: 0,
+      bestLeafScore: null
+    },
     children: []
   };
 
-  if (depth >= maxDepth || isTeamComplete(normalized)) {
-    return node;
+  if (!isRoot && pruneUnreachableRequired && unreachableRequired.length > 0) {
+    generationStats.prunedUnreachable += 1;
+    return null;
   }
 
-  const { role, candidates } = generateNextCandidates({
+  generationStats.nodesKept += 1;
+
+  if (isTerminal) {
+    return finalizeLeafNode(node, generationStats);
+  }
+
+  const { role, candidates, prunedLowCandidateScoreCount } = generateNextCandidates({
     teamState: normalized,
     teamId,
     nextRole: preferredNextRole,
@@ -205,14 +557,19 @@ function buildNode({
     toggles,
     excludedChampions,
     weights,
-    maxBranch
+    maxBranch,
+    minCandidateScore
   });
+  generationStats.prunedLowCandidateScore += prunedLowCandidateScoreCount;
 
   if (!role || candidates.length === 0) {
-    return node;
+    node.viability.isTerminalValid = requiredSummary.requiredGaps === 0;
+    return finalizeLeafNode(node, generationStats);
   }
 
-  node.children = candidates.map((candidate) => {
+  const builtChildren = [];
+
+  for (const candidate of candidates) {
     const childState = {
       ...normalized,
       [role]: candidate.championName
@@ -234,25 +591,44 @@ function buildNode({
       weights,
       maxDepth,
       maxBranch,
+      minCandidateScore,
+      pruneUnreachableRequired,
+      rankGoal,
       depth: depth + 1,
-      parentPathRationale: candidatePathRationale
+      parentPathRationale: candidatePathRationale,
+      generationStats
     });
+    if (!childNode) {
+      continue;
+    }
 
-    return {
+    builtChildren.push({
       ...childNode,
       addedRole: role,
       addedChampion: candidate.championName,
       candidateScore: candidate.score,
       rationale: candidate.rationale
-    };
-  });
+    });
+  }
 
-  node.children.sort((left, right) => {
-    if (right.score !== left.score) {
-      return right.score - left.score;
-    }
-    return (left.addedChampion ?? "").localeCompare(right.addedChampion ?? "");
-  });
+  node.children = builtChildren;
+  if (node.children.length === 0) {
+    node.viability.isTerminalValid = requiredSummary.requiredGaps === 0;
+    return finalizeLeafNode(node, generationStats);
+  }
+
+  let validLeafCount = 0;
+  let bestLeafScore = Number.NEGATIVE_INFINITY;
+  for (const child of node.children) {
+    validLeafCount += child.branchPotential?.validLeafCount ?? 0;
+    bestLeafScore = Math.max(bestLeafScore, getBestLeafScore(child));
+  }
+  node.branchPotential = {
+    validLeafCount,
+    bestLeafScore: bestLeafScore === Number.NEGATIVE_INFINITY ? null : bestLeafScore
+  };
+
+  node.children.sort((left, right) => compareChildrenForRank(left, right, rankGoal));
 
   return node;
 }
@@ -268,13 +644,17 @@ export function generatePossibilityTree({
   excludedChampions = [],
   weights = {},
   maxDepth = DEFAULT_TREE_SETTINGS.maxDepth,
-  maxBranch = DEFAULT_TREE_SETTINGS.maxBranch
+  maxBranch = DEFAULT_TREE_SETTINGS.maxBranch,
+  minCandidateScore = DEFAULT_MIN_CANDIDATE_SCORE,
+  pruneUnreachableRequired = true,
+  rankGoal = DEFAULT_RANK_GOAL
 }) {
   if (!teamId || typeof teamId !== "string") {
     throw new Error("teamId is required to generate a tree.");
   }
 
-  return buildNode({
+  const generationStats = createGenerationStats();
+  const tree = buildNode({
     teamState,
     teamId,
     preferredNextRole: nextRole,
@@ -286,7 +666,15 @@ export function generatePossibilityTree({
     weights,
     maxDepth,
     maxBranch,
+    minCandidateScore,
+    pruneUnreachableRequired: Boolean(pruneUnreachableRequired),
+    rankGoal: normalizeRankGoal(rankGoal),
     depth: 0,
-    parentPathRationale: []
+    parentPathRationale: [],
+    generationStats,
+    isRoot: true
   });
+
+  tree.generationStats = generationStats;
+  return tree;
 }

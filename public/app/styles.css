@@ -791,6 +791,18 @@ button.ghost {
   opacity: 0.82;
 }
 
+.node.is-terminal-valid {
+  border-left: 4px solid #3f8f5a;
+}
+
+.node.is-recoverable {
+  border-left: 4px solid #c68a2d;
+}
+
+.node.is-filtered-context {
+  border-left: 4px solid #968d81;
+}
+
 .node-title {
   display: flex;
   align-items: center;
@@ -851,6 +863,21 @@ button.ghost {
 .tree-map-node.is-match {
   fill: #f8f0dd;
   stroke: #755f4d;
+}
+
+.tree-map-node.is-terminal-valid {
+  fill: #d9f0dd;
+  stroke: #3f8f5a;
+}
+
+.tree-map-node.is-recoverable {
+  fill: #f7e8cb;
+  stroke: #c68a2d;
+}
+
+.tree-map-node.is-filtered-context {
+  fill: #ebe6dd;
+  stroke: #968d81;
 }
 
 .tree-map-label {
@@ -938,6 +965,17 @@ button.ghost {
   border-radius: 10px;
   background: #fffefa;
   padding: 0.5rem 0.55rem;
+}
+
+.tree-toolbar > label.inline-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.tree-toolbar > label.inline-checkbox input[type="checkbox"] {
+  width: auto;
+  margin-top: 0;
 }
 
 .inspect-overview-grid {

@@ -21,6 +21,28 @@ Primary surfaces:
 - `Team Context` (team defaults + role-pool preview)
 - `User Config` (personal defaults and preferences)
 
+## Testing
+
+Run the full suite:
+```bash
+npm test
+```
+
+Run coverage (enforced gate):
+```bash
+npm run test:coverage
+```
+
+Current coverage gates:
+- Lines: `>= 70%`
+- Branches: `>= 60%`
+
+Test strategy:
+- `src/*` is covered with deterministic unit tests.
+- `public/app/*-utils.js` is covered with pure utility tests.
+- `public/app/app.js` is covered with jsdom integration tests for workflow-critical UI behavior.
+- CI runs coverage gates on Node `24` via `.github/workflows/tests.yml`.
+
 ## Data Inputs
 
 The app loads local assets from `/public/data/`:

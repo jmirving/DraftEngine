@@ -1,9 +1,9 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import { expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { buildDraftflowData } from "../src/data/loaders.js";
+import { BOOLEAN_TAGS } from "../src/domain/model.js";
 import { generatePossibilityTree } from "../src/engine/tree.js";
 
 const championsCsv = readFileSync(resolve("docs/DraftFlow_champions.csv"), "utf8");
@@ -44,6 +44,27 @@ function collectNodes(node, nodes = []) {
   return nodes;
 }
 
+function createTags(overrides = {}) {
+  const tags = {};
+  for (const tag of BOOLEAN_TAGS) {
+    tags[tag] = false;
+  }
+  return {
+    ...tags,
+    ...overrides
+  };
+}
+
+function createChampion({ name, roles, damageType, tags = {} }) {
+  return {
+    name,
+    roles,
+    damageType,
+    scaling: "Mid",
+    tags: createTags(tags)
+  };
+}
+
 test("generatePossibilityTree is deterministic for same inputs", () => {
   const params = {
     teamState: {
@@ -71,7 +92,7 @@ test("generatePossibilityTree is deterministic for same inputs", () => {
 
   const first = generatePossibilityTree(params);
   const second = generatePossibilityTree(params);
-  assert.deepEqual(first, second);
+  expect(first).toEqual(second);
 });
 
 test("excluded champions never appear in generated tree", () => {
@@ -91,9 +112,9 @@ test("excluded champions never appear in generated tree", () => {
   });
 
   const picks = collectPickedChampionsFromTree(tree);
-  assert.equal(picks.has("Hecarim"), false);
-  assert.equal(picks.has("Zac"), false);
-  assert.equal(picks.has("Amumu"), false);
+  expect(picks.has("Hecarim")).toBe(false);
+  expect(picks.has("Zac")).toBe(false);
+  expect(picks.has("Amumu")).toBe(false);
 });
 
 test("top threat enforcement filters illegal top candidates", () => {
@@ -113,11 +134,11 @@ test("top threat enforcement filters illegal top candidates", () => {
     maxBranch: 20
   });
 
-  assert.ok(tree.children.length > 0);
+  expect(tree.children.length).toBeGreaterThan(0);
   for (const child of tree.children) {
     const topChampion = data.championsByName[child.addedChampion];
     const isThreat = topChampion.tags.SideLaneThreat || topChampion.tags.DiveThreat;
-    assert.equal(isThreat, true);
+    expect(isThreat).toBe(true);
   }
 });
 
@@ -137,14 +158,14 @@ test("candidate expansion respects selected role pools", () => {
       topMustBeThreat: true
     },
     weights: data.config.recommendation.weights,
-    maxDepth: 1,
+    maxDepth: 2,
     maxBranch: 10
   });
 
-  assert.ok(tree.children.length > 0);
+  expect(tree.children.length).toBeGreaterThan(0);
   for (const child of tree.children) {
-    assert.equal(child.addedRole, "Jungle");
-    assert.equal(junglePool.has(child.addedChampion), true);
+    expect(child.addedRole).toBe("Jungle");
+    expect(junglePool.has(child.addedChampion)).toBe(true);
   }
 });
 
@@ -164,7 +185,7 @@ test("candidate rationale no longer includes redundancy penalties", () => {
   });
 
   const rationale = collectRationaleFromTree(tree);
-  assert.equal(rationale.some((entry) => entry.toLowerCase().includes("redundancy penalty")), false);
+  expect(rationale.some((entry) => entry.toLowerCase().includes("redundancy penalty"))).toBe(false);
 });
 
 test("roleOrder controls which unfilled role expands first", () => {
@@ -182,9 +203,9 @@ test("roleOrder controls which unfilled role expands first", () => {
     maxBranch: 5
   });
 
-  assert.ok(tree.children.length > 0);
+  expect(tree.children.length).toBeGreaterThan(0);
   for (const child of tree.children) {
-    assert.equal(child.addedRole, "Top");
+    expect(child.addedRole).toBe("Top");
   }
 });
 
@@ -214,7 +235,7 @@ test("node scoring can exceed historical low cap for richer comps", () => {
     maxBranch: 5
   });
 
-  assert.ok(tree.score > 50);
+  expect(tree.score).toBeGreaterThan(50);
 });
 
 test("deeper nodes include cumulative path rationale", () => {
@@ -233,9 +254,232 @@ test("deeper nodes include cumulative path rationale", () => {
 
   const nodes = collectNodes(tree);
   const deepNodes = nodes.filter((node) => node.depth >= 2);
-  assert.ok(deepNodes.length > 0);
+  expect(deepNodes.length).toBeGreaterThan(0);
   for (const node of deepNodes) {
-    assert.ok(Array.isArray(node.pathRationale));
-    assert.ok(node.pathRationale.length >= 2);
+    expect(Array.isArray(node.pathRationale)).toBe(true);
+    expect(node.pathRationale.length).toBeGreaterThanOrEqual(2);
   }
+});
+
+test("tree exposes requiredSummary, viability, and generation stats metadata", () => {
+  const tree = generatePossibilityTree({
+    teamState: {
+      Mid: "Azir"
+    },
+    teamId: "TTT",
+    teamPools: data.teamPools,
+    championsByName: data.championsByName,
+    weights: data.config.recommendation.weights,
+    maxDepth: 2,
+    maxBranch: 4
+  });
+
+  expect(tree.requiredSummary).toMatchObject({
+    requiredTotal: expect.any(Number),
+    requiredPassed: expect.any(Number),
+    requiredGaps: expect.any(Number)
+  });
+  expect(tree.viability).toMatchObject({
+    remainingSteps: expect.any(Number),
+    unreachableRequired: expect.any(Array),
+    isTerminalValid: expect.any(Boolean)
+  });
+  expect(tree.generationStats).toMatchObject({
+    nodesVisited: expect.any(Number),
+    nodesKept: expect.any(Number),
+    prunedUnreachable: expect.any(Number),
+    prunedLowCandidateScore: expect.any(Number),
+    validLeaves: expect.any(Number),
+    incompleteLeaves: expect.any(Number)
+  });
+});
+
+test("default minCandidateScore prunes zero-gain candidates; minCandidateScore=0 restores branches", () => {
+  const params = {
+    teamState: {
+      Mid: "Azir"
+    },
+    teamId: "TTT",
+    nextRole: "Top",
+    teamPools: data.teamPools,
+    championsByName: data.championsByName,
+    toggles: {
+      requireHardEngage: false,
+      requireFrontline: false,
+      requireWaveclear: false,
+      requireDamageMix: false,
+      requireAntiTank: false,
+      requireDisengage: false,
+      topMustBeThreat: false
+    },
+    weights: data.config.recommendation.weights,
+    maxDepth: 1,
+    maxBranch: 10
+  };
+
+  const defaultFloorTree = generatePossibilityTree(params);
+  const zeroFloorTree = generatePossibilityTree({
+    ...params,
+    minCandidateScore: 0
+  });
+
+  expect(defaultFloorTree.children.length).toBe(0);
+  expect(defaultFloorTree.generationStats.prunedLowCandidateScore).toBeGreaterThan(0);
+  expect(zeroFloorTree.children.length).toBeGreaterThan(0);
+});
+
+test("hard pruning removes branches with unreachable required checks", () => {
+  const championsByName = {
+    ThreatTop: createChampion({
+      name: "ThreatTop",
+      roles: ["Top"],
+      damageType: "AD",
+      tags: { SideLaneThreat: true }
+    }),
+    JungleNoWave: createChampion({
+      name: "JungleNoWave",
+      roles: ["Jungle"],
+      damageType: "AD"
+    })
+  };
+
+  const tree = generatePossibilityTree({
+    teamState: {
+      Top: "ThreatTop"
+    },
+    teamId: "X",
+    roleOrder: ["Jungle", "Top", "Mid", "ADC", "Support"],
+    teamPools: {
+      X: {
+        Top: ["ThreatTop"],
+        Jungle: ["JungleNoWave"],
+        Mid: [],
+        ADC: [],
+        Support: []
+      }
+    },
+    championsByName,
+    toggles: {
+      requireHardEngage: false,
+      requireFrontline: false,
+      requireWaveclear: true,
+      requireDamageMix: false,
+      requireAntiTank: false,
+      requireDisengage: false,
+      topMustBeThreat: false
+    },
+    maxDepth: 1,
+    maxBranch: 5,
+    minCandidateScore: 0
+  });
+
+  expect(tree.viability.unreachableRequired).toContain("HasWaveclear");
+  expect(tree.children.length).toBe(0);
+  expect(tree.generationStats.prunedUnreachable).toBeGreaterThan(0);
+});
+
+test("top threat requirement can be unreachable by horizon and branch gets pruned", () => {
+  const championsByName = {
+    JungleOnly: createChampion({
+      name: "JungleOnly",
+      roles: ["Jungle"],
+      damageType: "AD"
+    })
+  };
+
+  const tree = generatePossibilityTree({
+    teamState: {},
+    teamId: "X",
+    roleOrder: ["Jungle", "Top", "Mid", "ADC", "Support"],
+    teamPools: {
+      X: {
+        Top: [],
+        Jungle: ["JungleOnly"],
+        Mid: [],
+        ADC: [],
+        Support: []
+      }
+    },
+    championsByName,
+    toggles: {
+      requireHardEngage: false,
+      requireFrontline: false,
+      requireWaveclear: false,
+      requireDamageMix: false,
+      requireAntiTank: false,
+      requireDisengage: false,
+      topMustBeThreat: true
+    },
+    maxDepth: 1,
+    maxBranch: 5,
+    minCandidateScore: 0
+  });
+
+  expect(tree.viability.unreachableRequired).toContain("TopMustBeThreat");
+  expect(tree.children.length).toBe(0);
+  expect(tree.generationStats.prunedUnreachable).toBeGreaterThan(0);
+});
+
+test("valid-end-state ranking can outrank immediate candidate score", () => {
+  const championsByName = {
+    MidAP: createChampion({
+      name: "MidAP",
+      roles: ["Mid"],
+      damageType: "AP"
+    }),
+    TopHardAP: createChampion({
+      name: "TopHardAP",
+      roles: ["Top"],
+      damageType: "AP",
+      tags: { HardEngage: true }
+    }),
+    TopADNoHard: createChampion({
+      name: "TopADNoHard",
+      roles: ["Top"],
+      damageType: "AD"
+    }),
+    JungleAPHard: createChampion({
+      name: "JungleAPHard",
+      roles: ["Jungle"],
+      damageType: "AP",
+      tags: { HardEngage: true }
+    })
+  };
+
+  const tree = generatePossibilityTree({
+    teamState: {
+      Mid: "MidAP"
+    },
+    teamId: "X",
+    roleOrder: ["Top", "Jungle", "Mid", "ADC", "Support"],
+    teamPools: {
+      X: {
+        Top: ["TopHardAP", "TopADNoHard"],
+        Jungle: ["JungleAPHard"],
+        Mid: ["MidAP"],
+        ADC: [],
+        Support: []
+      }
+    },
+    championsByName,
+    toggles: {
+      requireHardEngage: true,
+      requireFrontline: false,
+      requireWaveclear: false,
+      requireDamageMix: true,
+      requireAntiTank: false,
+      requireDisengage: false,
+      topMustBeThreat: false
+    },
+    maxDepth: 2,
+    maxBranch: 5,
+    minCandidateScore: 0,
+    pruneUnreachableRequired: false
+  });
+
+  expect(tree.children.length).toBeGreaterThan(1);
+  expect(tree.children[0].addedChampion).toBe("TopADNoHard");
+  expect(tree.children[0].branchPotential.validLeafCount).toBeGreaterThan(
+    tree.children[1].branchPotential.validLeafCount
+  );
 });

@@ -127,7 +127,11 @@ export function evaluateCompositionChecks(teamState, championsByName, toggleOver
       checkName,
       true,
       satisfied,
-      satisfied ? `${tag} covered.` : `${tag} not satisfied yet.`
+      satisfied ? `${tag} covered.` : `${tag} not satisfied yet.`,
+      {
+        requirementType: "tag",
+        requirementTag: tag
+      }
     );
   }
 
@@ -138,6 +142,7 @@ export function evaluateCompositionChecks(teamState, championsByName, toggleOver
     damageMixSatisfied,
     damageMixSatisfied ? "Team has both AD and AP damage types." : "Team damage mix is missing AD or AP.",
     {
+      requirementType: "damage_mix",
       hasAD: helpers.hasAD,
       hasAP: helpers.hasAP
     }
@@ -152,6 +157,8 @@ export function evaluateCompositionChecks(teamState, championsByName, toggleOver
       false,
       "Top slot is not filled yet.",
       {
+        requirementType: "top_threat",
+        requiredRole: "Top",
         applicable: false
       }
     );
@@ -166,6 +173,8 @@ export function evaluateCompositionChecks(teamState, championsByName, toggleOver
         ? "Top provides SideLaneThreat or DiveThreat."
         : "Top must provide SideLaneThreat or DiveThreat.",
       {
+        requirementType: "top_threat",
+        requiredRole: "Top",
         applicable: true
       }
     );

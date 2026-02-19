@@ -1,5 +1,4 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import { expect, test } from "vitest";
 
 import { evaluateCompositionChecks } from "../src/engine/checks.js";
 
@@ -60,12 +59,16 @@ test("evaluateCompositionChecks computes missing requirements on partial team", 
     championsByName
   );
 
-  assert.equal(result.checks.HasFrontline.satisfied, true);
-  assert.equal(result.checks.HasHardEngage.satisfied, false);
-  assert.equal(result.checks.DamageMix.satisfied, false);
-  assert.equal(result.checks.TopMustBeThreat.satisfied, true);
-  assert.equal(result.missingNeeds.needsAP, true);
-  assert.ok(result.missingNeeds.tags.includes("HardEngage"));
+  expect(result.checks.HasFrontline.satisfied).toBe(true);
+  expect(result.checks.HasHardEngage.satisfied).toBe(false);
+  expect(result.checks.HasHardEngage.requirementType).toBe("tag");
+  expect(result.checks.HasHardEngage.requirementTag).toBe("HardEngage");
+  expect(result.checks.DamageMix.satisfied).toBe(false);
+  expect(result.checks.DamageMix.requirementType).toBe("damage_mix");
+  expect(result.checks.TopMustBeThreat.satisfied).toBe(true);
+  expect(result.checks.TopMustBeThreat.requirementType).toBe("top_threat");
+  expect(result.missingNeeds.needsAP).toBe(true);
+  expect(result.missingNeeds.tags.includes("HardEngage")).toBe(true);
 });
 
 test("evaluateCompositionChecks marks top threat as warn when Top is non-threat and enforcement enabled", () => {
@@ -79,7 +82,7 @@ test("evaluateCompositionChecks marks top threat as warn when Top is non-threat 
     }
   );
 
-  assert.equal(result.checks.TopMustBeThreat.status, "warn");
-  assert.equal(result.checks.TopMustBeThreat.satisfied, false);
-  assert.equal(result.checks.TopMustBeThreat.applicable, true);
+  expect(result.checks.TopMustBeThreat.status).toBe("warn");
+  expect(result.checks.TopMustBeThreat.satisfied).toBe(false);
+  expect(result.checks.TopMustBeThreat.applicable).toBe(true);
 });
