@@ -224,6 +224,23 @@ const elements = {
 };
 
 const multiSelectControls = {};
+const checkboxMultiDetailsRegistry = new Set();
+
+function closeOtherCheckboxMultiDetails(activeDetails) {
+  const stale = [];
+  for (const candidate of checkboxMultiDetailsRegistry) {
+    if (!candidate.isConnected) {
+      stale.push(candidate);
+      continue;
+    }
+    if (candidate !== activeDetails) {
+      candidate.open = false;
+    }
+  }
+  for (const staleNode of stale) {
+    checkboxMultiDetailsRegistry.delete(staleNode);
+  }
+}
 
 function setInlineFeedback(target, message) {
   if (!target) {
@@ -412,6 +429,12 @@ function createCheckboxMultiControl({
 
   const details = document.createElement("details");
   details.className = "checkbox-multi-details";
+  checkboxMultiDetailsRegistry.add(details);
+  details.addEventListener("toggle", () => {
+    if (details.open) {
+      closeOtherCheckboxMultiDetails(details);
+    }
+  });
 
   const summary = document.createElement("summary");
   summary.className = "checkbox-multi-summary";
