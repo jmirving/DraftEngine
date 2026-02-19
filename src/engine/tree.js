@@ -65,6 +65,9 @@ function createGenerationStats() {
   return {
     nodesVisited: 0,
     nodesKept: 0,
+    candidateGenerationCalls: 0,
+    candidatesEvaluated: 0,
+    candidatesSelected: 0,
     prunedUnreachable: 0,
     prunedLowCandidateScore: 0,
     prunedRelativeCandidateScore: 0,
@@ -725,6 +728,9 @@ function buildNode({
     minCandidateScore,
     remainingSteps
   });
+  generationStats.candidateGenerationCalls += 1;
+  generationStats.candidatesEvaluated += eligibleBeforeScoreCount;
+  generationStats.candidatesSelected += candidates.length;
   generationStats.prunedLowCandidateScore += prunedLowCandidateScoreCount;
   generationStats.prunedRelativeCandidateScore += prunedRelativeCandidateScoreCount;
   if (fallbackUsed) {

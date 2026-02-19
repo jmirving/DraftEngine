@@ -1979,6 +1979,10 @@ function renderPreview() {
 
 function inspectNode(node, nodeId, nodeTitle) {
   setBuilderStage("inspect");
+  state.builder.teamState = normalizeTeamState(node.teamSlots);
+  syncSlotSelectOptions();
+  clearBuilderFeedback();
+  setSetupFeedback("");
   state.builder.previewTeam = normalizeTeamState(node.teamSlots);
   state.builder.selectedNodeId = nodeId;
   state.builder.selectedNodeReasons = [...(node.pathRationale ?? [])];
@@ -2219,6 +2223,8 @@ function renderTreeSummary(visibleIds) {
     statsMeta.className = "meta";
     statsMeta.textContent =
       `Visited ${generationStats.nodesVisited}, kept ${generationStats.nodesKept}, ` +
+      `candidate calls ${generationStats.candidateGenerationCalls ?? 0}, ` +
+      `candidates evaluated ${generationStats.candidatesEvaluated ?? 0}, selected ${generationStats.candidatesSelected ?? 0}, ` +
       `pruned unreachable ${generationStats.prunedUnreachable}, ` +
       `pruned low score ${generationStats.prunedLowCandidateScore}, ` +
       `pruned relative score ${generationStats.prunedRelativeCandidateScore ?? 0}, ` +
