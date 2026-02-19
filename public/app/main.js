@@ -186,7 +186,6 @@ const elements = {
   builderTeamContext: document.querySelector("#builder-team-context"),
   builderRequiredChecks: document.querySelector("#builder-required-checks"),
   builderOptionalChecks: document.querySelector("#builder-optional-checks"),
-  builderMissingNeeds: document.querySelector("#builder-missing-needs"),
   builderTreeSummary: document.querySelector("#builder-tree-summary"),
   builderTree: document.querySelector("#builder-tree"),
   builderTreeMap: document.querySelector("#builder-tree-map"),
@@ -1594,11 +1593,6 @@ function renderChecks() {
     requiredRow.className = "check is-optional";
     requiredRow.textContent = "Readiness checks are waiting for your first champion selection.";
     elements.builderRequiredChecks.append(requiredRow);
-
-    elements.builderMissingNeeds.innerHTML = "";
-    const missingRow = document.createElement("li");
-    missingRow.textContent = "No missing-need warnings yet (composition is empty).";
-    elements.builderMissingNeeds.append(missingRow);
     return;
   }
 
@@ -1639,33 +1633,6 @@ function renderChecks() {
   elements.builderToggleOptionalChecks.textContent = state.builder.showOptionalChecks
     ? "Hide Optional Checks"
     : "Show Optional Checks";
-
-  const missing = [];
-  for (const tag of checkEvaluation.missingNeeds.tags) {
-    missing.push(tag);
-  }
-  if (checkEvaluation.missingNeeds.needsAD) {
-    missing.push("Need AD damage source");
-  }
-  if (checkEvaluation.missingNeeds.needsAP) {
-    missing.push("Need AP damage source");
-  }
-  if (checkEvaluation.missingNeeds.needsTopThreat) {
-    missing.push("Top must provide SideLaneThreat or DiveThreat");
-  }
-
-  elements.builderMissingNeeds.innerHTML = "";
-  if (missing.length === 0) {
-    const row = document.createElement("li");
-    row.textContent = "No required needs missing.";
-    elements.builderMissingNeeds.append(row);
-  } else {
-    for (const need of missing) {
-      const row = document.createElement("li");
-      row.textContent = need;
-      elements.builderMissingNeeds.append(row);
-    }
-  }
 }
 
 function teamStateKey(teamSlots) {
