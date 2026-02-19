@@ -41,15 +41,15 @@ const UI_COPY = Object.freeze({
       workflow: "Workflow",
       "team-config": "Team Context",
       "player-config": "Player Pools",
-      explorer: "Scouting Board"
+      explorer: "Champion Tags"
     }
   },
   panels: {
-    explorerTitle: "Scouting Board",
-    explorerMeta: "Scout champion candidates and shape a focused draft board.",
+    explorerTitle: "Champion Tags",
+    explorerMeta: "Filter champions by role, damage profile, scaling, and tags.",
     teamConfigTitle: "Team Draft Context",
     teamConfigMeta: "Set the team profile that drives role pools across composition work.",
-    playerConfigTitle: "Player Pool Board",
+    playerConfigTitle: "Player Pools",
     playerConfigMeta: "Tune each player's champion pool before running composition generation."
   },
   builder: {
@@ -223,6 +223,8 @@ const elements = {
   )
 };
 
+const multiSelectControls = {};
+
 function setInlineFeedback(target, message) {
   if (!target) {
     return;
@@ -379,16 +381,166 @@ function getMultiSelectValues(select) {
   return Array.from(select.selectedOptions).map((option) => option.value);
 }
 
-function normalizeNoFilterMultiSelection(values, select) {
-  let normalized = values;
+function normalizeNoFilterMultiSelection(values) {
+  let normalized = [...new Set(values)];
   if (normalized.includes(NO_FILTER) && normalized.length > 1) {
     normalized = normalized.filter((value) => value !== NO_FILTER);
   }
-  if (normalized.length === 0) {
-    normalized = [NO_FILTER];
-  }
-  setMultiSelectValues(select, normalized);
   return normalized.includes(NO_FILTER) ? [] : normalized;
+}
+
+function createCheckboxMultiControl({
+  root,
+  options,
+  selectedValues = [],
+  onChange = null,
+  placeholder = "No selections",
+  searchable = false,
+  searchPlaceholder = "Filter options",
+  summaryFormatter = null
+}) {
+  const normalizedOptions = options.map(({ value, label }) => ({
+    value: String(value),
+    label: String(label)
+  }));
+  const optionValueSet = new Set(normalizedOptions.map((option) => option.value));
+  const optionLabelByValue = new Map(normalizedOptions.map((option) => [option.value, option.label]));
+  const selected = new Set();
+
+  const shell = document.createElement("div");
+  shell.className = "checkbox-multi";
+
+  const details = document.createElement("details");
+  details.className = "checkbox-multi-details";
+
+  const summary = document.createElement("summary");
+  summary.className = "checkbox-multi-summary";
+  const summaryText = document.createElement("span");
+  summary.append(summaryText);
+  details.append(summary);
+
+  const panel = document.createElement("div");
+  panel.className = "checkbox-multi-panel";
+
+  let searchInput = null;
+  if (searchable) {
+    searchInput = document.createElement("input");
+    searchInput.type = "search";
+    searchInput.placeholder = searchPlaceholder;
+    searchInput.className = "checkbox-multi-search";
+    panel.append(searchInput);
+  }
+
+  const list = document.createElement("div");
+  list.className = "checkbox-multi-list";
+  panel.append(list);
+  details.append(panel);
+  shell.append(details);
+
+  root.innerHTML = "";
+  root.append(shell);
+
+  function getSelected() {
+    return normalizedOptions
+      .map((option) => option.value)
+      .filter((value) => selected.has(value));
+  }
+
+  function updateSummary() {
+    const selectedValuesNow = getSelected();
+    if (summaryFormatter) {
+      summaryText.textContent = summaryFormatter(selectedValuesNow, optionLabelByValue);
+      return;
+    }
+
+    if (selectedValuesNow.length === 0) {
+      summaryText.textContent = placeholder;
+      return;
+    }
+    if (selectedValuesNow.length <= 2) {
+      summaryText.textContent = selectedValuesNow
+        .map((value) => optionLabelByValue.get(value) ?? value)
+        .join(", ");
+      return;
+    }
+    summaryText.textContent = `${selectedValuesNow.length} selected`;
+  }
+
+  function renderOptions() {
+    const query = (searchInput?.value ?? "").trim().toLowerCase();
+    list.innerHTML = "";
+
+    const visibleOptions = normalizedOptions.filter((option) => {
+      if (!query) {
+        return true;
+      }
+      return option.label.toLowerCase().includes(query) || option.value.toLowerCase().includes(query);
+    });
+
+    if (visibleOptions.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "checkbox-multi-empty";
+      empty.textContent = "No options match the current search.";
+      list.append(empty);
+      return;
+    }
+
+    for (const option of visibleOptions) {
+      const label = document.createElement("label");
+      label.className = "selection-option checkbox-multi-option";
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.value = option.value;
+      checkbox.checked = selected.has(option.value);
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) {
+          selected.add(option.value);
+        } else {
+          selected.delete(option.value);
+        }
+        updateSummary();
+        if (onChange) {
+          onChange(getSelected());
+        }
+      });
+
+      const text = document.createElement("span");
+      text.textContent = option.label;
+      label.append(checkbox, text);
+      list.append(label);
+    }
+  }
+
+  function applySelectedValues(nextValues, emit = false) {
+    selected.clear();
+    for (const value of nextValues) {
+      if (optionValueSet.has(String(value))) {
+        selected.add(String(value));
+      }
+    }
+    renderOptions();
+    updateSummary();
+    if (emit && onChange) {
+      onChange(getSelected());
+    }
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      renderOptions();
+    });
+  }
+
+  applySelectedValues(selectedValues);
+  updateSummary();
+
+  return {
+    getSelected,
+    setSelected(nextValues, emit = false) {
+      applySelectedValues(nextValues, emit);
+    }
+  };
 }
 
 function setTab(tabName) {
@@ -576,23 +728,49 @@ async function loadMvpData() {
 }
 
 function initializeExplorerControls() {
-  replaceOptions(
-    elements.explorerRole,
-    [
+  multiSelectControls.explorerRole = createCheckboxMultiControl({
+    root: elements.explorerRole,
+    options: [
       { value: NO_FILTER, label: "None (no role filter)" },
       ...SLOTS.map((slot) => ({ value: slot, label: slot }))
-    ]
-  );
-  setMultiSelectValues(elements.explorerRole, [NO_FILTER]);
+    ],
+    selectedValues: [NO_FILTER],
+    placeholder: "None (no role filter)",
+    summaryFormatter(selectedValues) {
+      if (selectedValues.length === 0 || selectedValues.includes(NO_FILTER)) {
+        return "None (no role filter)";
+      }
+      return selectedValues.length === 1 ? selectedValues[0] : `${selectedValues.length} roles selected`;
+    },
+    onChange(selectedValues) {
+      state.explorer.roles = normalizeNoFilterMultiSelection(selectedValues);
+      const valuesToRender = state.explorer.roles.length === 0 ? [NO_FILTER] : state.explorer.roles;
+      multiSelectControls.explorerRole.setSelected(valuesToRender);
+      renderExplorer();
+    }
+  });
 
-  replaceOptions(
-    elements.explorerDamage,
-    [
+  multiSelectControls.explorerDamage = createCheckboxMultiControl({
+    root: elements.explorerDamage,
+    options: [
       { value: NO_FILTER, label: "None (no damage filter)" },
       ...DAMAGE_TYPES.map((value) => ({ value, label: value }))
-    ]
-  );
-  setMultiSelectValues(elements.explorerDamage, [NO_FILTER]);
+    ],
+    selectedValues: [NO_FILTER],
+    placeholder: "None (no damage filter)",
+    summaryFormatter(selectedValues) {
+      if (selectedValues.length === 0 || selectedValues.includes(NO_FILTER)) {
+        return "None (no damage filter)";
+      }
+      return selectedValues.length === 1 ? selectedValues[0] : `${selectedValues.length} damage tags selected`;
+    },
+    onChange(selectedValues) {
+      state.explorer.damageTypes = normalizeNoFilterMultiSelection(selectedValues);
+      const valuesToRender = state.explorer.damageTypes.length === 0 ? [NO_FILTER] : state.explorer.damageTypes;
+      multiSelectControls.explorerDamage.setSelected(valuesToRender);
+      renderExplorer();
+    }
+  });
 
   replaceOptions(
     elements.explorerScaling,
@@ -610,14 +788,47 @@ function initializeExplorerControls() {
     ]
   );
 
-  replaceOptions(
-    elements.explorerIncludeTags,
-    BOOLEAN_TAGS.map((tag) => ({ value: tag, label: tag }))
-  );
-  replaceOptions(
-    elements.explorerExcludeTags,
-    BOOLEAN_TAGS.map((tag) => ({ value: tag, label: tag }))
-  );
+  multiSelectControls.explorerIncludeTags = createCheckboxMultiControl({
+    root: elements.explorerIncludeTags,
+    options: BOOLEAN_TAGS.map((tag) => ({ value: tag, label: tag })),
+    selectedValues: [],
+    placeholder: "No include tags",
+    summaryFormatter(selectedValues) {
+      if (selectedValues.length === 0) {
+        return "No include tags";
+      }
+      return selectedValues.length === 1 ? selectedValues[0] : `${selectedValues.length} include tags`;
+    },
+    onChange(selectedValues) {
+      syncTagMutualExclusion(
+        "include",
+        selectedValues,
+        multiSelectControls.explorerExcludeTags.getSelected()
+      );
+      renderExplorer();
+    }
+  });
+
+  multiSelectControls.explorerExcludeTags = createCheckboxMultiControl({
+    root: elements.explorerExcludeTags,
+    options: BOOLEAN_TAGS.map((tag) => ({ value: tag, label: tag })),
+    selectedValues: [],
+    placeholder: "No exclude tags",
+    summaryFormatter(selectedValues) {
+      if (selectedValues.length === 0) {
+        return "No exclude tags";
+      }
+      return selectedValues.length === 1 ? selectedValues[0] : `${selectedValues.length} exclude tags`;
+    },
+    onChange(selectedValues) {
+      syncTagMutualExclusion(
+        "exclude",
+        multiSelectControls.explorerIncludeTags.getSelected(),
+        selectedValues
+      );
+      renderExplorer();
+    }
+  });
 }
 
 function clearExplorerFilters() {
@@ -630,12 +841,12 @@ function clearExplorerFilters() {
   state.explorer.sortBy = "alpha-asc";
 
   elements.explorerSearch.value = "";
-  setMultiSelectValues(elements.explorerRole, [NO_FILTER]);
-  setMultiSelectValues(elements.explorerDamage, [NO_FILTER]);
+  multiSelectControls.explorerRole?.setSelected([NO_FILTER]);
+  multiSelectControls.explorerDamage?.setSelected([NO_FILTER]);
   elements.explorerScaling.value = "";
   elements.explorerSort.value = "alpha-asc";
-  setMultiSelectValues(elements.explorerIncludeTags, []);
-  setMultiSelectValues(elements.explorerExcludeTags, []);
+  multiSelectControls.explorerIncludeTags?.setSelected([]);
+  multiSelectControls.explorerExcludeTags?.setSelected([]);
 }
 
 function getSlotLabel(slot) {
@@ -702,7 +913,7 @@ function initializeBuilderControls() {
   elements.builderToggles.innerHTML = "<legend>Required Toggles</legend>";
   for (const key of Object.keys(DEFAULT_REQUIREMENT_TOGGLES)) {
     const wrapper = document.createElement("label");
-    wrapper.className = "toggle-item";
+    wrapper.className = "toggle-item selection-option";
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.checked = Boolean(state.builder.toggles[key]);
@@ -831,37 +1042,47 @@ function renderPlayerConfig() {
     const label = document.createElement("label");
     label.textContent = "Champion Pool";
 
-    const select = document.createElement("select");
-    select.multiple = true;
-    select.size = 12;
-    select.className = "player-pool-select";
+    const poolControlHost = document.createElement("div");
+    poolControlHost.className = "player-pool-control";
 
     const roleEligible = state.data.noneTeamPools[player.role] ?? [];
-    for (const championName of roleEligible) {
-      select.append(createOption(championName, championName));
-    }
-    setMultiSelectValues(select, player.champions);
-
-    select.addEventListener("change", () => {
-      player.champions = Array.from(new Set(getMultiSelectValues(select))).sort((left, right) => left.localeCompare(right));
-      syncDerivedTeamDataFromPlayerConfig();
-      const saved = savePlayerConfig();
-      state.teamConfig.defaultTeamId = normalizeConfiguredTeamId(state.teamConfig.defaultTeamId);
-      state.teamConfig.activeTeamId = normalizeConfiguredTeamId(state.teamConfig.activeTeamId);
-      state.builder.teamId = normalizeConfiguredTeamId(state.builder.teamId);
-      setBuilderStage("setup");
-      resetBuilderTreeState();
-      syncSlotSelectOptions();
-      renderTeamConfig();
-      renderBuilder();
-      renderPlayerConfig();
-      renderPlayerConfigFeedback(
-        saved ? `Saved pool updates for ${player.player}.` : "Pool updates applied in memory, but local storage is unavailable.",
-        !saved
-      );
+    createCheckboxMultiControl({
+      root: poolControlHost,
+      options: roleEligible.map((championName) => ({
+        value: championName,
+        label: championName
+      })),
+      selectedValues: player.champions,
+      placeholder: "No champions selected",
+      searchable: true,
+      searchPlaceholder: "Filter champions",
+      summaryFormatter(selectedValues) {
+        if (selectedValues.length === 0) {
+          return "No champions selected";
+        }
+        return `${selectedValues.length} champion${selectedValues.length === 1 ? "" : "s"} selected`;
+      },
+      onChange(selectedValues) {
+        player.champions = Array.from(new Set(selectedValues)).sort((left, right) => left.localeCompare(right));
+        syncDerivedTeamDataFromPlayerConfig();
+        const saved = savePlayerConfig();
+        state.teamConfig.defaultTeamId = normalizeConfiguredTeamId(state.teamConfig.defaultTeamId);
+        state.teamConfig.activeTeamId = normalizeConfiguredTeamId(state.teamConfig.activeTeamId);
+        state.builder.teamId = normalizeConfiguredTeamId(state.builder.teamId);
+        setBuilderStage("setup");
+        resetBuilderTreeState();
+        syncSlotSelectOptions();
+        renderTeamConfig();
+        renderBuilder();
+        renderPlayerConfig();
+        renderPlayerConfigFeedback(
+          saved ? `Saved pool updates for ${player.player}.` : "Pool updates applied in memory, but local storage is unavailable.",
+          !saved
+        );
+      }
     });
 
-    label.append(select);
+    label.append(poolControlHost);
     card.append(title, roleMeta, countMeta, label);
     elements.playerConfigGrid.append(card);
   }
@@ -1452,7 +1673,7 @@ function renderExcludedOptions() {
 
   for (const championName of filtered) {
     const label = document.createElement("label");
-    label.className = "excluded-option";
+    label.className = "excluded-option selection-option";
 
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
@@ -2217,18 +2438,18 @@ function validateAndApplySlotSelection(slot, championName) {
   return true;
 }
 
-function syncTagMutualExclusion(changed) {
-  let includeValues = getMultiSelectValues(elements.explorerIncludeTags);
-  let excludeValues = getMultiSelectValues(elements.explorerExcludeTags);
+function syncTagMutualExclusion(changed, includeValuesInput, excludeValuesInput) {
+  let includeValues = [...includeValuesInput];
+  let excludeValues = [...excludeValuesInput];
 
   const overlap = includeValues.filter((tag) => excludeValues.includes(tag));
   if (overlap.length > 0) {
     if (changed === "include") {
       excludeValues = excludeValues.filter((tag) => !overlap.includes(tag));
-      setMultiSelectValues(elements.explorerExcludeTags, excludeValues);
+      multiSelectControls.explorerExcludeTags?.setSelected(excludeValues);
     } else {
       includeValues = includeValues.filter((tag) => !overlap.includes(tag));
-      setMultiSelectValues(elements.explorerIncludeTags, includeValues);
+      multiSelectControls.explorerIncludeTags?.setSelected(includeValues);
     }
   }
 
@@ -2261,18 +2482,6 @@ function attachEvents() {
     renderExplorer();
   });
 
-  elements.explorerRole.addEventListener("change", () => {
-    const values = getMultiSelectValues(elements.explorerRole);
-    state.explorer.roles = normalizeNoFilterMultiSelection(values, elements.explorerRole);
-    renderExplorer();
-  });
-
-  elements.explorerDamage.addEventListener("change", () => {
-    const values = getMultiSelectValues(elements.explorerDamage);
-    state.explorer.damageTypes = normalizeNoFilterMultiSelection(values, elements.explorerDamage);
-    renderExplorer();
-  });
-
   elements.explorerScaling.addEventListener("change", () => {
     state.explorer.scaling = elements.explorerScaling.value;
     renderExplorer();
@@ -2283,24 +2492,14 @@ function attachEvents() {
     renderExplorer();
   });
 
-  elements.explorerIncludeTags.addEventListener("change", () => {
-    syncTagMutualExclusion("include");
-    renderExplorer();
-  });
-
-  elements.explorerExcludeTags.addEventListener("change", () => {
-    syncTagMutualExclusion("exclude");
-    renderExplorer();
-  });
-
   elements.explorerClearInclude.addEventListener("click", () => {
-    setMultiSelectValues(elements.explorerIncludeTags, []);
+    multiSelectControls.explorerIncludeTags?.setSelected([]);
     state.explorer.includeTags = [];
     renderExplorer();
   });
 
   elements.explorerClearExclude.addEventListener("click", () => {
-    setMultiSelectValues(elements.explorerExcludeTags, []);
+    multiSelectControls.explorerExcludeTags?.setSelected([]);
     state.explorer.excludeTags = [];
     renderExplorer();
   });

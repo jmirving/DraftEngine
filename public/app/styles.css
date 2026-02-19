@@ -352,6 +352,94 @@ button.ghost {
   border-color: var(--accent-soft);
 }
 
+.selection-option {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.86rem;
+  color: var(--ink);
+}
+
+.selection-option input[type="checkbox"] {
+  appearance: auto;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  margin-top: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.checkbox-multi {
+  margin-top: 0.26rem;
+}
+
+.checkbox-multi-details {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fffcf5;
+}
+
+.checkbox-multi-summary {
+  list-style: none;
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 700;
+  padding: 0.42rem 0.55rem;
+}
+
+.checkbox-multi-summary::-webkit-details-marker {
+  display: none;
+}
+
+.checkbox-multi-summary::after {
+  content: "▾";
+  float: right;
+  color: var(--muted);
+}
+
+.checkbox-multi-details[open] .checkbox-multi-summary::after {
+  content: "▴";
+}
+
+.checkbox-multi-panel {
+  border-top: 1px solid var(--border);
+  padding: 0.4rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.checkbox-multi-search {
+  margin-top: 0;
+}
+
+.checkbox-multi-list {
+  display: grid;
+  gap: 0.25rem;
+  max-height: 220px;
+  overflow: auto;
+  padding-right: 0.1rem;
+}
+
+.checkbox-multi-option {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0.24rem 0.28rem;
+  background: #fffefa;
+}
+
+.checkbox-multi-option:hover {
+  border-color: var(--accent-soft);
+  background: #fff7f2;
+}
+
+.checkbox-multi-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
 .meta {
   margin: 0 0 0.7rem 0;
   color: var(--muted);
@@ -497,15 +585,7 @@ button.ghost {
 }
 
 .toggle-item {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
   margin-top: 0.2rem;
-}
-
-.toggle-item input {
-  width: auto;
-  margin: 0;
 }
 
 #builder-intent-switch {
@@ -882,8 +962,8 @@ button.ghost {
   margin-bottom: 0.35rem;
 }
 
-.player-pool-select {
-  min-height: 12.5rem;
+.player-pool-control .checkbox-multi-list {
+  max-height: 280px;
 }
 
 .draft-order-list {
@@ -927,16 +1007,8 @@ button.ghost {
 }
 
 .excluded-option {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.86rem;
-  color: var(--ink);
-}
-
-.excluded-option input {
-  width: auto;
-  margin: 0;
+  border-radius: 8px;
+  padding: 0.15rem 0.22rem;
 }
 
 .error-inline {
