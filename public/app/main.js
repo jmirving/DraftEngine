@@ -2453,6 +2453,14 @@ function renderBuilder() {
   renderPreview();
 }
 
+function scrollReviewResultsIntoView() {
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  elements.builderTreeSummary.scrollIntoView({
+    behavior: prefersReducedMotion ? "auto" : "smooth",
+    block: "start"
+  });
+}
+
 function validateAndApplySlotSelection(slot, championName) {
   if (!championName) {
     state.builder.teamState[slot] = null;
@@ -2689,6 +2697,7 @@ function attachEvents() {
       state.builder.compareNodeB = null;
       setBuilderStage("inspect");
       renderBuilder();
+      scrollReviewResultsIntoView();
     } catch (error) {
       setInspectFeedback(error instanceof Error ? error.message : "Failed to generate tree.");
     }

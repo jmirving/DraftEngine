@@ -940,6 +940,7 @@ button.ghost {
   display: grid;
   gap: 0.75rem;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  align-items: start;
   margin-bottom: 0.75rem;
 }
 
@@ -951,8 +952,19 @@ button.ghost {
   padding: 0.55rem;
 }
 
-.inspect-actions button {
+.inspect-generate-row {
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.inspect-generate-row button {
   width: auto;
+}
+
+.inspect-generate-help {
+  margin: 0;
 }
 
 .tree-summary {
@@ -1141,7 +1153,11 @@ button.ghost {
     grid-template-columns: 1fr;
   }
 
-  .inspect-actions button {
+  .inspect-generate-row {
+    align-items: stretch;
+  }
+
+  .inspect-generate-row button {
     width: 100%;
   }
 }
