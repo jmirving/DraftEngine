@@ -228,6 +228,12 @@ h3 {
   margin-bottom: 0.8rem;
 }
 
+.workflow-surface .stage-guide,
+.workflow-surface .stage-panel {
+  margin-inline: auto;
+  width: min(100%, 1180px);
+}
+
 .stage-guide-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -406,6 +412,13 @@ button.ghost {
   align-items: start;
 }
 
+.setup-board-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  align-items: start;
+}
+
 .slot-list {
   display: grid;
   grid-template-columns: 1fr;
@@ -417,6 +430,7 @@ button.ghost {
   border-radius: 10px;
   background: #fffefa;
   padding: 0.55rem;
+  box-shadow: inset 0 3px 0 rgba(204, 91, 52, 0.2);
 }
 
 .slot-inputs-block h3 {
@@ -760,6 +774,7 @@ button.ghost {
   border-radius: 10px;
   padding: 0.6rem;
   background: #fffefa;
+  box-shadow: inset 0 3px 0 rgba(204, 91, 52, 0.2);
 }
 
 .advanced-controls {
@@ -767,6 +782,7 @@ button.ghost {
   border-radius: 10px;
   background: #fffefa;
   padding: 0.45rem 0.6rem;
+  box-shadow: inset 0 3px 0 rgba(204, 91, 52, 0.2);
 }
 
 .advanced-controls > summary {
@@ -797,9 +813,35 @@ button.ghost {
 
 .tree-toolbar {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 0.55rem;
   margin-bottom: 0.55rem;
+}
+
+.tree-toolbar > label {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fffefa;
+  padding: 0.5rem 0.55rem;
+}
+
+.inspect-overview-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  margin-bottom: 0.75rem;
+}
+
+.inspect-column {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fffefa;
+  box-shadow: inset 0 3px 0 rgba(204, 91, 52, 0.2);
+  padding: 0.55rem;
+}
+
+.inspect-actions button {
+  width: auto;
 }
 
 .tree-summary {
@@ -989,5 +1031,14 @@ button.ghost {
 
   .stage-guide-actions {
     grid-template-columns: 1fr;
+  }
+
+  .setup-board-grid,
+  .inspect-overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .inspect-actions button {
+    width: 100%;
   }
 }
