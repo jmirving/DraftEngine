@@ -373,6 +373,7 @@ button.ghost {
 
 .checkbox-multi {
   margin-top: 0.26rem;
+  position: relative;
 }
 
 .checkbox-multi-details {
@@ -404,10 +405,22 @@ button.ghost {
 }
 
 .checkbox-multi-panel {
-  border-top: 1px solid var(--border);
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 0.24rem);
+  z-index: 22;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fffcf5;
+  box-shadow: var(--shadow);
   padding: 0.4rem;
-  display: grid;
   gap: 0.35rem;
+}
+
+.checkbox-multi-details[open] .checkbox-multi-panel {
+  display: grid;
 }
 
 .checkbox-multi-search {
