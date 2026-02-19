@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { DataValidationError, buildDraftflowData, parseChampionsCsv, parseConfigJson, parseTeamPoolsCsv } from "../src/data/loaders.js";
+import { BOOLEAN_TAGS } from "../src/domain/model.js";
 
 const championsCsv = readFileSync(resolve("docs/DraftFlow_champions.csv"), "utf8");
 const teamPoolsCsv = readFileSync(resolve("docs/DraftFlow_team_pools.csv"), "utf8");
@@ -45,8 +46,10 @@ test("buildDraftflowData validates team pool champion references", () => {
 });
 
 test("parseChampionsCsv rejects invalid boolean tag value", () => {
+  const header = ["Champion", "Roles", "DamageType", "Scaling", ...BOOLEAN_TAGS].join(",");
+  const values = ["Test", "Top", "AD", "Early", "2", ...Array(BOOLEAN_TAGS.length - 1).fill("0")].join(",");
   const invalidCsv =
-    "Champion,Roles,DamageType,Scaling,HardEngage,FollowUpEngage,PickThreat,Frontline,Disengage,Waveclear,ZoneControl,ObjectiveSecure,AntiTank,FrontToBackDPS,DiveThreat,SideLaneThreat,Poke,FogThreat,EarlyPriority\n" +
-    "Test,Top,AD,Early,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0\n";
+    `${header}\n` +
+    `${values}\n`;
   expect(() => parseChampionsCsv(invalidCsv)).toThrow(DataValidationError);
 });

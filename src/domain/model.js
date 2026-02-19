@@ -23,7 +23,12 @@ export const BOOLEAN_TAGS = Object.freeze([
   "SideLaneThreat",
   "Poke",
   "FogThreat",
-  "EarlyPriority"
+  "EarlyPriority",
+  "PrimaryCarry",
+  "SustainedDPS",
+  "TurretSiege",
+  "SelfPeel",
+  "UtilityCarry"
 ]);
 
 export const REQUIREMENT_CHECKS = Object.freeze([
@@ -32,6 +37,7 @@ export const REQUIREMENT_CHECKS = Object.freeze([
   "HasWaveclear",
   "HasDisengage",
   "HasAntiTank",
+  "HasPrimaryCarry",
   "DamageMix",
   "TopMustBeThreat"
 ]);
@@ -43,6 +49,7 @@ export const DEFAULT_REQUIREMENT_TOGGLES = Object.freeze({
   requireDamageMix: true,
   requireAntiTank: false,
   requireDisengage: false,
+  requirePrimaryCarry: true,
   topMustBeThreat: true
 });
 
@@ -60,7 +67,12 @@ export const DEFAULT_RECOMMENDATION_WEIGHTS = Object.freeze({
   FogThreat: 3,
   FollowUpEngage: 3,
   FrontToBackDPS: 3,
-  EarlyPriority: 2
+  EarlyPriority: 2,
+  PrimaryCarry: 0,
+  SustainedDPS: 0,
+  TurretSiege: 0,
+  SelfPeel: 0,
+  UtilityCarry: 0
 });
 
 export const DEFAULT_TREE_SETTINGS = Object.freeze({

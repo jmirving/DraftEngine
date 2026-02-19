@@ -6,12 +6,20 @@ import {
   normalizeTeamState
 } from "../domain/model.js";
 
-const TAG_REQUIREMENTS = Object.freeze({
+const REQUIRED_TAG_REQUIREMENTS = Object.freeze({
   HasHardEngage: "HardEngage",
   HasFrontline: "Frontline",
   HasWaveclear: "Waveclear",
   HasDisengage: "Disengage",
-  HasAntiTank: "AntiTank"
+  HasAntiTank: "AntiTank",
+  HasPrimaryCarry: "PrimaryCarry"
+});
+
+const OPTIONAL_TAG_CHECKS = Object.freeze({
+  HasSustainedDPS: "SustainedDPS",
+  HasTurretSiege: "TurretSiege",
+  HasSelfPeel: "SelfPeel",
+  HasUtilityCarry: "UtilityCarry"
 });
 
 function createFilledTagCounts() {
@@ -104,6 +112,9 @@ function mapMissingNeeds(toggles, helpers, checks) {
   if (toggles.requireAntiTank && !checks.HasAntiTank.satisfied) {
     missingTags.push("AntiTank");
   }
+  if (toggles.requirePrimaryCarry && !checks.HasPrimaryCarry.satisfied) {
+    missingTags.push("PrimaryCarry");
+  }
 
   return {
     tags: missingTags,
@@ -121,11 +132,24 @@ export function evaluateCompositionChecks(teamState, championsByName, toggleOver
   const helpers = computeTeamHelpers(teamState, championsByName);
   const checks = {};
 
-  for (const [checkName, tag] of Object.entries(TAG_REQUIREMENTS)) {
+  for (const [checkName, tag] of Object.entries(REQUIRED_TAG_REQUIREMENTS)) {
     const satisfied = helpers.filledTags[tag] >= 1;
     checks[checkName] = buildCheckResult(
       checkName,
       true,
+      satisfied,
+      satisfied ? `${tag} covered.` : `${tag} not satisfied yet.`,
+      {
+        requirementType: "tag",
+        requirementTag: tag
+      }
+    );
+  }
+  for (const [checkName, tag] of Object.entries(OPTIONAL_TAG_CHECKS)) {
+    const satisfied = helpers.filledTags[tag] >= 1;
+    checks[checkName] = buildCheckResult(
+      checkName,
+      false,
       satisfied,
       satisfied ? `${tag} covered.` : `${tag} not satisfied yet.`,
       {
@@ -186,6 +210,7 @@ export function evaluateCompositionChecks(teamState, championsByName, toggleOver
   checks.HasWaveclear.required = toggles.requireWaveclear;
   checks.HasDisengage.required = toggles.requireDisengage;
   checks.HasAntiTank.required = toggles.requireAntiTank;
+  checks.HasPrimaryCarry.required = toggles.requirePrimaryCarry;
   checks.DamageMix.required = toggles.requireDamageMix;
   checks.TopMustBeThreat.required = toggles.topMustBeThreat;
 
@@ -209,6 +234,7 @@ export function scoreNodeFromChecks(checkEvaluation) {
     ["requireWaveclear", "HasWaveclear"],
     ["requireDisengage", "HasDisengage"],
     ["requireAntiTank", "HasAntiTank"],
+    ["requirePrimaryCarry", "HasPrimaryCarry"],
     ["requireDamageMix", "DamageMix"]
   ];
 

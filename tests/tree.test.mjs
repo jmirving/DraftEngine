@@ -518,6 +518,7 @@ test("valid-end-state ranking can outrank immediate candidate score", () => {
       requireDamageMix: true,
       requireAntiTank: false,
       requireDisengage: false,
+      requirePrimaryCarry: false,
       topMustBeThreat: false
     },
     maxDepth: 2,

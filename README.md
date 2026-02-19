@@ -64,6 +64,7 @@ Requirement toggles default to:
 - `requireDamageMix=true`
 - `requireAntiTank=false`
 - `requireDisengage=false`
+- `requirePrimaryCarry=true`
 - `topMustBeThreat=true`
 
 Tree defaults:
