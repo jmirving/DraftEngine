@@ -146,12 +146,9 @@ function createInitialState() {
       treeMinScore: 0,
       treeMinCandidateScore: 1,
       treeValidLeavesOnly: true,
-      previewTeam: null,
+      focusNodeId: "0",
       selectedNodeId: null,
-      selectedNodeReasons: [],
-      selectedNodeTitle: "Root Composition",
-      compareNodeA: null,
-      compareNodeB: null
+      selectedNodeTitle: "Root Composition"
     }
   };
 }
@@ -229,7 +226,6 @@ function createElements() {
     treeMinCandidateScore: runtimeDocument.querySelector("#tree-min-candidate-score"),
     treeValidLeavesOnly: runtimeDocument.querySelector("#tree-valid-leaves-only"),
     treeMapLegend: runtimeDocument.querySelector("#tree-map-legend"),
-    builderPreview: runtimeDocument.querySelector("#builder-preview"),
     treeExpandAll: runtimeDocument.querySelector("#tree-expand-all"),
     treeCollapseAll: runtimeDocument.querySelector("#tree-collapse-all"),
     teamConfigDefaultTeam: runtimeDocument.querySelector("#team-config-default-team"),
@@ -388,12 +384,9 @@ function resetBuilderTreeState() {
 }
 
 function clearTreeSelectionState() {
-  state.builder.previewTeam = null;
+  state.builder.focusNodeId = "0";
   state.builder.selectedNodeId = null;
-  state.builder.selectedNodeReasons = [];
   state.builder.selectedNodeTitle = "Root Composition";
-  state.builder.compareNodeA = null;
-  state.builder.compareNodeB = null;
 }
 
 function renderBuilderStageGuide() {
@@ -1784,211 +1777,28 @@ function getNodeById(nodeId = "0") {
   return cursor ?? null;
 }
 
-function renderComparePanel(target) {
-  const compareSection = runtimeDocument.createElement("div");
-  compareSection.className = "compare-panel";
-
-  const heading = runtimeDocument.createElement("h4");
-  heading.textContent = "Compare Nodes";
-  compareSection.append(heading);
-
-  const summary = runtimeDocument.createElement("p");
-  summary.className = "meta";
-  const titleA = state.builder.compareNodeA?.title ?? "Not set";
-  const titleB = state.builder.compareNodeB?.title ?? "Not set";
-  summary.textContent = `A: ${titleA} | B: ${titleB}`;
-  compareSection.append(summary);
-
-  if (state.builder.compareNodeA && state.builder.compareNodeB) {
-    const scoreLine = runtimeDocument.createElement("p");
-    scoreLine.className = "meta";
-    const delta = state.builder.compareNodeB.score - state.builder.compareNodeA.score;
-    const sign = delta >= 0 ? "+" : "";
-    scoreLine.textContent = `Score delta (B - A): ${sign}${delta}`;
-    compareSection.append(scoreLine);
-
-    const list = runtimeDocument.createElement("ul");
-    list.className = "missing-list";
-    for (const slot of SLOTS) {
-      const a = state.builder.compareNodeA.teamSlots[slot] ?? "Empty";
-      const b = state.builder.compareNodeB.teamSlots[slot] ?? "Empty";
-      const row = runtimeDocument.createElement("li");
-      row.textContent = `${getSlotLabel(slot)}: A=${a} | B=${b}${a === b ? "" : " (different)"}`;
-      list.append(row);
-    }
-    compareSection.append(list);
+function getFocusedTreeNodeId() {
+  if (!state.builder.tree) {
+    return "0";
   }
-
-  target.append(compareSection);
+  const candidate = state.builder.focusNodeId ?? "0";
+  return getNodeById(candidate) ? candidate : "0";
 }
 
-function renderPreview() {
-  elements.builderPreview.innerHTML = "";
-
-  if (!state.builder.previewTeam || !state.builder.selectedNodeId) {
-    elements.builderPreview.textContent = "No node selected. Inspect a node in the summary, outline, or tree map.";
-    return;
-  }
-
-  const wrapper = runtimeDocument.createElement("div");
-  const selectedNode = getNodeById(state.builder.selectedNodeId);
-  const parentNodeId = getParentNodeId(state.builder.selectedNodeId);
-  const parentNode = parentNodeId ? getNodeById(parentNodeId) : null;
-  const selectedScore = selectedNode?.score ?? 0;
-  const scoreDelta = parentNode ? selectedScore - parentNode.score : 0;
-  const deltaSign = scoreDelta >= 0 ? "+" : "";
-
-  const summary = runtimeDocument.createElement("p");
-  summary.className = "meta";
-  summary.textContent =
-    `Inspecting ${state.builder.selectedNodeTitle}. Score ${selectedScore} (${deltaSign}${scoreDelta} vs parent). ` +
-    `Required gaps: ${selectedNode?.requiredSummary?.requiredGaps ?? "?"}.`;
-  wrapper.append(summary);
-
-  const viabilitySummary = runtimeDocument.createElement("p");
-  viabilitySummary.className = "meta";
-  viabilitySummary.textContent =
-    selectedNode?.viability?.isTerminalValid
-      ? "This node is a terminal valid composition."
-      : !selectedNode?.viability?.isDraftComplete
-        ? "This node is not terminal valid because the draft is incomplete."
-      : `Branch potential: ${selectedNode?.branchPotential?.validLeafCount ?? 0} valid leaf/leaves.`;
-  wrapper.append(viabilitySummary);
-
-  const unreachableRequired = selectedNode?.viability?.unreachableRequired ?? [];
-  if (unreachableRequired.length > 0) {
-    const unreachableLine = runtimeDocument.createElement("p");
-    unreachableLine.className = "meta";
-    unreachableLine.textContent = `Unreachable required checks from this node: ${unreachableRequired.join(", ")}.`;
-    wrapper.append(unreachableLine);
-  }
-
-  const unmetRequiredChecks = Object.entries(selectedNode?.checks ?? {})
-    .filter(([, result]) => Boolean(result.required) && !Boolean(result.satisfied))
-    .map(([checkName]) => checkName);
-  if (unmetRequiredChecks.length > 0) {
-    const unmetLine = runtimeDocument.createElement("p");
-    unmetLine.className = "meta";
-    unmetLine.textContent = `Current unmet required checks: ${unmetRequiredChecks.join(", ")}.`;
-    wrapper.append(unmetLine);
-  }
-
-  const impactHeading = runtimeDocument.createElement("p");
-  impactHeading.className = "meta";
-  impactHeading.textContent = "Slot-level impact:";
-  wrapper.append(impactHeading);
-
-  const impactList = runtimeDocument.createElement("ul");
-  impactList.className = "missing-list";
-  let changedCount = 0;
-  for (const slot of SLOTS) {
-    const before = state.builder.teamState[slot] ?? "Empty";
-    const after = state.builder.previewTeam[slot] ?? "Empty";
-    if (before !== after) {
-      changedCount += 1;
-    }
-    const row = runtimeDocument.createElement("li");
-    row.textContent = `${getSlotLabel(slot)}: ${before} -> ${after}${before === after ? " (no change)" : ""}`;
-    impactList.append(row);
-  }
-  wrapper.append(impactList);
-
-  const impactSummary = runtimeDocument.createElement("p");
-  impactSummary.className = "meta";
-  impactSummary.textContent =
-    changedCount > 0
-      ? `Applying this node changes ${changedCount} slot${changedCount === 1 ? "" : "s"}.`
-      : "This node matches the current composition state.";
-  wrapper.append(impactSummary);
-
-  if (state.builder.selectedNodeReasons.length > 0) {
-    const reasonsHeading = runtimeDocument.createElement("p");
-    reasonsHeading.className = "meta";
-    reasonsHeading.textContent = "Cumulative score reasons:";
-    wrapper.append(reasonsHeading);
-
-    const reasonList = runtimeDocument.createElement("ul");
-    reasonList.className = "reason-list";
-    for (const reason of state.builder.selectedNodeReasons) {
-      const item = runtimeDocument.createElement("li");
-      item.textContent = reason;
-      reasonList.append(item);
-    }
-    wrapper.append(reasonList);
-  }
-
-  const compareButtons = runtimeDocument.createElement("div");
-  compareButtons.className = "button-row";
-
-  const setCompareA = runtimeDocument.createElement("button");
-  setCompareA.type = "button";
-  setCompareA.className = "ghost";
-  setCompareA.textContent = "Set Compare A";
-  setCompareA.addEventListener("click", () => {
-    state.builder.compareNodeA = {
-      nodeId: state.builder.selectedNodeId,
-      title: state.builder.selectedNodeTitle,
-      teamSlots: normalizeTeamState(state.builder.previewTeam),
-      score: selectedScore
-    };
-    renderPreview();
-  });
-
-  const setCompareB = runtimeDocument.createElement("button");
-  setCompareB.type = "button";
-  setCompareB.className = "ghost";
-  setCompareB.textContent = "Set Compare B";
-  setCompareB.addEventListener("click", () => {
-    state.builder.compareNodeB = {
-      nodeId: state.builder.selectedNodeId,
-      title: state.builder.selectedNodeTitle,
-      teamSlots: normalizeTeamState(state.builder.previewTeam),
-      score: selectedScore
-    };
-    renderPreview();
-  });
-
-  const clearCompare = runtimeDocument.createElement("button");
-  clearCompare.type = "button";
-  clearCompare.className = "ghost";
-  clearCompare.textContent = "Clear Compare";
-  clearCompare.addEventListener("click", () => {
-    state.builder.compareNodeA = null;
-    state.builder.compareNodeB = null;
-    renderPreview();
-  });
-
-  compareButtons.append(setCompareA, setCompareB, clearCompare);
-  wrapper.append(compareButtons);
-
-  const applyButton = runtimeDocument.createElement("button");
-  applyButton.type = "button";
-  applyButton.textContent = "Apply Node";
-  applyButton.addEventListener("click", () => {
-    state.builder.teamState = normalizeTeamState(state.builder.previewTeam);
-    syncSlotSelectOptions();
-    clearBuilderFeedback();
-    setSetupFeedback("");
-    generateTreeFromCurrentState({ scrollToResults: false });
-  });
-  wrapper.append(applyButton);
-
-  renderComparePanel(wrapper);
-  elements.builderPreview.append(wrapper);
+function getFocusedTreeNode() {
+  return getNodeById(getFocusedTreeNodeId());
 }
 
 function inspectNode(node, nodeId, nodeTitle) {
   setBuilderStage("inspect");
+  state.builder.focusNodeId = nodeId;
   state.builder.teamState = normalizeTeamState(node.teamSlots);
   syncSlotSelectOptions();
   clearBuilderFeedback();
   setSetupFeedback("");
-  state.builder.previewTeam = normalizeTeamState(node.teamSlots);
   state.builder.selectedNodeId = nodeId;
-  state.builder.selectedNodeReasons = [...(node.pathRationale ?? [])];
   state.builder.selectedNodeTitle = nodeTitle;
   renderTree();
-  renderPreview();
   renderTreeMap();
 }
 
@@ -2074,43 +1884,9 @@ function renderTreeNode(node, depth = 0, nodeId = "0", visibleIds = null) {
     inspectNode(node, nodeId, titleText);
   });
 
-  const compareAAction = runtimeDocument.createElement("button");
-  compareAAction.type = "button";
-  compareAAction.className = "ghost";
-  compareAAction.textContent = "A";
-  compareAAction.title = "Set Compare A";
-  compareAAction.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    state.builder.compareNodeA = {
-      nodeId,
-      title: titleText,
-      teamSlots: normalizeTeamState(node.teamSlots),
-      score: node.score
-    };
-    renderPreview();
-  });
-
-  const compareBAction = runtimeDocument.createElement("button");
-  compareBAction.type = "button";
-  compareBAction.className = "ghost";
-  compareBAction.textContent = "B";
-  compareBAction.title = "Set Compare B";
-  compareBAction.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    state.builder.compareNodeB = {
-      nodeId,
-      title: titleText,
-      teamSlots: normalizeTeamState(node.teamSlots),
-      score: node.score
-    };
-    renderPreview();
-  });
-
   const actionRow = runtimeDocument.createElement("div");
   actionRow.className = "button-row";
-  actionRow.append(action, compareAAction, compareBAction);
+  actionRow.append(action);
 
   nodeBox.append(titleRow, actionRow);
 
@@ -2203,20 +1979,47 @@ function formatBlockedReason(reason, role) {
   }
 }
 
-function renderTreeSummary(visibleIds) {
+function renderTreeSummary(root, rootNodeId, visibleIds) {
   elements.builderTreeSummary.innerHTML = "";
-  if (!state.builder.tree) {
+  if (!state.builder.tree || !root) {
     return;
   }
-
-  const root = state.builder.tree;
-  const flat = flattenTreeForMap(root).filter((entry) => visibleIds.has(entry.id));
-  const generationStats = root.generationStats ?? null;
+  const flat = flattenTreeForMap(root, rootNodeId).filter((entry) => visibleIds.has(entry.id));
+  const generationStats = state.builder.tree.generationStats ?? null;
   const maxDepth = Math.max(...flat.map((entry) => entry.depth));
   const summaryMeta = runtimeDocument.createElement("p");
   summaryMeta.className = "meta";
   summaryMeta.textContent = `${flat.length} visible node(s), depth ${maxDepth}.`;
   elements.builderTreeSummary.append(summaryMeta);
+
+  if (rootNodeId !== "0") {
+    const navActions = runtimeDocument.createElement("div");
+    navActions.className = "button-row";
+    const back = runtimeDocument.createElement("button");
+    back.type = "button";
+    back.className = "ghost";
+    back.textContent = "Back";
+    back.addEventListener("click", () => {
+      const parentId = getParentNodeId(rootNodeId) ?? "0";
+      const parentNode = getNodeById(parentId);
+      if (!parentNode) {
+        return;
+      }
+      state.builder.focusNodeId = parentId;
+      state.builder.selectedNodeId = parentId;
+      state.builder.selectedNodeTitle = parentNode.addedChampion
+        ? `${parentNode.addedRole}: ${parentNode.addedChampion}`
+        : "Root Composition";
+      state.builder.teamState = normalizeTeamState(parentNode.teamSlots);
+      syncSlotSelectOptions();
+      clearBuilderFeedback();
+      setSetupFeedback("");
+      renderTree();
+      renderTreeMap();
+    });
+    navActions.append(back);
+    elements.builderTreeSummary.append(navActions);
+  }
 
   if (generationStats) {
     const statsMeta = runtimeDocument.createElement("p");
@@ -2270,7 +2073,7 @@ function renderTreeSummary(visibleIds) {
 
   const topHeading = runtimeDocument.createElement("p");
   topHeading.className = "meta";
-  topHeading.textContent = "Top branches from root:";
+  topHeading.textContent = rootNodeId === "0" ? "Top branches from root:" : `Top branches from ${state.builder.selectedNodeTitle}:`;
   elements.builderTreeSummary.append(topHeading);
 
   const list = runtimeDocument.createElement("div");
@@ -2278,7 +2081,7 @@ function renderTreeSummary(visibleIds) {
   const topBranches = root.children
     .map((node, index) => ({
       node,
-      id: `0.${index}`,
+      id: `${rootNodeId}.${index}`,
       title: `${node.addedRole}: ${node.addedChampion}`
     }))
     .filter((entry) => visibleIds.has(entry.id))
@@ -2287,7 +2090,10 @@ function renderTreeSummary(visibleIds) {
   if (topBranches.length === 0) {
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
-    empty.textContent = "No root branches match current filters. Try disabling 'Valid leaves only', lowering Min Score, or clearing Search.";
+    empty.textContent =
+      rootNodeId === "0"
+        ? "No root branches match current filters. Try disabling 'Valid leaves only', lowering Min Score, or clearing Search."
+        : "No child branches match current filters at this inspected node.";
     elements.builderTreeSummary.append(empty);
 
     const quickActions = runtimeDocument.createElement("div");
@@ -2402,10 +2208,16 @@ function renderTree() {
     return;
   }
 
+  const focusedNodeId = getFocusedTreeNodeId();
+  const focusedNode = getFocusedTreeNode();
+  if (!focusedNode) {
+    return;
+  }
+
   const visibleIds = new Set();
   collectVisibleNodeIds(
-    state.builder.tree,
-    "0",
+    focusedNode,
+    focusedNodeId,
     visibleIds,
     state.builder.treeMinScore,
     state.builder.treeSearch,
@@ -2414,7 +2226,7 @@ function renderTree() {
   );
 
   if (state.builder.treeDensity === "summary") {
-    renderTreeSummary(visibleIds);
+    renderTreeSummary(focusedNode, focusedNodeId, visibleIds);
     const summaryNotice = runtimeDocument.createElement("p");
     summaryNotice.className = "meta";
     summaryNotice.textContent = "Summary mode is active. Switch to Detailed for the full outline.";
@@ -2422,7 +2234,7 @@ function renderTree() {
     return;
   }
 
-  const rendered = renderTreeNode(state.builder.tree, 0, "0", visibleIds);
+  const rendered = renderTreeNode(focusedNode, 0, focusedNodeId, visibleIds);
   if (!rendered) {
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
@@ -2439,17 +2251,23 @@ function renderTreeMap() {
     return;
   }
 
+  const focusedNodeId = getFocusedTreeNodeId();
+  const focusedNode = getFocusedTreeNode();
+  if (!focusedNode) {
+    return;
+  }
+
   const visibleIds = new Set();
   collectVisibleNodeIds(
-    state.builder.tree,
-    "0",
+    focusedNode,
+    focusedNodeId,
     visibleIds,
     state.builder.treeMinScore,
     state.builder.treeSearch,
     SLOTS,
     state.builder.treeValidLeavesOnly
   );
-  const flat = flattenTreeForMap(state.builder.tree).filter((entry) => visibleIds.has(entry.id));
+  const flat = flattenTreeForMap(focusedNode, focusedNodeId).filter((entry) => visibleIds.has(entry.id));
   if (flat.length === 0) {
     return;
   }
@@ -2582,7 +2400,6 @@ function renderBuilder() {
   renderExcludedPills();
   renderTree();
   renderTreeMap();
-  renderPreview();
 }
 
 function scrollReviewResultsIntoView() {

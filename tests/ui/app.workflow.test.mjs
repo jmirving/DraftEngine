@@ -356,7 +356,7 @@ describe("workflow app integration", () => {
     expect(state.builder.stage).toBe("setup");
   });
 
-  test("tree inspect supports compare actions and apply node flow", async () => {
+  test("tree inspect drills into next branch layer and supports back navigation", async () => {
     const { dom, state } = await bootApp();
     const doc = dom.window.document;
     const topSelect = doc.querySelector("#slot-Top");
@@ -372,33 +372,25 @@ describe("workflow app integration", () => {
     validLeavesOnly.checked = false;
     validLeavesOnly.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
 
-    const inspectButtons = doc.querySelectorAll("#builder-tree-summary button");
+    const initialFilledSlots = Object.values(state.builder.teamState).filter(Boolean).length;
+    const inspectButtons = doc.querySelectorAll("#builder-tree-summary .summary-card button");
     expect(inspectButtons.length).toBeGreaterThan(0);
     inspectButtons[0].click();
 
-    const setCompareA = Array.from(doc.querySelectorAll("#builder-preview button")).find((button) =>
-      button.textContent.includes("Set Compare A")
-    );
-    const setCompareB = Array.from(doc.querySelectorAll("#builder-preview button")).find((button) =>
-      button.textContent.includes("Set Compare B")
-    );
-    const clearCompare = Array.from(doc.querySelectorAll("#builder-preview button")).find((button) =>
-      button.textContent.includes("Clear Compare")
-    );
-    const applyNode = Array.from(doc.querySelectorAll("#builder-preview button")).find((button) =>
-      button.textContent.includes("Apply Node")
-    );
-
-    setCompareA.click();
-    setCompareB.click();
-    expect(doc.querySelector("#builder-preview").textContent).toContain("Score delta");
-
-    clearCompare.click();
-    expect(doc.querySelector("#builder-preview").textContent).toContain("Not set");
-
-    applyNode.click();
     expect(state.builder.stage).toBe("inspect");
-    expect(doc.querySelector("#builder-preview").textContent).toContain("No node selected");
+    expect(state.builder.focusNodeId).not.toBe("0");
+    expect(Object.values(state.builder.teamState).filter(Boolean).length).toBeGreaterThan(initialFilledSlots);
+    expect(doc.querySelector("#builder-tree-summary").textContent).toContain("Top branches from");
+
+    const backButton = Array.from(doc.querySelectorAll("#builder-tree-summary button")).find((button) =>
+      button.textContent === "Back"
+    );
+    expect(backButton).toBeTruthy();
+    backButton.click();
+
+    expect(state.builder.focusNodeId).toBe("0");
+    expect(doc.querySelector("#builder-tree-summary").textContent).toContain("Top branches from root:");
+    expect(doc.querySelector("#builder-preview")).toBe(null);
     expect(doc.querySelectorAll("#builder-tree-map circle").length).toBeGreaterThan(0);
   });
 });

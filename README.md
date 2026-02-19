@@ -88,6 +88,7 @@ Tree generation behavior:
 - Tree expansion priority follows configurable Node Draft Order.
 - Team configuration supports `None` mode (global role-eligible champion pools).
 - Tree view includes both an outline and a visual Tree Map graph.
+- `Inspect` drills into that node as the active tree root and exposes a `Back` action to return up the path.
 - Excluded champions are filtered from selectors and tree output.
 - Candidate generation is constrained by team role pools.
 - When tree filters hide all root branches, summary provides one-click recovery actions:
