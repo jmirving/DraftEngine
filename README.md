@@ -74,7 +74,9 @@ Tree defaults:
 
 Tree generation behavior:
 - `minCandidateScore` is a preference threshold, not an absolute feasibility gate.
-- Candidates are filtered with a relative selection window from the best branch score at each node.
+- Candidates are filtered with a strict relative selection window from the best branch score at each node.
+- Branch budgets are reduced dynamically once required gaps close to avoid near-`maxBranch` expansion everywhere.
+- Candidates that make no required-check progress are penalized in viability scoring.
 - If every legal pick at a node falls below the threshold, adaptive fallback still expands the best legal picks and marks them as below-floor candidates.
 - Fallback is capped to a small number of branches to preserve output without exploding low-signal paths.
 - Summary view reports `pruned low score`, `pruned relative score`, and fallback usage counts in generation stats.

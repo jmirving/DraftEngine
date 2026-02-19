@@ -14,8 +14,14 @@ const COMPLETION_PROGRESS_SCORE = 1;
 const MIN_REQUIRED_TAG_SCORE = 1;
 const REQUIRED_GAP_DELTA_WEIGHT = 4;
 const REQUIRED_GAP_REMAINING_PENALTY = 2;
-const RELATIVE_SCORE_WINDOW = 3;
-const MIN_RELATIVE_KEEP = 2;
+const RELATIVE_SCORE_WINDOW = 1;
+const MIN_RELATIVE_KEEP_OPEN_REQUIREMENTS = 2;
+const MIN_RELATIVE_KEEP_CLOSED_REQUIREMENTS = 1;
+const BRANCH_CAP_ONE_REQUIRED_GAP = 5;
+const BRANCH_CAP_CLOSED_REQUIREMENTS = 3;
+const NO_CRITICAL_PROGRESS_PENALTY_OPEN_REQUIREMENTS = 5;
+const NO_CRITICAL_PROGRESS_PENALTY_CLOSED_REQUIREMENTS = 3;
+const GAPS_EXCEED_HORIZON_PENALTY = 8;
 const MAX_FALLBACK_KEEP = 2;
 
 function normalizeExclusions(excludedChampions = []) {
@@ -559,6 +565,14 @@ export function generateNextCandidates({
     const requiredGapDelta = currentRequiredSummary.requiredGaps - projectedRequiredSummary.requiredGaps;
     let viabilityScore = requiredGapDelta * REQUIRED_GAP_DELTA_WEIGHT;
     viabilityScore -= projectedRequiredSummary.requiredGaps * REQUIRED_GAP_REMAINING_PENALTY;
+    if (requiredGapDelta <= 0) {
+      viabilityScore -= currentRequiredSummary.requiredGaps > 0
+        ? NO_CRITICAL_PROGRESS_PENALTY_OPEN_REQUIREMENTS
+        : NO_CRITICAL_PROGRESS_PENALTY_CLOSED_REQUIREMENTS;
+    }
+    if (projectedRequiredSummary.requiredGaps > nextRemainingSteps) {
+      viabilityScore -= GAPS_EXCEED_HORIZON_PENALTY;
+    }
     if (projectedRoleSupplies.length > 0) {
       if (minRoleSupply === 0) {
         viabilityScore -= 6;
@@ -585,6 +599,11 @@ export function generateNextCandidates({
   scored.sort(compareCandidates);
   const aboveFloor = scored.filter((candidate) => candidate.passesMinScore);
   const belowFloor = scored.filter((candidate) => !candidate.passesMinScore);
+  const dynamicBranchCap = currentRequiredSummary.requiredGaps === 0
+    ? Math.min(maxBranch, BRANCH_CAP_CLOSED_REQUIREMENTS)
+    : currentRequiredSummary.requiredGaps === 1
+      ? Math.min(maxBranch, BRANCH_CAP_ONE_REQUIRED_GAP)
+      : maxBranch;
 
   let selectedCandidates = [];
   let fallbackUsed = false;
@@ -595,14 +614,21 @@ export function generateNextCandidates({
     let relativeKept = aboveFloor.filter(
       (candidate) => (candidate.selectionScore ?? 0) >= bestSelectionScore - RELATIVE_SCORE_WINDOW
     );
-    const minKeepCount = Math.min(aboveFloor.length, Math.max(1, MIN_RELATIVE_KEEP));
+    const minRelativeKeep = currentRequiredSummary.requiredGaps > 0
+      ? MIN_RELATIVE_KEEP_OPEN_REQUIREMENTS
+      : MIN_RELATIVE_KEEP_CLOSED_REQUIREMENTS;
+    const minKeepCount = Math.min(
+      aboveFloor.length,
+      Math.max(1, Math.min(dynamicBranchCap, minRelativeKeep))
+    );
     if (relativeKept.length < minKeepCount) {
       relativeKept = aboveFloor.slice(0, minKeepCount);
     }
-    const relativeKeptSet = new Set(relativeKept);
-    prunedRelativeCandidateScoreCount = aboveFloor.filter((candidate) => !relativeKeptSet.has(candidate)).length;
-    selectedCandidates = relativeKept.slice(0, maxBranch);
-    prunedLowCandidateScoreCount = belowFloor.length + prunedRelativeCandidateScoreCount;
+    selectedCandidates = relativeKept.slice(0, dynamicBranchCap);
+    prunedRelativeCandidateScoreCount =
+      (aboveFloor.length - relativeKept.length) +
+      (relativeKept.length - selectedCandidates.length);
+    prunedLowCandidateScoreCount = belowFloor.length;
   } else {
     fallbackUsed = belowFloor.length > 0;
     if (fallbackUsed) {
@@ -610,10 +636,12 @@ export function generateNextCandidates({
       const fallbackCandidates = belowFloor.filter(
         (candidate) => (candidate.selectionScore ?? 0) >= bestBelowFloorScore - RELATIVE_SCORE_WINDOW
       );
-      const fallbackKeep = Math.min(maxBranch, MAX_FALLBACK_KEEP);
+      const fallbackKeep = Math.min(dynamicBranchCap, MAX_FALLBACK_KEEP);
       selectedCandidates = fallbackCandidates.slice(0, fallbackKeep);
       fallbackCandidateCount = selectedCandidates.length;
-      prunedRelativeCandidateScoreCount = belowFloor.length - fallbackCandidates.length;
+      prunedRelativeCandidateScoreCount =
+        (belowFloor.length - fallbackCandidates.length) +
+        (fallbackCandidates.length - selectedCandidates.length);
       prunedLowCandidateScoreCount = belowFloor.length - fallbackCandidateCount;
     }
   }

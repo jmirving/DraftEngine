@@ -400,7 +400,37 @@ test("relative score window prunes weak above-floor candidates while keeping bes
 
   expect(tree.children.length).toBeGreaterThan(0);
   expect(tree.generationStats.prunedRelativeCandidateScore).toBeGreaterThan(0);
-  expect(tree.generationStats.prunedLowCandidateScore).toBeGreaterThan(0);
+  expect(tree.generationStats.candidatesSelected).toBeLessThan(tree.generationStats.candidatesEvaluated);
+});
+
+test("branching is capped when required checks are already satisfied", () => {
+  const tree = generatePossibilityTree({
+    teamState: {
+      Mid: "Azir"
+    },
+    teamId: "TTT",
+    nextRole: "Top",
+    teamPools: data.teamPools,
+    championsByName: data.championsByName,
+    toggles: {
+      requireHardEngage: false,
+      requireFrontline: false,
+      requireWaveclear: false,
+      requireDamageMix: false,
+      requireAntiTank: false,
+      requireDisengage: false,
+      requirePrimaryCarry: false,
+      topMustBeThreat: false
+    },
+    weights: data.config.recommendation.weights,
+    maxDepth: 1,
+    maxBranch: 8,
+    minCandidateScore: 1
+  });
+
+  expect(tree.requiredSummary.requiredGaps).toBe(0);
+  expect(tree.children.length).toBeLessThanOrEqual(3);
+  expect(tree.generationStats.prunedRelativeCandidateScore).toBeGreaterThan(0);
 });
 
 test("missing PrimaryCarry gets minimum required-check gain even when configured weight is zero", () => {
