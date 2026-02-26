@@ -624,12 +624,19 @@ describe("auth + pools + team management", () => {
     doc.querySelector("#profile-primary-role").value = "Support";
     doc.querySelector("#profile-primary-role").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
     doc.querySelector("#profile-save-roles").click();
+    expect(doc.querySelector("#profile-save-roles").textContent).toBe("Saving...");
+    expect(doc.querySelector("#profile-save-roles").disabled).toBe(true);
+    await flush();
     await flush();
 
     const saveProfileCall = harness.calls.find((call) => call.path === "/me/profile" && call.method === "PUT");
     expect(saveProfileCall).toBeTruthy();
     expect(saveProfileCall.body.primaryRole).toBe("Support");
     expect(saveProfileCall.body.secondaryRoles).not.toContain("Support");
+    expect(doc.querySelector("#profile-save-roles").textContent).toBe("Save Roles");
+    expect(doc.querySelector("#profile-save-roles").disabled).toBe(false);
+    expect(doc.querySelector("#profile-roles-feedback").textContent).toContain("Saved profile roles. Primary: Support.");
+    expect(doc.querySelector("#profile-roles-feedback").textContent).toContain("Secondary: Top.");
 
     doc.querySelector("#player-config-team").value = "role:Top";
     doc.querySelector("#player-config-team").dispatchEvent(new dom.window.Event("change", { bubbles: true }));

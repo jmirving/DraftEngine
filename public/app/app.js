@@ -157,7 +157,8 @@ function createInitialState() {
     },
     profile: {
       primaryRole: DEFAULT_PRIMARY_ROLE,
-      secondaryRoles: []
+      secondaryRoles: [],
+      isSavingRoles: false
     },
     api: {
       pools: [],
@@ -499,6 +500,11 @@ function setProfileRolesFeedback(message, isError = false) {
   elements.profileRolesFeedback.style.color = isError ? "var(--warn)" : "var(--muted)";
 }
 
+function formatSavedProfileRolesFeedback(primaryRole, secondaryRoles) {
+  const secondaryText = secondaryRoles.length > 0 ? secondaryRoles.join(", ") : "none";
+  return `Saved profile roles. Primary: ${primaryRole}. Secondary: ${secondaryText}.`;
+}
+
 function formatMembershipRole(role) {
   return role === "lead" ? "Team Lead" : "Team Member";
 }
@@ -577,6 +583,7 @@ function clearAuthSession(feedback = "") {
   state.auth.user = null;
   state.profile.primaryRole = DEFAULT_PRIMARY_ROLE;
   state.profile.secondaryRoles = [];
+  state.profile.isSavingRoles = false;
   state.api.isCreatingTeam = false;
   state.playerConfig.dirtyPoolByTeamId = {};
   state.playerConfig.isSavingPool = false;
@@ -1938,15 +1945,17 @@ function renderProfileRolesSection() {
     return;
   }
   const authenticated = isAuthenticated();
+  const isSavingRoles = Boolean(state.profile.isSavingRoles);
 
   replaceOptions(
     elements.profilePrimaryRole,
     SLOTS.map((role) => ({ value: role, label: role }))
   );
   elements.profilePrimaryRole.value = state.profile.primaryRole;
-  elements.profilePrimaryRole.disabled = !authenticated;
+  elements.profilePrimaryRole.disabled = !authenticated || isSavingRoles;
   if (elements.profileSaveRoles) {
-    elements.profileSaveRoles.disabled = !authenticated;
+    elements.profileSaveRoles.disabled = !authenticated || isSavingRoles;
+    elements.profileSaveRoles.textContent = isSavingRoles ? "Saving..." : "Save Roles";
   }
 
   elements.profileSecondaryRoles.innerHTML = "";
@@ -1960,7 +1969,7 @@ function renderProfileRolesSection() {
     checkbox.type = "checkbox";
     checkbox.value = role;
     checkbox.checked = selectedSecondary.has(role);
-    checkbox.disabled = !authenticated;
+    checkbox.disabled = !authenticated || isSavingRoles;
     checkbox.addEventListener("change", () => {
       const chosen = Array.from(
         elements.profileSecondaryRoles.querySelectorAll("input[type='checkbox']:checked"),
@@ -3988,10 +3997,17 @@ function attachEvents() {
       setProfileRolesFeedback("Sign in to save profile roles.", true);
       return;
     }
+    if (state.profile.isSavingRoles) {
+      return;
+    }
     if (!SLOTS.includes(state.profile.primaryRole)) {
       setProfileRolesFeedback("Primary role is required.", true);
       return;
     }
+
+    state.profile.isSavingRoles = true;
+    setProfileRolesFeedback("Saving profile roles...");
+    renderProfileRolesSection();
 
     void apiRequest("/me/profile", {
       method: "PUT",
@@ -4012,11 +4028,15 @@ function attachEvents() {
           state.auth.user.secondaryRoles = [...state.profile.secondaryRoles];
           saveAuthSession();
         }
-        setProfileRolesFeedback("Saved profile roles.");
+        setProfileRolesFeedback(formatSavedProfileRolesFeedback(state.profile.primaryRole, state.profile.secondaryRoles));
         await hydrateAuthenticatedViews(state.playerConfig.teamId, state.api.selectedTeamId);
       })
       .catch((error) => {
         setProfileRolesFeedback(normalizeApiErrorMessage(error, "Failed to save profile roles."), true);
+      })
+      .finally(() => {
+        state.profile.isSavingRoles = false;
+        renderProfileRolesSection();
       });
   });
 
