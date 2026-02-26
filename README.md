@@ -48,6 +48,14 @@ MVP API routes:
 - `DELETE /me/pools/:id` (auth required)
 - `POST /me/pools/:id/champions` (auth required, idempotent add)
 - `DELETE /me/pools/:id/champions/:champion_id` (auth required, idempotent remove)
+- `POST /teams` (auth required; creator becomes lead)
+- `GET /teams` (auth required)
+- `PATCH /teams/:id` (auth + lead required)
+- `DELETE /teams/:id` (auth + lead required)
+- `GET /teams/:id/members` (auth + team membership required)
+- `POST /teams/:id/members` (auth + lead required)
+- `DELETE /teams/:id/members/:user_id` (auth + lead required)
+- `PUT /teams/:id/members/:user_id/role` (auth + lead required)
 
 Error contract (all API errors):
 ```json
@@ -71,7 +79,8 @@ Frontend API integration:
 Primary surfaces:
 - `Workflow` (single mode: Build a Composition)
 - `Team Context` (team defaults + role-pool preview)
-- `User Config` (personal defaults and preferences)
+- `Player Pools` (API-backed pool editing)
+- `Champion Tags` (filter + inspect)
 
 ## Testing
 
@@ -97,15 +106,19 @@ Test strategy:
 
 ## Data Inputs
 
-The app loads local assets from `/public/data/`:
-- `champions.csv`
-- `team_pools.csv`
-- `config.json` (optional defaults/weights)
+Runtime data comes from API/DB for auth flows:
+- `/champions`
+- `/me/pools*`
+- `/teams*`
 
-Starter artifacts are sourced from:
-- `docs/DraftFlow_champions.csv`
-- `docs/DraftFlow_team_pools.csv`
-- `docs/DraftFlow_config.json`
+Champion catalog artifacts:
+- `docs/champion-catalog/champions.full.csv`
+- `docs/champion-catalog/manifest.json`
+
+Refresh full catalog artifact:
+```bash
+npm run catalog:refresh
+```
 
 ## Defaults
 

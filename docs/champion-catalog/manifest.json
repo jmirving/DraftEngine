@@ -1,0 +1,35 @@
+{
+  "sourceIdentifier": "riot-ddragon:16.4.1:en_US:champion.json",
+  "sourceUrl": "https://ddragon.leagueoflegends.com/cdn/16.4.1/data/en_US/champion.json",
+  "generatedAt": "2026-02-26T13:49:51.310Z",
+  "expectedChampionCount": 172,
+  "sha256": "d163a1ad0e4bfcd36c0f00d0e4fb5fedb0d638344d0b38c31b379f4aa6ab11ee",
+  "requiredMetadata": {
+    "roles": true,
+    "damageType": true,
+    "scaling": true,
+    "booleanTags": [
+      "HardEngage",
+      "FollowUpEngage",
+      "PickThreat",
+      "Frontline",
+      "Disengage",
+      "Waveclear",
+      "ZoneControl",
+      "ObjectiveSecure",
+      "AntiTank",
+      "FrontToBackDPS",
+      "DiveThreat",
+      "SideLaneThreat",
+      "Poke",
+      "FogThreat",
+      "EarlyPriority",
+      "PrimaryCarry",
+      "SustainedDPS",
+      "TurretSiege",
+      "SelfPeel",
+      "UtilityCarry"
+    ]
+  },
+  "outputPath": "docs/champion-catalog/champions.full.csv"
+}

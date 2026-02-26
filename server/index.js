@@ -14,7 +14,8 @@ export function startServer(env = process.env) {
     usersRepository: repositories.users,
     championsRepository: repositories.champions,
     tagsRepository: repositories.tags,
-    poolsRepository: repositories.pools
+    poolsRepository: repositories.pools,
+    teamsRepository: repositories.teams
   });
 
   const server = app.listen(config.port, () => {

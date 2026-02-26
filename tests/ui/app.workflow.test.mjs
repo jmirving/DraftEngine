@@ -6,14 +6,10 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 
 const htmlFixture = readFileSync(resolve("public/index.html"), "utf8");
 const championsCsv = readFileSync(resolve("public/data/champions.csv"), "utf8");
-const teamPoolsCsv = readFileSync(resolve("public/data/team_pools.csv"), "utf8");
-const configJson = readFileSync(resolve("public/data/config.json"), "utf8");
 
 function createFetchImpl() {
   const payloads = {
-    "/public/data/champions.csv": championsCsv,
-    "/public/data/team_pools.csv": teamPoolsCsv,
-    "/public/data/config.json": configJson
+    "/public/data/champions.csv": championsCsv
   };
 
   return async (path) => {
@@ -308,7 +304,7 @@ describe("workflow app integration", () => {
     const topLabel = doc.querySelector("#slot-label-Top");
     const teamHelp = doc.querySelector("#builder-team-help");
 
-    expect(topLabel.textContent).toContain("(");
+    expect(topLabel.textContent).toBe("Top");
 
     teamSelect.value = "__NONE_TEAM__";
     teamSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
@@ -340,20 +336,14 @@ describe("workflow app integration", () => {
     expect(state.explorer.excludeTags).toEqual([]);
   });
 
-  test("player pool edits persist and refresh workflow context", async () => {
-    const { dom, state } = await bootApp();
+  test("player pool screen prompts for auth when API session is missing", async () => {
+    const { dom } = await bootApp();
     const doc = dom.window.document;
 
     doc.querySelector(".side-menu-link[data-tab='player-config']").click();
     const firstPoolCheckbox = doc.querySelector(".player-pool-control input[type='checkbox']");
-    expect(firstPoolCheckbox).toBeTruthy();
-
-    firstPoolCheckbox.checked = !firstPoolCheckbox.checked;
-    firstPoolCheckbox.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-
-    expect(doc.querySelector("#player-config-feedback").textContent).toContain("Saved pool updates");
-    expect(Object.keys(state.data.teamPools).length).toBeGreaterThan(0);
-    expect(state.builder.stage).toBe("setup");
+    expect(firstPoolCheckbox).toBeNull();
+    expect(doc.querySelector("#player-config-summary").textContent).toContain("Sign in");
   });
 
   test("tree inspect drills into next branch layer and supports back navigation", async () => {

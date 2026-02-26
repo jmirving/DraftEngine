@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "db:check": "node server/scripts/check-db.js",
+    "catalog:refresh": "node server/scripts/generate-full-champions-csv.js",
     "migrate:down": "node-pg-migrate down --migrations-dir server/migrations",
     "migrate:up": "node-pg-migrate up --migrations-dir server/migrations",
     "seed:champions": "node server/scripts/seed-champions.js",

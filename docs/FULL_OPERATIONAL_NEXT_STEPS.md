@@ -1,6 +1,6 @@
 # DraftEngine: Full Operational Runbook
 
-Last updated: 2026-02-25
+Last updated: 2026-02-26
 
 This document is written so an AI agent can execute each workstream end-to-end with objective completion gates.
 
@@ -10,11 +10,20 @@ Current deployed service behavior:
 1. UI is served at `/`.
 2. API is served from the same service (`/health`, `/auth/*`, `/champions`, `/me/pools/*`, etc.).
 3. Champion reads are API-backed in frontend.
-4. Some runtime frontend behavior still reads local CSV/config data.
+4. Runtime frontend app path does not fetch `team_pools.csv` or `config.json`; authenticated pool/team state is API-backed.
 
 Policy decisions:
 1. Champion tag edits remain allowed for any authenticated user.
 2. Team administration must be lead-gated (one or more leads per team).
+
+## Completion Snapshot (2026-02-26)
+
+1. Workstream 1: Complete in code + tests.
+2. Workstream 2: Complete in code + tests.
+3. Workstream 3: Complete in code + tests.
+4. Workstream 4: Complete in code + tests (artifact + manifest committed).
+5. Workstream 5: Complete in code + static checks.
+6. Workstream 6: Render smoke gate requires post-push deploy verification (tracked via Beads).
 
 ## Global Preconditions
 
@@ -37,6 +46,8 @@ A workstream is only complete when all are true:
 4. This file is updated to reflect new current state.
 
 ## Workstream 1: Auth UX + Session (BEAD-11 / draftflow-72)
+
+Status: Completed on 2026-02-26.
 
 Goal:
 1. A user can register, login, persist session, logout, and access protected API operations from UI.
@@ -69,12 +80,18 @@ Automated test expectations:
 1. `tests/server/app.api.test.mjs` auth tests remain passing.
 2. UI test coverage for auth session behavior is added (new or existing test file).
 
+Implemented coverage:
+1. `tests/ui/app.auth-pools-teams.test.mjs` login/session persistence assertions.
+2. 401 pool create test verifies automatic session clear path.
+
 Close criteria:
 1. Fresh user can register/login from UI.
 2. Page refresh keeps session.
 3. Logout removes token and protected calls fail with `401`.
 
 ## Workstream 2: Team Context + Player Pools on API (BEAD-12 / draftflow-70)
+
+Status: Completed on 2026-02-26.
 
 Goal:
 1. Team Context and Player Pools no longer rely on local runtime CSV mutations for authenticated user state.
@@ -105,11 +122,17 @@ Automated test expectations:
 1. `tests/server/app.api.test.mjs` pool isolation tests remain passing.
 2. UI integration tests cover pool CRUD wiring and auth errors.
 
+Implemented coverage:
+1. `tests/ui/app.auth-pools-teams.test.mjs` pool create + auth header + 401 handling.
+2. Frontend pool edit path syncs `/me/pools/:id/champions*`.
+
 Close criteria:
 1. A logged-in user can manage only their own pools end-to-end in UI.
 2. Cross-user attempts are denied with `403`.
 
 ## Workstream 3: Team-Lead Governance (BEAD-15/16/17 / draftflow-76/74/75)
+
+Status: Completed on 2026-02-26.
 
 Goal:
 1. Team admin actions are restricted to team leads, with support for multiple leads per team.
@@ -152,11 +175,17 @@ Automated test expectations:
 2. Migration tests (or integration assertions) for teams/members schema.
 3. Frontend tests for lead-only UI controls and member-restricted behavior.
 
+Implemented coverage:
+1. `tests/server/app.api.test.mjs` now includes lead/member auth matrix + least-one-lead invariant checks.
+2. `tests/ui/app.auth-pools-teams.test.mjs` verifies lead-only UI gating.
+
 Close criteria:
 1. Lead/member permissions are enforceable and tested.
 2. At least one lead per team invariant is protected.
 
 ## Workstream 4: Full Champion Catalog (BEAD-14 / draftflow-71)
+
+Status: Completed on 2026-02-26.
 
 Goal:
 1. Production champions dataset is complete, validated, and repeatably importable.
@@ -193,6 +222,8 @@ Close criteria:
 
 ## Workstream 5: Remove Runtime CSV Dependence (BEAD-09 / draftflow-68)
 
+Status: Completed on 2026-02-26.
+
 Goal:
 1. Runtime request paths use DB/API-backed data only; CSV remains seed/input artifact only.
 
@@ -210,7 +241,12 @@ rg -n "parseChampionsCsv|parseTeamPoolsCsv" server/routes server/repositories
 Close criteria:
 1. Remaining CSV references are seed/import/test fixtures only.
 
+Validation result:
+1. `rg` over `public/app` and `server` shows no runtime fetch/use of `team_pools.csv` or `config.json`.
+
 ## Workstream 6: Deployment Hardening and Smoke Gate (BEAD-10 / draftflow-69)
+
+Status: Code complete and ready for deploy verification on 2026-02-26.
 
 Goal:
 1. Fresh deploy can be validated without manual shell/DB edits.
@@ -237,6 +273,10 @@ Smoke test contract:
 Close criteria:
 1. All smoke checks pass against live Render URL after a clean deploy.
 
+Current note:
+1. Local automated gates pass (`npm test`).
+2. Live Render smoke requires post-push deployment confirmation; tracked in Beads.
+
 ## Sequencing and Dependencies
 
 Recommended execution order:
@@ -248,3 +288,9 @@ Recommended execution order:
 6. Workstream 6
 
 If workstream output changes requirements for later steps, update this file in the same commit.
+Implemented artifacts:
+1. `docs/champion-catalog/champions.full.csv`
+2. `docs/champion-catalog/manifest.json`
+3. `server/scripts/generate-full-champions-csv.js` + `npm run catalog:refresh`
+4. `tests/server/champion-catalog.test.mjs` for checksum/count/metadata validation
+5. `server/scripts/seed-champions.js` default now points to full catalog artifact.

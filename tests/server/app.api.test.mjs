@@ -6,7 +6,26 @@ import { signAccessToken } from "../../server/auth/tokens.js";
 
 function createMockContext() {
   const state = {
-    users: [],
+    users: [
+      {
+        id: 1,
+        email: "lead@example.com",
+        password_hash: "seeded",
+        created_at: "2026-01-01T00:00:00.000Z"
+      },
+      {
+        id: 2,
+        email: "member@example.com",
+        password_hash: "seeded",
+        created_at: "2026-01-01T00:00:00.000Z"
+      },
+      {
+        id: 3,
+        email: "outsider@example.com",
+        password_hash: "seeded",
+        created_at: "2026-01-01T00:00:00.000Z"
+      }
+    ],
     champions: [
       {
         id: 1,
@@ -34,11 +53,19 @@ function createMockContext() {
     poolChampionIds: new Map([
       [1, new Set([1])],
       [2, new Set([2])]
-    ])
+    ]),
+    teams: [
+      { id: 1, name: "Team Alpha", created_by: 1, created_at: "2026-01-01T00:00:00.000Z" }
+    ],
+    teamMembers: [
+      { team_id: 1, user_id: 1, role: "lead", created_at: "2026-01-01T00:00:00.000Z" },
+      { team_id: 1, user_id: 2, role: "member", created_at: "2026-01-01T00:00:00.000Z" }
+    ]
   };
 
-  let nextUserId = 1;
+  let nextUserId = 4;
   let nextPoolId = 3;
+  let nextTeamId = 2;
 
   const usersRepository = {
     async createUser({ email, passwordHash }) {
@@ -66,6 +93,10 @@ function createMockContext() {
 
     async findByEmail(email) {
       return state.users.find((candidate) => candidate.email === email) ?? null;
+    },
+
+    async findById(userId) {
+      return state.users.find((candidate) => candidate.id === userId) ?? null;
     }
   };
 
@@ -146,6 +177,131 @@ function createMockContext() {
     }
   };
 
+  const teamsRepository = {
+    async teamExists(teamId) {
+      return state.teams.some((team) => team.id === teamId);
+    },
+    async createTeam({ name, creatorUserId }) {
+      const team = {
+        id: nextTeamId,
+        name,
+        created_by: creatorUserId,
+        created_at: "2026-01-01T00:00:00.000Z"
+      };
+      nextTeamId += 1;
+      state.teams.push(team);
+      state.teamMembers.push({
+        team_id: team.id,
+        user_id: creatorUserId,
+        role: "lead",
+        created_at: "2026-01-01T00:00:00.000Z"
+      });
+      return team;
+    },
+    async listTeamsByUser(userId) {
+      return state.teams
+        .map((team) => {
+          const membership = state.teamMembers.find(
+            (candidate) => candidate.team_id === team.id && candidate.user_id === userId
+          );
+          if (!membership) {
+            return null;
+          }
+          return {
+            ...team,
+            membership_role: membership.role
+          };
+        })
+        .filter(Boolean);
+    },
+    async getMembership(teamId, userId) {
+      const membership = state.teamMembers.find(
+        (candidate) => candidate.team_id === teamId && candidate.user_id === userId
+      );
+      if (!membership) {
+        return null;
+      }
+      const user = state.users.find((candidate) => candidate.id === userId);
+      return {
+        ...membership,
+        email: user?.email ?? null
+      };
+    },
+    async countLeads(teamId) {
+      return state.teamMembers.filter((candidate) => candidate.team_id === teamId && candidate.role === "lead").length;
+    },
+    async updateTeamName(teamId, name) {
+      const team = state.teams.find((candidate) => candidate.id === teamId) ?? null;
+      if (!team) {
+        return null;
+      }
+      team.name = name;
+      return team;
+    },
+    async deleteTeam(teamId) {
+      const teamIndex = state.teams.findIndex((candidate) => candidate.id === teamId);
+      if (teamIndex < 0) {
+        return false;
+      }
+      state.teams.splice(teamIndex, 1);
+      state.teamMembers = state.teamMembers.filter((candidate) => candidate.team_id !== teamId);
+      return true;
+    },
+    async listMembers(teamId) {
+      return state.teamMembers
+        .filter((candidate) => candidate.team_id === teamId)
+        .map((membership) => {
+          const user = state.users.find((candidate) => candidate.id === membership.user_id);
+          return {
+            ...membership,
+            email: user?.email ?? null
+          };
+        })
+        .sort((left, right) => {
+          if (left.role !== right.role) {
+            return left.role === "lead" ? -1 : 1;
+          }
+          return (left.email ?? "").localeCompare(right.email ?? "");
+        });
+    },
+    async addMember(teamId, userId, role) {
+      const existing = state.teamMembers.find(
+        (candidate) => candidate.team_id === teamId && candidate.user_id === userId
+      );
+      if (existing) {
+        const error = new Error("duplicate");
+        error.code = "23505";
+        throw error;
+      }
+      state.teamMembers.push({
+        team_id: teamId,
+        user_id: userId,
+        role,
+        created_at: "2026-01-01T00:00:00.000Z"
+      });
+    },
+    async removeMember(teamId, userId) {
+      const index = state.teamMembers.findIndex(
+        (candidate) => candidate.team_id === teamId && candidate.user_id === userId
+      );
+      if (index < 0) {
+        return false;
+      }
+      state.teamMembers.splice(index, 1);
+      return true;
+    },
+    async setMemberRole(teamId, userId, role) {
+      const membership = state.teamMembers.find(
+        (candidate) => candidate.team_id === teamId && candidate.user_id === userId
+      );
+      if (!membership) {
+        return null;
+      }
+      membership.role = role;
+      return membership;
+    }
+  };
+
   const config = {
     jwtSecret: "test-secret",
     corsOrigin: "*"
@@ -156,7 +312,8 @@ function createMockContext() {
     usersRepository,
     championsRepository,
     tagsRepository,
-    poolsRepository
+    poolsRepository,
+    teamsRepository
   });
 
   return { app, config, state };
@@ -187,15 +344,15 @@ describe("API routes", () => {
     expect(registerResponse.status).toBe(201);
     expect(registerResponse.body.user.email).toBe("test@example.com");
     expect(registerResponse.body.token).toBeTypeOf("string");
-    expect(state.users).toHaveLength(1);
-    expect(state.users[0].password_hash).not.toBe("strong-pass-123");
+    expect(state.users).toHaveLength(4);
+    expect(state.users[3].password_hash).not.toBe("strong-pass-123");
 
     const loginResponse = await request(app)
       .post("/auth/login")
       .send({ email: "test@example.com", password: "strong-pass-123" });
 
     expect(loginResponse.status).toBe(200);
-    expect(loginResponse.body.user.id).toBe(1);
+    expect(loginResponse.body.user.id).toBe(4);
 
     const invalidLoginResponse = await request(app)
       .post("/auth/login")
@@ -272,7 +429,7 @@ describe("API routes", () => {
 
     const updateResponse = await request(app)
       .put("/champions/1/tags")
-      .set("Authorization", buildAuthHeader(1, config))
+      .set("Authorization", buildAuthHeader(2, config))
       .send({ tag_ids: [2] });
     expect(updateResponse.status).toBe(200);
     expect(updateResponse.body.champion.tagIds).toEqual([2]);
@@ -320,5 +477,57 @@ describe("API routes", () => {
       .set("Authorization", user1Auth);
     expect(removeMissing.status).toBe(200);
     expect(removeMissing.body.pool.champion_ids).toEqual([2]);
+  });
+
+  it("enforces team lead authorization and lead invariants", async () => {
+    const { app, config } = createMockContext();
+    const leadAuth = buildAuthHeader(1, config);
+    const memberAuth = buildAuthHeader(2, config);
+    const outsiderAuth = buildAuthHeader(99, config);
+
+    const memberDeniedPatch = await request(app)
+      .patch("/teams/1")
+      .set("Authorization", memberAuth)
+      .send({ name: "Nope" });
+    expect(memberDeniedPatch.status).toBe(403);
+
+    const addOutsider = await request(app)
+      .post("/teams/1/members")
+      .set("Authorization", leadAuth)
+      .send({ user_id: 3, role: "member" });
+    expect(addOutsider.status).toBe(201);
+    expect(addOutsider.body.member.user_id).toBe(3);
+
+    const memberCanList = await request(app)
+      .get("/teams/1/members")
+      .set("Authorization", memberAuth);
+    expect(memberCanList.status).toBe(200);
+    expect(memberCanList.body.members.length).toBeGreaterThanOrEqual(2);
+
+    const outsiderCannotList = await request(app)
+      .get("/teams/1/members")
+      .set("Authorization", outsiderAuth);
+    expect(outsiderCannotList.status).toBe(403);
+
+    const promoteMember = await request(app)
+      .put("/teams/1/members/2/role")
+      .set("Authorization", leadAuth)
+      .send({ role: "lead" });
+    expect(promoteMember.status).toBe(200);
+    expect(promoteMember.body.member.role).toBe("lead");
+
+    const demoteOriginalLead = await request(app)
+      .put("/teams/1/members/1/role")
+      .set("Authorization", leadAuth)
+      .send({ role: "member" });
+    expect(demoteOriginalLead.status).toBe(200);
+    expect(demoteOriginalLead.body.member.role).toBe("member");
+
+    const lastLeadDemotionBlocked = await request(app)
+      .put("/teams/1/members/2/role")
+      .set("Authorization", memberAuth)
+      .send({ role: "member" });
+    expect(lastLeadDemotionBlocked.status).toBe(400);
+    expect(lastLeadDemotionBlocked.body.error.code).toBe("BAD_REQUEST");
   });
 });

@@ -22,7 +22,18 @@ export function createUsersRepository(pool) {
         [email]
       );
       return result.rows[0] ?? null;
+    },
+
+    async findById(userId) {
+      const result = await pool.query(
+        `
+          SELECT id, email, password_hash, created_at
+          FROM users
+          WHERE id = $1
+        `,
+        [userId]
+      );
+      return result.rows[0] ?? null;
     }
   };
 }
-

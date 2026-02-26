@@ -1,6 +1,7 @@
 import {
   BOOLEAN_TAGS,
   DAMAGE_TYPES,
+  DEFAULT_RECOMMENDATION_WEIGHTS,
   DEFAULT_REQUIREMENT_TOGGLES,
   SCALING_VALUES,
   SLOTS,
@@ -10,8 +11,6 @@ import {
   isScaling,
   isSlot,
   parseChampionsCsv,
-  parseConfigJson,
-  parseTeamPoolsCsv,
   evaluateCompositionChecks,
   generatePossibilityTree,
   scoreNodeFromChecks,
@@ -45,9 +44,25 @@ const NO_FILTER = "__NO_FILTER__";
 const NONE_TEAM_ID = "__NONE_TEAM__";
 const TEAM_CONFIG_STORAGE_KEY = "draftflow.teamConfig.v1";
 const PLAYER_CONFIG_STORAGE_KEY = "draftflow.playerConfig.v1";
+const AUTH_SESSION_STORAGE_KEY = "draftflow.authSession.v1";
+const DEFAULT_MEMBER_ROLE = "member";
+const MEMBER_ROLE_OPTIONS = Object.freeze(["lead", "member"]);
 
 const CHAMPION_IMAGE_OVERRIDES = Object.freeze({
   VelKoz: "Velkoz"
+});
+
+const DEFAULT_APP_CONFIG = Object.freeze({
+  teamDefault: null,
+  recommendation: {
+    weights: {
+      ...DEFAULT_RECOMMENDATION_WEIGHTS
+    }
+  },
+  treeDefaults: {
+    maxDepth: 4,
+    maxBranch: 8
+  }
 });
 
 const BUILDER_DEFAULTS = Object.freeze({
@@ -132,6 +147,18 @@ function createInitialState() {
     ui: {
       isNavOpen: false
     },
+    auth: {
+      token: null,
+      user: null,
+      feedback: ""
+    },
+    api: {
+      pools: [],
+      poolByTeamId: {},
+      teams: [],
+      membersByTeamId: {},
+      selectedTeamId: ""
+    },
     explorer: {
       search: "",
       roles: [],
@@ -187,6 +214,13 @@ function createElements() {
     heroSubtitle: runtimeDocument.querySelector("#hero-subtitle"),
     navTitle: runtimeDocument.querySelector("#nav-title"),
     navMeta: runtimeDocument.querySelector("#nav-meta"),
+    authEmail: runtimeDocument.querySelector("#auth-email"),
+    authPassword: runtimeDocument.querySelector("#auth-password"),
+    authRegister: runtimeDocument.querySelector("#auth-register"),
+    authLogin: runtimeDocument.querySelector("#auth-login"),
+    authLogout: runtimeDocument.querySelector("#auth-logout"),
+    authStatus: runtimeDocument.querySelector("#auth-status"),
+    authFeedback: runtimeDocument.querySelector("#auth-feedback"),
     explorerTitle: runtimeDocument.querySelector("#explorer-title"),
     explorerMeta: runtimeDocument.querySelector("#explorer-meta"),
     teamConfigTitle: runtimeDocument.querySelector("#team-config-title"),
@@ -256,6 +290,28 @@ function createElements() {
     teamConfigActiveHelp: runtimeDocument.querySelector("#team-config-active-help"),
     teamConfigPoolSummary: runtimeDocument.querySelector("#team-config-pool-summary"),
     teamConfigPoolGrid: runtimeDocument.querySelector("#team-config-pool-grid"),
+    teamAdminCreateName: runtimeDocument.querySelector("#team-admin-create-name"),
+    teamAdminCreate: runtimeDocument.querySelector("#team-admin-create"),
+    teamAdminTeamSelect: runtimeDocument.querySelector("#team-admin-team-select"),
+    teamAdminRenameName: runtimeDocument.querySelector("#team-admin-rename-name"),
+    teamAdminRename: runtimeDocument.querySelector("#team-admin-rename"),
+    teamAdminDelete: runtimeDocument.querySelector("#team-admin-delete"),
+    teamAdminMembers: runtimeDocument.querySelector("#team-admin-members"),
+    teamAdminAddUserId: runtimeDocument.querySelector("#team-admin-add-user-id"),
+    teamAdminAddRole: runtimeDocument.querySelector("#team-admin-add-role"),
+    teamAdminAddMember: runtimeDocument.querySelector("#team-admin-add-member"),
+    teamAdminRoleUserId: runtimeDocument.querySelector("#team-admin-role-user-id"),
+    teamAdminRole: runtimeDocument.querySelector("#team-admin-role"),
+    teamAdminUpdateRole: runtimeDocument.querySelector("#team-admin-update-role"),
+    teamAdminRemoveUserId: runtimeDocument.querySelector("#team-admin-remove-user-id"),
+    teamAdminRemoveMember: runtimeDocument.querySelector("#team-admin-remove-member"),
+    teamAdminFeedback: runtimeDocument.querySelector("#team-admin-feedback"),
+    poolCreateName: runtimeDocument.querySelector("#pool-create-name"),
+    poolCreate: runtimeDocument.querySelector("#pool-create"),
+    poolRenameName: runtimeDocument.querySelector("#pool-rename-name"),
+    poolRename: runtimeDocument.querySelector("#pool-rename"),
+    poolDelete: runtimeDocument.querySelector("#pool-delete"),
+    poolApiFeedback: runtimeDocument.querySelector("#pool-api-feedback"),
     playerConfigTeam: runtimeDocument.querySelector("#player-config-team"),
     playerConfigSummary: runtimeDocument.querySelector("#player-config-summary"),
     playerConfigFeedback: runtimeDocument.querySelector("#player-config-feedback"),
@@ -334,6 +390,69 @@ function setInspectFeedback(message) {
 function clearBuilderFeedback() {
   setSetupFeedback("");
   setInspectFeedback("");
+}
+
+function setAuthFeedback(message) {
+  state.auth.feedback = message;
+  setInlineFeedback(elements.authFeedback, message);
+}
+
+function setPoolApiFeedback(message) {
+  if (elements.poolApiFeedback) {
+    elements.poolApiFeedback.textContent = message;
+  }
+}
+
+function setTeamAdminFeedback(message) {
+  if (elements.teamAdminFeedback) {
+    elements.teamAdminFeedback.textContent = message;
+  }
+}
+
+function isAuthenticated() {
+  return Boolean(state.auth.token && runtimeApiBaseUrl);
+}
+
+function readStoredAuthSession() {
+  const stored = tryReadJsonStorage(AUTH_SESSION_STORAGE_KEY, {});
+  if (!stored || typeof stored !== "object" || Array.isArray(stored)) {
+    return { token: null, user: null };
+  }
+  const token = typeof stored.token === "string" && stored.token.trim() !== "" ? stored.token.trim() : null;
+  const user =
+    stored.user && typeof stored.user === "object" && !Array.isArray(stored.user) ? stored.user : null;
+  return { token, user };
+}
+
+function saveAuthSession() {
+  if (!state.auth.token) {
+    tryWriteJsonStorage(AUTH_SESSION_STORAGE_KEY, {});
+    return;
+  }
+  tryWriteJsonStorage(AUTH_SESSION_STORAGE_KEY, {
+    token: state.auth.token,
+    user: state.auth.user
+  });
+}
+
+function clearAuthSession(feedback = "") {
+  state.auth.token = null;
+  state.auth.user = null;
+  saveAuthSession();
+  setAuthFeedback(feedback);
+}
+
+function renderAuth() {
+  const signedIn = Boolean(state.auth.token && state.auth.user);
+  if (!signedIn) {
+    elements.authStatus.textContent = "Signed out.";
+    elements.authLogout.disabled = true;
+    return;
+  }
+
+  const email = typeof state.auth.user.email === "string" ? state.auth.user.email : "unknown";
+  elements.authStatus.textContent = `Signed in as ${email}.`;
+  elements.authLogout.disabled = false;
 }
 
 function applyUiCopy() {
@@ -651,6 +770,7 @@ function setTab(tabName) {
 
   if (resolvedTab === "team-config" && state.data) {
     renderTeamConfig();
+    renderTeamAdmin();
   }
   if (resolvedTab === "player-config" && state.data) {
     renderPlayerConfig();
@@ -686,6 +806,65 @@ function normalizeApiBaseUrl(value) {
 function resolveApiUrl(path) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${runtimeApiBaseUrl}${normalizedPath}`;
+}
+
+async function readApiError(response) {
+  try {
+    const payload = await response.json();
+    const message =
+      payload?.error?.message && typeof payload.error.message === "string"
+        ? payload.error.message
+        : `Request failed (${response.status}).`;
+    const code = payload?.error?.code && typeof payload.error.code === "string" ? payload.error.code : "API_ERROR";
+    return { code, message, payload };
+  } catch {
+    return {
+      code: "API_ERROR",
+      message: `Request failed (${response.status}).`,
+      payload: null
+    };
+  }
+}
+
+async function apiRequest(path, { method = "GET", body = undefined, auth = false } = {}) {
+  if (!runtimeApiBaseUrl) {
+    throw new Error("API base URL is not configured.");
+  }
+
+  const headers = {
+    Accept: "application/json"
+  };
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
+  if (auth && state.auth.token) {
+    headers.Authorization = `Bearer ${state.auth.token}`;
+  }
+
+  const response = await runtimeFetch(resolveApiUrl(path), {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+
+  if (response.status === 204) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const error = await readApiError(response);
+    if (response.status === 401 && auth) {
+      clearAuthSession("Session expired. Please log in again.");
+      renderAuth();
+    }
+    const requestError = new Error(error.message);
+    requestError.status = response.status;
+    requestError.code = error.code;
+    requestError.payload = error.payload;
+    throw requestError;
+  }
+
+  return response.json();
 }
 
 function normalizeApiSlot(value) {
@@ -776,6 +955,7 @@ function buildChampionFromApiRecord(rawChampion, index) {
   }
 
   return {
+    id: Number.isInteger(rawChampion.id) ? rawChampion.id : null,
     name,
     roles: normalizedRoles,
     damageType,
@@ -795,7 +975,12 @@ async function fetchJson(path) {
 async function loadChampionsData() {
   if (!runtimeApiBaseUrl) {
     const championsCsvText = await fetchText("/public/data/champions.csv");
-    return parseChampionsCsv(championsCsvText);
+    const parsed = parseChampionsCsv(championsCsvText);
+    return {
+      ...parsed,
+      championIdsByName: {},
+      championNamesById: {}
+    };
   }
 
   const payload = await fetchJson(resolveApiUrl("/champions"));
@@ -805,6 +990,8 @@ async function loadChampionsData() {
 
   const champions = [];
   const championsByName = {};
+  const championIdsByName = {};
+  const championNamesById = {};
   const seenNames = new Set();
 
   for (let index = 0; index < payload.champions.length; index += 1) {
@@ -814,43 +1001,43 @@ async function loadChampionsData() {
     }
     champions.push(champion);
     championsByName[champion.name] = champion;
+    if (Number.isInteger(champion.id) && champion.id > 0) {
+      championIdsByName[champion.name] = champion.id;
+      championNamesById[champion.id] = champion.name;
+    }
     seenNames.add(champion.name);
   }
 
   return {
     champions,
-    championsByName
+    championsByName,
+    championIdsByName,
+    championNamesById
   };
 }
 
 async function loadMvpData() {
-  const [championData, teamPoolsCsvText, configJsonText] = await Promise.all([
-    loadChampionsData(),
-    fetchText("/public/data/team_pools.csv"),
-    fetchText("/public/data/config.json")
-  ]);
-
-  const poolData = parseTeamPoolsCsv(teamPoolsCsvText);
-  const config = parseConfigJson(configJsonText);
-
-  for (const [team, rolePools] of Object.entries(poolData.poolsByTeam)) {
-    for (const slot of SLOTS) {
-      for (const championName of rolePools[slot]) {
-        if (!championData.championsByName[championName]) {
-          throw new DataValidationError(
-            `team_pools.csv references unknown champion '${championName}' for team '${team}' role '${slot}'.`
-          );
-        }
-      }
-    }
-  }
+  const championData = await loadChampionsData();
 
   const loaded = {
     champions: championData.champions,
     championsByName: championData.championsByName,
-    teamPools: poolData.poolsByTeam,
-    teamPoolEntries: poolData.entries,
-    config
+    championIdsByName: championData.championIdsByName ?? {},
+    championNamesById: championData.championNamesById ?? {},
+    teamPools: {},
+    teamPoolEntries: [],
+    teamLabels: {},
+    config: {
+      ...DEFAULT_APP_CONFIG,
+      recommendation: {
+        weights: {
+          ...DEFAULT_APP_CONFIG.recommendation.weights
+        }
+      },
+      treeDefaults: {
+        ...DEFAULT_APP_CONFIG.treeDefaults
+      }
+    }
   };
 
   const basePlayerPoolsByTeam = buildPlayerPoolsByTeam(loaded.teamPoolEntries);
@@ -864,6 +1051,145 @@ async function loadMvpData() {
     teamPools: buildTeamPoolsFromPlayerPools(playerPoolsByTeam),
     teamPlayersByRole: buildTeamPlayersByRoleFromPlayerPools(playerPoolsByTeam)
   };
+}
+
+function buildPoolTeamId(poolId) {
+  return `pool:${poolId}`;
+}
+
+function parsePoolTeamId(teamId) {
+  if (typeof teamId !== "string" || !teamId.startsWith("pool:")) {
+    return null;
+  }
+  const parsed = Number.parseInt(teamId.slice("pool:".length), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function getTeamDisplayLabel(teamId) {
+  if (teamId === NONE_TEAM_ID) {
+    return "None (global role pools)";
+  }
+  return state.data.teamLabels?.[teamId] ?? teamId;
+}
+
+function buildRolePlayersFromChampionNames(championNames) {
+  const uniqueNames = Array.from(new Set(championNames)).sort((left, right) => left.localeCompare(right));
+  return SLOTS.map((slot) => ({
+    id: `${slot}::${slot} Player`,
+    player: `${slot} Player`,
+    role: slot,
+    champions: uniqueNames.filter((name) => state.data.championsByName[name]?.roles?.includes(slot))
+  }));
+}
+
+function getUnionChampionNamesFromPlayers(players) {
+  const names = new Set();
+  for (const player of players) {
+    for (const championName of player.champions ?? []) {
+      names.add(championName);
+    }
+  }
+  return Array.from(names);
+}
+
+function clearApiPoolState() {
+  state.api.pools = [];
+  state.api.poolByTeamId = {};
+  state.playerConfig.byTeam = {};
+  state.playerConfig.teamId = "";
+  state.data.teamLabels = {};
+  syncDerivedTeamDataFromPlayerConfig();
+}
+
+function applyApiPoolsToState(pools, preferredTeamId = null) {
+  const byTeam = {};
+  const teamLabels = {};
+  const poolByTeamId = {};
+
+  for (const pool of pools) {
+    const teamId = buildPoolTeamId(pool.id);
+    const championNames = (pool.champion_ids ?? [])
+      .map((championId) => state.data.championNamesById[championId])
+      .filter((name) => Boolean(name));
+    byTeam[teamId] = buildRolePlayersFromChampionNames(championNames);
+    teamLabels[teamId] = pool.name;
+    poolByTeamId[teamId] = pool;
+  }
+
+  state.api.pools = pools;
+  state.api.poolByTeamId = poolByTeamId;
+  state.playerConfig.byTeam = byTeam;
+  state.data.teamLabels = teamLabels;
+  state.playerConfig.teamId = normalizePlayerConfigTeamId(preferredTeamId ?? state.playerConfig.teamId);
+  syncDerivedTeamDataFromPlayerConfig();
+
+  state.teamConfig.defaultTeamId = normalizeConfiguredTeamId(state.teamConfig.defaultTeamId);
+  state.teamConfig.activeTeamId = normalizeConfiguredTeamId(state.teamConfig.activeTeamId);
+  state.builder.teamId = normalizeConfiguredTeamId(state.builder.teamId);
+}
+
+function normalizeApiErrorMessage(error, fallbackMessage) {
+  if (error instanceof Error && typeof error.message === "string" && error.message.trim() !== "") {
+    return error.message;
+  }
+  return fallbackMessage;
+}
+
+async function loadPoolsFromApi(preferredTeamId = null) {
+  if (!isAuthenticated()) {
+    clearApiPoolState();
+    return false;
+  }
+
+  try {
+    const payload = await apiRequest("/me/pools", { auth: true });
+    const pools = Array.isArray(payload?.pools) ? payload.pools : [];
+    applyApiPoolsToState(pools, preferredTeamId);
+    return true;
+  } catch (error) {
+    setPoolApiFeedback(normalizeApiErrorMessage(error, "Failed to load pools."));
+    return false;
+  }
+}
+
+async function loadTeamMembersForSelectedTeam() {
+  const selectedTeam = getSelectedAdminTeam();
+  if (!selectedTeam || !isAuthenticated()) {
+    return;
+  }
+
+  try {
+    const payload = await apiRequest(`/teams/${selectedTeam.id}/members`, { auth: true });
+    state.api.membersByTeamId[String(selectedTeam.id)] = Array.isArray(payload?.members) ? payload.members : [];
+  } catch (error) {
+    state.api.membersByTeamId[String(selectedTeam.id)] = [];
+    setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to load team members."));
+  }
+}
+
+async function loadTeamsFromApi(preferredTeamId = null) {
+  if (!isAuthenticated()) {
+    state.api.teams = [];
+    state.api.membersByTeamId = {};
+    state.api.selectedTeamId = "";
+    return false;
+  }
+
+  try {
+    const payload = await apiRequest("/teams", { auth: true });
+    state.api.teams = Array.isArray(payload?.teams) ? payload.teams : [];
+    state.api.selectedTeamId = preferredTeamId ? String(preferredTeamId) : state.api.selectedTeamId;
+    const selectedTeam = getSelectedAdminTeam();
+    state.api.selectedTeamId = selectedTeam ? String(selectedTeam.id) : "";
+    await loadTeamMembersForSelectedTeam();
+    return true;
+  } catch (error) {
+    state.api.teams = [];
+    state.api.membersByTeamId = {};
+    state.api.selectedTeamId = "";
+    setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to load teams."));
+    return false;
+  }
 }
 
 function initializeExplorerControls() {
@@ -1012,8 +1338,8 @@ function updateTeamHelpAndSlotLabels() {
 
 function getTeamSelectOptions() {
   const teamOptions = Object.keys(state.data.teamPools)
-    .sort((left, right) => left.localeCompare(right))
-    .map((teamId) => ({ value: teamId, label: teamId }));
+    .sort((left, right) => getTeamDisplayLabel(left).localeCompare(getTeamDisplayLabel(right)))
+    .map((teamId) => ({ value: teamId, label: getTeamDisplayLabel(teamId) }));
   return [
     { value: NONE_TEAM_ID, label: "None (global role pools)" },
     ...teamOptions
@@ -1090,15 +1416,15 @@ function renderTeamConfig() {
 
   elements.teamConfigDefaultHelp.textContent = state.teamConfig.defaultTeamId === NONE_TEAM_ID
     ? "Default team: None (global role pools)."
-    : `Default team: ${state.teamConfig.defaultTeamId}.`;
+    : `Default team: ${getTeamDisplayLabel(state.teamConfig.defaultTeamId)}.`;
 
   elements.teamConfigActiveHelp.textContent = state.teamConfig.activeTeamId === NONE_TEAM_ID
     ? "Active team: None (global role pools)."
-    : `Active team: ${state.teamConfig.activeTeamId}.`;
+    : `Active team: ${getTeamDisplayLabel(state.teamConfig.activeTeamId)}.`;
 
   const pools = getPoolsForTeam(state.teamConfig.activeTeamId);
   const roleCounts = SLOTS.map((slot) => `${slot}: ${(pools[slot] ?? []).length}`);
-  elements.teamConfigPoolSummary.textContent = `${state.teamConfig.activeTeamId === NONE_TEAM_ID ? "None" : state.teamConfig.activeTeamId} pool sizes -> ${roleCounts.join(" | ")}`;
+  elements.teamConfigPoolSummary.textContent = `${state.teamConfig.activeTeamId === NONE_TEAM_ID ? "None" : getTeamDisplayLabel(state.teamConfig.activeTeamId)} pool sizes -> ${roleCounts.join(" | ")}`;
 
   elements.teamConfigPoolGrid.innerHTML = "";
   for (const slot of SLOTS) {
@@ -1122,11 +1448,76 @@ function renderTeamConfig() {
   }
 }
 
+function getSelectedAdminTeam() {
+  const selectedId = state.api.selectedTeamId;
+  if (selectedId && state.api.teams.some((team) => String(team.id) === selectedId)) {
+    return state.api.teams.find((team) => String(team.id) === selectedId) ?? null;
+  }
+  return state.api.teams[0] ?? null;
+}
+
+function renderTeamAdmin() {
+  const teamOptions = state.api.teams
+    .map((team) => ({ value: String(team.id), label: team.name }))
+    .sort((left, right) => left.label.localeCompare(right.label));
+
+  replaceOptions(elements.teamAdminTeamSelect, teamOptions);
+
+  const selectedTeam = getSelectedAdminTeam();
+  state.api.selectedTeamId = selectedTeam ? String(selectedTeam.id) : "";
+  elements.teamAdminTeamSelect.value = state.api.selectedTeamId;
+  if (selectedTeam) {
+    elements.teamAdminRenameName.value = selectedTeam.name;
+  } else {
+    elements.teamAdminRenameName.value = "";
+  }
+
+  const members = selectedTeam ? state.api.membersByTeamId[String(selectedTeam.id)] ?? [] : [];
+  const isLead = selectedTeam?.membership_role === "lead";
+  const adminEnabled = Boolean(selectedTeam) && isLead;
+
+  elements.teamAdminRename.disabled = !adminEnabled;
+  elements.teamAdminDelete.disabled = !adminEnabled;
+  elements.teamAdminAddMember.disabled = !adminEnabled;
+  elements.teamAdminUpdateRole.disabled = !adminEnabled;
+  elements.teamAdminRemoveMember.disabled = !adminEnabled;
+  elements.teamAdminRenameName.disabled = !adminEnabled;
+  elements.teamAdminAddUserId.disabled = !adminEnabled;
+  elements.teamAdminAddRole.disabled = !adminEnabled;
+  elements.teamAdminRoleUserId.disabled = !adminEnabled;
+  elements.teamAdminRole.disabled = !adminEnabled;
+  elements.teamAdminRemoveUserId.disabled = !adminEnabled;
+
+  elements.teamAdminMembers.innerHTML = "";
+  if (!selectedTeam) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = isAuthenticated()
+      ? "No teams yet. Create a team to start."
+      : "Sign in to manage teams.";
+    elements.teamAdminMembers.append(empty);
+    return;
+  }
+
+  for (const member of members) {
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card";
+    const title = runtimeDocument.createElement("strong");
+    title.textContent = member.email ?? `User ${member.user_id}`;
+    const details = runtimeDocument.createElement("p");
+    details.className = "meta";
+    details.textContent = `user_id=${member.user_id} | role=${member.role}`;
+    card.append(title, details);
+    elements.teamAdminMembers.append(card);
+  }
+}
+
 function initializeTeamConfigControls() {
   const options = getTeamSelectOptions();
   replaceOptions(elements.teamConfigDefaultTeam, options);
   replaceOptions(elements.teamConfigActiveTeam, options);
   renderTeamConfig();
+  renderTeamAdmin();
 }
 
 function syncDerivedTeamDataFromPlayerConfig() {
@@ -1139,7 +1530,9 @@ function normalizePlayerConfigTeamId(teamId) {
   if (typeof teamId === "string" && state.playerConfig.byTeam[teamId]) {
     return teamId;
   }
-  const teamIds = Object.keys(state.playerConfig.byTeam).sort((left, right) => left.localeCompare(right));
+  const teamIds = Object.keys(state.playerConfig.byTeam).sort((left, right) =>
+    getTeamDisplayLabel(left).localeCompare(getTeamDisplayLabel(right))
+  );
   return teamIds[0] ?? "";
 }
 
@@ -1148,20 +1541,65 @@ function renderPlayerConfigFeedback(message, isError = false) {
   elements.playerConfigFeedback.style.color = isError ? "var(--warn)" : "var(--muted)";
 }
 
+async function syncPoolSelectionToApi(teamId) {
+  const pool = state.api.poolByTeamId[teamId];
+  if (!pool) {
+    return;
+  }
+
+  const players = state.playerConfig.byTeam[teamId] ?? [];
+  const desiredChampionIds = getUnionChampionNamesFromPlayers(players)
+    .map((name) => state.data.championIdsByName[name])
+    .filter((id) => Number.isInteger(id));
+  const desiredIdSet = new Set(desiredChampionIds);
+  const currentIdSet = new Set((pool.champion_ids ?? []).map((value) => Number(value)));
+
+  const toAdd = [...desiredIdSet].filter((id) => !currentIdSet.has(id));
+  const toRemove = [...currentIdSet].filter((id) => !desiredIdSet.has(id));
+
+  for (const championId of toAdd) {
+    await apiRequest(`/me/pools/${pool.id}/champions`, {
+      method: "POST",
+      auth: true,
+      body: { champion_id: championId }
+    });
+  }
+
+  for (const championId of toRemove) {
+    await apiRequest(`/me/pools/${pool.id}/champions/${championId}`, {
+      method: "DELETE",
+      auth: true
+    });
+  }
+
+  await loadPoolsFromApi(teamId);
+  renderTeamConfig();
+  renderBuilder();
+  renderPlayerConfig();
+}
+
 function renderPlayerConfig() {
   state.playerConfig.teamId = normalizePlayerConfigTeamId(state.playerConfig.teamId);
   const teamOptions = Object.keys(state.playerConfig.byTeam)
-    .sort((left, right) => left.localeCompare(right))
-    .map((teamId) => ({ value: teamId, label: teamId }));
+    .sort((left, right) => getTeamDisplayLabel(left).localeCompare(getTeamDisplayLabel(right)))
+    .map((teamId) => ({ value: teamId, label: getTeamDisplayLabel(teamId) }));
 
   replaceOptions(elements.playerConfigTeam, teamOptions);
   elements.playerConfigTeam.value = state.playerConfig.teamId;
+
+  const activePool = state.api.poolByTeamId[state.playerConfig.teamId] ?? null;
+  elements.poolRenameName.value = activePool?.name ?? "";
+  elements.poolRename.disabled = !activePool;
+  elements.poolDelete.disabled = !activePool;
+  elements.poolRenameName.disabled = !activePool;
 
   const players = state.playerConfig.byTeam[state.playerConfig.teamId] ?? [];
   const summary = players.map((player) => `${player.role}: ${player.champions.length}`).join(" | ");
   elements.playerConfigSummary.textContent = summary
     ? `Pool sizes -> ${summary}`
-    : "No players are configured for this team.";
+    : isAuthenticated()
+      ? "No pools yet. Create a pool to start."
+      : "Sign in to load API-backed pools.";
 
   elements.playerConfigGrid.innerHTML = "";
 
@@ -1206,7 +1644,6 @@ function renderPlayerConfig() {
       onChange(selectedValues) {
         player.champions = Array.from(new Set(selectedValues)).sort((left, right) => left.localeCompare(right));
         syncDerivedTeamDataFromPlayerConfig();
-        const saved = savePlayerConfig();
         state.teamConfig.defaultTeamId = normalizeConfiguredTeamId(state.teamConfig.defaultTeamId);
         state.teamConfig.activeTeamId = normalizeConfiguredTeamId(state.teamConfig.activeTeamId);
         state.builder.teamId = normalizeConfiguredTeamId(state.builder.teamId);
@@ -1215,6 +1652,18 @@ function renderPlayerConfig() {
         syncSlotSelectOptions();
         renderTeamConfig();
         renderBuilder();
+        if (isAuthenticated()) {
+          void syncPoolSelectionToApi(state.playerConfig.teamId)
+            .then(() => {
+              renderPlayerConfigFeedback(`Saved pool updates for ${player.player}.`);
+            })
+            .catch((error) => {
+              renderPlayerConfigFeedback(normalizeApiErrorMessage(error, "Failed to save pool updates."), true);
+            });
+          return;
+        }
+
+        const saved = savePlayerConfig();
         renderPlayerConfig();
         renderPlayerConfigFeedback(
           saved ? `Saved pool updates for ${player.player}.` : "Pool updates applied in memory, but local storage is unavailable.",
@@ -1277,6 +1726,12 @@ function saveTeamConfig() {
 
 function savePlayerConfig() {
   return tryWriteJsonStorage(PLAYER_CONFIG_STORAGE_KEY, state.playerConfig);
+}
+
+function loadStoredAuthSession() {
+  const stored = readStoredAuthSession();
+  state.auth.token = stored.token;
+  state.auth.user = stored.user;
 }
 
 function loadStoredPlayerConfig() {
@@ -2636,6 +3091,49 @@ function syncTagMutualExclusion(changed, includeValuesInput, excludeValuesInput)
   state.explorer.excludeTags = excludeValues;
 }
 
+async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAdminTeamId = null) {
+  await loadPoolsFromApi(preferredPoolTeamId);
+  await loadTeamsFromApi(preferredAdminTeamId);
+  initializeTeamConfigControls();
+  renderTeamAdmin();
+  renderPlayerConfig();
+  renderBuilder();
+  syncSlotSelectOptions();
+}
+
+function getAuthCredentials() {
+  const email = typeof elements.authEmail.value === "string" ? elements.authEmail.value.trim() : "";
+  const password = typeof elements.authPassword.value === "string" ? elements.authPassword.value : "";
+  if (!email || !password) {
+    throw new Error("Email and password are required.");
+  }
+  return { email, password };
+}
+
+function clearAuthForm() {
+  elements.authPassword.value = "";
+}
+
+async function handleAuthSubmit(path) {
+  const credentials = getAuthCredentials();
+  const payload = await apiRequest(path, {
+    method: "POST",
+    body: credentials
+  });
+
+  if (!payload?.token || !payload?.user) {
+    throw new Error("Auth response did not include token and user.");
+  }
+
+  state.auth.token = payload.token;
+  state.auth.user = payload.user;
+  saveAuthSession();
+  clearAuthForm();
+  setAuthFeedback("");
+  renderAuth();
+  await hydrateAuthenticatedViews();
+}
+
 function attachEvents() {
   const NodeCtor = runtimeWindow.Node ?? globalThis.Node;
   const InputCtor = runtimeWindow.HTMLInputElement ?? globalThis.HTMLInputElement;
@@ -2650,6 +3148,33 @@ function attachEvents() {
       return;
     }
     closeCheckboxMultiDetails();
+  });
+
+  elements.authRegister.addEventListener("click", () => {
+    void handleAuthSubmit("/auth/register").catch((error) => {
+      setAuthFeedback(normalizeApiErrorMessage(error, "Registration failed."));
+      renderAuth();
+    });
+  });
+
+  elements.authLogin.addEventListener("click", () => {
+    void handleAuthSubmit("/auth/login").catch((error) => {
+      setAuthFeedback(normalizeApiErrorMessage(error, "Login failed."));
+      renderAuth();
+    });
+  });
+
+  elements.authLogout.addEventListener("click", () => {
+    clearAuthSession("");
+    clearApiPoolState();
+    state.api.teams = [];
+    state.api.membersByTeamId = {};
+    state.api.selectedTeamId = "";
+    initializeTeamConfigControls();
+    renderTeamAdmin();
+    renderPlayerConfig();
+    renderBuilder();
+    renderAuth();
   });
 
   elements.navToggle.addEventListener("click", () => {
@@ -2855,12 +3380,267 @@ function attachEvents() {
 
   elements.playerConfigTeam.addEventListener("change", () => {
     state.playerConfig.teamId = normalizePlayerConfigTeamId(elements.playerConfigTeam.value);
+    if (isAuthenticated()) {
+      renderPlayerConfig();
+      return;
+    }
     const saved = savePlayerConfig();
     renderPlayerConfig();
     renderPlayerConfigFeedback(
       saved ? "" : "Player-config team selection changed in memory, but local storage is unavailable.",
       !saved
     );
+  });
+
+  elements.poolCreate.addEventListener("click", () => {
+    if (!isAuthenticated()) {
+      setPoolApiFeedback("Sign in to create pools.");
+      return;
+    }
+    const name = elements.poolCreateName.value.trim();
+    if (!name) {
+      setPoolApiFeedback("Enter a pool name.");
+      return;
+    }
+
+    void apiRequest("/me/pools", {
+      method: "POST",
+      auth: true,
+      body: { name }
+    })
+      .then(async (payload) => {
+        const teamId = buildPoolTeamId(payload?.pool?.id);
+        elements.poolCreateName.value = "";
+        setPoolApiFeedback(`Created pool '${payload?.pool?.name ?? name}'.`);
+        await hydrateAuthenticatedViews(teamId, state.api.selectedTeamId);
+      })
+      .catch((error) => {
+        setPoolApiFeedback(normalizeApiErrorMessage(error, "Failed to create pool."));
+      });
+  });
+
+  elements.poolRename.addEventListener("click", () => {
+    if (!isAuthenticated()) {
+      setPoolApiFeedback("Sign in to rename pools.");
+      return;
+    }
+    const teamId = state.playerConfig.teamId;
+    const poolId = parsePoolTeamId(teamId);
+    if (!poolId) {
+      setPoolApiFeedback("Select a pool first.");
+      return;
+    }
+    const name = elements.poolRenameName.value.trim();
+    if (!name) {
+      setPoolApiFeedback("Enter a pool name.");
+      return;
+    }
+
+    void apiRequest(`/me/pools/${poolId}`, {
+      method: "PUT",
+      auth: true,
+      body: { name }
+    })
+      .then(async () => {
+        setPoolApiFeedback(`Renamed pool to '${name}'.`);
+        await hydrateAuthenticatedViews(teamId, state.api.selectedTeamId);
+      })
+      .catch((error) => {
+        setPoolApiFeedback(normalizeApiErrorMessage(error, "Failed to rename pool."));
+      });
+  });
+
+  elements.poolDelete.addEventListener("click", () => {
+    if (!isAuthenticated()) {
+      setPoolApiFeedback("Sign in to delete pools.");
+      return;
+    }
+    const teamId = state.playerConfig.teamId;
+    const poolId = parsePoolTeamId(teamId);
+    if (!poolId) {
+      setPoolApiFeedback("Select a pool first.");
+      return;
+    }
+
+    void apiRequest(`/me/pools/${poolId}`, {
+      method: "DELETE",
+      auth: true
+    })
+      .then(async () => {
+        setPoolApiFeedback("Deleted pool.");
+        await hydrateAuthenticatedViews(null, state.api.selectedTeamId);
+      })
+      .catch((error) => {
+        setPoolApiFeedback(normalizeApiErrorMessage(error, "Failed to delete pool."));
+      });
+  });
+
+  elements.teamAdminTeamSelect.addEventListener("change", () => {
+    state.api.selectedTeamId = elements.teamAdminTeamSelect.value;
+    void loadTeamMembersForSelectedTeam().then(() => {
+      renderTeamAdmin();
+    });
+  });
+
+  elements.teamAdminCreate.addEventListener("click", () => {
+    if (!isAuthenticated()) {
+      setTeamAdminFeedback("Sign in to create teams.");
+      return;
+    }
+    const name = elements.teamAdminCreateName.value.trim();
+    if (!name) {
+      setTeamAdminFeedback("Enter a team name.");
+      return;
+    }
+
+    void apiRequest("/teams", {
+      method: "POST",
+      auth: true,
+      body: { name }
+    })
+      .then(async (payload) => {
+        elements.teamAdminCreateName.value = "";
+        const teamId = payload?.team?.id;
+        setTeamAdminFeedback(`Created team '${payload?.team?.name ?? name}'.`);
+        await hydrateAuthenticatedViews(state.playerConfig.teamId, teamId);
+      })
+      .catch((error) => {
+        setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to create team."));
+      });
+  });
+
+  elements.teamAdminRename.addEventListener("click", () => {
+    const selectedTeam = getSelectedAdminTeam();
+    if (!selectedTeam) {
+      setTeamAdminFeedback("Select a team first.");
+      return;
+    }
+    const name = elements.teamAdminRenameName.value.trim();
+    if (!name) {
+      setTeamAdminFeedback("Enter a team name.");
+      return;
+    }
+
+    void apiRequest(`/teams/${selectedTeam.id}`, {
+      method: "PATCH",
+      auth: true,
+      body: { name }
+    })
+      .then(async () => {
+        setTeamAdminFeedback(`Renamed team to '${name}'.`);
+        await hydrateAuthenticatedViews(state.playerConfig.teamId, selectedTeam.id);
+      })
+      .catch((error) => {
+        setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to rename team."));
+      });
+  });
+
+  elements.teamAdminDelete.addEventListener("click", () => {
+    const selectedTeam = getSelectedAdminTeam();
+    if (!selectedTeam) {
+      setTeamAdminFeedback("Select a team first.");
+      return;
+    }
+
+    void apiRequest(`/teams/${selectedTeam.id}`, {
+      method: "DELETE",
+      auth: true
+    })
+      .then(async () => {
+        setTeamAdminFeedback("Deleted team.");
+        await hydrateAuthenticatedViews(state.playerConfig.teamId, null);
+      })
+      .catch((error) => {
+        setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to delete team."));
+      });
+  });
+
+  elements.teamAdminAddMember.addEventListener("click", () => {
+    const selectedTeam = getSelectedAdminTeam();
+    if (!selectedTeam) {
+      setTeamAdminFeedback("Select a team first.");
+      return;
+    }
+    const userId = Number.parseInt(elements.teamAdminAddUserId.value, 10);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      setTeamAdminFeedback("Enter a valid user id to add.");
+      return;
+    }
+    const role = MEMBER_ROLE_OPTIONS.includes(elements.teamAdminAddRole.value)
+      ? elements.teamAdminAddRole.value
+      : DEFAULT_MEMBER_ROLE;
+
+    void apiRequest(`/teams/${selectedTeam.id}/members`, {
+      method: "POST",
+      auth: true,
+      body: { user_id: userId, role }
+    })
+      .then(async () => {
+        elements.teamAdminAddUserId.value = "";
+        setTeamAdminFeedback(`Added user ${userId} as ${role}.`);
+        await loadTeamsFromApi(selectedTeam.id);
+        renderTeamAdmin();
+      })
+      .catch((error) => {
+        setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to add member."));
+      });
+  });
+
+  elements.teamAdminUpdateRole.addEventListener("click", () => {
+    const selectedTeam = getSelectedAdminTeam();
+    if (!selectedTeam) {
+      setTeamAdminFeedback("Select a team first.");
+      return;
+    }
+    const userId = Number.parseInt(elements.teamAdminRoleUserId.value, 10);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      setTeamAdminFeedback("Enter a valid user id to update.");
+      return;
+    }
+    const role = MEMBER_ROLE_OPTIONS.includes(elements.teamAdminRole.value)
+      ? elements.teamAdminRole.value
+      : DEFAULT_MEMBER_ROLE;
+
+    void apiRequest(`/teams/${selectedTeam.id}/members/${userId}/role`, {
+      method: "PUT",
+      auth: true,
+      body: { role }
+    })
+      .then(async () => {
+        setTeamAdminFeedback(`Updated user ${userId} role to ${role}.`);
+        await loadTeamsFromApi(selectedTeam.id);
+        renderTeamAdmin();
+      })
+      .catch((error) => {
+        setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to update member role."));
+      });
+  });
+
+  elements.teamAdminRemoveMember.addEventListener("click", () => {
+    const selectedTeam = getSelectedAdminTeam();
+    if (!selectedTeam) {
+      setTeamAdminFeedback("Select a team first.");
+      return;
+    }
+    const userId = Number.parseInt(elements.teamAdminRemoveUserId.value, 10);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      setTeamAdminFeedback("Enter a valid user id to remove.");
+      return;
+    }
+
+    void apiRequest(`/teams/${selectedTeam.id}/members/${userId}`, {
+      method: "DELETE",
+      auth: true
+    })
+      .then(async () => {
+        elements.teamAdminRemoveUserId.value = "";
+        setTeamAdminFeedback(`Removed user ${userId} from team.`);
+        await loadTeamsFromApi(selectedTeam.id);
+        renderTeamAdmin();
+      })
+      .catch((error) => {
+        setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to remove member."));
+      });
   });
 }
 
@@ -2869,20 +3649,32 @@ async function init() {
     applyUiCopy();
     syncNavLayout();
     setTab("workflow");
+    loadStoredAuthSession();
     await loadMvpData();
-    loadStoredPlayerConfig();
+    if (isAuthenticated()) {
+      await loadPoolsFromApi();
+    } else {
+      loadStoredPlayerConfig();
+      setPoolApiFeedback("Sign in to manage API-backed pools.");
+      setTeamAdminFeedback("Sign in to manage teams.");
+    }
     loadStoredTeamConfig();
     initializeExplorerControls();
     initializeBuilderControls();
     initializeTeamConfigControls();
     initializePlayerConfigControls();
+    if (isAuthenticated()) {
+      await loadTeamsFromApi();
+    }
     resetBuilderToDefaults();
 
     attachEvents();
     syncSlotSelectOptions();
     renderTeamConfig();
+    renderTeamAdmin();
     renderPlayerConfig();
     renderBuilder();
+    renderAuth();
     clearBuilderFeedback();
   } catch (error) {
     setSetupFeedback(error instanceof Error ? error.message : "Failed to initialize app.");

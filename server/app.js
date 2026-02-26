@@ -7,6 +7,7 @@ import { ApiError, badRequest, formatErrorResponse } from "./errors.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createChampionsRouter } from "./routes/champions.js";
 import { createPoolsRouter } from "./routes/pools.js";
+import { createTeamsRouter } from "./routes/teams.js";
 
 const serverDir = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(serverDir, "..", "public");
@@ -24,13 +25,15 @@ export function createApp({
   usersRepository,
   championsRepository,
   tagsRepository,
-  poolsRepository
+  poolsRepository,
+  teamsRepository
 }) {
   requireDependency(config, "config");
   requireDependency(usersRepository, "usersRepository");
   requireDependency(championsRepository, "championsRepository");
   requireDependency(tagsRepository, "tagsRepository");
   requireDependency(poolsRepository, "poolsRepository");
+  requireDependency(teamsRepository, "teamsRepository");
 
   const app = express();
   const requireAuth = createRequireAuth(config);
@@ -76,6 +79,15 @@ export function createApp({
     createPoolsRouter({
       poolsRepository,
       championsRepository,
+      requireAuth
+    })
+  );
+
+  app.use(
+    "/",
+    createTeamsRouter({
+      teamsRepository,
+      usersRepository,
       requireAuth
     })
   );

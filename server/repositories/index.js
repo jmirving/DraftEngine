@@ -1,5 +1,6 @@
 import { createChampionsRepository } from "./champions.js";
 import { createPoolsRepository } from "./pools.js";
+import { createTeamsRepository } from "./teams.js";
 import { createTagsRepository } from "./tags.js";
 import { createUsersRepository } from "./users.js";
 
@@ -8,7 +9,8 @@ export function createRepositories(pool) {
     users: createUsersRepository(pool),
     champions: createChampionsRepository(pool),
     tags: createTagsRepository(pool),
-    pools: createPoolsRepository(pool)
+    pools: createPoolsRepository(pool),
+    teams: createTeamsRepository(pool)
   };
 }
 

@@ -17,6 +17,19 @@
           Configure team context, shape compositions, and inspect deterministic next-pick trees.
         </p>
         <div class="hero-actions">
+          <div class="auth-bar">
+            <label>
+              Email
+              <input id="auth-email" type="email" autocomplete="username" placeholder="you@example.com" />
+            </label>
+            <label>
+              Password
+              <input id="auth-password" type="password" autocomplete="current-password" placeholder="password" />
+            </label>
+            <button id="auth-register" type="button">Register</button>
+            <button id="auth-login" type="button">Login</button>
+            <button id="auth-logout" class="ghost" type="button">Logout</button>
+          </div>
           <button
             id="nav-toggle"
             class="ghost nav-toggle"
@@ -27,6 +40,8 @@
             Menu
           </button>
         </div>
+        <p id="auth-status" class="meta">Signed out.</p>
+        <p id="auth-feedback" class="error-inline" hidden></p>
       </header>
 
       <div class="app-shell">
@@ -287,6 +302,76 @@
               <p id="team-config-active-help" class="meta"></p>
             </div>
             <div class="panel draft-board-panel">
+              <p class="panel-kicker">Team Admin</p>
+              <h2>Team Management</h2>
+              <p class="meta">Team admin actions are lead-gated. Members can read membership only.</p>
+              <div class="grid grid-2">
+                <label>
+                  Create Team
+                  <input id="team-admin-create-name" type="text" placeholder="Team name" />
+                </label>
+                <div class="button-row">
+                  <button id="team-admin-create" type="button">Create Team</button>
+                </div>
+              </div>
+              <label>
+                Team
+                <select id="team-admin-team-select"></select>
+              </label>
+              <div class="grid grid-2">
+                <label>
+                  Rename Team
+                  <input id="team-admin-rename-name" type="text" placeholder="New team name" />
+                </label>
+                <div class="button-row">
+                  <button id="team-admin-rename" type="button">Rename Team</button>
+                  <button id="team-admin-delete" class="ghost" type="button">Delete Team</button>
+                </div>
+              </div>
+              <h3>Members</h3>
+              <div id="team-admin-members" class="team-pool-grid"></div>
+              <div class="grid grid-2">
+                <label>
+                  Add Member User ID
+                  <input id="team-admin-add-user-id" type="number" min="1" step="1" placeholder="User ID" />
+                </label>
+                <label>
+                  Add Member Role
+                  <select id="team-admin-add-role">
+                    <option value="member">member</option>
+                    <option value="lead">lead</option>
+                  </select>
+                </label>
+              </div>
+              <div class="button-row">
+                <button id="team-admin-add-member" type="button">Add Member</button>
+              </div>
+              <div class="grid grid-2">
+                <label>
+                  Update Role User ID
+                  <input id="team-admin-role-user-id" type="number" min="1" step="1" placeholder="User ID" />
+                </label>
+                <label>
+                  New Role
+                  <select id="team-admin-role">
+                    <option value="member">member</option>
+                    <option value="lead">lead</option>
+                  </select>
+                </label>
+              </div>
+              <div class="button-row">
+                <button id="team-admin-update-role" type="button">Update Role</button>
+              </div>
+              <label>
+                Remove Member User ID
+                <input id="team-admin-remove-user-id" type="number" min="1" step="1" placeholder="User ID" />
+              </label>
+              <div class="button-row">
+                <button id="team-admin-remove-member" class="ghost" type="button">Remove Member</button>
+              </div>
+              <p id="team-admin-feedback" class="meta"></p>
+            </div>
+            <div class="panel draft-board-panel">
               <p class="panel-kicker">Pool Intelligence</p>
               <h2>Draft Pool Board</h2>
               <p id="team-config-pool-summary" class="meta"></p>
@@ -299,12 +384,32 @@
               <p class="panel-kicker">Roster Prep</p>
               <h2 id="player-config-title">Player Pools</h2>
               <p id="player-config-meta" class="meta">Edit each player's champion pools for the selected team.</p>
+              <div class="grid grid-2">
+                <label>
+                  Create Pool
+                  <input id="pool-create-name" type="text" placeholder="Pool name" />
+                </label>
+                <div class="button-row">
+                  <button id="pool-create" type="button">Create Pool</button>
+                </div>
+              </div>
               <div class="player-team-controls">
                 <label>
                   Team
                   <select id="player-config-team"></select>
                 </label>
               </div>
+              <div class="grid grid-2">
+                <label>
+                  Rename Active Pool
+                  <input id="pool-rename-name" type="text" placeholder="New pool name" />
+                </label>
+                <div class="button-row">
+                  <button id="pool-rename" type="button">Rename Pool</button>
+                  <button id="pool-delete" class="ghost" type="button">Delete Pool</button>
+                </div>
+              </div>
+              <p id="pool-api-feedback" class="meta"></p>
               <p id="player-config-summary" class="meta"></p>
               <p id="player-config-feedback" class="meta"></p>
               <div id="player-config-grid" class="player-pools-grid"></div>

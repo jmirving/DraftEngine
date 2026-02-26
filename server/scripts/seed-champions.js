@@ -6,7 +6,7 @@ import { parseChampionsCsv } from "../../src/data/loaders.js";
 import { loadConfig } from "../config.js";
 import { createDbPool } from "../db/pool.js";
 
-const DEFAULT_CSV_PATH = "public/data/champions.csv";
+const DEFAULT_CSV_PATH = "docs/champion-catalog/champions.full.csv";
 
 function parseCsvPathFromArgs(argv) {
   const csvFlagIndex = argv.findIndex((arg) => arg === "--csv");
@@ -79,4 +79,3 @@ run().catch((error) => {
   console.error(`Champion seed failed: ${error.message}`);
   process.exit(1);
 });
-
