@@ -521,9 +521,8 @@ function setPlayerPoolDirty(teamId, dirty) {
   state.playerConfig.dirtyPoolByTeamId[teamId] = Boolean(dirty);
 }
 
-function formatPlayerPoolSummary(role, championCount, dirty) {
-  const base = `Editing ${role} pool. ${championCount} champion${championCount === 1 ? "" : "s"} selected.`;
-  return dirty ? `${base} Unsaved changes.` : base;
+function formatPlayerPoolSummary(role, championCount) {
+  return `Editing ${role} pool. ${championCount} champion${championCount === 1 ? "" : "s"} selected.`;
 }
 
 function normalizeProfileRole(role) {
@@ -2121,7 +2120,7 @@ function renderPlayerConfig() {
   const players = state.playerConfig.byTeam[state.playerConfig.teamId] ?? [];
   const activePlayer = players.find((player) => player.role === activeRole) ?? null;
   if (activePlayer) {
-    elements.playerConfigSummary.textContent = formatPlayerPoolSummary(activeRole, activePlayer.champions.length, poolDirty);
+    elements.playerConfigSummary.textContent = formatPlayerPoolSummary(activeRole, activePlayer.champions.length);
   } else {
     elements.playerConfigSummary.textContent = isAuthenticated()
       ? `No champions selected for ${activeRole}.`
@@ -2188,7 +2187,7 @@ function renderPlayerConfig() {
       renderTeamConfig();
       renderBuilder();
       countMeta.textContent = `${activePlayer.champions.length} champion${activePlayer.champions.length === 1 ? "" : "s"} in pool.`;
-      elements.playerConfigSummary.textContent = formatPlayerPoolSummary(activeRole, activePlayer.champions.length, true);
+      elements.playerConfigSummary.textContent = formatPlayerPoolSummary(activeRole, activePlayer.champions.length);
       if (elements.playerConfigSavePool) {
         elements.playerConfigSavePool.disabled = state.playerConfig.isSavingPool;
       }

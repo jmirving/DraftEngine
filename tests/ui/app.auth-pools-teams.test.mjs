@@ -667,7 +667,7 @@ describe("auth + pools + team management", () => {
     await flush();
 
     expect(doc.querySelector("#player-config-feedback").textContent).toContain("Unsaved champion changes");
-    expect(doc.querySelector("#player-config-summary").textContent).toContain("Unsaved changes");
+    expect(doc.querySelector("#player-config-summary").textContent).toContain("Editing Mid pool. 0 champions selected.");
     expect(doc.querySelector("#player-config-save-pool").disabled).toBe(false);
 
     const immediatePoolSync = harness.calls.filter(
