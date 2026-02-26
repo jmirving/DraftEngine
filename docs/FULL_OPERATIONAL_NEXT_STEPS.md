@@ -24,9 +24,9 @@ Before starting any workstream:
 3. API starts locally with valid env:
    - `DATABASE_URL`
    - `JWT_SECRET`
-4. Render service build/start remains:
-   - Build: `npm ci && npm run migrate:up`
-   - Start: `npm run start:api`
+4. No completed end result may require changing deploy build/start commands:
+   - Build must remain: `npm ci && npm run migrate:up`
+   - Start must remain: `npm run start:api`
 
 ## Global Done Rules
 
