@@ -645,6 +645,11 @@ button.ghost {
   gap: 0.5rem;
 }
 
+.button-inline {
+  width: auto;
+  min-width: 10rem;
+}
+
 .optional-checks-header {
   display: flex;
   justify-content: space-between;
@@ -1072,7 +1077,7 @@ button.ghost {
   padding: 0.45rem;
   background: #fffefa;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.35rem;
 }
 
@@ -1118,6 +1123,12 @@ button.ghost {
   object-fit: cover;
   border: 1px solid var(--border);
   background: #fff;
+}
+
+@media (max-width: 980px) {
+  #profile-secondary-roles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .draft-order-list {

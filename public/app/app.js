@@ -182,7 +182,9 @@ function createInitialState() {
     },
     playerConfig: {
       teamId: null,
-      byTeam: {}
+      byTeam: {},
+      dirtyPoolByTeamId: {},
+      isSavingPool: false
     },
     builder: {
       stage: "setup",
@@ -339,6 +341,7 @@ function createElements() {
     profileSaveRoles: runtimeDocument.querySelector("#profile-save-roles"),
     profileRolesFeedback: runtimeDocument.querySelector("#profile-roles-feedback"),
     playerConfigSummary: runtimeDocument.querySelector("#player-config-summary"),
+    playerConfigSavePool: runtimeDocument.querySelector("#player-config-save-pool"),
     playerConfigFeedback: runtimeDocument.querySelector("#player-config-feedback"),
     playerConfigGrid: runtimeDocument.querySelector("#player-config-grid"),
     settingsTeamsMemberSummary: runtimeDocument.querySelector("#settings-teams-member-summary"),
@@ -496,6 +499,33 @@ function setProfileRolesFeedback(message, isError = false) {
   elements.profileRolesFeedback.style.color = isError ? "var(--warn)" : "var(--muted)";
 }
 
+function formatMembershipRole(role) {
+  return role === "lead" ? "Team Lead" : "Team Member";
+}
+
+function formatRosterRole(teamRole) {
+  return teamRole === "substitute" ? "Substitute" : "Primary";
+}
+
+function isPlayerPoolDirty(teamId) {
+  return Boolean(state.playerConfig.dirtyPoolByTeamId?.[teamId]);
+}
+
+function setPlayerPoolDirty(teamId, dirty) {
+  if (typeof teamId !== "string" || teamId === "") {
+    return;
+  }
+  if (!state.playerConfig.dirtyPoolByTeamId || typeof state.playerConfig.dirtyPoolByTeamId !== "object") {
+    state.playerConfig.dirtyPoolByTeamId = {};
+  }
+  state.playerConfig.dirtyPoolByTeamId[teamId] = Boolean(dirty);
+}
+
+function formatPlayerPoolSummary(role, championCount, dirty) {
+  const base = `Editing ${role} pool. ${championCount} champion${championCount === 1 ? "" : "s"} selected.`;
+  return dirty ? `${base} Unsaved changes.` : base;
+}
+
 function normalizeProfileRole(role) {
   return SLOTS.includes(role) ? role : DEFAULT_PRIMARY_ROLE;
 }
@@ -549,6 +579,8 @@ function clearAuthSession(feedback = "") {
   state.profile.primaryRole = DEFAULT_PRIMARY_ROLE;
   state.profile.secondaryRoles = [];
   state.api.isCreatingTeam = false;
+  state.playerConfig.dirtyPoolByTeamId = {};
+  state.playerConfig.isSavingPool = false;
   saveAuthSession();
   setAuthFeedback(feedback);
 }
@@ -1250,6 +1282,8 @@ function clearApiPoolState() {
   state.api.poolByTeamId = {};
   state.playerConfig.byTeam = {};
   state.playerConfig.teamId = "";
+  state.playerConfig.dirtyPoolByTeamId = {};
+  state.playerConfig.isSavingPool = false;
   state.data.teamLabels = {};
   syncDerivedTeamDataFromPlayerConfig();
 }
@@ -1283,6 +1317,10 @@ function applyApiPoolsToState(pools, preferredTeamId = null) {
   state.api.pools = pools;
   state.api.poolByTeamId = poolByTeamId;
   state.playerConfig.byTeam = byTeam;
+  state.playerConfig.dirtyPoolByTeamId = Object.fromEntries(
+    Object.keys(byTeam).map((teamId) => [teamId, false])
+  );
+  state.playerConfig.isSavingPool = false;
   state.data.teamLabels = teamLabels;
   state.playerConfig.teamId = normalizePlayerConfigTeamId(preferredTeamId ?? state.playerConfig.teamId);
   syncDerivedTeamDataFromPlayerConfig();
@@ -1911,7 +1949,7 @@ function renderSettingsTeamList(target, teams, emptyMessage) {
 
     const details = runtimeDocument.createElement("p");
     details.className = "meta";
-    details.textContent = `membership=${team.membership_role ?? "member"} | team_role=${team.membership_team_role ?? "primary"}`;
+    details.textContent = `Role: ${formatMembershipRole(team.membership_role)} | Roster: ${formatRosterRole(team.membership_team_role)}`;
 
     card.append(title, details);
     target.append(card);
@@ -1988,7 +2026,42 @@ async function syncPoolSelectionToApi(teamId) {
   await loadPoolsFromApi(teamId);
   renderTeamConfig();
   renderBuilder();
+}
+
+async function saveActivePlayerPoolSelection() {
+  const teamId = state.playerConfig.teamId;
+  const role = parseRolePoolTeamId(teamId);
+  if (!role) {
+    renderPlayerConfigFeedback("Select a role pool first.", true);
+    return;
+  }
+  if (!isPlayerPoolDirty(teamId)) {
+    renderPlayerConfigFeedback("No champion changes to save.");
+    return;
+  }
+
+  state.playerConfig.isSavingPool = true;
   renderPlayerConfig();
+
+  try {
+    if (isAuthenticated()) {
+      await syncPoolSelectionToApi(teamId);
+    } else {
+      const saved = savePlayerConfig();
+      if (!saved) {
+        renderPlayerConfigFeedback("Champion updates are in memory, but local storage is unavailable.", true);
+        return;
+      }
+    }
+
+    setPlayerPoolDirty(teamId, false);
+    renderPlayerConfigFeedback(`Saved pool updates for ${role}.`);
+  } catch (error) {
+    renderPlayerConfigFeedback(normalizeApiErrorMessage(error, "Failed to save pool updates."), true);
+  } finally {
+    state.playerConfig.isSavingPool = false;
+    renderPlayerConfig();
+  }
 }
 
 function renderPlayerConfig() {
@@ -2003,15 +2076,20 @@ function renderPlayerConfig() {
 
   renderProfileRolesSection();
   const activeRole = parseRolePoolTeamId(state.playerConfig.teamId) ?? state.profile.primaryRole;
+  const poolDirty = isPlayerPoolDirty(state.playerConfig.teamId);
 
   const players = state.playerConfig.byTeam[state.playerConfig.teamId] ?? [];
   const activePlayer = players.find((player) => player.role === activeRole) ?? null;
   if (activePlayer) {
-    elements.playerConfigSummary.textContent = `Editing ${activeRole} pool. ${activePlayer.champions.length} champion${activePlayer.champions.length === 1 ? "" : "s"} selected.`;
+    elements.playerConfigSummary.textContent = formatPlayerPoolSummary(activeRole, activePlayer.champions.length, poolDirty);
   } else {
     elements.playerConfigSummary.textContent = isAuthenticated()
       ? `No champions selected for ${activeRole}.`
       : "Sign in to load API-backed pools.";
+  }
+  if (elements.playerConfigSavePool) {
+    elements.playerConfigSavePool.disabled = !activePlayer || !poolDirty || state.playerConfig.isSavingPool;
+    elements.playerConfigSavePool.textContent = state.playerConfig.isSavingPool ? "Saving..." : "Save Champions";
   }
 
   renderSettingsTeamMembership();
@@ -2059,6 +2137,7 @@ function renderPlayerConfig() {
     },
     onChange(selectedValues) {
       activePlayer.champions = Array.from(new Set(selectedValues)).sort((left, right) => left.localeCompare(right));
+      setPlayerPoolDirty(state.playerConfig.teamId, true);
       syncDerivedTeamDataFromPlayerConfig();
       state.teamConfig.defaultTeamId = normalizeConfiguredTeamId(state.teamConfig.defaultTeamId);
       state.teamConfig.activeTeamId = normalizeConfiguredTeamId(state.teamConfig.activeTeamId);
@@ -2068,23 +2147,12 @@ function renderPlayerConfig() {
       syncSlotSelectOptions();
       renderTeamConfig();
       renderBuilder();
-      if (isAuthenticated()) {
-        void syncPoolSelectionToApi(state.playerConfig.teamId)
-          .then(() => {
-            renderPlayerConfigFeedback(`Saved pool updates for ${activePlayer.role}.`);
-          })
-          .catch((error) => {
-            renderPlayerConfigFeedback(normalizeApiErrorMessage(error, "Failed to save pool updates."), true);
-          });
-        return;
+      countMeta.textContent = `${activePlayer.champions.length} champion${activePlayer.champions.length === 1 ? "" : "s"} in pool.`;
+      elements.playerConfigSummary.textContent = formatPlayerPoolSummary(activeRole, activePlayer.champions.length, true);
+      if (elements.playerConfigSavePool) {
+        elements.playerConfigSavePool.disabled = state.playerConfig.isSavingPool;
       }
-
-      const saved = savePlayerConfig();
-      renderPlayerConfig();
-      renderPlayerConfigFeedback(
-        saved ? `Saved pool updates for ${activePlayer.role}.` : "Pool updates applied in memory, but local storage is unavailable.",
-        !saved
-      );
+      renderPlayerConfigFeedback("Unsaved champion changes. Click Save Champions.");
     }
   });
 
@@ -2141,7 +2209,10 @@ function saveTeamConfig() {
 }
 
 function savePlayerConfig() {
-  return tryWriteJsonStorage(PLAYER_CONFIG_STORAGE_KEY, state.playerConfig);
+  return tryWriteJsonStorage(PLAYER_CONFIG_STORAGE_KEY, {
+    teamId: state.playerConfig.teamId,
+    byTeam: state.playerConfig.byTeam
+  });
 }
 
 function loadStoredAuthSession() {
@@ -2155,6 +2226,10 @@ function loadStoredAuthSession() {
 
 function loadStoredPlayerConfig() {
   state.playerConfig.byTeam = clonePlayerPoolsByTeam(state.data.defaultPlayerPoolsByTeam);
+  state.playerConfig.dirtyPoolByTeamId = Object.fromEntries(
+    Object.keys(state.playerConfig.byTeam).map((teamId) => [teamId, false])
+  );
+  state.playerConfig.isSavingPool = false;
   const stored = tryReadJsonStorage(PLAYER_CONFIG_STORAGE_KEY, {});
   const allowedChampionNames = new Set(Object.keys(state.data.championsByName));
 
@@ -3837,6 +3912,12 @@ function attachEvents() {
       !saved
     );
   });
+
+  if (elements.playerConfigSavePool) {
+    elements.playerConfigSavePool.addEventListener("click", () => {
+      void saveActivePlayerPoolSelection();
+    });
+  }
 
   elements.profilePrimaryRole.addEventListener("change", () => {
     state.profile.primaryRole = normalizeProfileRole(elements.profilePrimaryRole.value);

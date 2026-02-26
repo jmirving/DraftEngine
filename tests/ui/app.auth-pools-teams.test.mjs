@@ -533,8 +533,8 @@ describe("auth + pools + team management", () => {
     const memberListText = doc.querySelector("#settings-teams-member-list").textContent;
     expect(memberListText).toContain("Team Alpha");
     expect(memberListText).toContain("Team Beta");
-    expect(memberListText).toContain("membership=lead");
-    expect(memberListText).toContain("team_role=substitute");
+    expect(memberListText).toContain("Team Lead");
+    expect(memberListText).toContain("Substitute");
   });
 
   test("creating a team from team context sends name, tag, and logo", async () => {
@@ -624,6 +624,57 @@ describe("auth + pools + team management", () => {
     doc.querySelector("#player-config-team").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
     expect(doc.querySelector("#player-config-grid").textContent).toContain("Top Champion Pool");
     expect(doc.querySelectorAll("#player-config-grid .player-config-card").length).toBe(1);
+  });
+
+  test("champion pool changes require explicit save", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const harness = createFetchHarness({
+      pools: [
+        {
+          id: 1,
+          user_id: 11,
+          name: "Mid",
+          champion_ids: [1],
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      teams: [],
+      membersByTeam: {}
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='player-config']").click();
+    await flush();
+
+    const ahriCheckbox = doc.querySelector("#player-config-grid input[type='checkbox'][value='Ahri']");
+    ahriCheckbox.checked = false;
+    ahriCheckbox.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await flush();
+
+    expect(doc.querySelector("#player-config-feedback").textContent).toContain("Unsaved champion changes");
+    expect(doc.querySelector("#player-config-summary").textContent).toContain("Unsaved changes");
+    expect(doc.querySelector("#player-config-save-pool").disabled).toBe(false);
+
+    const immediatePoolSync = harness.calls.filter(
+      (call) => /^\/me\/pools\/\d+\/champions/.test(call.path) && ["POST", "DELETE"].includes(call.method)
+    );
+    expect(immediatePoolSync).toHaveLength(0);
+
+    doc.querySelector("#player-config-save-pool").click();
+    await flush();
+    await flush();
+
+    const syncedCalls = harness.calls.filter(
+      (call) => /^\/me\/pools\/\d+\/champions/.test(call.path) && ["POST", "DELETE"].includes(call.method)
+    );
+    expect(syncedCalls.length).toBeGreaterThan(0);
+    expect(doc.querySelector("#player-config-feedback").textContent).toContain("Saved pool updates for Mid");
   });
 
   test("team admin controls are disabled for non-leads and enabled for leads", async () => {
