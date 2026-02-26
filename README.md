@@ -67,8 +67,8 @@ Error contract (all API errors):
 }
 ```
 
-The app opens on `Workflow` by default. `Team Context`, `User Config`, and `Champion Explorer` are available from the side menu.
-Workflow is stage-focused: one guided stage is shown at a time (Setup -> Inspect).
+The app opens on `Build a Composition` by default. `Team Context`, `User Config`, and `Champion Explorer` are available from the side menu.
+Build a Composition is stage-focused: one guided stage is shown at a time (Setup -> Inspect).
 Setup keeps team selection and slot inputs in a single vertical list that follows Node Draft Order.
 Feedback is contextual to Setup/Inspect panels (no global status banner).
 
@@ -77,7 +77,7 @@ Frontend API integration:
 - Override `window.DRAFTENGINE_API_BASE_URL` before `public/app/main.js` loads when using a different API host.
 
 Primary surfaces:
-- `Workflow` (single mode: Build a Composition)
+- `Build a Composition` (single mode)
 - `Team Context` (team defaults + role-pool preview)
 - `Player Pools` (API-backed pool editing)
 - `Champion Tags` (filter + inspect)

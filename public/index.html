@@ -56,18 +56,27 @@
       <section id="auth-gate" class="panel auth-gate">
         <p class="panel-kicker">Access Required</p>
         <h2>Login or Register</h2>
-        <p class="meta">Sign in to access Workflow, Team Context, Profile, and Champion Tags.</p>
+        <p class="meta">Sign in to access Build a Composition, Team Context, Profile, and Champion Tags.</p>
       </section>
 
       <div id="app-shell" class="app-shell" hidden>
         <aside id="nav-drawer" class="nav-drawer" aria-label="Primary">
           <nav class="panel side-menu">
             <h2 id="nav-title">Navigation</h2>
-            <p id="nav-meta" class="meta">Switch between workflow and configuration pages.</p>
+            <p id="nav-meta" class="meta">Switch between Build a Composition and configuration pages.</p>
             <button class="side-menu-link" data-tab="player-config" type="button">My Profile</button>
-            <button class="side-menu-link is-active" data-tab="workflow" type="button">Workflow</button>
+            <button class="side-menu-link is-active" data-tab="workflow" type="button">Build a Composition</button>
             <button class="side-menu-link" data-tab="team-config" type="button">Team Context</button>
             <button class="side-menu-link" data-tab="explorer" type="button">Champion Tags</button>
+            <a
+              id="report-issue-link"
+              class="report-issue-link"
+              href="https://github.com/jmirving/DraftEngine/issues/new/choose"
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              Report an issue
+            </a>
           </nav>
         </aside>
         <button id="nav-overlay" class="nav-overlay" type="button" aria-label="Close navigation"></button>
@@ -133,7 +142,7 @@
           <section id="tab-workflow" class="tab-panel tab-surface workflow-surface is-active">
             <section id="builder-stage-guide" class="panel draft-board-panel stage-guide" aria-live="polite">
               <p class="panel-kicker">Command Center</p>
-              <h2 id="builder-workflow-title">Draft Workflow</h2>
+              <h2 id="builder-workflow-title">Build a Composition</h2>
               <p id="builder-stage-guide-meta" class="meta"></p>
               <div class="button-row stage-guide-actions">
                 <button id="builder-continue-validate" type="button">Review Composition</button>

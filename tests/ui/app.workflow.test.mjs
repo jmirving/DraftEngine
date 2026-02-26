@@ -95,7 +95,9 @@ function createStorageStub() {
           id: 1,
           email: "workflow@example.com",
           gameName: "WorkflowPlayer",
-          tagline: "NA1"
+          tagline: "NA1",
+          primaryRole: "Mid",
+          secondaryRoles: ["Top"]
         }
       })
     ]

@@ -56,10 +56,28 @@ function createFetchHarness({
   teams = [],
   membersByTeam = {},
   failCreatePoolWith401 = false,
-  championIdsAsStrings = false
+  championIdsAsStrings = false,
+  loginUser = null,
+  profile = null
 } = {}) {
   const calls = [];
   let nextPoolId = pools.length + 1;
+  const resolvedLoginUser = loginUser ?? {
+    id: 11,
+    email: "user@example.com",
+    gameName: "LoginUser",
+    tagline: "NA1",
+    primaryRole: "Mid",
+    secondaryRoles: ["Top"]
+  };
+  const resolvedProfile = profile ?? {
+    id: 11,
+    email: "user@example.com",
+    gameName: "LoginUser",
+    tagline: "NA1",
+    primaryRole: "Mid",
+    secondaryRoles: ["Top"]
+  };
 
   const impl = async (url, init = {}) => {
     const method = (init.method ?? "GET").toUpperCase();
@@ -116,12 +134,8 @@ function createFetchHarness({
       return createJsonResponse({
         token: "token-123",
         user: {
-          id: 11,
-          email: body.email,
-          gameName: "LoginUser",
-          tagline: "NA1",
-          primaryRole: "Mid",
-          secondaryRoles: ["Top"]
+          ...resolvedLoginUser,
+          email: body.email
         }
       });
     }
@@ -153,14 +167,7 @@ function createFetchHarness({
 
     if (path === "/me/profile" && method === "GET") {
       return createJsonResponse({
-        profile: {
-          id: 11,
-          email: "user@example.com",
-          gameName: "LoginUser",
-          tagline: "NA1",
-          primaryRole: "Mid",
-          secondaryRoles: ["Top"]
-        }
+        profile: resolvedProfile
       });
     }
 
@@ -391,6 +398,13 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#auth-login").hidden).toBe(false);
     expect(doc.querySelector("#auth-register").hidden).toBe(false);
     expect(doc.querySelector("#auth-email-group").hidden).toBe(false);
+    expect(doc.querySelector("#auth-game-name-group").hidden).toBe(true);
+    expect(doc.querySelector("#auth-tagline-group").hidden).toBe(true);
+    expect(doc.querySelector("#auth-registration-help").hidden).toBe(true);
+
+    const reportIssueLink = doc.querySelector("#report-issue-link");
+    expect(reportIssueLink).toBeTruthy();
+    expect(reportIssueLink.getAttribute("href")).toContain("/issues/new/choose");
 
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
     expect(doc.querySelector("#auth-feedback").textContent).toContain("Login required");
@@ -449,6 +463,11 @@ describe("auth + pools + team management", () => {
     doc.querySelector("#auth-email").value = "user@example.com";
     doc.querySelector("#auth-password").value = "strong-pass-123";
     doc.querySelector("#auth-register").click();
+    expect(doc.querySelector("#auth-game-name-group").hidden).toBe(false);
+    expect(doc.querySelector("#auth-tagline-group").hidden).toBe(false);
+    expect(doc.querySelector("#auth-registration-help").hidden).toBe(false);
+
+    doc.querySelector("#auth-register").click();
     await flush();
     expect(doc.querySelector("#auth-feedback").textContent).toContain("Game Name and Tagline are required");
 
@@ -461,6 +480,37 @@ describe("auth + pools + team management", () => {
     expect(registerCall).toBeTruthy();
     expect(registerCall.body.gameName).toBe("MyRiotName");
     expect(registerCall.body.tagline).toBe("NA1");
+  });
+
+  test("login routes users without defined roles to My Profile tab", async () => {
+    const storage = createStorageStub();
+    const harness = createFetchHarness({
+      loginUser: {
+        id: 11,
+        email: "user@example.com",
+        gameName: "LoginUser",
+        tagline: "NA1"
+      },
+      profile: {
+        id: 11,
+        email: "user@example.com",
+        gameName: "LoginUser",
+        tagline: "NA1",
+        primaryRole: "Mid",
+        secondaryRoles: []
+      }
+    });
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector("#auth-email").value = "user@example.com";
+    doc.querySelector("#auth-password").value = "strong-pass-123";
+    doc.querySelector("#auth-login").click();
+
+    await flush();
+
+    expect(doc.querySelector("#tab-player-config").classList.contains("is-active")).toBe(true);
+    expect(doc.querySelector(".side-menu-link[data-tab='player-config']").classList.contains("is-active")).toBe(true);
   });
 
   test("role pool provisioning handles 401 by clearing session", async () => {

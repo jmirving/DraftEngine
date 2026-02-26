@@ -81,11 +81,11 @@ const UI_COPY = Object.freeze({
   },
   nav: {
     title: "Navigation",
-    meta: "Switch between workflow and configuration pages.",
+    meta: "Switch between Build a Composition and configuration pages.",
     toggleClosed: "Menu",
     toggleOpen: "Close Menu",
     items: {
-      workflow: "Workflow",
+      workflow: "Build a Composition",
       "team-config": "Team Context",
       "player-config": "My Profile",
       explorer: "Champion Tags"
@@ -153,7 +153,8 @@ function createInitialState() {
     auth: {
       token: null,
       user: null,
-      feedback: ""
+      feedback: "",
+      mode: "login"
     },
     profile: {
       primaryRole: DEFAULT_PRIMARY_ROLE,
@@ -581,6 +582,7 @@ function saveAuthSession() {
 function clearAuthSession(feedback = "") {
   state.auth.token = null;
   state.auth.user = null;
+  state.auth.mode = "login";
   state.profile.primaryRole = DEFAULT_PRIMARY_ROLE;
   state.profile.secondaryRoles = [];
   state.profile.isSavingRoles = false;
@@ -591,19 +593,52 @@ function clearAuthSession(feedback = "") {
   setAuthFeedback(feedback);
 }
 
-function setAuthControlsVisibility(showLoginControls) {
-  const controls = [
+function setAuthMode(mode = "login") {
+  state.auth.mode = mode === "register" ? "register" : "login";
+}
+
+function hasDefinedProfileRoles(user) {
+  if (!user || typeof user !== "object" || Array.isArray(user)) {
+    return false;
+  }
+
+  const primaryRole = normalizeProfileRole(user.primaryRole);
+  if (SLOTS.includes(primaryRole) && typeof user.primaryRole === "string" && user.primaryRole.trim() !== "") {
+    return true;
+  }
+
+  if (!Array.isArray(user.secondaryRoles)) {
+    return false;
+  }
+  return user.secondaryRoles.some((role) => SLOTS.includes(role));
+}
+
+function resolvePostLoginTab(user) {
+  return hasDefinedProfileRoles(user) ? "workflow" : "player-config";
+}
+
+function setAuthControlsVisibility(showAuthControls, mode = "login") {
+  const alwaysVisibleWhenSignedOut = [
     elements.authEmailGroup,
-    elements.authGameNameGroup,
-    elements.authTaglineGroup,
     elements.authPasswordGroup,
     elements.authRegister,
-    elements.authLogin,
+    elements.authLogin
+  ];
+  for (const control of alwaysVisibleWhenSignedOut) {
+    if (control) {
+      control.hidden = !showAuthControls;
+    }
+  }
+
+  const registerOnlyControls = [
+    elements.authGameNameGroup,
+    elements.authTaglineGroup,
     elements.authRegistrationHelp
   ];
-  for (const control of controls) {
+  const showRegisterOnlyControls = showAuthControls && mode === "register";
+  for (const control of registerOnlyControls) {
     if (control) {
-      control.hidden = !showLoginControls;
+      control.hidden = !showRegisterOnlyControls;
     }
   }
 }
@@ -627,14 +662,14 @@ function renderAuthGate() {
 function renderAuth() {
   const signedIn = hasAuthSession();
   if (!signedIn) {
-    setAuthControlsVisibility(true);
+    setAuthControlsVisibility(true, state.auth.mode);
     elements.authStatus.textContent = "Signed out.";
     elements.authLogout.disabled = true;
     renderAuthGate();
     return;
   }
 
-  setAuthControlsVisibility(false);
+  setAuthControlsVisibility(false, state.auth.mode);
   const email = typeof state.auth.user.email === "string" ? state.auth.user.email : "unknown";
   const gameName = typeof state.auth.user.gameName === "string" ? state.auth.user.gameName : "";
   const tagline = typeof state.auth.user.tagline === "string" ? state.auth.user.tagline : "";
@@ -2285,6 +2320,7 @@ function loadStoredAuthSession() {
   const stored = readStoredAuthSession();
   state.auth.token = stored.token;
   state.auth.user = stored.user;
+  state.activeTab = resolvePostLoginTab(stored.user);
   const primaryRole = normalizeProfileRole(stored.user?.primaryRole);
   state.profile.primaryRole = primaryRole;
   state.profile.secondaryRoles = normalizeSecondaryRoles(stored.user?.secondaryRoles, primaryRole);
@@ -3695,6 +3731,7 @@ function clearAuthForm() {
 }
 
 async function handleAuthSubmit(path, mode = "login") {
+  setAuthMode(mode);
   const credentials = getAuthCredentials(mode);
   const payload = await apiRequest(path, {
     method: "POST",
@@ -3709,6 +3746,8 @@ async function handleAuthSubmit(path, mode = "login") {
   state.auth.user = payload.user;
   saveAuthSession();
   clearAuthForm();
+  setAuthMode("login");
+  setTab(resolvePostLoginTab(payload.user));
   setAuthFeedback("");
   renderAuth();
   await hydrateAuthenticatedViews();
@@ -3731,6 +3770,12 @@ function attachEvents() {
   });
 
   elements.authRegister.addEventListener("click", () => {
+    if (state.auth.mode !== "register") {
+      setAuthMode("register");
+      setAuthFeedback("");
+      renderAuth();
+      return;
+    }
     void handleAuthSubmit("/auth/register", "register").catch((error) => {
       setAuthFeedback(normalizeApiErrorMessage(error, "Registration failed."));
       renderAuth();
@@ -3738,6 +3783,7 @@ function attachEvents() {
   });
 
   elements.authLogin.addEventListener("click", () => {
+    setAuthMode("login");
     void handleAuthSubmit("/auth/login", "login").catch((error) => {
       setAuthFeedback(normalizeApiErrorMessage(error, "Login failed."));
       renderAuth();
@@ -4266,6 +4312,7 @@ async function init() {
     resetBuilderToDefaults();
 
     attachEvents();
+    setTab(state.activeTab);
     syncSlotSelectOptions();
     renderTeamConfig();
     renderTeamAdmin();

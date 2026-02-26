@@ -186,6 +186,19 @@ h3 {
   color: #fff7f2;
 }
 
+.report-issue-link {
+  display: inline-block;
+  margin-top: 0.7rem;
+  color: #7a3419;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.12rem;
+}
+
+.report-issue-link:hover {
+  color: var(--accent);
+}
+
 .tab-panel {
   display: none;
 }
