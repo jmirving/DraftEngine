@@ -204,6 +204,8 @@ function createInitialState() {
 
 function createElements() {
   return {
+    appShell: runtimeDocument.querySelector("#app-shell"),
+    authGate: runtimeDocument.querySelector("#auth-gate"),
     navToggle: runtimeDocument.querySelector("#nav-toggle"),
     navDrawer: runtimeDocument.querySelector("#nav-drawer"),
     navOverlay: runtimeDocument.querySelector("#nav-overlay"),
@@ -215,6 +217,8 @@ function createElements() {
     navTitle: runtimeDocument.querySelector("#nav-title"),
     navMeta: runtimeDocument.querySelector("#nav-meta"),
     authEmail: runtimeDocument.querySelector("#auth-email"),
+    authGameName: runtimeDocument.querySelector("#auth-game-name"),
+    authTagline: runtimeDocument.querySelector("#auth-tagline"),
     authPassword: runtimeDocument.querySelector("#auth-password"),
     authRegister: runtimeDocument.querySelector("#auth-register"),
     authLogin: runtimeDocument.querySelector("#auth-login"),
@@ -409,8 +413,12 @@ function setTeamAdminFeedback(message) {
   }
 }
 
+function hasAuthSession() {
+  return Boolean(state.auth.token && state.auth.user);
+}
+
 function isAuthenticated() {
-  return Boolean(state.auth.token && runtimeApiBaseUrl);
+  return hasAuthSession() && Boolean(runtimeApiBaseUrl);
 }
 
 function readStoredAuthSession() {
@@ -442,17 +450,40 @@ function clearAuthSession(feedback = "") {
   setAuthFeedback(feedback);
 }
 
+function renderAuthGate() {
+  const signedIn = hasAuthSession();
+  if (elements.appShell) {
+    elements.appShell.hidden = !signedIn;
+  }
+  if (elements.authGate) {
+    elements.authGate.hidden = signedIn;
+  }
+  if (elements.navToggle) {
+    elements.navToggle.hidden = !signedIn;
+  }
+  if (!signedIn) {
+    setNavOpen(false);
+  }
+}
+
 function renderAuth() {
-  const signedIn = Boolean(state.auth.token && state.auth.user);
+  const signedIn = hasAuthSession();
   if (!signedIn) {
     elements.authStatus.textContent = "Signed out.";
     elements.authLogout.disabled = true;
+    renderAuthGate();
     return;
   }
 
   const email = typeof state.auth.user.email === "string" ? state.auth.user.email : "unknown";
-  elements.authStatus.textContent = `Signed in as ${email}.`;
+  const gameName = typeof state.auth.user.gameName === "string" ? state.auth.user.gameName : "";
+  const tagline = typeof state.auth.user.tagline === "string" ? state.auth.user.tagline : "";
+  const riotId = gameName && tagline ? `${gameName}#${tagline}` : gameName;
+  elements.authStatus.textContent = riotId
+    ? `Signed in as ${email} (${riotId}).`
+    : `Signed in as ${email}.`;
   elements.authLogout.disabled = false;
+  renderAuthGate();
 }
 
 function applyUiCopy() {
@@ -754,6 +785,11 @@ function createCheckboxMultiControl({
 }
 
 function setTab(tabName) {
+  if (!hasAuthSession()) {
+    state.activeTab = "workflow";
+    return;
+  }
+
   const validTabs = new Set(["workflow", "team-config", "player-config", "explorer"]);
   const resolvedTab = validTabs.has(tabName) ? tabName : "workflow";
   state.activeTab = resolvedTab;
@@ -3101,21 +3137,40 @@ async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAd
   syncSlotSelectOptions();
 }
 
-function getAuthCredentials() {
+function getAuthCredentials(mode = "login") {
   const email = typeof elements.authEmail.value === "string" ? elements.authEmail.value.trim() : "";
   const password = typeof elements.authPassword.value === "string" ? elements.authPassword.value : "";
+
   if (!email || !password) {
     throw new Error("Email and password are required.");
   }
-  return { email, password };
+
+  if (mode !== "register") {
+    return { email, password };
+  }
+
+  const gameName =
+    typeof elements.authGameName.value === "string" ? elements.authGameName.value.trim() : "";
+  const tagline =
+    typeof elements.authTagline.value === "string" ? elements.authTagline.value.trim() : "";
+  if (!gameName || !tagline) {
+    throw new Error("Game Name and Tagline are required for registration.");
+  }
+
+  return {
+    email,
+    password,
+    gameName,
+    tagline
+  };
 }
 
 function clearAuthForm() {
   elements.authPassword.value = "";
 }
 
-async function handleAuthSubmit(path) {
-  const credentials = getAuthCredentials();
+async function handleAuthSubmit(path, mode = "login") {
+  const credentials = getAuthCredentials(mode);
   const payload = await apiRequest(path, {
     method: "POST",
     body: credentials
@@ -3151,14 +3206,14 @@ function attachEvents() {
   });
 
   elements.authRegister.addEventListener("click", () => {
-    void handleAuthSubmit("/auth/register").catch((error) => {
+    void handleAuthSubmit("/auth/register", "register").catch((error) => {
       setAuthFeedback(normalizeApiErrorMessage(error, "Registration failed."));
       renderAuth();
     });
   });
 
   elements.authLogin.addEventListener("click", () => {
-    void handleAuthSubmit("/auth/login").catch((error) => {
+    void handleAuthSubmit("/auth/login", "login").catch((error) => {
       setAuthFeedback(normalizeApiErrorMessage(error, "Login failed."));
       renderAuth();
     });
@@ -3193,7 +3248,13 @@ function attachEvents() {
   });
 
   for (const button of elements.tabTriggers) {
-    button.addEventListener("click", () => setTab(button.dataset.tab));
+    button.addEventListener("click", () => {
+      if (!hasAuthSession()) {
+        setAuthFeedback("Login required to access app screens.");
+        return;
+      }
+      setTab(button.dataset.tab);
+    });
   }
 
   elements.explorerSearch.addEventListener("input", () => {

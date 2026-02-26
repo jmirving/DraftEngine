@@ -115,17 +115,32 @@ function createFetchHarness({
         token: "token-123",
         user: {
           id: 11,
-          email: body.email
+          email: body.email,
+          gameName: "LoginUser",
+          tagline: "NA1"
         }
       });
     }
 
     if (path === "/auth/register" && method === "POST") {
+      if (!body.gameName || !body.tagline) {
+        return createJsonResponse(
+          {
+            error: {
+              code: "BAD_REQUEST",
+              message: "Expected 'gameName' and 'tagline'."
+            }
+          },
+          400
+        );
+      }
       return createJsonResponse({
         token: "token-register",
         user: {
           id: 12,
-          email: body.email
+          email: body.email,
+          gameName: body.gameName,
+          tagline: body.tagline
         }
       }, 201);
     }
@@ -290,6 +305,19 @@ describe("auth + pools + team management", () => {
     vi.restoreAllMocks();
   });
 
+  test("unauthenticated users only see auth gate and not app screens", async () => {
+    const storage = createStorageStub();
+    const harness = createFetchHarness();
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    expect(doc.querySelector("#auth-gate").hidden).toBe(false);
+    expect(doc.querySelector("#app-shell").hidden).toBe(true);
+
+    doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    expect(doc.querySelector("#auth-feedback").textContent).toContain("Login required");
+  });
+
   test("login stores session and sends Authorization on protected pool fetch", async () => {
     const storage = createStorageStub();
     const harness = createFetchHarness({
@@ -318,6 +346,8 @@ describe("auth + pools + team management", () => {
     expect(storedAuthRaw).toBeTruthy();
     expect(JSON.parse(storedAuthRaw).token).toBe("token-123");
     expect(doc.querySelector("#auth-status").textContent).toContain("user@example.com");
+    expect(doc.querySelector("#auth-gate").hidden).toBe(true);
+    expect(doc.querySelector("#app-shell").hidden).toBe(false);
 
     const poolFetch = harness.calls.find((call) => call.path === "/me/pools" && call.method === "GET");
     expect(poolFetch).toBeTruthy();
@@ -326,6 +356,29 @@ describe("auth + pools + team management", () => {
     doc.querySelector("#auth-logout").click();
     await flush();
     expect(doc.querySelector("#auth-status").textContent).toContain("Signed out");
+  });
+
+  test("registration requires game name and tagline", async () => {
+    const storage = createStorageStub();
+    const harness = createFetchHarness();
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector("#auth-email").value = "user@example.com";
+    doc.querySelector("#auth-password").value = "strong-pass-123";
+    doc.querySelector("#auth-register").click();
+    await flush();
+    expect(doc.querySelector("#auth-feedback").textContent).toContain("Game Name and Tagline are required");
+
+    doc.querySelector("#auth-game-name").value = "MyRiotName";
+    doc.querySelector("#auth-tagline").value = "NA1";
+    doc.querySelector("#auth-register").click();
+    await flush();
+
+    const registerCall = harness.calls.find((call) => call.path === "/auth/register" && call.method === "POST");
+    expect(registerCall).toBeTruthy();
+    expect(registerCall.body.gameName).toBe("MyRiotName");
+    expect(registerCall.body.tagline).toBe("NA1");
   });
 
   test("pool create request handles 401 by clearing session", async () => {

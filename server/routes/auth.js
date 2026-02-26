@@ -1,14 +1,16 @@
 import { Router } from "express";
 
 import { ApiError, conflict, unauthorized } from "../errors.js";
-import { requireEmail, requireObject, requirePassword } from "../http/validation.js";
+import { requireEmail, requireGameName, requireObject, requirePassword, requireTagline } from "../http/validation.js";
 import { hashPassword, verifyPassword } from "../auth/password.js";
 import { signAccessToken } from "../auth/tokens.js";
 
 function serializeAuthUser(user) {
   return {
     id: Number(user.id),
-    email: user.email
+    email: user.email,
+    gameName: user.game_name ?? "",
+    tagline: user.tagline ?? ""
   };
 }
 
@@ -26,6 +28,8 @@ export function createAuthRouter({ config, usersRepository }) {
     const body = requireObject(request.body);
     const email = requireEmail(body.email);
     const password = requirePassword(body.password);
+    const gameName = requireGameName(body.gameName);
+    const tagline = requireTagline(body.tagline);
 
     const existing = await usersRepository.findByEmail(email);
     if (existing) {
@@ -37,7 +41,9 @@ export function createAuthRouter({ config, usersRepository }) {
     try {
       createdUser = await usersRepository.createUser({
         email,
-        passwordHash
+        passwordHash,
+        gameName,
+        tagline
       });
     } catch (error) {
       throw mapUniqueConstraintError(error);

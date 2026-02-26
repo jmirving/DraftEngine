@@ -11,18 +11,24 @@ function createMockContext() {
         id: 1,
         email: "lead@example.com",
         password_hash: "seeded",
+        game_name: "LeadPlayer",
+        tagline: "NA1",
         created_at: "2026-01-01T00:00:00.000Z"
       },
       {
         id: 2,
         email: "member@example.com",
         password_hash: "seeded",
+        game_name: "MemberPlayer",
+        tagline: "NA1",
         created_at: "2026-01-01T00:00:00.000Z"
       },
       {
         id: 3,
         email: "outsider@example.com",
         password_hash: "seeded",
+        game_name: "Outsider",
+        tagline: "NA1",
         created_at: "2026-01-01T00:00:00.000Z"
       }
     ],
@@ -68,7 +74,7 @@ function createMockContext() {
   let nextTeamId = 2;
 
   const usersRepository = {
-    async createUser({ email, passwordHash }) {
+    async createUser({ email, passwordHash, gameName, tagline }) {
       const existing = state.users.find((candidate) => candidate.email === email);
       if (existing) {
         const error = new Error("duplicate");
@@ -80,6 +86,8 @@ function createMockContext() {
         id: nextUserId,
         email,
         password_hash: passwordHash,
+        game_name: gameName,
+        tagline,
         created_at: "2026-01-01T00:00:00.000Z"
       };
       nextUserId += 1;
@@ -87,6 +95,8 @@ function createMockContext() {
       return {
         id: user.id,
         email: user.email,
+        game_name: user.game_name,
+        tagline: user.tagline,
         created_at: user.created_at
       };
     },
@@ -339,10 +349,17 @@ describe("API routes", () => {
 
     const registerResponse = await request(app)
       .post("/auth/register")
-      .send({ email: "test@example.com", password: "strong-pass-123" });
+      .send({
+        email: "test@example.com",
+        password: "strong-pass-123",
+        gameName: "TestPlayer",
+        tagline: "NA1"
+      });
 
     expect(registerResponse.status).toBe(201);
     expect(registerResponse.body.user.email).toBe("test@example.com");
+    expect(registerResponse.body.user.gameName).toBe("TestPlayer");
+    expect(registerResponse.body.user.tagline).toBe("NA1");
     expect(registerResponse.body.token).toBeTypeOf("string");
     expect(state.users).toHaveLength(4);
     expect(state.users[3].password_hash).not.toBe("strong-pass-123");
@@ -353,6 +370,14 @@ describe("API routes", () => {
 
     expect(loginResponse.status).toBe(200);
     expect(loginResponse.body.user.id).toBe(4);
+    expect(loginResponse.body.user.gameName).toBe("TestPlayer");
+    expect(loginResponse.body.user.tagline).toBe("NA1");
+
+    const missingRiotIdResponse = await request(app)
+      .post("/auth/register")
+      .send({ email: "missing-fields@example.com", password: "strong-pass-123" });
+    expect(missingRiotIdResponse.status).toBe(400);
+    expect(missingRiotIdResponse.body.error.code).toBe("BAD_REQUEST");
 
     const invalidLoginResponse = await request(app)
       .post("/auth/login")

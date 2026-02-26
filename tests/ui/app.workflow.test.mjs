@@ -3,38 +3,85 @@ import { resolve } from "node:path";
 
 import { JSDOM } from "jsdom";
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import { parseChampionsCsv } from "../../src/index.js";
 
 const htmlFixture = readFileSync(resolve("public/index.html"), "utf8");
 const championsCsv = readFileSync(resolve("public/data/champions.csv"), "utf8");
 
 function createFetchImpl() {
-  const payloads = {
-    "/public/data/champions.csv": championsCsv
-  };
+  const parsed = parseChampionsCsv(championsCsv);
+  const champions = parsed.champions.map((champion, index) => ({
+    id: index + 1,
+    name: champion.name,
+    role: champion.roles[0],
+    metadata: {
+      roles: champion.roles,
+      damageType: champion.damageType,
+      scaling: champion.scaling,
+      tags: champion.tags
+    },
+    tagIds: []
+  }));
 
-  return async (path) => {
-    const text = payloads[path];
-    if (text === undefined) {
+  return async (url) => {
+    const path = new URL(url, "http://api.test").pathname;
+    if (path === "/champions") {
       return {
-        ok: false,
-        status: 404,
-        async text() {
-          return "";
+        ok: true,
+        status: 200,
+        async json() {
+          return { champions };
+        }
+      };
+    }
+    if (path === "/me/pools") {
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return { pools: [] };
+        }
+      };
+    }
+    if (path === "/teams") {
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return { teams: [] };
         }
       };
     }
     return {
-      ok: true,
-      status: 200,
-      async text() {
-        return text;
+      ok: false,
+      status: 404,
+      async json() {
+        return {
+          error: {
+            code: "NOT_FOUND",
+            message: "Route not mocked."
+          }
+        };
       }
     };
   };
 }
 
 function createStorageStub() {
-  const store = new Map();
+  const store = new Map([
+    [
+      "draftflow.authSession.v1",
+      JSON.stringify({
+        token: "token-123",
+        user: {
+          id: 1,
+          email: "workflow@example.com",
+          gameName: "WorkflowPlayer",
+          tagline: "NA1"
+        }
+      })
+    ]
+  ]);
   return {
     getItem(key) {
       return store.has(key) ? store.get(key) : null;
@@ -70,7 +117,8 @@ async function bootApp() {
     window: dom.window,
     fetchImpl: createFetchImpl(),
     storage: createStorageStub(),
-    matchMediaImpl: createMatchMedia()
+    matchMediaImpl: createMatchMedia(),
+    apiBaseUrl: "http://api.test"
   });
   return { dom, state: getAppState() };
 }
@@ -336,14 +384,15 @@ describe("workflow app integration", () => {
     expect(state.explorer.excludeTags).toEqual([]);
   });
 
-  test("player pool screen prompts for auth when API session is missing", async () => {
-    const { dom } = await bootApp();
+  test("player pool screen shows empty-state when no API pools exist", async () => {
+    const { dom, state } = await bootApp();
     const doc = dom.window.document;
 
     doc.querySelector(".side-menu-link[data-tab='player-config']").click();
     const firstPoolCheckbox = doc.querySelector(".player-pool-control input[type='checkbox']");
     expect(firstPoolCheckbox).toBeNull();
-    expect(doc.querySelector("#player-config-summary").textContent).toContain("Sign in");
+    expect(doc.querySelector("#player-config-summary").textContent).toContain("No pools yet");
+    expect(state.builder.stage).toBe("setup");
   });
 
   test("tree inspect drills into next branch layer and supports back navigation", async () => {

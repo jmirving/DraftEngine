@@ -30,6 +30,14 @@ export function requirePassword(value) {
   return password;
 }
 
+export function requireGameName(value) {
+  return requireNonEmptyString(value, "gameName");
+}
+
+export function requireTagline(value) {
+  return requireNonEmptyString(value, "tagline");
+}
+
 export function parsePositiveInteger(value, fieldName) {
   const parsed = Number.parseInt(String(value), 10);
   if (!Number.isInteger(parsed) || parsed <= 0) {
@@ -44,4 +52,3 @@ export function requireArrayOfPositiveIntegers(value, fieldName) {
   }
   return value.map((item, index) => parsePositiveInteger(item, `${fieldName}[${index}]`));
 }
-

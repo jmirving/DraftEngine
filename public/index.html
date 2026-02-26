@@ -23,6 +23,14 @@
               <input id="auth-email" type="email" autocomplete="username" placeholder="you@example.com" />
             </label>
             <label>
+              Game Name
+              <input id="auth-game-name" type="text" placeholder="Summoner name" />
+            </label>
+            <label>
+              Tagline
+              <input id="auth-tagline" type="text" placeholder="NA1" />
+            </label>
+            <label>
               Password
               <input id="auth-password" type="password" autocomplete="current-password" placeholder="password" />
             </label>
@@ -41,10 +49,17 @@
           </button>
         </div>
         <p id="auth-status" class="meta">Signed out.</p>
+        <p class="meta">Registration requires Email, Game Name, Tagline, and Password.</p>
         <p id="auth-feedback" class="error-inline" hidden></p>
       </header>
 
-      <div class="app-shell">
+      <section id="auth-gate" class="panel auth-gate">
+        <p class="panel-kicker">Access Required</p>
+        <h2>Login or Register</h2>
+        <p class="meta">Sign in to access Workflow, Team Context, Player Pools, and Champion Tags.</p>
+      </section>
+
+      <div id="app-shell" class="app-shell" hidden>
         <aside id="nav-drawer" class="nav-drawer" aria-label="Primary">
           <nav class="panel side-menu">
             <h2 id="nav-title">Navigation</h2>
