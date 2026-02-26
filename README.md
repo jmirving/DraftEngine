@@ -11,6 +11,26 @@ python3 -m http.server 8000
 2. Open:
 `http://localhost:8000/public/index.html`
 
+### API (MVP Productization)
+
+The API server is now scaffolded for MVP productization work.
+
+Required environment variables:
+- `DATABASE_URL`
+- `JWT_SECRET`
+
+Start API:
+```bash
+npm run start:api
+```
+
+Database checks and migrations:
+```bash
+npm run db:check
+npm run migrate:up
+npm run migrate:down
+```
+
 The app opens on `Workflow` by default. `Team Context`, `User Config`, and `Champion Explorer` are available from the side menu.
 Workflow is stage-focused: one guided stage is shown at a time (Setup -> Inspect).
 Setup keeps team selection and slot inputs in a single vertical list that follows Node Draft Order.

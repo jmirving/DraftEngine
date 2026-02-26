@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "db:check": "node server/scripts/check-db.js",
+    "migrate:down": "node-pg-migrate down --migrations-dir server/migrations",
+    "migrate:up": "node-pg-migrate up --migrations-dir server/migrations",
+    "start:api": "node server/index.js",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
@@ -11,5 +15,13 @@
     "@vitest/coverage-v8": "^4.0.18",
     "jsdom": "^28.1.0",
     "vitest": "^4.0.18"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "node-pg-migrate": "^8.0.4",
+    "pg": "^8.19.0"
   }
 }
