@@ -7,6 +7,7 @@
     "db:check": "node server/scripts/check-db.js",
     "migrate:down": "node-pg-migrate down --migrations-dir server/migrations",
     "migrate:up": "node-pg-migrate up --migrations-dir server/migrations",
+    "seed:champions": "node server/scripts/seed-champions.js",
     "start:api": "node server/index.js",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
@@ -14,6 +15,7 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.18",
     "jsdom": "^28.1.0",
+    "supertest": "^7.2.2",
     "vitest": "^4.0.18"
   },
   "dependencies": {

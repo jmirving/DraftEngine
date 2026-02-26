@@ -29,6 +29,31 @@ Database checks and migrations:
 npm run db:check
 npm run migrate:up
 npm run migrate:down
+npm run seed:champions
+```
+
+MVP API routes:
+- `POST /auth/register`
+- `POST /auth/login`
+- `GET /champions`
+- `GET /champions/:id`
+- `GET /tags`
+- `PUT /champions/:id/tags` (auth required, replace-all semantics)
+- `GET /me/pools` (auth required)
+- `POST /me/pools` (auth required)
+- `PUT /me/pools/:id` (auth required)
+- `DELETE /me/pools/:id` (auth required)
+- `POST /me/pools/:id/champions` (auth required, idempotent add)
+- `DELETE /me/pools/:id/champions/:champion_id` (auth required, idempotent remove)
+
+Error contract (all API errors):
+```json
+{
+  "error": {
+    "code": "SOME_CODE",
+    "message": "Human-readable message"
+  }
+}
 ```
 
 The app opens on `Workflow` by default. `Team Context`, `User Config`, and `Champion Explorer` are available from the side menu.
