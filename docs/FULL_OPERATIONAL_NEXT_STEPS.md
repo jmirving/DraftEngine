@@ -33,20 +33,24 @@ Definition of done:
 Definition of done:
 - Logged-in user can only view/edit their own pools end-to-end from UI.
 
-## 3) Restrict Champion Tag Writes (BEAD-13 / draftflow-73)
+## 3) Team-Lead Governance for Team Administration (BEAD-15/16/17)
 
-1. Add a permission model in DB (for example `users.role` with `user|admin`).
-2. Add migration + safe backfill/default strategy.
-3. Add `requireAdmin` middleware.
-4. Protect `PUT /champions/:id/tags` so non-admin users get `403`.
-5. Update frontend to hide/disable tag-write controls for non-admin users.
-6. Add API tests for:
-   - unauthenticated -> `401`
-   - authenticated non-admin -> `403`
-   - admin -> `200`
+1. Add team domain schema:
+   - `teams`
+   - `team_members` (user_id, team_id, role: `lead|member`)
+2. Support one or more leads per team.
+3. Add team-management APIs:
+   - create/update/delete teams
+   - add/remove team members
+   - promote/demote lead role
+4. Authorization rule:
+   - any authenticated user may edit champion tags
+   - only team leads can mutate team admin data
+5. Update frontend Team Context/Player Pools management UI to surface lead-only actions.
+6. Add API tests for lead vs member behavior (`403` for non-lead admin mutations).
 
 Definition of done:
-- Champion tag edits are no longer free-for-all.
+- Team admin operations are lead-gated while champion tag writes remain available to all authenticated users.
 
 ## 4) Load Full Champion Catalog (BEAD-14 / draftflow-71)
 
@@ -83,7 +87,8 @@ Definition of done:
    - register/login
    - authenticated pool CRUD
    - champion list read
-   - admin-only tag write behavior
+   - champion tag write succeeds for authenticated non-lead users
+   - team admin mutations are allowed for leads and denied for non-leads
 
 Definition of done:
 - Fresh deploy is fully functional without shell/manual DB edits.
