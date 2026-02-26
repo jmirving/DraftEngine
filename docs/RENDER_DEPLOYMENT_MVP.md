@@ -6,6 +6,7 @@
 - `JWT_SECRET`
 - `PORT` (Render supplies this at runtime)
 - `NODE_ENV=production`
+- `CORS_ORIGIN` (set to your deployed frontend origin when frontend is separate)
 
 ## Build and Start Commands
 
@@ -49,6 +50,11 @@ The seed is idempotent for champions by `name` (`ON CONFLICT DO UPDATE`).
 
 If frontend is deployed separately, configure it to call the API base URL on Render.
 Current MVP backend routes are rooted at `/`.
+Default frontend config uses:
+
+```html
+window.DRAFTENGINE_API_BASE_URL = "https://draftengine-0ee8.onrender.com";
+```
 
 ## Cold Deploy Checklist
 
@@ -60,4 +66,3 @@ Current MVP backend routes are rooted at `/`.
 6. Verify `GET /health`.
 7. Verify auth flow (`POST /auth/register`, `POST /auth/login`).
 8. Verify protected route with token (`GET /me/pools`).
-

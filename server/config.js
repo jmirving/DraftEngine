@@ -42,6 +42,9 @@ export function loadConfig(env = process.env) {
     databaseUrl: readRequiredString(env, "DATABASE_URL"),
     jwtSecret: readRequiredString(env, "JWT_SECRET"),
     port: readOptionalPort(env, "PORT", 3000),
+    corsOrigin: typeof env.CORS_ORIGIN === "string" && env.CORS_ORIGIN.trim() !== ""
+      ? env.CORS_ORIGIN.trim()
+      : "*",
     nodeEnv: typeof env.NODE_ENV === "string" && env.NODE_ENV.trim() !== ""
       ? env.NODE_ENV.trim()
       : "development"

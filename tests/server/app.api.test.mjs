@@ -147,7 +147,8 @@ function createMockContext() {
   };
 
   const config = {
-    jwtSecret: "test-secret"
+    jwtSecret: "test-secret",
+    corsOrigin: "*"
   };
 
   const app = createApp({
@@ -216,6 +217,21 @@ describe("API routes", () => {
     const missingRouteResponse = await request(app).get("/missing-route");
     expect(missingRouteResponse.status).toBe(404);
     expect(missingRouteResponse.body.error.code).toBe("NOT_FOUND");
+  });
+
+  it("sets CORS headers and handles preflight requests", async () => {
+    const { app } = createMockContext();
+
+    const championsResponse = await request(app).get("/champions");
+    expect(championsResponse.headers["access-control-allow-origin"]).toBe("*");
+
+    const preflightResponse = await request(app)
+      .options("/champions")
+      .set("Origin", "https://draftengine.app")
+      .set("Access-Control-Request-Method", "GET");
+
+    expect(preflightResponse.status).toBe(204);
+    expect(preflightResponse.headers["access-control-allow-methods"]).toContain("GET");
   });
 
   it("serves champions and tags, and updates champion tags", async () => {
@@ -296,4 +312,3 @@ describe("API routes", () => {
     expect(removeMissing.body.pool.champion_ids).toEqual([2]);
   });
 });
-

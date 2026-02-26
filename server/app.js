@@ -28,6 +28,24 @@ export function createApp({
 
   const app = express();
   const requireAuth = createRequireAuth(config);
+  const corsOrigin =
+    typeof config.corsOrigin === "string" && config.corsOrigin.trim() !== ""
+      ? config.corsOrigin.trim()
+      : "*";
+
+  app.use((request, response, next) => {
+    response.setHeader("Access-Control-Allow-Origin", corsOrigin);
+    response.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+    response.setHeader("Access-Control-Allow-Headers", "Authorization,Content-Type");
+    if (corsOrigin !== "*") {
+      response.setHeader("Vary", "Origin");
+    }
+    if (request.method === "OPTIONS") {
+      response.status(204).end();
+      return;
+    }
+    next();
+  });
 
   app.use(express.json());
 
@@ -70,4 +88,3 @@ export function createApp({
 
   return app;
 }
-

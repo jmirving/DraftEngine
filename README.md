@@ -19,6 +19,9 @@ Required environment variables:
 - `DATABASE_URL`
 - `JWT_SECRET`
 
+Optional environment variables:
+- `CORS_ORIGIN` (default `*`; set to your frontend URL when deployed separately)
+
 Start API:
 ```bash
 npm run start:api
@@ -60,6 +63,10 @@ The app opens on `Workflow` by default. `Team Context`, `User Config`, and `Cham
 Workflow is stage-focused: one guided stage is shown at a time (Setup -> Inspect).
 Setup keeps team selection and slot inputs in a single vertical list that follows Node Draft Order.
 Feedback is contextual to Setup/Inspect panels (no global status banner).
+
+Frontend API integration:
+- `public/index.html` sets `window.DRAFTENGINE_API_BASE_URL` (default points to Render API URL).
+- Override `window.DRAFTENGINE_API_BASE_URL` before `public/app/main.js` loads when using a different API host.
 
 Primary surfaces:
 - `Workflow` (single mode: Build a Composition)

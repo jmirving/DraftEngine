@@ -314,6 +314,12 @@
       </div>
     </main>
 
+    <script>
+      window.DRAFTENGINE_API_BASE_URL =
+        typeof window.DRAFTENGINE_API_BASE_URL === "string" && window.DRAFTENGINE_API_BASE_URL.trim() !== ""
+          ? window.DRAFTENGINE_API_BASE_URL.trim()
+          : "https://draftengine-0ee8.onrender.com";
+    </script>
     <script type="module" src="./app/main.js"></script>
   </body>
 </html>

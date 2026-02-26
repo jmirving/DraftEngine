@@ -17,6 +17,7 @@ describe("loadConfig", () => {
 
     expect(config).toEqual({
       databaseUrl: "postgres://user:pass@localhost:5432/draftengine",
+      corsOrigin: "*",
       jwtSecret: "test-secret",
       nodeEnv: "development",
       port: 3000
@@ -40,7 +41,17 @@ describe("loadConfig", () => {
     });
 
     expect(config.port).toBe(8080);
+    expect(config.corsOrigin).toBe("*");
     expect(config.nodeEnv).toBe("production");
   });
-});
 
+  it("honors optional CORS_ORIGIN when provided", () => {
+    const config = loadConfig({
+      DATABASE_URL: "postgres://user:pass@localhost:5432/draftengine",
+      JWT_SECRET: "test-secret",
+      CORS_ORIGIN: "https://draftengine.app"
+    });
+
+    expect(config.corsOrigin).toBe("https://draftengine.app");
+  });
+});

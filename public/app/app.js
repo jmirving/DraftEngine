@@ -4,8 +4,14 @@ import {
   DEFAULT_REQUIREMENT_TOGGLES,
   SCALING_VALUES,
   SLOTS,
-  buildDraftflowData,
+  DataValidationError,
   createEmptyTeamState,
+  isDamageType,
+  isScaling,
+  isSlot,
+  parseChampionsCsv,
+  parseConfigJson,
+  parseTeamPoolsCsv,
   evaluateCompositionChecks,
   generatePossibilityTree,
   scoreNodeFromChecks,
@@ -102,6 +108,22 @@ let runtimeDocument = null;
 let runtimeFetch = null;
 let runtimeStorage = null;
 let runtimeMatchMedia = null;
+let runtimeApiBaseUrl = "";
+
+const ROLE_ALIASES = Object.freeze({
+  TOP: "Top",
+  JUNGLE: "Jungle",
+  MID: "Mid",
+  ADC: "ADC",
+  SUPPORT: "Support",
+  SUP: "Support"
+});
+
+const SCALING_ALIASES = Object.freeze({
+  EARLY: "Early",
+  MID: "Mid",
+  LATE: "Late"
+});
 
 function createInitialState() {
   return {
@@ -650,18 +672,186 @@ async function fetchText(path) {
   return response.text();
 }
 
+function normalizeApiBaseUrl(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return "";
+  }
+  return trimmed.replace(/\/+$/, "");
+}
+
+function resolveApiUrl(path) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${runtimeApiBaseUrl}${normalizedPath}`;
+}
+
+function normalizeApiSlot(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (isSlot(trimmed)) {
+    return trimmed;
+  }
+  const alias = ROLE_ALIASES[trimmed.toUpperCase()];
+  return alias && isSlot(alias) ? alias : null;
+}
+
+function normalizeApiDamageType(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (isDamageType(trimmed)) {
+    return trimmed;
+  }
+  if (trimmed.toUpperCase() === "MIXED") {
+    return "Mixed";
+  }
+  return null;
+}
+
+function normalizeApiScaling(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (isScaling(trimmed)) {
+    return trimmed;
+  }
+  const alias = SCALING_ALIASES[trimmed.toUpperCase()];
+  return alias && isScaling(alias) ? alias : null;
+}
+
+function normalizeApiTags(rawTags) {
+  const source = rawTags && typeof rawTags === "object" && !Array.isArray(rawTags) ? rawTags : {};
+  const tags = {};
+  for (const tag of BOOLEAN_TAGS) {
+    const raw = source[tag];
+    tags[tag] = raw === true || raw === 1 || raw === "1";
+  }
+  return tags;
+}
+
+function buildChampionFromApiRecord(rawChampion, index) {
+  if (!rawChampion || typeof rawChampion !== "object" || Array.isArray(rawChampion)) {
+    throw new DataValidationError(`Invalid champion payload at index ${index}.`);
+  }
+
+  const name = typeof rawChampion.name === "string" ? rawChampion.name.trim() : "";
+  if (name === "") {
+    throw new DataValidationError(`Champion payload at index ${index} is missing name.`);
+  }
+
+  const metadata =
+    rawChampion.metadata && typeof rawChampion.metadata === "object" && !Array.isArray(rawChampion.metadata)
+      ? rawChampion.metadata
+      : {};
+
+  const rolesFromMetadata = Array.isArray(metadata.roles)
+    ? metadata.roles.map((role) => normalizeApiSlot(role)).filter(Boolean)
+    : [];
+  const normalizedRoles = rolesFromMetadata.length > 0
+    ? Array.from(new Set(rolesFromMetadata))
+    : (() => {
+      const fallback = normalizeApiSlot(rawChampion.role);
+      return fallback ? [fallback] : [];
+    })();
+
+  if (normalizedRoles.length === 0) {
+    throw new DataValidationError(`Champion '${name}' is missing valid role metadata.`);
+  }
+
+  const damageType = normalizeApiDamageType(metadata.damageType);
+  if (!damageType) {
+    throw new DataValidationError(`Champion '${name}' is missing a valid damage type in metadata.`);
+  }
+
+  const scaling = normalizeApiScaling(metadata.scaling);
+  if (!scaling) {
+    throw new DataValidationError(`Champion '${name}' is missing a valid scaling value in metadata.`);
+  }
+
+  return {
+    name,
+    roles: normalizedRoles,
+    damageType,
+    scaling,
+    tags: normalizeApiTags(metadata.tags)
+  };
+}
+
+async function fetchJson(path) {
+  const response = await runtimeFetch(path);
+  if (!response.ok) {
+    throw new Error(`Failed to load ${path} (${response.status})`);
+  }
+  return response.json();
+}
+
+async function loadChampionsData() {
+  if (!runtimeApiBaseUrl) {
+    const championsCsvText = await fetchText("/public/data/champions.csv");
+    return parseChampionsCsv(championsCsvText);
+  }
+
+  const payload = await fetchJson(resolveApiUrl("/champions"));
+  if (!payload || typeof payload !== "object" || !Array.isArray(payload.champions)) {
+    throw new DataValidationError("Champions API response is missing the champions array.");
+  }
+
+  const champions = [];
+  const championsByName = {};
+  const seenNames = new Set();
+
+  for (let index = 0; index < payload.champions.length; index += 1) {
+    const champion = buildChampionFromApiRecord(payload.champions[index], index);
+    if (seenNames.has(champion.name)) {
+      throw new DataValidationError(`Duplicate champion '${champion.name}' from API.`);
+    }
+    champions.push(champion);
+    championsByName[champion.name] = champion;
+    seenNames.add(champion.name);
+  }
+
+  return {
+    champions,
+    championsByName
+  };
+}
+
 async function loadMvpData() {
-  const [championsCsvText, teamPoolsCsvText, configJsonText] = await Promise.all([
-    fetchText("/public/data/champions.csv"),
+  const [championData, teamPoolsCsvText, configJsonText] = await Promise.all([
+    loadChampionsData(),
     fetchText("/public/data/team_pools.csv"),
     fetchText("/public/data/config.json")
   ]);
 
-  const loaded = buildDraftflowData({
-    championsCsvText,
-    teamPoolsCsvText,
-    configJsonText
-  });
+  const poolData = parseTeamPoolsCsv(teamPoolsCsvText);
+  const config = parseConfigJson(configJsonText);
+
+  for (const [team, rolePools] of Object.entries(poolData.poolsByTeam)) {
+    for (const slot of SLOTS) {
+      for (const championName of rolePools[slot]) {
+        if (!championData.championsByName[championName]) {
+          throw new DataValidationError(
+            `team_pools.csv references unknown champion '${championName}' for team '${team}' role '${slot}'.`
+          );
+        }
+      }
+    }
+  }
+
+  const loaded = {
+    champions: championData.champions,
+    championsByName: championData.championsByName,
+    teamPools: poolData.poolsByTeam,
+    teamPoolEntries: poolData.entries,
+    config
+  };
 
   const basePlayerPoolsByTeam = buildPlayerPoolsByTeam(loaded.teamPoolEntries);
   const playerPoolsByTeam = clonePlayerPoolsByTeam(basePlayerPoolsByTeam);
@@ -2727,6 +2917,15 @@ export async function initApp(deps = {}) {
     deps.matchMediaImpl ??
     runtimeWindow?.matchMedia?.bind(runtimeWindow) ??
     createFallbackMatchMedia();
+  runtimeApiBaseUrl = normalizeApiBaseUrl(
+    deps.apiBaseUrl ??
+      runtimeWindow?.DRAFTENGINE_API_BASE_URL ??
+      runtimeWindow?.__DRAFTENGINE_API_BASE_URL__ ??
+      runtimeDocument
+        ?.querySelector("meta[name='draftengine-api-base-url']")
+        ?.getAttribute("content") ??
+      ""
+  );
 
   if (!runtimeDocument || !runtimeWindow) {
     throw new Error("initApp requires browser-like window and document dependencies.");
