@@ -2,6 +2,8 @@ function mapTeamRow(row) {
   return {
     id: Number(row.id),
     name: row.name,
+    tag: row.tag,
+    logo_url: row.logo_url,
     created_by: Number(row.created_by),
     created_at: row.created_at
   };
@@ -32,17 +34,17 @@ export function createTeamsRepository(pool) {
       return result.rowCount > 0;
     },
 
-    async createTeam({ name, creatorUserId }) {
+    async createTeam({ name, tag, logoUrl, creatorUserId }) {
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
         const teamResult = await client.query(
           `
-            INSERT INTO teams (name, created_by)
-            VALUES ($1, $2)
-            RETURNING id, name, created_by, created_at
+            INSERT INTO teams (name, tag, logo_url, created_by)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id, name, tag, logo_url, created_by, created_at
           `,
-          [name, creatorUserId]
+          [name, tag, logoUrl, creatorUserId]
         );
 
         const team = teamResult.rows[0] ?? null;
@@ -71,7 +73,7 @@ export function createTeamsRepository(pool) {
     async listTeamsByUser(userId) {
       const result = await pool.query(
         `
-          SELECT t.id, t.name, t.created_by, t.created_at, tm.role, tm.team_role
+          SELECT t.id, t.name, t.tag, t.logo_url, t.created_by, t.created_at, tm.role, tm.team_role
           FROM teams t
           INNER JOIN team_members tm
             ON tm.team_id = t.id
@@ -91,7 +93,7 @@ export function createTeamsRepository(pool) {
     async getTeamById(teamId) {
       const result = await pool.query(
         `
-          SELECT id, name, created_by, created_at
+          SELECT id, name, tag, logo_url, created_by, created_at
           FROM teams
           WHERE id = $1
         `,
@@ -129,15 +131,17 @@ export function createTeamsRepository(pool) {
       return Number(result.rows[0]?.count ?? 0);
     },
 
-    async updateTeamName(teamId, name) {
+    async updateTeam(teamId, { name, tag, logoUrl }) {
       const result = await pool.query(
         `
           UPDATE teams
-          SET name = $2
+          SET name = $2,
+              tag = $3,
+              logo_url = $4
           WHERE id = $1
-          RETURNING id, name, created_by, created_at
+          RETURNING id, name, tag, logo_url, created_by, created_at
         `,
-        [teamId, name]
+        [teamId, name, tag, logoUrl]
       );
 
       return result.rows[0] ? mapTeamRow(result.rows[0]) : null;

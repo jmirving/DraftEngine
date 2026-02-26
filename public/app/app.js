@@ -87,7 +87,7 @@ const UI_COPY = Object.freeze({
     items: {
       workflow: "Workflow",
       "team-config": "Team Context",
-      "player-config": "Profile",
+      "player-config": "My Profile",
       explorer: "Champion Tags"
     }
   },
@@ -164,7 +164,8 @@ function createInitialState() {
       poolByTeamId: {},
       teams: [],
       membersByTeamId: {},
-      selectedTeamId: ""
+      selectedTeamId: "",
+      isCreatingTeam: false
     },
     explorer: {
       search: "",
@@ -307,9 +308,14 @@ function createElements() {
     teamConfigPoolSummary: runtimeDocument.querySelector("#team-config-pool-summary"),
     teamConfigPoolGrid: runtimeDocument.querySelector("#team-config-pool-grid"),
     teamAdminCreateName: runtimeDocument.querySelector("#team-admin-create-name"),
+    teamAdminCreateTag: runtimeDocument.querySelector("#team-admin-create-tag"),
+    teamAdminCreateLogoUrl: runtimeDocument.querySelector("#team-admin-create-logo-url"),
     teamAdminCreate: runtimeDocument.querySelector("#team-admin-create"),
     teamAdminTeamSelect: runtimeDocument.querySelector("#team-admin-team-select"),
+    teamAdminRefresh: runtimeDocument.querySelector("#team-admin-refresh"),
     teamAdminRenameName: runtimeDocument.querySelector("#team-admin-rename-name"),
+    teamAdminRenameTag: runtimeDocument.querySelector("#team-admin-rename-tag"),
+    teamAdminRenameLogoUrl: runtimeDocument.querySelector("#team-admin-rename-logo-url"),
     teamAdminRename: runtimeDocument.querySelector("#team-admin-rename"),
     teamAdminDelete: runtimeDocument.querySelector("#team-admin-delete"),
     teamAdminMembers: runtimeDocument.querySelector("#team-admin-members"),
@@ -337,11 +343,6 @@ function createElements() {
     playerConfigGrid: runtimeDocument.querySelector("#player-config-grid"),
     settingsTeamsMemberSummary: runtimeDocument.querySelector("#settings-teams-member-summary"),
     settingsTeamsMemberList: runtimeDocument.querySelector("#settings-teams-member-list"),
-    settingsTeamsLeadSummary: runtimeDocument.querySelector("#settings-teams-lead-summary"),
-    settingsTeamsLeadList: runtimeDocument.querySelector("#settings-teams-lead-list"),
-    settingsTeamCreateName: runtimeDocument.querySelector("#settings-team-create-name"),
-    settingsTeamCreate: runtimeDocument.querySelector("#settings-team-create"),
-    settingsTeamFeedback: runtimeDocument.querySelector("#settings-team-feedback"),
     slotSelects: Object.fromEntries(
       SLOTS.map((slot) => [slot, runtimeDocument.querySelector(`#slot-${slot}`)])
     ),
@@ -435,9 +436,55 @@ function setTeamAdminFeedback(message) {
   }
 }
 
-function setSettingsTeamFeedback(message) {
-  if (elements.settingsTeamFeedback) {
-    elements.settingsTeamFeedback.textContent = message;
+function formatTeamCardTitle(team) {
+  const name = typeof team?.name === "string" ? team.name : "Unnamed Team";
+  const tag = typeof team?.tag === "string" ? team.tag.trim() : "";
+  return tag ? `${name} (${tag})` : name;
+}
+
+function normalizeTeamTag(tag) {
+  if (typeof tag !== "string") {
+    return "";
+  }
+  return tag.trim().toUpperCase();
+}
+
+function isHttpUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function readTeamCreateFormValues() {
+  const name = elements.teamAdminCreateName?.value.trim() ?? "";
+  const tag = normalizeTeamTag(elements.teamAdminCreateTag?.value ?? "");
+  const logoUrl = elements.teamAdminCreateLogoUrl?.value.trim() ?? "";
+  return { name, tag, logo_url: logoUrl };
+}
+
+function readTeamUpdateFormValues() {
+  const name = elements.teamAdminRenameName?.value.trim() ?? "";
+  const tag = normalizeTeamTag(elements.teamAdminRenameTag?.value ?? "");
+  const logoUrl = elements.teamAdminRenameLogoUrl?.value.trim() ?? "";
+  return { name, tag, logo_url: logoUrl };
+}
+
+function setTeamCreateControlsDisabled(disabled) {
+  state.api.isCreatingTeam = disabled;
+  if (elements.teamAdminCreate) {
+    elements.teamAdminCreate.disabled = disabled || !isAuthenticated();
+  }
+  if (elements.teamAdminCreateName) {
+    elements.teamAdminCreateName.disabled = disabled || !isAuthenticated();
+  }
+  if (elements.teamAdminCreateTag) {
+    elements.teamAdminCreateTag.disabled = disabled || !isAuthenticated();
+  }
+  if (elements.teamAdminCreateLogoUrl) {
+    elements.teamAdminCreateLogoUrl.disabled = disabled || !isAuthenticated();
   }
 }
 
@@ -501,6 +548,7 @@ function clearAuthSession(feedback = "") {
   state.auth.user = null;
   state.profile.primaryRole = DEFAULT_PRIMARY_ROLE;
   state.profile.secondaryRoles = [];
+  state.api.isCreatingTeam = false;
   saveAuthSession();
   setAuthFeedback(feedback);
 }
@@ -1368,6 +1416,61 @@ async function loadTeamsFromApi(preferredTeamId = null) {
   }
 }
 
+async function createTeamFromTeamAdmin() {
+  if (!isAuthenticated()) {
+    setTeamAdminFeedback("Sign in to create teams.");
+    return;
+  }
+  if (state.api.isCreatingTeam) {
+    return;
+  }
+
+  const payload = readTeamCreateFormValues();
+  if (!payload.name) {
+    setTeamAdminFeedback("Enter a team name.");
+    return;
+  }
+  if (!payload.tag) {
+    setTeamAdminFeedback("Enter a team tag.");
+    return;
+  }
+  if (!payload.logo_url) {
+    setTeamAdminFeedback("Enter a team logo URL.");
+    return;
+  }
+  if (!isHttpUrl(payload.logo_url)) {
+    setTeamAdminFeedback("Team logo URL must be a valid http(s) URL.");
+    return;
+  }
+
+  setTeamCreateControlsDisabled(true);
+  try {
+    const response = await apiRequest("/teams", {
+      method: "POST",
+      auth: true,
+      body: payload
+    });
+    const createdTeam = response?.team ?? {};
+    if (elements.teamAdminCreateName) {
+      elements.teamAdminCreateName.value = "";
+    }
+    if (elements.teamAdminCreateTag) {
+      elements.teamAdminCreateTag.value = "";
+    }
+    if (elements.teamAdminCreateLogoUrl) {
+      elements.teamAdminCreateLogoUrl.value = "";
+    }
+    const teamId = createdTeam?.id;
+    setTeamAdminFeedback(`Created team '${createdTeam?.name ?? payload.name}'.`);
+    await hydrateAuthenticatedViews(state.playerConfig.teamId, teamId);
+  } catch (error) {
+    setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to create team."));
+  } finally {
+    setTeamCreateControlsDisabled(false);
+    renderTeamAdmin();
+  }
+}
+
 function initializeExplorerControls() {
   multiSelectControls.explorerRole = createCheckboxMultiControl({
     root: elements.explorerRole,
@@ -1634,7 +1737,7 @@ function getSelectedAdminTeam() {
 
 function renderTeamAdmin() {
   const teamOptions = state.api.teams
-    .map((team) => ({ value: String(team.id), label: team.name }))
+    .map((team) => ({ value: String(team.id), label: formatTeamCardTitle(team) }))
     .sort((left, right) => left.label.localeCompare(right.label));
 
   replaceOptions(elements.teamAdminTeamSelect, teamOptions);
@@ -1644,8 +1747,12 @@ function renderTeamAdmin() {
   elements.teamAdminTeamSelect.value = state.api.selectedTeamId;
   if (selectedTeam) {
     elements.teamAdminRenameName.value = selectedTeam.name;
+    elements.teamAdminRenameTag.value = selectedTeam.tag ?? "";
+    elements.teamAdminRenameLogoUrl.value = selectedTeam.logo_url ?? "";
   } else {
     elements.teamAdminRenameName.value = "";
+    elements.teamAdminRenameTag.value = "";
+    elements.teamAdminRenameLogoUrl.value = "";
   }
 
   const members = selectedTeam ? state.api.membersByTeamId[String(selectedTeam.id)] ?? [] : [];
@@ -1667,6 +1774,12 @@ function renderTeamAdmin() {
   elements.teamAdminTeamRole.disabled = !adminEnabled;
   elements.teamAdminUpdateTeamRole.disabled = !adminEnabled;
   elements.teamAdminRemoveUserId.disabled = !adminEnabled;
+  elements.teamAdminRenameTag.disabled = !adminEnabled;
+  elements.teamAdminRenameLogoUrl.disabled = !adminEnabled;
+  if (elements.teamAdminRefresh) {
+    elements.teamAdminRefresh.disabled = !isAuthenticated();
+  }
+  setTeamCreateControlsDisabled(state.api.isCreatingTeam);
 
   elements.teamAdminMembers.innerHTML = "";
   if (!selectedTeam) {
@@ -1785,8 +1898,16 @@ function renderSettingsTeamList(target, teams, emptyMessage) {
     const card = runtimeDocument.createElement("article");
     card.className = "summary-card";
 
+    if (typeof team.logo_url === "string" && team.logo_url.trim() !== "") {
+      const logo = runtimeDocument.createElement("img");
+      logo.className = "summary-card-logo";
+      logo.src = team.logo_url;
+      logo.alt = `${team.name} logo`;
+      card.append(logo);
+    }
+
     const title = runtimeDocument.createElement("strong");
-    title.textContent = team.name;
+    title.textContent = formatTeamCardTitle(team);
 
     const details = runtimeDocument.createElement("p");
     details.className = "meta";
@@ -1799,7 +1920,6 @@ function renderSettingsTeamList(target, teams, emptyMessage) {
 
 function renderSettingsTeamMembership() {
   const allTeams = [...state.api.teams].sort((left, right) => left.name.localeCompare(right.name));
-  const leadTeams = allTeams.filter((team) => team.membership_role === "lead");
   const authenticated = isAuthenticated();
 
   if (elements.settingsTeamsMemberSummary) {
@@ -1807,29 +1927,12 @@ function renderSettingsTeamMembership() {
       ? `${allTeams.length} team${allTeams.length === 1 ? "" : "s"} total.`
       : "Sign in to view teams.";
   }
-  if (elements.settingsTeamsLeadSummary) {
-    elements.settingsTeamsLeadSummary.textContent = authenticated
-      ? `${leadTeams.length} lead assignment${leadTeams.length === 1 ? "" : "s"}.`
-      : "Sign in to view teams.";
-  }
 
   renderSettingsTeamList(
     elements.settingsTeamsMemberList,
     allTeams,
-    authenticated ? "No teams yet. Create a team to start." : "Sign in to view teams."
+    authenticated ? "You are not currently on any teams." : "Sign in to view teams."
   );
-  renderSettingsTeamList(
-    elements.settingsTeamsLeadList,
-    leadTeams,
-    authenticated ? "You are not currently a lead on any team." : "Sign in to view teams."
-  );
-
-  if (elements.settingsTeamCreate) {
-    elements.settingsTeamCreate.disabled = !authenticated;
-  }
-  if (elements.settingsTeamCreateName) {
-    elements.settingsTeamCreateName.disabled = !authenticated;
-  }
 }
 
 async function syncPoolSelectionToApi(teamId) {
@@ -1994,7 +2097,6 @@ function initializePlayerConfigControls() {
   renderPlayerConfig();
   renderPlayerConfigFeedback("");
   setProfileRolesFeedback("");
-  setSettingsTeamFeedback("");
 }
 
 function tryReadJsonStorage(key, fallback) {
@@ -3788,60 +3890,14 @@ function attachEvents() {
   });
 
   elements.teamAdminCreate.addEventListener("click", () => {
-    if (!isAuthenticated()) {
-      setTeamAdminFeedback("Sign in to create teams.");
-      return;
-    }
-    const name = elements.teamAdminCreateName.value.trim();
-    if (!name) {
-      setTeamAdminFeedback("Enter a team name.");
-      return;
-    }
-
-    void apiRequest("/teams", {
-      method: "POST",
-      auth: true,
-      body: { name }
-    })
-      .then(async (payload) => {
-        elements.teamAdminCreateName.value = "";
-        const teamId = payload?.team?.id;
-        setTeamAdminFeedback(`Created team '${payload?.team?.name ?? name}'.`);
-        await hydrateAuthenticatedViews(state.playerConfig.teamId, teamId);
-      })
-      .catch((error) => {
-        setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to create team."));
-      });
+    void createTeamFromTeamAdmin();
   });
 
-  if (elements.settingsTeamCreate && elements.settingsTeamCreateName) {
-    elements.settingsTeamCreate.addEventListener("click", () => {
-      if (!isAuthenticated()) {
-        setSettingsTeamFeedback("Sign in to create teams.");
-        return;
-      }
-      const name = elements.settingsTeamCreateName.value.trim();
-      if (!name) {
-        setSettingsTeamFeedback("Enter a team name.");
-        return;
-      }
-
-      void apiRequest("/teams", {
-        method: "POST",
-        auth: true,
-        body: { name }
-      })
-        .then(async (payload) => {
-          elements.settingsTeamCreateName.value = "";
-          const teamId = payload?.team?.id;
-          const message = `Created team '${payload?.team?.name ?? name}'.`;
-          setSettingsTeamFeedback(message);
-          setTeamAdminFeedback(message);
-          await hydrateAuthenticatedViews(state.playerConfig.teamId, teamId);
-        })
-        .catch((error) => {
-          setSettingsTeamFeedback(normalizeApiErrorMessage(error, "Failed to create team."));
-        });
+  if (elements.teamAdminRefresh) {
+    elements.teamAdminRefresh.addEventListener("click", () => {
+      void loadTeamsFromApi(state.api.selectedTeamId).then(() => {
+        renderTeamAdmin();
+      });
     });
   }
 
@@ -3851,19 +3907,31 @@ function attachEvents() {
       setTeamAdminFeedback("Select a team first.");
       return;
     }
-    const name = elements.teamAdminRenameName.value.trim();
-    if (!name) {
+    const payload = readTeamUpdateFormValues();
+    if (!payload.name) {
       setTeamAdminFeedback("Enter a team name.");
+      return;
+    }
+    if (!payload.tag) {
+      setTeamAdminFeedback("Enter a team tag.");
+      return;
+    }
+    if (!payload.logo_url) {
+      setTeamAdminFeedback("Enter a team logo URL.");
+      return;
+    }
+    if (!isHttpUrl(payload.logo_url)) {
+      setTeamAdminFeedback("Team logo URL must be a valid http(s) URL.");
       return;
     }
 
     void apiRequest(`/teams/${selectedTeam.id}`, {
       method: "PATCH",
       auth: true,
-      body: { name }
+      body: payload
     })
       .then(async () => {
-        setTeamAdminFeedback(`Renamed team to '${name}'.`);
+        setTeamAdminFeedback(`Updated team '${payload.name}'.`);
         await hydrateAuthenticatedViews(state.playerConfig.teamId, selectedTeam.id);
       })
       .catch((error) => {

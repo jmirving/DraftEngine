@@ -6,6 +6,28 @@ import { parsePositiveInteger, requireNonEmptyString, requireObject } from "../h
 const ALLOWED_MEMBER_ROLES = new Set(["lead", "member"]);
 const ALLOWED_TEAM_ROLES = new Set(["primary", "substitute"]);
 
+function requireTeamTag(value) {
+  const normalized = requireNonEmptyString(value, "tag").toUpperCase();
+  if (normalized.length > 12) {
+    throw badRequest("Expected 'tag' to be 12 characters or fewer.");
+  }
+  return normalized;
+}
+
+function requireTeamLogoUrl(value) {
+  const candidate = requireNonEmptyString(value, "logo_url");
+  let parsed = null;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    throw badRequest("Expected 'logo_url' to be a valid http(s) URL.");
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw badRequest("Expected 'logo_url' to be a valid http(s) URL.");
+  }
+  return candidate;
+}
+
 function parseMemberRole(rawRole, fieldName = "role", fallback = "member") {
   if (rawRole === undefined || rawRole === null || rawRole === "") {
     return fallback;
@@ -42,6 +64,8 @@ function serializeTeam(team) {
   return {
     id: Number(team.id),
     name: team.name,
+    tag: team.tag,
+    logo_url: team.logo_url,
     created_by: Number(team.created_by),
     membership_role: team.membership_role,
     membership_team_role: team.membership_team_role,
@@ -122,9 +146,13 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
     const userId = request.user.userId;
     const body = requireObject(request.body);
     const name = requireNonEmptyString(body.name, "name");
+    const tag = requireTeamTag(body.tag);
+    const logoUrl = requireTeamLogoUrl(body.logo_url);
 
     const team = await teamsRepository.createTeam({
       name,
+      tag,
+      logoUrl,
       creatorUserId: userId
     });
 
@@ -148,9 +176,11 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
     const teamId = parsePositiveInteger(request.params.id, "id");
     const body = requireObject(request.body);
     const name = requireNonEmptyString(body.name, "name");
+    const tag = requireTeamTag(body.tag);
+    const logoUrl = requireTeamLogoUrl(body.logo_url);
 
     await requireTeamLead(teamId, userId, teamsRepository);
-    const updated = await teamsRepository.updateTeamName(teamId, name);
+    const updated = await teamsRepository.updateTeam(teamId, { name, tag, logoUrl });
     if (!updated) {
       throw notFound("Team not found.");
     }

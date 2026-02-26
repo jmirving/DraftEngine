@@ -67,7 +67,14 @@ function createMockContext() {
       [2, new Set([2])]
     ]),
     teams: [
-      { id: 1, name: "Team Alpha", created_by: 1, created_at: "2026-01-01T00:00:00.000Z" }
+      {
+        id: 1,
+        name: "Team Alpha",
+        tag: "ALPHA",
+        logo_url: "https://example.com/alpha.png",
+        created_by: 1,
+        created_at: "2026-01-01T00:00:00.000Z"
+      }
     ],
     teamMembers: [
       { team_id: 1, user_id: 1, role: "lead", team_role: "primary", created_at: "2026-01-01T00:00:00.000Z" },
@@ -215,10 +222,12 @@ function createMockContext() {
     async teamExists(teamId) {
       return state.teams.some((team) => team.id === teamId);
     },
-    async createTeam({ name, creatorUserId }) {
+    async createTeam({ name, tag, logoUrl, creatorUserId }) {
       const team = {
         id: nextTeamId,
         name,
+        tag,
+        logo_url: logoUrl,
         created_by: creatorUserId,
         created_at: "2026-01-01T00:00:00.000Z"
       };
@@ -266,12 +275,14 @@ function createMockContext() {
     async countLeads(teamId) {
       return state.teamMembers.filter((candidate) => candidate.team_id === teamId && candidate.role === "lead").length;
     },
-    async updateTeamName(teamId, name) {
+    async updateTeam(teamId, { name, tag, logoUrl }) {
       const team = state.teams.find((candidate) => candidate.id === teamId) ?? null;
       if (!team) {
         return null;
       }
       team.name = name;
+      team.tag = tag;
+      team.logo_url = logoUrl;
       return team;
     },
     async deleteTeam(teamId) {
@@ -600,7 +611,7 @@ describe("API routes", () => {
     const memberDeniedPatch = await request(app)
       .patch("/teams/1")
       .set("Authorization", memberAuth)
-      .send({ name: "Nope" });
+      .send({ name: "Nope", tag: "NOPE", logo_url: "https://example.com/nope.png" });
     expect(memberDeniedPatch.status).toBe(403);
 
     const addOutsider = await request(app)

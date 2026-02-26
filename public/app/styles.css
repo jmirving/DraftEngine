@@ -1105,6 +1105,21 @@ button.ghost {
   max-height: 280px;
 }
 
+#tab-player-config .player-pool-control .checkbox-multi-panel {
+  position: static;
+  margin-top: 0.3rem;
+  box-shadow: none;
+}
+
+.summary-card-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
 .draft-order-list {
   list-style: none;
   margin: 0;
