@@ -84,7 +84,7 @@ const UI_COPY = Object.freeze({
     items: {
       workflow: "Workflow",
       "team-config": "Team Context",
-      "player-config": "Player Pools",
+      "player-config": "Settings",
       explorer: "Champion Tags"
     }
   },
@@ -93,8 +93,8 @@ const UI_COPY = Object.freeze({
     explorerMeta: "Filter champions by role, damage profile, scaling, and tags.",
     teamConfigTitle: "Team Draft Context",
     teamConfigMeta: "Set the team profile that drives role pools across composition work.",
-    playerConfigTitle: "Player Pools",
-    playerConfigMeta: "Tune each player's champion pool before running composition generation."
+    playerConfigTitle: "Settings",
+    playerConfigMeta: "Tune role-based champion pools and manage team membership."
   },
   builder: {
     workflowTitle: "Build a Composition",
@@ -325,6 +325,13 @@ function createElements() {
     playerConfigSummary: runtimeDocument.querySelector("#player-config-summary"),
     playerConfigFeedback: runtimeDocument.querySelector("#player-config-feedback"),
     playerConfigGrid: runtimeDocument.querySelector("#player-config-grid"),
+    settingsTeamsMemberSummary: runtimeDocument.querySelector("#settings-teams-member-summary"),
+    settingsTeamsMemberList: runtimeDocument.querySelector("#settings-teams-member-list"),
+    settingsTeamsLeadSummary: runtimeDocument.querySelector("#settings-teams-lead-summary"),
+    settingsTeamsLeadList: runtimeDocument.querySelector("#settings-teams-lead-list"),
+    settingsTeamCreateName: runtimeDocument.querySelector("#settings-team-create-name"),
+    settingsTeamCreate: runtimeDocument.querySelector("#settings-team-create"),
+    settingsTeamFeedback: runtimeDocument.querySelector("#settings-team-feedback"),
     slotSelects: Object.fromEntries(
       SLOTS.map((slot) => [slot, runtimeDocument.querySelector(`#slot-${slot}`)])
     ),
@@ -415,6 +422,12 @@ function setPoolApiFeedback(message) {
 function setTeamAdminFeedback(message) {
   if (elements.teamAdminFeedback) {
     elements.teamAdminFeedback.textContent = message;
+  }
+}
+
+function setSettingsTeamFeedback(message) {
+  if (elements.settingsTeamFeedback) {
+    elements.settingsTeamFeedback.textContent = message;
   }
 }
 
@@ -1601,6 +1614,70 @@ function renderPlayerConfigFeedback(message, isError = false) {
   elements.playerConfigFeedback.style.color = isError ? "var(--warn)" : "var(--muted)";
 }
 
+function renderSettingsTeamList(target, teams, emptyMessage) {
+  if (!target) {
+    return;
+  }
+  target.innerHTML = "";
+  if (teams.length === 0) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = emptyMessage;
+    target.append(empty);
+    return;
+  }
+
+  for (const team of teams) {
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card";
+
+    const title = runtimeDocument.createElement("strong");
+    title.textContent = team.name;
+
+    const details = runtimeDocument.createElement("p");
+    details.className = "meta";
+    details.textContent = `role=${team.membership_role ?? "member"}`;
+
+    card.append(title, details);
+    target.append(card);
+  }
+}
+
+function renderSettingsTeamMembership() {
+  const allTeams = [...state.api.teams].sort((left, right) => left.name.localeCompare(right.name));
+  const leadTeams = allTeams.filter((team) => team.membership_role === "lead");
+  const authenticated = isAuthenticated();
+
+  if (elements.settingsTeamsMemberSummary) {
+    elements.settingsTeamsMemberSummary.textContent = authenticated
+      ? `${allTeams.length} team${allTeams.length === 1 ? "" : "s"} total.`
+      : "Sign in to view teams.";
+  }
+  if (elements.settingsTeamsLeadSummary) {
+    elements.settingsTeamsLeadSummary.textContent = authenticated
+      ? `${leadTeams.length} lead assignment${leadTeams.length === 1 ? "" : "s"}.`
+      : "Sign in to view teams.";
+  }
+
+  renderSettingsTeamList(
+    elements.settingsTeamsMemberList,
+    allTeams,
+    authenticated ? "No teams yet. Create a team to start." : "Sign in to view teams."
+  );
+  renderSettingsTeamList(
+    elements.settingsTeamsLeadList,
+    leadTeams,
+    authenticated ? "You are not currently a lead on any team." : "Sign in to view teams."
+  );
+
+  if (elements.settingsTeamCreate) {
+    elements.settingsTeamCreate.disabled = !authenticated;
+  }
+  if (elements.settingsTeamCreateName) {
+    elements.settingsTeamCreateName.disabled = !authenticated;
+  }
+}
+
 async function syncPoolSelectionToApi(teamId) {
   const pool = state.api.poolByTeamId[teamId];
   if (!pool) {
@@ -1661,6 +1738,7 @@ function renderPlayerConfig() {
       ? "No pools yet. Create a pool to start."
       : "Sign in to load API-backed pools.";
 
+  renderSettingsTeamMembership();
   elements.playerConfigGrid.innerHTML = "";
 
   for (const player of players) {
@@ -1741,6 +1819,7 @@ function renderPlayerConfig() {
 function initializePlayerConfigControls() {
   renderPlayerConfig();
   renderPlayerConfigFeedback("");
+  setSettingsTeamFeedback("");
 }
 
 function tryReadJsonStorage(key, fallback) {
@@ -3593,6 +3672,37 @@ function attachEvents() {
         setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to create team."));
       });
   });
+
+  if (elements.settingsTeamCreate && elements.settingsTeamCreateName) {
+    elements.settingsTeamCreate.addEventListener("click", () => {
+      if (!isAuthenticated()) {
+        setSettingsTeamFeedback("Sign in to create teams.");
+        return;
+      }
+      const name = elements.settingsTeamCreateName.value.trim();
+      if (!name) {
+        setSettingsTeamFeedback("Enter a team name.");
+        return;
+      }
+
+      void apiRequest("/teams", {
+        method: "POST",
+        auth: true,
+        body: { name }
+      })
+        .then(async (payload) => {
+          elements.settingsTeamCreateName.value = "";
+          const teamId = payload?.team?.id;
+          const message = `Created team '${payload?.team?.name ?? name}'.`;
+          setSettingsTeamFeedback(message);
+          setTeamAdminFeedback(message);
+          await hydrateAuthenticatedViews(state.playerConfig.teamId, teamId);
+        })
+        .catch((error) => {
+          setSettingsTeamFeedback(normalizeApiErrorMessage(error, "Failed to create team."));
+        });
+    });
+  }
 
   elements.teamAdminRename.addEventListener("click", () => {
     const selectedTeam = getSelectedAdminTeam();

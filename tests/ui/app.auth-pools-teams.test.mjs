@@ -418,6 +418,89 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#auth-feedback").textContent).toContain("Session expired");
   });
 
+  test("settings page shows teams I am on and teams I lead", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const harness = createFetchHarness({
+      pools: [],
+      teams: [
+        {
+          id: 1,
+          name: "Team Alpha",
+          created_by: 11,
+          membership_role: "lead",
+          created_at: "2026-01-01T00:00:00.000Z"
+        },
+        {
+          id: 2,
+          name: "Team Beta",
+          created_by: 33,
+          membership_role: "member",
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      membersByTeam: {
+        "1": [{ team_id: 1, user_id: 11, role: "lead", email: "lead@example.com" }],
+        "2": [{ team_id: 2, user_id: 11, role: "member", email: "lead@example.com" }]
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='player-config']").click();
+    await flush();
+
+    const memberListText = doc.querySelector("#settings-teams-member-list").textContent;
+    const leadListText = doc.querySelector("#settings-teams-lead-list").textContent;
+    expect(memberListText).toContain("Team Alpha");
+    expect(memberListText).toContain("Team Beta");
+    expect(leadListText).toContain("Team Alpha");
+    expect(leadListText).not.toContain("Team Beta");
+  });
+
+  test("creating a team from settings refreshes lead membership", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const harness = createFetchHarness({
+      pools: [],
+      teams: [
+        {
+          id: 1,
+          name: "Team Alpha",
+          created_by: 33,
+          membership_role: "member",
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      membersByTeam: {
+        "1": [{ team_id: 1, user_id: 11, role: "member", email: "lead@example.com" }]
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='player-config']").click();
+    doc.querySelector("#settings-team-create-name").value = "My New Team";
+    doc.querySelector("#settings-team-create").click();
+    await flush();
+    await flush();
+
+    const createTeamCall = harness.calls.find((call) => call.path === "/teams" && call.method === "POST");
+    expect(createTeamCall).toBeTruthy();
+    expect(createTeamCall.body.name).toBe("My New Team");
+    expect(doc.querySelector("#settings-team-feedback").textContent).toContain("Created team 'My New Team'.");
+    const leadListText = doc.querySelector("#settings-teams-lead-list").textContent;
+    expect(leadListText).toContain("My New Team");
+  });
+
   test("team admin controls are disabled for non-leads and enabled for leads", async () => {
     const memberStorage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({

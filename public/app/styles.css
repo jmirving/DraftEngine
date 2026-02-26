@@ -1060,6 +1060,20 @@ button.ghost {
   margin-bottom: 0.35rem;
 }
 
+.settings-team-section {
+  border-top: 1px solid var(--border);
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+}
+
+.settings-team-column h3 {
+  margin: 0 0 0.2rem;
+}
+
+.settings-team-column .summary-card-list {
+  margin-top: 0.35rem;
+}
+
 .player-pool-control .checkbox-multi-list {
   max-height: 280px;
 }
