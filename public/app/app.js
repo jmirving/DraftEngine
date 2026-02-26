@@ -1094,6 +1094,24 @@ function normalizeApiScaling(value) {
   return alias && isScaling(alias) ? alias : null;
 }
 
+function normalizeApiEntityId(value) {
+  if (Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!/^[0-9]+$/.test(trimmed)) {
+    return null;
+  }
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    return null;
+  }
+  return parsed;
+}
+
 function normalizeApiTags(rawTags) {
   const source = rawTags && typeof rawTags === "object" && !Array.isArray(rawTags) ? rawTags : {};
   const tags = {};
@@ -1144,7 +1162,7 @@ function buildChampionFromApiRecord(rawChampion, index) {
   }
 
   return {
-    id: Number.isInteger(rawChampion.id) ? rawChampion.id : null,
+    id: normalizeApiEntityId(rawChampion.id),
     name,
     roles: normalizedRoles,
     damageType,
