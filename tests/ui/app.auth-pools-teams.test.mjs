@@ -609,6 +609,15 @@ describe("auth + pools + team management", () => {
 
     expect(doc.querySelector("#profile-primary-role").value).toBe("Mid");
     expect(doc.querySelectorAll("#player-config-grid .player-config-card").length).toBe(1);
+    expect(doc.querySelector("#player-config-summary").textContent).toContain("Editing Mid pool. 1 champion selected.");
+
+    const legacyMigrationCall = harness.calls.find((call) => call.path === "/me/pools/1" && call.method === "PUT");
+    expect(legacyMigrationCall).toBeTruthy();
+    expect(legacyMigrationCall.body).toEqual({ name: "Mid" });
+
+    const midAhriCheckbox = doc.querySelector("#player-config-grid input[type='checkbox'][value='Ahri']");
+    expect(midAhriCheckbox).toBeTruthy();
+    expect(midAhriCheckbox.checked).toBe(true);
 
     doc.querySelector("#profile-primary-role").value = "Support";
     doc.querySelector("#profile-primary-role").dispatchEvent(new dom.window.Event("change", { bubbles: true }));

@@ -1339,13 +1339,53 @@ function normalizeApiErrorMessage(error, fallbackMessage) {
 
 async function ensureProfileRolePools(pools) {
   const configuredRoles = getConfiguredProfileRoles();
-  const existingRoles = new Set(
-    pools
-      .map((pool) => (SLOTS.includes(pool?.name) ? pool.name : null))
-      .filter((role) => Boolean(role))
-  );
-  let createdAny = false;
+  let currentPools = Array.isArray(pools) ? pools : [];
 
+  const collectExistingRoles = (sourcePools) =>
+    new Set(
+      sourcePools
+        .map((pool) => (SLOTS.includes(pool?.name) ? pool.name : null))
+        .filter((role) => Boolean(role))
+    );
+
+  let existingRoles = collectExistingRoles(currentPools);
+  const missingRoles = configuredRoles.filter((role) => !existingRoles.has(role));
+  let migratedAny = false;
+
+  const legacyPools = currentPools.filter((pool) => {
+    const poolName = typeof pool?.name === "string" ? pool.name : "";
+    return poolName !== "" && !SLOTS.includes(poolName);
+  });
+
+  for (const role of missingRoles) {
+    if (legacyPools.length === 0) {
+      break;
+    }
+    const legacyPool = legacyPools.shift();
+    const legacyPoolId = Number(legacyPool?.id);
+    if (!Number.isInteger(legacyPoolId)) {
+      continue;
+    }
+    try {
+      await apiRequest(`/me/pools/${legacyPoolId}`, {
+        method: "PUT",
+        auth: true,
+        body: { name: role }
+      });
+      existingRoles.add(role);
+      migratedAny = true;
+    } catch (error) {
+      setPoolApiFeedback(normalizeApiErrorMessage(error, `Failed to migrate legacy pool to ${role}.`));
+    }
+  }
+
+  if (migratedAny) {
+    const refreshedAfterMigration = await apiRequest("/me/pools", { auth: true });
+    currentPools = Array.isArray(refreshedAfterMigration?.pools) ? refreshedAfterMigration.pools : currentPools;
+    existingRoles = collectExistingRoles(currentPools);
+  }
+
+  let createdAny = false;
   for (const role of configuredRoles) {
     if (existingRoles.has(role)) {
       continue;
@@ -1364,11 +1404,11 @@ async function ensureProfileRolePools(pools) {
   }
 
   if (!createdAny) {
-    return pools;
+    return currentPools;
   }
 
   const refreshed = await apiRequest("/me/pools", { auth: true });
-  return Array.isArray(refreshed?.pools) ? refreshed.pools : pools;
+  return Array.isArray(refreshed?.pools) ? refreshed.pools : currentPools;
 }
 
 async function loadPoolsFromApi(preferredTeamId = null) {
