@@ -181,7 +181,6 @@ function createInitialState() {
     },
     playerConfig: {
       teamId: null,
-      activeRole: DEFAULT_PRIMARY_ROLE,
       byTeam: {}
     },
     builder: {
@@ -327,14 +326,8 @@ function createElements() {
     teamAdminRemoveUserId: runtimeDocument.querySelector("#team-admin-remove-user-id"),
     teamAdminRemoveMember: runtimeDocument.querySelector("#team-admin-remove-member"),
     teamAdminFeedback: runtimeDocument.querySelector("#team-admin-feedback"),
-    poolCreateName: runtimeDocument.querySelector("#pool-create-name"),
-    poolCreate: runtimeDocument.querySelector("#pool-create"),
-    poolRenameName: runtimeDocument.querySelector("#pool-rename-name"),
-    poolRename: runtimeDocument.querySelector("#pool-rename"),
-    poolDelete: runtimeDocument.querySelector("#pool-delete"),
     poolApiFeedback: runtimeDocument.querySelector("#pool-api-feedback"),
     playerConfigTeam: runtimeDocument.querySelector("#player-config-team"),
-    profileChampionRole: runtimeDocument.querySelector("#profile-champion-role"),
     profilePrimaryRole: runtimeDocument.querySelector("#profile-primary-role"),
     profileSecondaryRoles: runtimeDocument.querySelector("#profile-secondary-roles"),
     profileSaveRoles: runtimeDocument.querySelector("#profile-save-roles"),
@@ -467,6 +460,12 @@ function normalizeSecondaryRoles(roles, primaryRole) {
   return Array.from(new Set(roles.filter((role) => SLOTS.includes(role) && role !== primaryRole)));
 }
 
+function getConfiguredProfileRoles() {
+  const primaryRole = normalizeProfileRole(state.profile.primaryRole);
+  const secondaryRoles = normalizeSecondaryRoles(state.profile.secondaryRoles, primaryRole);
+  return [primaryRole, ...secondaryRoles];
+}
+
 function hasAuthSession() {
   return Boolean(state.auth.token && state.auth.user);
 }
@@ -502,7 +501,6 @@ function clearAuthSession(feedback = "") {
   state.auth.user = null;
   state.profile.primaryRole = DEFAULT_PRIMARY_ROLE;
   state.profile.secondaryRoles = [];
-  state.playerConfig.activeRole = DEFAULT_PRIMARY_ROLE;
   saveAuthSession();
   setAuthFeedback(feedback);
 }
@@ -1165,16 +1163,16 @@ async function loadMvpData() {
   };
 }
 
-function buildPoolTeamId(poolId) {
-  return `pool:${poolId}`;
+function buildRolePoolTeamId(role) {
+  return `role:${role}`;
 }
 
-function parsePoolTeamId(teamId) {
-  if (typeof teamId !== "string" || !teamId.startsWith("pool:")) {
+function parseRolePoolTeamId(teamId) {
+  if (typeof teamId !== "string" || !teamId.startsWith("role:")) {
     return null;
   }
-  const parsed = Number.parseInt(teamId.slice("pool:".length), 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  const role = teamId.slice("role:".length);
+  return SLOTS.includes(role) ? role : null;
 }
 
 function getTeamDisplayLabel(teamId) {
@@ -1184,24 +1182,19 @@ function getTeamDisplayLabel(teamId) {
   return state.data.teamLabels?.[teamId] ?? teamId;
 }
 
-function buildRolePlayersFromChampionNames(championNames) {
-  const uniqueNames = Array.from(new Set(championNames)).sort((left, right) => left.localeCompare(right));
-  return SLOTS.map((slot) => ({
-    id: `${slot}::${slot} Player`,
-    player: `${slot} Player`,
-    role: slot,
-    champions: uniqueNames.filter((name) => state.data.championsByName[name]?.roles?.includes(slot))
-  }));
-}
-
-function getUnionChampionNamesFromPlayers(players) {
-  const names = new Set();
-  for (const player of players) {
-    for (const championName of player.champions ?? []) {
-      names.add(championName);
+function buildRolePlayerFromChampionNames(role, championNames) {
+  const roleEligible = new Set(state.data.noneTeamPools[role] ?? []);
+  const uniqueNames = Array.from(new Set(championNames))
+    .filter((name) => roleEligible.has(name))
+    .sort((left, right) => left.localeCompare(right));
+  return [
+    {
+      id: `${role}::${role} Player`,
+      player: `${role} Player`,
+      role,
+      champions: uniqueNames
     }
-  }
-  return Array.from(names);
+  ];
 }
 
 function clearApiPoolState() {
@@ -1209,7 +1202,6 @@ function clearApiPoolState() {
   state.api.poolByTeamId = {};
   state.playerConfig.byTeam = {};
   state.playerConfig.teamId = "";
-  state.playerConfig.activeRole = state.profile.primaryRole;
   state.data.teamLabels = {};
   syncDerivedTeamDataFromPlayerConfig();
 }
@@ -1218,14 +1210,25 @@ function applyApiPoolsToState(pools, preferredTeamId = null) {
   const byTeam = {};
   const teamLabels = {};
   const poolByTeamId = {};
+  const configuredRoles = getConfiguredProfileRoles();
+  const poolByRole = new Map();
 
   for (const pool of pools) {
-    const teamId = buildPoolTeamId(pool.id);
-    const championNames = (pool.champion_ids ?? [])
+    const role = SLOTS.includes(pool?.name) ? pool.name : null;
+    if (!role || !configuredRoles.includes(role) || poolByRole.has(role)) {
+      continue;
+    }
+    poolByRole.set(role, pool);
+  }
+
+  for (const role of configuredRoles) {
+    const teamId = buildRolePoolTeamId(role);
+    const pool = poolByRole.get(role) ?? null;
+    const championNames = (pool?.champion_ids ?? [])
       .map((championId) => state.data.championNamesById[championId])
       .filter((name) => Boolean(name));
-    byTeam[teamId] = buildRolePlayersFromChampionNames(championNames);
-    teamLabels[teamId] = pool.name;
+    byTeam[teamId] = buildRolePlayerFromChampionNames(role, championNames);
+    teamLabels[teamId] = role;
     poolByTeamId[teamId] = pool;
   }
 
@@ -1234,8 +1237,6 @@ function applyApiPoolsToState(pools, preferredTeamId = null) {
   state.playerConfig.byTeam = byTeam;
   state.data.teamLabels = teamLabels;
   state.playerConfig.teamId = normalizePlayerConfigTeamId(preferredTeamId ?? state.playerConfig.teamId);
-  const players = state.playerConfig.byTeam[state.playerConfig.teamId] ?? [];
-  state.playerConfig.activeRole = normalizePlayerConfigRole(state.playerConfig.activeRole, players);
   syncDerivedTeamDataFromPlayerConfig();
 
   state.teamConfig.defaultTeamId = normalizeConfiguredTeamId(state.teamConfig.defaultTeamId);
@@ -1250,6 +1251,40 @@ function normalizeApiErrorMessage(error, fallbackMessage) {
   return fallbackMessage;
 }
 
+async function ensureProfileRolePools(pools) {
+  const configuredRoles = getConfiguredProfileRoles();
+  const existingRoles = new Set(
+    pools
+      .map((pool) => (SLOTS.includes(pool?.name) ? pool.name : null))
+      .filter((role) => Boolean(role))
+  );
+  let createdAny = false;
+
+  for (const role of configuredRoles) {
+    if (existingRoles.has(role)) {
+      continue;
+    }
+    try {
+      await apiRequest("/me/pools", {
+        method: "POST",
+        auth: true,
+        body: { name: role }
+      });
+      existingRoles.add(role);
+      createdAny = true;
+    } catch (error) {
+      setPoolApiFeedback(normalizeApiErrorMessage(error, `Failed to create ${role} role pool.`));
+    }
+  }
+
+  if (!createdAny) {
+    return pools;
+  }
+
+  const refreshed = await apiRequest("/me/pools", { auth: true });
+  return Array.isArray(refreshed?.pools) ? refreshed.pools : pools;
+}
+
 async function loadPoolsFromApi(preferredTeamId = null) {
   if (!isAuthenticated()) {
     clearApiPoolState();
@@ -1258,7 +1293,8 @@ async function loadPoolsFromApi(preferredTeamId = null) {
 
   try {
     const payload = await apiRequest("/me/pools", { auth: true });
-    const pools = Array.isArray(payload?.pools) ? payload.pools : [];
+    const loadedPools = Array.isArray(payload?.pools) ? payload.pools : [];
+    const pools = await ensureProfileRolePools(loadedPools);
     applyApiPoolsToState(pools, preferredTeamId);
     return true;
   } catch (error) {
@@ -1285,7 +1321,6 @@ async function loadProfileFromApi() {
       state.auth.user.secondaryRoles = [...state.profile.secondaryRoles];
       saveAuthSession();
     }
-    state.playerConfig.activeRole = normalizeProfileRole(state.playerConfig.activeRole);
     return true;
   } catch (error) {
     setProfileRolesFeedback(normalizeApiErrorMessage(error, "Failed to load profile roles."), true);
@@ -1675,17 +1710,14 @@ function normalizePlayerConfigTeamId(teamId) {
   if (typeof teamId === "string" && state.playerConfig.byTeam[teamId]) {
     return teamId;
   }
-  const teamIds = Object.keys(state.playerConfig.byTeam).sort((left, right) =>
-    getTeamDisplayLabel(left).localeCompare(getTeamDisplayLabel(right))
-  );
-  return teamIds[0] ?? "";
-}
-
-function normalizePlayerConfigRole(role, players = []) {
-  if (typeof role === "string" && players.some((player) => player.role === role)) {
-    return role;
+  const preferredOrder = getConfiguredProfileRoles().map((role) => buildRolePoolTeamId(role));
+  for (const candidate of preferredOrder) {
+    if (state.playerConfig.byTeam[candidate]) {
+      return candidate;
+    }
   }
-  return players[0]?.role ?? DEFAULT_PRIMARY_ROLE;
+  const fallback = Object.keys(state.playerConfig.byTeam);
+  return fallback[0] ?? "";
 }
 
 function renderPlayerConfigFeedback(message, isError = false) {
@@ -1801,13 +1833,32 @@ function renderSettingsTeamMembership() {
 }
 
 async function syncPoolSelectionToApi(teamId) {
-  const pool = state.api.poolByTeamId[teamId];
-  if (!pool) {
+  const role = parseRolePoolTeamId(teamId);
+  if (!role) {
     return;
   }
 
+  let pool = state.api.poolByTeamId[teamId];
+  if (!pool) {
+    const created = await apiRequest("/me/pools", {
+      method: "POST",
+      auth: true,
+      body: { name: role }
+    });
+    const createdPoolId = created?.pool?.id;
+    if (!createdPoolId) {
+      return;
+    }
+    await loadPoolsFromApi(teamId);
+    pool = state.api.poolByTeamId[teamId];
+    if (!pool) {
+      return;
+    }
+  }
+
   const players = state.playerConfig.byTeam[teamId] ?? [];
-  const desiredChampionIds = getUnionChampionNamesFromPlayers(players)
+  const activePlayer = players.find((player) => player.role === role);
+  const desiredChampionIds = (activePlayer?.champions ?? [])
     .map((name) => state.data.championIdsByName[name])
     .filter((id) => Number.isInteger(id));
   const desiredIdSet = new Set(desiredChampionIds);
@@ -1839,35 +1890,24 @@ async function syncPoolSelectionToApi(teamId) {
 
 function renderPlayerConfig() {
   state.playerConfig.teamId = normalizePlayerConfigTeamId(state.playerConfig.teamId);
-  const teamOptions = Object.keys(state.playerConfig.byTeam)
-    .sort((left, right) => getTeamDisplayLabel(left).localeCompare(getTeamDisplayLabel(right)))
-    .map((teamId) => ({ value: teamId, label: getTeamDisplayLabel(teamId) }));
+  const teamOptions = getConfiguredProfileRoles().map((role) => ({
+    value: buildRolePoolTeamId(role),
+    label: role
+  }));
 
   replaceOptions(elements.playerConfigTeam, teamOptions);
   elements.playerConfigTeam.value = state.playerConfig.teamId;
 
   renderProfileRolesSection();
-  const activePool = state.api.poolByTeamId[state.playerConfig.teamId] ?? null;
-  elements.poolRenameName.value = activePool?.name ?? "";
-  elements.poolRename.disabled = !activePool;
-  elements.poolDelete.disabled = !activePool;
-  elements.poolRenameName.disabled = !activePool;
+  const activeRole = parseRolePoolTeamId(state.playerConfig.teamId) ?? state.profile.primaryRole;
 
   const players = state.playerConfig.byTeam[state.playerConfig.teamId] ?? [];
-  state.playerConfig.activeRole = normalizePlayerConfigRole(state.playerConfig.activeRole, players);
-  replaceOptions(
-    elements.profileChampionRole,
-    SLOTS.map((role) => ({ value: role, label: role }))
-  );
-  elements.profileChampionRole.value = state.playerConfig.activeRole;
-  elements.profileChampionRole.disabled = players.length === 0;
-
-  const activePlayer = players.find((player) => player.role === state.playerConfig.activeRole) ?? null;
+  const activePlayer = players.find((player) => player.role === activeRole) ?? null;
   if (activePlayer) {
-    elements.playerConfigSummary.textContent = `Editing ${activePlayer.role} pool. ${activePlayer.champions.length} champion${activePlayer.champions.length === 1 ? "" : "s"} selected.`;
+    elements.playerConfigSummary.textContent = `Editing ${activeRole} pool. ${activePlayer.champions.length} champion${activePlayer.champions.length === 1 ? "" : "s"} selected.`;
   } else {
     elements.playerConfigSummary.textContent = isAuthenticated()
-      ? "No pools yet. Create a pool to start."
+      ? `No champions selected for ${activeRole}.`
       : "Sign in to load API-backed pools.";
   }
 
@@ -1881,11 +1921,11 @@ function renderPlayerConfig() {
   card.className = "player-config-card";
 
   const title = runtimeDocument.createElement("h3");
-  title.textContent = `${activePlayer.role} Champion Pool`;
+  title.textContent = `${activeRole} Champion Pool`;
 
   const roleMeta = runtimeDocument.createElement("p");
   roleMeta.className = "meta";
-  roleMeta.textContent = `Role: ${activePlayer.role}`;
+  roleMeta.textContent = `Role: ${activeRole}`;
 
   const countMeta = runtimeDocument.createElement("p");
   countMeta.className = "meta";
@@ -1897,7 +1937,7 @@ function renderPlayerConfig() {
   const poolControlHost = runtimeDocument.createElement("div");
   poolControlHost.className = "player-pool-control";
 
-  const roleEligible = state.data.noneTeamPools[activePlayer.role] ?? [];
+  const roleEligible = state.data.noneTeamPools[activeRole] ?? [];
   createCheckboxMultiControl({
     root: poolControlHost,
     options: roleEligible.map((championName) => ({
@@ -2077,9 +2117,6 @@ function loadStoredPlayerConfig() {
 
   state.playerConfig.teamId = normalizePlayerConfigTeamId(
     typeof stored.teamId === "string" ? stored.teamId : null
-  );
-  state.playerConfig.activeRole = normalizeProfileRole(
-    typeof stored.activeRole === "string" ? stored.activeRole : state.profile.primaryRole
   );
   syncDerivedTeamDataFromPlayerConfig();
 }
@@ -3687,8 +3724,6 @@ function attachEvents() {
 
   elements.playerConfigTeam.addEventListener("change", () => {
     state.playerConfig.teamId = normalizePlayerConfigTeamId(elements.playerConfigTeam.value);
-    const players = state.playerConfig.byTeam[state.playerConfig.teamId] ?? [];
-    state.playerConfig.activeRole = normalizePlayerConfigRole(state.playerConfig.activeRole, players);
     if (isAuthenticated()) {
       renderPlayerConfig();
       return;
@@ -3701,21 +3736,10 @@ function attachEvents() {
     );
   });
 
-  elements.profileChampionRole.addEventListener("change", () => {
-    const players = state.playerConfig.byTeam[state.playerConfig.teamId] ?? [];
-    state.playerConfig.activeRole = normalizePlayerConfigRole(elements.profileChampionRole.value, players);
-    renderPlayerConfig();
-    if (!isAuthenticated()) {
-      savePlayerConfig();
-    }
-  });
-
   elements.profilePrimaryRole.addEventListener("change", () => {
     state.profile.primaryRole = normalizeProfileRole(elements.profilePrimaryRole.value);
     state.profile.secondaryRoles = normalizeSecondaryRoles(state.profile.secondaryRoles, state.profile.primaryRole);
-    if (!SLOTS.includes(state.playerConfig.activeRole)) {
-      state.playerConfig.activeRole = state.profile.primaryRole;
-    }
+    state.playerConfig.teamId = buildRolePoolTeamId(state.profile.primaryRole);
     renderPlayerConfig();
   });
 
@@ -3737,105 +3761,22 @@ function attachEvents() {
         secondaryRoles: state.profile.secondaryRoles
       }
     })
-      .then((payload) => {
+      .then(async (payload) => {
         const profile = payload?.profile ?? {};
         const primaryRole = normalizeProfileRole(profile.primaryRole);
         state.profile.primaryRole = primaryRole;
         state.profile.secondaryRoles = normalizeSecondaryRoles(profile.secondaryRoles, primaryRole);
-        state.playerConfig.activeRole = normalizeProfileRole(state.playerConfig.activeRole);
+        state.playerConfig.teamId = buildRolePoolTeamId(primaryRole);
         if (state.auth.user && typeof state.auth.user === "object") {
           state.auth.user.primaryRole = state.profile.primaryRole;
           state.auth.user.secondaryRoles = [...state.profile.secondaryRoles];
           saveAuthSession();
         }
         setProfileRolesFeedback("Saved profile roles.");
-        renderPlayerConfig();
+        await hydrateAuthenticatedViews(state.playerConfig.teamId, state.api.selectedTeamId);
       })
       .catch((error) => {
         setProfileRolesFeedback(normalizeApiErrorMessage(error, "Failed to save profile roles."), true);
-      });
-  });
-
-  elements.poolCreate.addEventListener("click", () => {
-    if (!isAuthenticated()) {
-      setPoolApiFeedback("Sign in to create pools.");
-      return;
-    }
-    const name = elements.poolCreateName.value.trim();
-    if (!name) {
-      setPoolApiFeedback("Enter a pool name.");
-      return;
-    }
-
-    void apiRequest("/me/pools", {
-      method: "POST",
-      auth: true,
-      body: { name }
-    })
-      .then(async (payload) => {
-        const teamId = buildPoolTeamId(payload?.pool?.id);
-        elements.poolCreateName.value = "";
-        setPoolApiFeedback(`Created pool '${payload?.pool?.name ?? name}'.`);
-        await hydrateAuthenticatedViews(teamId, state.api.selectedTeamId);
-      })
-      .catch((error) => {
-        setPoolApiFeedback(normalizeApiErrorMessage(error, "Failed to create pool."));
-      });
-  });
-
-  elements.poolRename.addEventListener("click", () => {
-    if (!isAuthenticated()) {
-      setPoolApiFeedback("Sign in to rename pools.");
-      return;
-    }
-    const teamId = state.playerConfig.teamId;
-    const poolId = parsePoolTeamId(teamId);
-    if (!poolId) {
-      setPoolApiFeedback("Select a pool first.");
-      return;
-    }
-    const name = elements.poolRenameName.value.trim();
-    if (!name) {
-      setPoolApiFeedback("Enter a pool name.");
-      return;
-    }
-
-    void apiRequest(`/me/pools/${poolId}`, {
-      method: "PUT",
-      auth: true,
-      body: { name }
-    })
-      .then(async () => {
-        setPoolApiFeedback(`Renamed pool to '${name}'.`);
-        await hydrateAuthenticatedViews(teamId, state.api.selectedTeamId);
-      })
-      .catch((error) => {
-        setPoolApiFeedback(normalizeApiErrorMessage(error, "Failed to rename pool."));
-      });
-  });
-
-  elements.poolDelete.addEventListener("click", () => {
-    if (!isAuthenticated()) {
-      setPoolApiFeedback("Sign in to delete pools.");
-      return;
-    }
-    const teamId = state.playerConfig.teamId;
-    const poolId = parsePoolTeamId(teamId);
-    if (!poolId) {
-      setPoolApiFeedback("Select a pool first.");
-      return;
-    }
-
-    void apiRequest(`/me/pools/${poolId}`, {
-      method: "DELETE",
-      auth: true
-    })
-      .then(async () => {
-        setPoolApiFeedback("Deleted pool.");
-        await hydrateAuthenticatedViews(null, state.api.selectedTeamId);
-      })
-      .catch((error) => {
-        setPoolApiFeedback(normalizeApiErrorMessage(error, "Failed to delete pool."));
       });
   });
 

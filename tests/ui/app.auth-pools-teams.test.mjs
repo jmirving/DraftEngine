@@ -446,7 +446,7 @@ describe("auth + pools + team management", () => {
     expect(registerCall.body.tagline).toBe("NA1");
   });
 
-  test("pool create request handles 401 by clearing session", async () => {
+  test("role pool provisioning handles 401 by clearing session", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "expired-token",
@@ -463,10 +463,7 @@ describe("auth + pools + team management", () => {
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
 
-    doc.querySelector(".side-menu-link[data-tab='player-config']").click();
-    doc.querySelector("#pool-create-name").value = "Pocket";
-    doc.querySelector("#pool-create").click();
-
+    await flush();
     await flush();
 
     const createCall = harness.calls.find((call) => call.path === "/me/pools" && call.method === "POST");
@@ -601,9 +598,9 @@ describe("auth + pools + team management", () => {
     expect(saveProfileCall.body.primaryRole).toBe("Support");
     expect(saveProfileCall.body.secondaryRoles).not.toContain("Support");
 
-    doc.querySelector("#profile-champion-role").value = "ADC";
-    doc.querySelector("#profile-champion-role").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-    expect(doc.querySelector("#player-config-grid").textContent).toContain("ADC Champion Pool");
+    doc.querySelector("#player-config-team").value = "role:Top";
+    doc.querySelector("#player-config-team").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    expect(doc.querySelector("#player-config-grid").textContent).toContain("Top Champion Pool");
     expect(doc.querySelectorAll("#player-config-grid .player-config-card").length).toBe(1);
   });
 

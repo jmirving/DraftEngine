@@ -402,14 +402,15 @@ describe("workflow app integration", () => {
     expect(state.explorer.excludeTags).toEqual([]);
   });
 
-  test("player pool screen shows empty-state when no API pools exist", async () => {
+  test("profile screen defaults to primary role pool when API pools are missing", async () => {
     const { dom, state } = await bootApp();
     const doc = dom.window.document;
 
     doc.querySelector(".side-menu-link[data-tab='player-config']").click();
     const firstPoolCheckbox = doc.querySelector(".player-pool-control input[type='checkbox']");
-    expect(firstPoolCheckbox).toBeNull();
-    expect(doc.querySelector("#player-config-summary").textContent).toContain("No pools yet");
+    expect(firstPoolCheckbox).toBeTruthy();
+    expect(doc.querySelector("#player-config-team").value).toBe("role:Mid");
+    expect(doc.querySelector("#player-config-summary").textContent).toContain("Editing Mid pool");
     expect(state.builder.stage).toBe("setup");
   });
 

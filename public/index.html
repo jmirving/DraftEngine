@@ -443,23 +443,13 @@
                 <p class="panel-kicker">My Champions</p>
                 <div class="grid grid-2">
                   <label>
-                    Champion Pool
+                    Role Pool
                     <select id="player-config-team"></select>
                   </label>
-                  <label>
-                    Active Role
-                    <select id="profile-champion-role"></select>
-                  </label>
+                  <p id="player-config-summary" class="meta"></p>
                 </div>
-              </div>
-              <div class="grid grid-2">
-                <label>
-                  Create Pool
-                  <input id="pool-create-name" type="text" placeholder="Pool name" />
-                </label>
-                <div class="button-row">
-                  <button id="pool-create" type="button">Create Pool</button>
-                </div>
+                <p id="player-config-feedback" class="meta"></p>
+                <div id="player-config-grid" class="player-pools-grid"></div>
               </div>
               <div class="settings-team-section">
                 <p class="panel-kicker">My Teams</p>
@@ -486,20 +476,6 @@
                 </div>
                 <p id="settings-team-feedback" class="meta"></p>
               </div>
-              <div class="grid grid-2">
-                <label>
-                  Rename Active Pool
-                  <input id="pool-rename-name" type="text" placeholder="New pool name" />
-                </label>
-                <div class="button-row">
-                  <button id="pool-rename" type="button">Rename Pool</button>
-                  <button id="pool-delete" class="ghost" type="button">Delete Pool</button>
-                </div>
-              </div>
-              <p id="pool-api-feedback" class="meta"></p>
-              <p id="player-config-summary" class="meta"></p>
-              <p id="player-config-feedback" class="meta"></p>
-              <div id="player-config-grid" class="player-pools-grid"></div>
             </div>
           </section>
         </div>
