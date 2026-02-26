@@ -47,6 +47,9 @@ const PLAYER_CONFIG_STORAGE_KEY = "draftflow.playerConfig.v1";
 const AUTH_SESSION_STORAGE_KEY = "draftflow.authSession.v1";
 const DEFAULT_MEMBER_ROLE = "member";
 const MEMBER_ROLE_OPTIONS = Object.freeze(["lead", "member"]);
+const DEFAULT_TEAM_MEMBER_TYPE = "substitute";
+const TEAM_MEMBER_TYPE_OPTIONS = Object.freeze(["primary", "substitute"]);
+const DEFAULT_PRIMARY_ROLE = "Mid";
 
 const CHAMPION_IMAGE_OVERRIDES = Object.freeze({
   VelKoz: "Velkoz"
@@ -84,7 +87,7 @@ const UI_COPY = Object.freeze({
     items: {
       workflow: "Workflow",
       "team-config": "Team Context",
-      "player-config": "Settings",
+      "player-config": "Profile",
       explorer: "Champion Tags"
     }
   },
@@ -93,8 +96,8 @@ const UI_COPY = Object.freeze({
     explorerMeta: "Filter champions by role, damage profile, scaling, and tags.",
     teamConfigTitle: "Team Draft Context",
     teamConfigMeta: "Set the team profile that drives role pools across composition work.",
-    playerConfigTitle: "Settings",
-    playerConfigMeta: "Tune role-based champion pools and manage team membership."
+    playerConfigTitle: "My Profile",
+    playerConfigMeta: "Manage your roles, champion pools, and teams."
   },
   builder: {
     workflowTitle: "Build a Composition",
@@ -152,6 +155,10 @@ function createInitialState() {
       user: null,
       feedback: ""
     },
+    profile: {
+      primaryRole: DEFAULT_PRIMARY_ROLE,
+      secondaryRoles: []
+    },
     api: {
       pools: [],
       poolByTeamId: {},
@@ -174,6 +181,7 @@ function createInitialState() {
     },
     playerConfig: {
       teamId: null,
+      activeRole: DEFAULT_PRIMARY_ROLE,
       byTeam: {}
     },
     builder: {
@@ -308,10 +316,14 @@ function createElements() {
     teamAdminMembers: runtimeDocument.querySelector("#team-admin-members"),
     teamAdminAddUserId: runtimeDocument.querySelector("#team-admin-add-user-id"),
     teamAdminAddRole: runtimeDocument.querySelector("#team-admin-add-role"),
+    teamAdminAddTeamRole: runtimeDocument.querySelector("#team-admin-add-team-role"),
     teamAdminAddMember: runtimeDocument.querySelector("#team-admin-add-member"),
     teamAdminRoleUserId: runtimeDocument.querySelector("#team-admin-role-user-id"),
     teamAdminRole: runtimeDocument.querySelector("#team-admin-role"),
     teamAdminUpdateRole: runtimeDocument.querySelector("#team-admin-update-role"),
+    teamAdminTeamRoleUserId: runtimeDocument.querySelector("#team-admin-team-role-user-id"),
+    teamAdminTeamRole: runtimeDocument.querySelector("#team-admin-team-role"),
+    teamAdminUpdateTeamRole: runtimeDocument.querySelector("#team-admin-update-team-role"),
     teamAdminRemoveUserId: runtimeDocument.querySelector("#team-admin-remove-user-id"),
     teamAdminRemoveMember: runtimeDocument.querySelector("#team-admin-remove-member"),
     teamAdminFeedback: runtimeDocument.querySelector("#team-admin-feedback"),
@@ -322,6 +334,11 @@ function createElements() {
     poolDelete: runtimeDocument.querySelector("#pool-delete"),
     poolApiFeedback: runtimeDocument.querySelector("#pool-api-feedback"),
     playerConfigTeam: runtimeDocument.querySelector("#player-config-team"),
+    profileChampionRole: runtimeDocument.querySelector("#profile-champion-role"),
+    profilePrimaryRole: runtimeDocument.querySelector("#profile-primary-role"),
+    profileSecondaryRoles: runtimeDocument.querySelector("#profile-secondary-roles"),
+    profileSaveRoles: runtimeDocument.querySelector("#profile-save-roles"),
+    profileRolesFeedback: runtimeDocument.querySelector("#profile-roles-feedback"),
     playerConfigSummary: runtimeDocument.querySelector("#player-config-summary"),
     playerConfigFeedback: runtimeDocument.querySelector("#player-config-feedback"),
     playerConfigGrid: runtimeDocument.querySelector("#player-config-grid"),
@@ -431,6 +448,25 @@ function setSettingsTeamFeedback(message) {
   }
 }
 
+function setProfileRolesFeedback(message, isError = false) {
+  if (!elements.profileRolesFeedback) {
+    return;
+  }
+  elements.profileRolesFeedback.textContent = message;
+  elements.profileRolesFeedback.style.color = isError ? "var(--warn)" : "var(--muted)";
+}
+
+function normalizeProfileRole(role) {
+  return SLOTS.includes(role) ? role : DEFAULT_PRIMARY_ROLE;
+}
+
+function normalizeSecondaryRoles(roles, primaryRole) {
+  if (!Array.isArray(roles)) {
+    return [];
+  }
+  return Array.from(new Set(roles.filter((role) => SLOTS.includes(role) && role !== primaryRole)));
+}
+
 function hasAuthSession() {
   return Boolean(state.auth.token && state.auth.user);
 }
@@ -464,6 +500,9 @@ function saveAuthSession() {
 function clearAuthSession(feedback = "") {
   state.auth.token = null;
   state.auth.user = null;
+  state.profile.primaryRole = DEFAULT_PRIMARY_ROLE;
+  state.profile.secondaryRoles = [];
+  state.playerConfig.activeRole = DEFAULT_PRIMARY_ROLE;
   saveAuthSession();
   setAuthFeedback(feedback);
 }
@@ -1170,6 +1209,7 @@ function clearApiPoolState() {
   state.api.poolByTeamId = {};
   state.playerConfig.byTeam = {};
   state.playerConfig.teamId = "";
+  state.playerConfig.activeRole = state.profile.primaryRole;
   state.data.teamLabels = {};
   syncDerivedTeamDataFromPlayerConfig();
 }
@@ -1194,6 +1234,8 @@ function applyApiPoolsToState(pools, preferredTeamId = null) {
   state.playerConfig.byTeam = byTeam;
   state.data.teamLabels = teamLabels;
   state.playerConfig.teamId = normalizePlayerConfigTeamId(preferredTeamId ?? state.playerConfig.teamId);
+  const players = state.playerConfig.byTeam[state.playerConfig.teamId] ?? [];
+  state.playerConfig.activeRole = normalizePlayerConfigRole(state.playerConfig.activeRole, players);
   syncDerivedTeamDataFromPlayerConfig();
 
   state.teamConfig.defaultTeamId = normalizeConfiguredTeamId(state.teamConfig.defaultTeamId);
@@ -1221,6 +1263,32 @@ async function loadPoolsFromApi(preferredTeamId = null) {
     return true;
   } catch (error) {
     setPoolApiFeedback(normalizeApiErrorMessage(error, "Failed to load pools."));
+    return false;
+  }
+}
+
+async function loadProfileFromApi() {
+  if (!isAuthenticated()) {
+    state.profile.primaryRole = DEFAULT_PRIMARY_ROLE;
+    state.profile.secondaryRoles = [];
+    return false;
+  }
+
+  try {
+    const payload = await apiRequest("/me/profile", { auth: true });
+    const profile = payload?.profile ?? {};
+    const primaryRole = normalizeProfileRole(profile.primaryRole);
+    state.profile.primaryRole = primaryRole;
+    state.profile.secondaryRoles = normalizeSecondaryRoles(profile.secondaryRoles, primaryRole);
+    if (state.auth.user && typeof state.auth.user === "object") {
+      state.auth.user.primaryRole = state.profile.primaryRole;
+      state.auth.user.secondaryRoles = [...state.profile.secondaryRoles];
+      saveAuthSession();
+    }
+    state.playerConfig.activeRole = normalizeProfileRole(state.playerConfig.activeRole);
+    return true;
+  } catch (error) {
+    setProfileRolesFeedback(normalizeApiErrorMessage(error, "Failed to load profile roles."), true);
     return false;
   }
 }
@@ -1557,8 +1625,12 @@ function renderTeamAdmin() {
   elements.teamAdminRenameName.disabled = !adminEnabled;
   elements.teamAdminAddUserId.disabled = !adminEnabled;
   elements.teamAdminAddRole.disabled = !adminEnabled;
+  elements.teamAdminAddTeamRole.disabled = !adminEnabled;
   elements.teamAdminRoleUserId.disabled = !adminEnabled;
   elements.teamAdminRole.disabled = !adminEnabled;
+  elements.teamAdminTeamRoleUserId.disabled = !adminEnabled;
+  elements.teamAdminTeamRole.disabled = !adminEnabled;
+  elements.teamAdminUpdateTeamRole.disabled = !adminEnabled;
   elements.teamAdminRemoveUserId.disabled = !adminEnabled;
 
   elements.teamAdminMembers.innerHTML = "";
@@ -1579,7 +1651,7 @@ function renderTeamAdmin() {
     title.textContent = member.email ?? `User ${member.user_id}`;
     const details = runtimeDocument.createElement("p");
     details.className = "meta";
-    details.textContent = `user_id=${member.user_id} | role=${member.role}`;
+    details.textContent = `user_id=${member.user_id} | role=${member.role} | team_role=${member.team_role ?? "primary"}`;
     card.append(title, details);
     elements.teamAdminMembers.append(card);
   }
@@ -1609,9 +1681,59 @@ function normalizePlayerConfigTeamId(teamId) {
   return teamIds[0] ?? "";
 }
 
+function normalizePlayerConfigRole(role, players = []) {
+  if (typeof role === "string" && players.some((player) => player.role === role)) {
+    return role;
+  }
+  return players[0]?.role ?? DEFAULT_PRIMARY_ROLE;
+}
+
 function renderPlayerConfigFeedback(message, isError = false) {
   elements.playerConfigFeedback.textContent = message;
   elements.playerConfigFeedback.style.color = isError ? "var(--warn)" : "var(--muted)";
+}
+
+function renderProfileRolesSection() {
+  if (!elements.profilePrimaryRole || !elements.profileSecondaryRoles) {
+    return;
+  }
+  const authenticated = isAuthenticated();
+
+  replaceOptions(
+    elements.profilePrimaryRole,
+    SLOTS.map((role) => ({ value: role, label: role }))
+  );
+  elements.profilePrimaryRole.value = state.profile.primaryRole;
+  elements.profilePrimaryRole.disabled = !authenticated;
+  if (elements.profileSaveRoles) {
+    elements.profileSaveRoles.disabled = !authenticated;
+  }
+
+  elements.profileSecondaryRoles.innerHTML = "";
+  const selectedSecondary = new Set(state.profile.secondaryRoles);
+  const secondaryCandidates = SLOTS.filter((role) => role !== state.profile.primaryRole);
+  for (const role of secondaryCandidates) {
+    const label = runtimeDocument.createElement("label");
+    label.className = "profile-role-option";
+
+    const checkbox = runtimeDocument.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = role;
+    checkbox.checked = selectedSecondary.has(role);
+    checkbox.disabled = !authenticated;
+    checkbox.addEventListener("change", () => {
+      const chosen = Array.from(
+        elements.profileSecondaryRoles.querySelectorAll("input[type='checkbox']:checked"),
+        (input) => input.value
+      );
+      state.profile.secondaryRoles = normalizeSecondaryRoles(chosen, state.profile.primaryRole);
+    });
+
+    const text = runtimeDocument.createElement("span");
+    text.textContent = role;
+    label.append(checkbox, text);
+    elements.profileSecondaryRoles.append(label);
+  }
 }
 
 function renderSettingsTeamList(target, teams, emptyMessage) {
@@ -1636,7 +1758,7 @@ function renderSettingsTeamList(target, teams, emptyMessage) {
 
     const details = runtimeDocument.createElement("p");
     details.className = "meta";
-    details.textContent = `role=${team.membership_role ?? "member"}`;
+    details.textContent = `membership=${team.membership_role ?? "member"} | team_role=${team.membership_team_role ?? "primary"}`;
 
     card.append(title, details);
     target.append(card);
@@ -1724,6 +1846,7 @@ function renderPlayerConfig() {
   replaceOptions(elements.playerConfigTeam, teamOptions);
   elements.playerConfigTeam.value = state.playerConfig.teamId;
 
+  renderProfileRolesSection();
   const activePool = state.api.poolByTeamId[state.playerConfig.teamId] ?? null;
   elements.poolRenameName.value = activePool?.name ?? "";
   elements.poolRename.disabled = !activePool;
@@ -1731,94 +1854,106 @@ function renderPlayerConfig() {
   elements.poolRenameName.disabled = !activePool;
 
   const players = state.playerConfig.byTeam[state.playerConfig.teamId] ?? [];
-  const summary = players.map((player) => `${player.role}: ${player.champions.length}`).join(" | ");
-  elements.playerConfigSummary.textContent = summary
-    ? `Pool sizes -> ${summary}`
-    : isAuthenticated()
+  state.playerConfig.activeRole = normalizePlayerConfigRole(state.playerConfig.activeRole, players);
+  replaceOptions(
+    elements.profileChampionRole,
+    SLOTS.map((role) => ({ value: role, label: role }))
+  );
+  elements.profileChampionRole.value = state.playerConfig.activeRole;
+  elements.profileChampionRole.disabled = players.length === 0;
+
+  const activePlayer = players.find((player) => player.role === state.playerConfig.activeRole) ?? null;
+  if (activePlayer) {
+    elements.playerConfigSummary.textContent = `Editing ${activePlayer.role} pool. ${activePlayer.champions.length} champion${activePlayer.champions.length === 1 ? "" : "s"} selected.`;
+  } else {
+    elements.playerConfigSummary.textContent = isAuthenticated()
       ? "No pools yet. Create a pool to start."
       : "Sign in to load API-backed pools.";
+  }
 
   renderSettingsTeamMembership();
   elements.playerConfigGrid.innerHTML = "";
-
-  for (const player of players) {
-    const card = runtimeDocument.createElement("article");
-    card.className = "player-config-card";
-
-    const title = runtimeDocument.createElement("h3");
-    title.textContent = player.player;
-
-    const roleMeta = runtimeDocument.createElement("p");
-    roleMeta.className = "meta";
-    roleMeta.textContent = `Role: ${player.role}`;
-
-    const countMeta = runtimeDocument.createElement("p");
-    countMeta.className = "meta";
-    countMeta.textContent = `${player.champions.length} champion${player.champions.length === 1 ? "" : "s"} in pool.`;
-
-    const label = runtimeDocument.createElement("label");
-    label.textContent = "Champion Pool";
-
-    const poolControlHost = runtimeDocument.createElement("div");
-    poolControlHost.className = "player-pool-control";
-
-    const roleEligible = state.data.noneTeamPools[player.role] ?? [];
-    createCheckboxMultiControl({
-      root: poolControlHost,
-      options: roleEligible.map((championName) => ({
-        value: championName,
-        label: championName
-      })),
-      selectedValues: player.champions,
-      placeholder: "No champions selected",
-      searchable: true,
-      searchPlaceholder: "Filter champions",
-      summaryFormatter(selectedValues) {
-        if (selectedValues.length === 0) {
-          return "No champions selected";
-        }
-        return `${selectedValues.length} champion${selectedValues.length === 1 ? "" : "s"} selected`;
-      },
-      onChange(selectedValues) {
-        player.champions = Array.from(new Set(selectedValues)).sort((left, right) => left.localeCompare(right));
-        syncDerivedTeamDataFromPlayerConfig();
-        state.teamConfig.defaultTeamId = normalizeConfiguredTeamId(state.teamConfig.defaultTeamId);
-        state.teamConfig.activeTeamId = normalizeConfiguredTeamId(state.teamConfig.activeTeamId);
-        state.builder.teamId = normalizeConfiguredTeamId(state.builder.teamId);
-        setBuilderStage("setup");
-        resetBuilderTreeState();
-        syncSlotSelectOptions();
-        renderTeamConfig();
-        renderBuilder();
-        if (isAuthenticated()) {
-          void syncPoolSelectionToApi(state.playerConfig.teamId)
-            .then(() => {
-              renderPlayerConfigFeedback(`Saved pool updates for ${player.player}.`);
-            })
-            .catch((error) => {
-              renderPlayerConfigFeedback(normalizeApiErrorMessage(error, "Failed to save pool updates."), true);
-            });
-          return;
-        }
-
-        const saved = savePlayerConfig();
-        renderPlayerConfig();
-        renderPlayerConfigFeedback(
-          saved ? `Saved pool updates for ${player.player}.` : "Pool updates applied in memory, but local storage is unavailable.",
-          !saved
-        );
-      }
-    });
-
-    label.append(poolControlHost);
-    card.append(title, roleMeta, countMeta, label);
-    elements.playerConfigGrid.append(card);
+  if (!activePlayer) {
+    return;
   }
+
+  const card = runtimeDocument.createElement("article");
+  card.className = "player-config-card";
+
+  const title = runtimeDocument.createElement("h3");
+  title.textContent = `${activePlayer.role} Champion Pool`;
+
+  const roleMeta = runtimeDocument.createElement("p");
+  roleMeta.className = "meta";
+  roleMeta.textContent = `Role: ${activePlayer.role}`;
+
+  const countMeta = runtimeDocument.createElement("p");
+  countMeta.className = "meta";
+  countMeta.textContent = `${activePlayer.champions.length} champion${activePlayer.champions.length === 1 ? "" : "s"} in pool.`;
+
+  const label = runtimeDocument.createElement("label");
+  label.textContent = "Champion Pool";
+
+  const poolControlHost = runtimeDocument.createElement("div");
+  poolControlHost.className = "player-pool-control";
+
+  const roleEligible = state.data.noneTeamPools[activePlayer.role] ?? [];
+  createCheckboxMultiControl({
+    root: poolControlHost,
+    options: roleEligible.map((championName) => ({
+      value: championName,
+      label: championName
+    })),
+    selectedValues: activePlayer.champions,
+    placeholder: "No champions selected",
+    searchable: true,
+    searchPlaceholder: "Filter champions",
+    summaryFormatter(selectedValues) {
+      if (selectedValues.length === 0) {
+        return "No champions selected";
+      }
+      return `${selectedValues.length} champion${selectedValues.length === 1 ? "" : "s"} selected`;
+    },
+    onChange(selectedValues) {
+      activePlayer.champions = Array.from(new Set(selectedValues)).sort((left, right) => left.localeCompare(right));
+      syncDerivedTeamDataFromPlayerConfig();
+      state.teamConfig.defaultTeamId = normalizeConfiguredTeamId(state.teamConfig.defaultTeamId);
+      state.teamConfig.activeTeamId = normalizeConfiguredTeamId(state.teamConfig.activeTeamId);
+      state.builder.teamId = normalizeConfiguredTeamId(state.builder.teamId);
+      setBuilderStage("setup");
+      resetBuilderTreeState();
+      syncSlotSelectOptions();
+      renderTeamConfig();
+      renderBuilder();
+      if (isAuthenticated()) {
+        void syncPoolSelectionToApi(state.playerConfig.teamId)
+          .then(() => {
+            renderPlayerConfigFeedback(`Saved pool updates for ${activePlayer.role}.`);
+          })
+          .catch((error) => {
+            renderPlayerConfigFeedback(normalizeApiErrorMessage(error, "Failed to save pool updates."), true);
+          });
+        return;
+      }
+
+      const saved = savePlayerConfig();
+      renderPlayerConfig();
+      renderPlayerConfigFeedback(
+        saved ? `Saved pool updates for ${activePlayer.role}.` : "Pool updates applied in memory, but local storage is unavailable.",
+        !saved
+      );
+    }
+  });
+
+  label.append(poolControlHost);
+  card.append(title, roleMeta, countMeta, label);
+  elements.playerConfigGrid.append(card);
 }
 
 function initializePlayerConfigControls() {
   renderPlayerConfig();
   renderPlayerConfigFeedback("");
+  setProfileRolesFeedback("");
   setSettingsTeamFeedback("");
 }
 
@@ -1871,6 +2006,9 @@ function loadStoredAuthSession() {
   const stored = readStoredAuthSession();
   state.auth.token = stored.token;
   state.auth.user = stored.user;
+  const primaryRole = normalizeProfileRole(stored.user?.primaryRole);
+  state.profile.primaryRole = primaryRole;
+  state.profile.secondaryRoles = normalizeSecondaryRoles(stored.user?.secondaryRoles, primaryRole);
 }
 
 function loadStoredPlayerConfig() {
@@ -1939,6 +2077,9 @@ function loadStoredPlayerConfig() {
 
   state.playerConfig.teamId = normalizePlayerConfigTeamId(
     typeof stored.teamId === "string" ? stored.teamId : null
+  );
+  state.playerConfig.activeRole = normalizeProfileRole(
+    typeof stored.activeRole === "string" ? stored.activeRole : state.profile.primaryRole
   );
   syncDerivedTeamDataFromPlayerConfig();
 }
@@ -3231,6 +3372,7 @@ function syncTagMutualExclusion(changed, includeValuesInput, excludeValuesInput)
 }
 
 async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAdminTeamId = null) {
+  await loadProfileFromApi();
   await loadPoolsFromApi(preferredPoolTeamId);
   await loadTeamsFromApi(preferredAdminTeamId);
   initializeTeamConfigControls();
@@ -3331,6 +3473,7 @@ function attachEvents() {
     initializeTeamConfigControls();
     renderTeamAdmin();
     renderPlayerConfig();
+    setProfileRolesFeedback("Sign in to manage profile roles.");
     renderBuilder();
     renderAuth();
   });
@@ -3544,6 +3687,8 @@ function attachEvents() {
 
   elements.playerConfigTeam.addEventListener("change", () => {
     state.playerConfig.teamId = normalizePlayerConfigTeamId(elements.playerConfigTeam.value);
+    const players = state.playerConfig.byTeam[state.playerConfig.teamId] ?? [];
+    state.playerConfig.activeRole = normalizePlayerConfigRole(state.playerConfig.activeRole, players);
     if (isAuthenticated()) {
       renderPlayerConfig();
       return;
@@ -3554,6 +3699,61 @@ function attachEvents() {
       saved ? "" : "Player-config team selection changed in memory, but local storage is unavailable.",
       !saved
     );
+  });
+
+  elements.profileChampionRole.addEventListener("change", () => {
+    const players = state.playerConfig.byTeam[state.playerConfig.teamId] ?? [];
+    state.playerConfig.activeRole = normalizePlayerConfigRole(elements.profileChampionRole.value, players);
+    renderPlayerConfig();
+    if (!isAuthenticated()) {
+      savePlayerConfig();
+    }
+  });
+
+  elements.profilePrimaryRole.addEventListener("change", () => {
+    state.profile.primaryRole = normalizeProfileRole(elements.profilePrimaryRole.value);
+    state.profile.secondaryRoles = normalizeSecondaryRoles(state.profile.secondaryRoles, state.profile.primaryRole);
+    if (!SLOTS.includes(state.playerConfig.activeRole)) {
+      state.playerConfig.activeRole = state.profile.primaryRole;
+    }
+    renderPlayerConfig();
+  });
+
+  elements.profileSaveRoles.addEventListener("click", () => {
+    if (!isAuthenticated()) {
+      setProfileRolesFeedback("Sign in to save profile roles.", true);
+      return;
+    }
+    if (!SLOTS.includes(state.profile.primaryRole)) {
+      setProfileRolesFeedback("Primary role is required.", true);
+      return;
+    }
+
+    void apiRequest("/me/profile", {
+      method: "PUT",
+      auth: true,
+      body: {
+        primaryRole: state.profile.primaryRole,
+        secondaryRoles: state.profile.secondaryRoles
+      }
+    })
+      .then((payload) => {
+        const profile = payload?.profile ?? {};
+        const primaryRole = normalizeProfileRole(profile.primaryRole);
+        state.profile.primaryRole = primaryRole;
+        state.profile.secondaryRoles = normalizeSecondaryRoles(profile.secondaryRoles, primaryRole);
+        state.playerConfig.activeRole = normalizeProfileRole(state.playerConfig.activeRole);
+        if (state.auth.user && typeof state.auth.user === "object") {
+          state.auth.user.primaryRole = state.profile.primaryRole;
+          state.auth.user.secondaryRoles = [...state.profile.secondaryRoles];
+          saveAuthSession();
+        }
+        setProfileRolesFeedback("Saved profile roles.");
+        renderPlayerConfig();
+      })
+      .catch((error) => {
+        setProfileRolesFeedback(normalizeApiErrorMessage(error, "Failed to save profile roles."), true);
+      });
   });
 
   elements.poolCreate.addEventListener("click", () => {
@@ -3764,15 +3964,18 @@ function attachEvents() {
     const role = MEMBER_ROLE_OPTIONS.includes(elements.teamAdminAddRole.value)
       ? elements.teamAdminAddRole.value
       : DEFAULT_MEMBER_ROLE;
+    const teamRole = TEAM_MEMBER_TYPE_OPTIONS.includes(elements.teamAdminAddTeamRole.value)
+      ? elements.teamAdminAddTeamRole.value
+      : DEFAULT_TEAM_MEMBER_TYPE;
 
     void apiRequest(`/teams/${selectedTeam.id}/members`, {
       method: "POST",
       auth: true,
-      body: { user_id: userId, role }
+      body: { user_id: userId, role, team_role: teamRole }
     })
       .then(async () => {
         elements.teamAdminAddUserId.value = "";
-        setTeamAdminFeedback(`Added user ${userId} as ${role}.`);
+        setTeamAdminFeedback(`Added user ${userId} as ${role}/${teamRole}.`);
         await loadTeamsFromApi(selectedTeam.id);
         renderTeamAdmin();
       })
@@ -3808,6 +4011,36 @@ function attachEvents() {
       })
       .catch((error) => {
         setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to update member role."));
+      });
+  });
+
+  elements.teamAdminUpdateTeamRole.addEventListener("click", () => {
+    const selectedTeam = getSelectedAdminTeam();
+    if (!selectedTeam) {
+      setTeamAdminFeedback("Select a team first.");
+      return;
+    }
+    const userId = Number.parseInt(elements.teamAdminTeamRoleUserId.value, 10);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      setTeamAdminFeedback("Enter a valid user id to update.");
+      return;
+    }
+    const teamRole = TEAM_MEMBER_TYPE_OPTIONS.includes(elements.teamAdminTeamRole.value)
+      ? elements.teamAdminTeamRole.value
+      : DEFAULT_TEAM_MEMBER_TYPE;
+
+    void apiRequest(`/teams/${selectedTeam.id}/members/${userId}/team-role`, {
+      method: "PUT",
+      auth: true,
+      body: { team_role: teamRole }
+    })
+      .then(async () => {
+        setTeamAdminFeedback(`Updated user ${userId} team role to ${teamRole}.`);
+        await loadTeamsFromApi(selectedTeam.id);
+        renderTeamAdmin();
+      })
+      .catch((error) => {
+        setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to update member team role."));
       });
   });
 
@@ -3847,11 +4080,13 @@ async function init() {
     loadStoredAuthSession();
     await loadMvpData();
     if (isAuthenticated()) {
+      await loadProfileFromApi();
       await loadPoolsFromApi();
     } else {
       loadStoredPlayerConfig();
       setPoolApiFeedback("Sign in to manage API-backed pools.");
       setTeamAdminFeedback("Sign in to manage teams.");
+      setProfileRolesFeedback("Sign in to manage profile roles.");
     }
     loadStoredTeamConfig();
     initializeExplorerControls();

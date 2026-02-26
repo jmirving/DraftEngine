@@ -117,7 +117,9 @@ function createFetchHarness({
           id: 11,
           email: body.email,
           gameName: "LoginUser",
-          tagline: "NA1"
+          tagline: "NA1",
+          primaryRole: "Mid",
+          secondaryRoles: ["Top"]
         }
       });
     }
@@ -140,9 +142,37 @@ function createFetchHarness({
           id: 12,
           email: body.email,
           gameName: body.gameName,
-          tagline: body.tagline
+          tagline: body.tagline,
+          primaryRole: "Mid",
+          secondaryRoles: []
         }
       }, 201);
+    }
+
+    if (path === "/me/profile" && method === "GET") {
+      return createJsonResponse({
+        profile: {
+          id: 11,
+          email: "user@example.com",
+          gameName: "LoginUser",
+          tagline: "NA1",
+          primaryRole: "Mid",
+          secondaryRoles: ["Top"]
+        }
+      });
+    }
+
+    if (path === "/me/profile" && method === "PUT") {
+      return createJsonResponse({
+        profile: {
+          id: 11,
+          email: "user@example.com",
+          gameName: "LoginUser",
+          tagline: "NA1",
+          primaryRole: body.primaryRole,
+          secondaryRoles: Array.isArray(body.secondaryRoles) ? body.secondaryRoles : []
+        }
+      });
     }
 
     if (path === "/me/pools" && method === "GET") {
@@ -220,6 +250,7 @@ function createFetchHarness({
         name: body.name,
         created_by: 11,
         membership_role: "lead",
+        membership_team_role: "primary",
         created_at: "2026-01-01T00:00:00.000Z"
       };
       teams.push(created);
@@ -235,7 +266,26 @@ function createFetchHarness({
 
     const roleMatch = path.match(/^\/teams\/(\d+)\/members\/(\d+)\/role$/);
     if (roleMatch && method === "PUT") {
-      return createJsonResponse({ member: { team_id: Number(roleMatch[1]), user_id: Number(roleMatch[2]), role: body.role } });
+      return createJsonResponse({
+        member: {
+          team_id: Number(roleMatch[1]),
+          user_id: Number(roleMatch[2]),
+          role: body.role,
+          team_role: "substitute"
+        }
+      });
+    }
+
+    const teamRoleMatch = path.match(/^\/teams\/(\d+)\/members\/(\d+)\/team-role$/);
+    if (teamRoleMatch && method === "PUT") {
+      return createJsonResponse({
+        member: {
+          team_id: Number(teamRoleMatch[1]),
+          user_id: Number(teamRoleMatch[2]),
+          role: "member",
+          team_role: body.team_role
+        }
+      });
     }
 
     const removeMatch = path.match(/^\/teams\/(\d+)\/members\/(\d+)$/);
@@ -249,7 +299,8 @@ function createFetchHarness({
           member: {
             team_id: Number(membersMatch[1]),
             user_id: body.user_id,
-            role: body.role
+            role: body.role,
+            team_role: body.team_role ?? "substitute"
           }
         },
         201
@@ -257,7 +308,14 @@ function createFetchHarness({
     }
 
     if (/^\/teams\/\d+$/.test(path) && method === "PATCH") {
-      return createJsonResponse({ team: { id: Number(path.split("/")[2]), name: body.name, membership_role: "lead" } });
+      return createJsonResponse({
+        team: {
+          id: Number(path.split("/")[2]),
+          name: body.name,
+          membership_role: "lead",
+          membership_team_role: "primary"
+        }
+      });
     }
 
     if (/^\/teams\/\d+$/.test(path) && method === "DELETE") {
@@ -418,7 +476,7 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#auth-feedback").textContent).toContain("Session expired");
   });
 
-  test("settings page shows teams I am on and teams I lead", async () => {
+  test("profile page shows teams I am on and teams I lead", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -433,6 +491,7 @@ describe("auth + pools + team management", () => {
           name: "Team Alpha",
           created_by: 11,
           membership_role: "lead",
+          membership_team_role: "primary",
           created_at: "2026-01-01T00:00:00.000Z"
         },
         {
@@ -440,12 +499,13 @@ describe("auth + pools + team management", () => {
           name: "Team Beta",
           created_by: 33,
           membership_role: "member",
+          membership_team_role: "substitute",
           created_at: "2026-01-01T00:00:00.000Z"
         }
       ],
       membersByTeam: {
-        "1": [{ team_id: 1, user_id: 11, role: "lead", email: "lead@example.com" }],
-        "2": [{ team_id: 2, user_id: 11, role: "member", email: "lead@example.com" }]
+        "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "lead@example.com" }],
+        "2": [{ team_id: 2, user_id: 11, role: "member", team_role: "substitute", email: "lead@example.com" }]
       }
     });
 
@@ -462,7 +522,7 @@ describe("auth + pools + team management", () => {
     expect(leadListText).not.toContain("Team Beta");
   });
 
-  test("creating a team from settings refreshes lead membership", async () => {
+  test("creating a team from profile refreshes lead membership", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -477,11 +537,12 @@ describe("auth + pools + team management", () => {
           name: "Team Alpha",
           created_by: 33,
           membership_role: "member",
+          membership_team_role: "substitute",
           created_at: "2026-01-01T00:00:00.000Z"
         }
       ],
       membersByTeam: {
-        "1": [{ team_id: 1, user_id: 11, role: "member", email: "lead@example.com" }]
+        "1": [{ team_id: 1, user_id: 11, role: "member", team_role: "substitute", email: "lead@example.com" }]
       }
     });
 
@@ -501,6 +562,51 @@ describe("auth + pools + team management", () => {
     expect(leadListText).toContain("My New Team");
   });
 
+  test("profile roles save and champion editing stays scoped to one role", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const harness = createFetchHarness({
+      pools: [
+        {
+          id: 1,
+          user_id: 11,
+          name: "Main",
+          champion_ids: [1, 2],
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      teams: [],
+      membersByTeam: {}
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='player-config']").click();
+    await flush();
+
+    expect(doc.querySelector("#profile-primary-role").value).toBe("Mid");
+    expect(doc.querySelectorAll("#player-config-grid .player-config-card").length).toBe(1);
+
+    doc.querySelector("#profile-primary-role").value = "Support";
+    doc.querySelector("#profile-primary-role").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    doc.querySelector("#profile-save-roles").click();
+    await flush();
+
+    const saveProfileCall = harness.calls.find((call) => call.path === "/me/profile" && call.method === "PUT");
+    expect(saveProfileCall).toBeTruthy();
+    expect(saveProfileCall.body.primaryRole).toBe("Support");
+    expect(saveProfileCall.body.secondaryRoles).not.toContain("Support");
+
+    doc.querySelector("#profile-champion-role").value = "ADC";
+    doc.querySelector("#profile-champion-role").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    expect(doc.querySelector("#player-config-grid").textContent).toContain("ADC Champion Pool");
+    expect(doc.querySelectorAll("#player-config-grid .player-config-card").length).toBe(1);
+  });
+
   test("team admin controls are disabled for non-leads and enabled for leads", async () => {
     const memberStorage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
@@ -516,13 +622,14 @@ describe("auth + pools + team management", () => {
           name: "Team Alpha",
           created_by: 11,
           membership_role: "member",
+          membership_team_role: "substitute",
           created_at: "2026-01-01T00:00:00.000Z"
         }
       ],
       membersByTeam: {
         "1": [
-          { team_id: 1, user_id: 11, role: "lead", email: "lead@example.com" },
-          { team_id: 1, user_id: 22, role: "member", email: "member@example.com" }
+          { team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "lead@example.com" },
+          { team_id: 1, user_id: 22, role: "member", team_role: "substitute", email: "member@example.com" }
         ]
       }
     });
@@ -549,13 +656,14 @@ describe("auth + pools + team management", () => {
           name: "Team Alpha",
           created_by: 11,
           membership_role: "lead",
+          membership_team_role: "primary",
           created_at: "2026-01-01T00:00:00.000Z"
         }
       ],
       membersByTeam: {
         "1": [
-          { team_id: 1, user_id: 11, role: "lead", email: "lead@example.com" },
-          { team_id: 1, user_id: 22, role: "member", email: "member@example.com" }
+          { team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "lead@example.com" },
+          { team_id: 1, user_id: 22, role: "member", team_role: "substitute", email: "member@example.com" }
         ]
       }
     });

@@ -6,6 +6,7 @@ import { createRequireAuth } from "./auth/middleware.js";
 import { ApiError, badRequest, formatErrorResponse } from "./errors.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createChampionsRouter } from "./routes/champions.js";
+import { createProfileRouter } from "./routes/profile.js";
 import { createPoolsRouter } from "./routes/pools.js";
 import { createTeamsRouter } from "./routes/teams.js";
 
@@ -66,6 +67,13 @@ export function createApp({
   });
 
   app.use("/auth", createAuthRouter({ config, usersRepository }));
+  app.use(
+    "/",
+    createProfileRouter({
+      usersRepository,
+      requireAuth
+    })
+  );
   app.use(
     "/",
     createChampionsRouter({

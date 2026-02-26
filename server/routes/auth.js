@@ -10,7 +10,9 @@ function serializeAuthUser(user) {
     id: Number(user.id),
     email: user.email,
     gameName: user.game_name ?? "",
-    tagline: user.tagline ?? ""
+    tagline: user.tagline ?? "",
+    primaryRole: user.primary_role ?? "Mid",
+    secondaryRoles: Array.isArray(user.secondary_roles) ? user.secondary_roles : []
   };
 }
 

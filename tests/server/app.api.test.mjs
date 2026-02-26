@@ -13,6 +13,8 @@ function createMockContext() {
         password_hash: "seeded",
         game_name: "LeadPlayer",
         tagline: "NA1",
+        primary_role: "Mid",
+        secondary_roles: ["Top"],
         created_at: "2026-01-01T00:00:00.000Z"
       },
       {
@@ -21,6 +23,8 @@ function createMockContext() {
         password_hash: "seeded",
         game_name: "MemberPlayer",
         tagline: "NA1",
+        primary_role: "Support",
+        secondary_roles: ["ADC"],
         created_at: "2026-01-01T00:00:00.000Z"
       },
       {
@@ -29,6 +33,8 @@ function createMockContext() {
         password_hash: "seeded",
         game_name: "Outsider",
         tagline: "NA1",
+        primary_role: "Top",
+        secondary_roles: [],
         created_at: "2026-01-01T00:00:00.000Z"
       }
     ],
@@ -64,8 +70,8 @@ function createMockContext() {
       { id: 1, name: "Team Alpha", created_by: 1, created_at: "2026-01-01T00:00:00.000Z" }
     ],
     teamMembers: [
-      { team_id: 1, user_id: 1, role: "lead", created_at: "2026-01-01T00:00:00.000Z" },
-      { team_id: 1, user_id: 2, role: "member", created_at: "2026-01-01T00:00:00.000Z" }
+      { team_id: 1, user_id: 1, role: "lead", team_role: "primary", created_at: "2026-01-01T00:00:00.000Z" },
+      { team_id: 1, user_id: 2, role: "member", team_role: "substitute", created_at: "2026-01-01T00:00:00.000Z" }
     ]
   };
 
@@ -88,6 +94,8 @@ function createMockContext() {
         password_hash: passwordHash,
         game_name: gameName,
         tagline,
+        primary_role: "Mid",
+        secondary_roles: [],
         created_at: "2026-01-01T00:00:00.000Z"
       };
       nextUserId += 1;
@@ -97,6 +105,8 @@ function createMockContext() {
         email: user.email,
         game_name: user.game_name,
         tagline: user.tagline,
+        primary_role: user.primary_role,
+        secondary_roles: user.secondary_roles,
         created_at: user.created_at
       };
     },
@@ -107,6 +117,20 @@ function createMockContext() {
 
     async findById(userId) {
       return state.users.find((candidate) => candidate.id === userId) ?? null;
+    },
+
+    async findProfileById(userId) {
+      return state.users.find((candidate) => candidate.id === userId) ?? null;
+    },
+
+    async updateProfileRoles(userId, { primaryRole, secondaryRoles }) {
+      const user = state.users.find((candidate) => candidate.id === userId) ?? null;
+      if (!user) {
+        return null;
+      }
+      user.primary_role = primaryRole;
+      user.secondary_roles = [...secondaryRoles];
+      return user;
     }
   };
 
@@ -204,6 +228,7 @@ function createMockContext() {
         team_id: team.id,
         user_id: creatorUserId,
         role: "lead",
+        team_role: "primary",
         created_at: "2026-01-01T00:00:00.000Z"
       });
       return team;
@@ -219,7 +244,8 @@ function createMockContext() {
           }
           return {
             ...team,
-            membership_role: membership.role
+            membership_role: membership.role,
+            membership_team_role: membership.team_role
           };
         })
         .filter(Boolean);
@@ -274,7 +300,7 @@ function createMockContext() {
           return (left.email ?? "").localeCompare(right.email ?? "");
         });
     },
-    async addMember(teamId, userId, role) {
+    async addMember(teamId, userId, role, teamRole) {
       const existing = state.teamMembers.find(
         (candidate) => candidate.team_id === teamId && candidate.user_id === userId
       );
@@ -287,6 +313,7 @@ function createMockContext() {
         team_id: teamId,
         user_id: userId,
         role,
+        team_role: teamRole,
         created_at: "2026-01-01T00:00:00.000Z"
       });
     },
@@ -308,6 +335,16 @@ function createMockContext() {
         return null;
       }
       membership.role = role;
+      return membership;
+    },
+    async setMemberTeamRole(teamId, userId, teamRole) {
+      const membership = state.teamMembers.find(
+        (candidate) => candidate.team_id === teamId && candidate.user_id === userId
+      );
+      if (!membership) {
+        return null;
+      }
+      membership.team_role = teamRole;
       return membership;
     }
   };
@@ -360,6 +397,8 @@ describe("API routes", () => {
     expect(registerResponse.body.user.email).toBe("test@example.com");
     expect(registerResponse.body.user.gameName).toBe("TestPlayer");
     expect(registerResponse.body.user.tagline).toBe("NA1");
+    expect(registerResponse.body.user.primaryRole).toBe("Mid");
+    expect(registerResponse.body.user.secondaryRoles).toEqual([]);
     expect(registerResponse.body.token).toBeTypeOf("string");
     expect(state.users).toHaveLength(4);
     expect(state.users[3].password_hash).not.toBe("strong-pass-123");
@@ -372,6 +411,8 @@ describe("API routes", () => {
     expect(loginResponse.body.user.id).toBe(4);
     expect(loginResponse.body.user.gameName).toBe("TestPlayer");
     expect(loginResponse.body.user.tagline).toBe("NA1");
+    expect(loginResponse.body.user.primaryRole).toBe("Mid");
+    expect(loginResponse.body.user.secondaryRoles).toEqual([]);
 
     const missingRiotIdResponse = await request(app)
       .post("/auth/register")
@@ -431,6 +472,30 @@ describe("API routes", () => {
     const missingRouteResponse = await request(app).get("/missing-route");
     expect(missingRouteResponse.status).toBe(404);
     expect(missingRouteResponse.body.error.code).toBe("NOT_FOUND");
+  });
+
+  it("reads and updates profile primary/secondary roles", async () => {
+    const { app, config } = createMockContext();
+    const leadAuth = buildAuthHeader(1, config);
+
+    const profileResponse = await request(app).get("/me/profile").set("Authorization", leadAuth);
+    expect(profileResponse.status).toBe(200);
+    expect(profileResponse.body.profile.primaryRole).toBe("Mid");
+    expect(profileResponse.body.profile.secondaryRoles).toEqual(["Top"]);
+
+    const invalidResponse = await request(app)
+      .put("/me/profile")
+      .set("Authorization", leadAuth)
+      .send({ primaryRole: "Mid", secondaryRoles: ["Mid"] });
+    expect(invalidResponse.status).toBe(400);
+
+    const updateResponse = await request(app)
+      .put("/me/profile")
+      .set("Authorization", leadAuth)
+      .send({ primaryRole: "Support", secondaryRoles: ["Mid", "ADC"] });
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.profile.primaryRole).toBe("Support");
+    expect(updateResponse.body.profile.secondaryRoles).toEqual(["Mid", "ADC"]);
   });
 
   it("sets CORS headers and handles preflight requests", async () => {
@@ -562,6 +627,13 @@ describe("API routes", () => {
       .send({ role: "lead" });
     expect(promoteMember.status).toBe(200);
     expect(promoteMember.body.member.role).toBe("lead");
+
+    const setMemberTeamRole = await request(app)
+      .put("/teams/1/members/2/team-role")
+      .set("Authorization", leadAuth)
+      .send({ team_role: "primary" });
+    expect(setMemberTeamRole.status).toBe(200);
+    expect(setMemberTeamRole.body.member.team_role).toBe("primary");
 
     const demoteOriginalLead = await request(app)
       .put("/teams/1/members/1/role")

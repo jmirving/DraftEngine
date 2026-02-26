@@ -12,6 +12,7 @@ function mapMembershipRow(row) {
     team_id: Number(row.team_id),
     user_id: Number(row.user_id),
     role: row.role,
+    team_role: row.team_role,
     email: row.email,
     created_at: row.created_at
   };
@@ -51,8 +52,8 @@ export function createTeamsRepository(pool) {
 
         await client.query(
           `
-            INSERT INTO team_members (team_id, user_id, role)
-            VALUES ($1, $2, 'lead')
+            INSERT INTO team_members (team_id, user_id, role, team_role)
+            VALUES ($1, $2, 'lead', 'primary')
           `,
           [team.id, creatorUserId]
         );
@@ -70,7 +71,7 @@ export function createTeamsRepository(pool) {
     async listTeamsByUser(userId) {
       const result = await pool.query(
         `
-          SELECT t.id, t.name, t.created_by, t.created_at, tm.role
+          SELECT t.id, t.name, t.created_by, t.created_at, tm.role, tm.team_role
           FROM teams t
           INNER JOIN team_members tm
             ON tm.team_id = t.id
@@ -82,7 +83,8 @@ export function createTeamsRepository(pool) {
 
       return result.rows.map((row) => ({
         ...mapTeamRow(row),
-        membership_role: row.role
+        membership_role: row.role,
+        membership_team_role: row.team_role
       }));
     },
 
@@ -102,7 +104,7 @@ export function createTeamsRepository(pool) {
     async getMembership(teamId, userId) {
       const result = await pool.query(
         `
-          SELECT tm.team_id, tm.user_id, tm.role, u.email, tm.created_at
+          SELECT tm.team_id, tm.user_id, tm.role, tm.team_role, u.email, tm.created_at
           FROM team_members tm
           INNER JOIN users u
             ON u.id = tm.user_id
@@ -156,12 +158,12 @@ export function createTeamsRepository(pool) {
     async listMembers(teamId) {
       const result = await pool.query(
         `
-          SELECT tm.team_id, tm.user_id, tm.role, u.email, tm.created_at
+          SELECT tm.team_id, tm.user_id, tm.role, tm.team_role, u.email, tm.created_at
           FROM team_members tm
           INNER JOIN users u
             ON u.id = tm.user_id
           WHERE tm.team_id = $1
-          ORDER BY CASE tm.role WHEN 'lead' THEN 0 ELSE 1 END, u.email ASC
+          ORDER BY CASE tm.role WHEN 'lead' THEN 0 ELSE 1 END, CASE tm.team_role WHEN 'primary' THEN 0 ELSE 1 END, u.email ASC
         `,
         [teamId]
       );
@@ -169,14 +171,14 @@ export function createTeamsRepository(pool) {
       return result.rows.map(mapMembershipRow);
     },
 
-    async addMember(teamId, userId, role) {
+    async addMember(teamId, userId, role, teamRole) {
       const result = await pool.query(
         `
-          INSERT INTO team_members (team_id, user_id, role)
-          VALUES ($1, $2, $3)
-          RETURNING team_id, user_id, role, created_at
+          INSERT INTO team_members (team_id, user_id, role, team_role)
+          VALUES ($1, $2, $3, $4)
+          RETURNING team_id, user_id, role, team_role, created_at
         `,
-        [teamId, userId, role]
+        [teamId, userId, role, teamRole]
       );
 
       return result.rows[0]
@@ -184,6 +186,7 @@ export function createTeamsRepository(pool) {
             team_id: Number(result.rows[0].team_id),
             user_id: Number(result.rows[0].user_id),
             role: result.rows[0].role,
+            team_role: result.rows[0].team_role,
             created_at: result.rows[0].created_at
           }
         : null;
@@ -207,7 +210,7 @@ export function createTeamsRepository(pool) {
           UPDATE team_members
           SET role = $3
           WHERE team_id = $1 AND user_id = $2
-          RETURNING team_id, user_id, role, created_at
+          RETURNING team_id, user_id, role, team_role, created_at
         `,
         [teamId, userId, role]
       );
@@ -217,6 +220,29 @@ export function createTeamsRepository(pool) {
             team_id: Number(result.rows[0].team_id),
             user_id: Number(result.rows[0].user_id),
             role: result.rows[0].role,
+            team_role: result.rows[0].team_role,
+            created_at: result.rows[0].created_at
+          }
+        : null;
+    },
+
+    async setMemberTeamRole(teamId, userId, teamRole) {
+      const result = await pool.query(
+        `
+          UPDATE team_members
+          SET team_role = $3
+          WHERE team_id = $1 AND user_id = $2
+          RETURNING team_id, user_id, role, team_role, created_at
+        `,
+        [teamId, userId, teamRole]
+      );
+
+      return result.rows[0]
+        ? {
+            team_id: Number(result.rows[0].team_id),
+            user_id: Number(result.rows[0].user_id),
+            role: result.rows[0].role,
+            team_role: result.rows[0].team_role,
             created_at: result.rows[0].created_at
           }
         : null;

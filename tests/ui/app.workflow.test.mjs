@@ -43,6 +43,24 @@ function createFetchImpl() {
         }
       };
     }
+    if (path === "/me/profile") {
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return {
+            profile: {
+              id: 1,
+              email: "workflow@example.com",
+              gameName: "WorkflowPlayer",
+              tagline: "NA1",
+              primaryRole: "Mid",
+              secondaryRoles: ["Top"]
+            }
+          };
+        }
+      };
+    }
     if (path === "/teams") {
       return {
         ok: true,

@@ -56,7 +56,7 @@
       <section id="auth-gate" class="panel auth-gate">
         <p class="panel-kicker">Access Required</p>
         <h2>Login or Register</h2>
-        <p class="meta">Sign in to access Workflow, Team Context, Settings, and Champion Tags.</p>
+        <p class="meta">Sign in to access Workflow, Team Context, Profile, and Champion Tags.</p>
       </section>
 
       <div id="app-shell" class="app-shell" hidden>
@@ -66,7 +66,7 @@
             <p id="nav-meta" class="meta">Switch between workflow and configuration pages.</p>
             <button class="side-menu-link is-active" data-tab="workflow" type="button">Workflow</button>
             <button class="side-menu-link" data-tab="team-config" type="button">Team Context</button>
-            <button class="side-menu-link" data-tab="player-config" type="button">Settings</button>
+            <button class="side-menu-link" data-tab="player-config" type="button">Profile</button>
             <button class="side-menu-link" data-tab="explorer" type="button">Champion Tags</button>
           </nav>
         </aside>
@@ -358,6 +358,13 @@
                   </select>
                 </label>
               </div>
+              <label>
+                Add Member Team Role
+                <select id="team-admin-add-team-role">
+                  <option value="substitute">substitute</option>
+                  <option value="primary">primary</option>
+                </select>
+              </label>
               <div class="button-row">
                 <button id="team-admin-add-member" type="button">Add Member</button>
               </div>
@@ -376,6 +383,22 @@
               </div>
               <div class="button-row">
                 <button id="team-admin-update-role" type="button">Update Role</button>
+              </div>
+              <div class="grid grid-2">
+                <label>
+                  Update Team Role User ID
+                  <input id="team-admin-team-role-user-id" type="number" min="1" step="1" placeholder="User ID" />
+                </label>
+                <label>
+                  New Team Role
+                  <select id="team-admin-team-role">
+                    <option value="substitute">substitute</option>
+                    <option value="primary">primary</option>
+                  </select>
+                </label>
+              </div>
+              <div class="button-row">
+                <button id="team-admin-update-team-role" type="button">Update Team Role</button>
               </div>
               <label>
                 Remove Member User ID
@@ -396,9 +419,39 @@
 
           <section id="tab-player-config" class="tab-panel tab-surface">
             <div class="panel draft-board-panel">
-              <p class="panel-kicker">Roster Prep</p>
-              <h2 id="player-config-title">Settings</h2>
-              <p id="player-config-meta" class="meta">Manage per-role champion pools and team membership.</p>
+              <p class="panel-kicker">Profile</p>
+              <h2 id="player-config-title">My Profile</h2>
+              <p id="player-config-meta" class="meta">Manage your roles, champion pools, and teams.</p>
+              <div class="profile-section">
+                <p class="panel-kicker">My Roles</p>
+                <div class="grid grid-2">
+                  <label>
+                    Role (primary)
+                    <select id="profile-primary-role"></select>
+                  </label>
+                  <label>
+                    Roles (other)
+                    <div id="profile-secondary-roles"></div>
+                  </label>
+                </div>
+                <div class="button-row">
+                  <button id="profile-save-roles" type="button">Save Roles</button>
+                </div>
+                <p id="profile-roles-feedback" class="meta"></p>
+              </div>
+              <div class="profile-section">
+                <p class="panel-kicker">My Champions</p>
+                <div class="grid grid-2">
+                  <label>
+                    Champion Pool
+                    <select id="player-config-team"></select>
+                  </label>
+                  <label>
+                    Active Role
+                    <select id="profile-champion-role"></select>
+                  </label>
+                </div>
+              </div>
               <div class="grid grid-2">
                 <label>
                   Create Pool
@@ -408,17 +461,11 @@
                   <button id="pool-create" type="button">Create Pool</button>
                 </div>
               </div>
-              <div class="player-team-controls">
-                <label>
-                  Team
-                  <select id="player-config-team"></select>
-                </label>
-              </div>
               <div class="settings-team-section">
-                <p class="panel-kicker">Team Membership</p>
+                <p class="panel-kicker">My Teams</p>
                 <div class="grid grid-2">
                   <div class="settings-team-column">
-                    <h3>Teams I'm On</h3>
+                    <h3>Teams You Are On</h3>
                     <p id="settings-teams-member-summary" class="meta"></p>
                     <div id="settings-teams-member-list" class="summary-card-list"></div>
                   </div>

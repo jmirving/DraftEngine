@@ -1060,6 +1060,33 @@ button.ghost {
   margin-bottom: 0.35rem;
 }
 
+.profile-section {
+  border-top: 1px solid var(--border);
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+}
+
+#profile-secondary-roles {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.45rem;
+  background: #fffefa;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.35rem;
+}
+
+.profile-role-option {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.profile-role-option input[type="checkbox"] {
+  width: auto;
+  margin-top: 0;
+}
+
 .settings-team-section {
   border-top: 1px solid var(--border);
   margin-top: 0.8rem;
