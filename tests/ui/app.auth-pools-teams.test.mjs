@@ -313,6 +313,9 @@ describe("auth + pools + team management", () => {
 
     expect(doc.querySelector("#auth-gate").hidden).toBe(false);
     expect(doc.querySelector("#app-shell").hidden).toBe(true);
+    expect(doc.querySelector("#auth-login").hidden).toBe(false);
+    expect(doc.querySelector("#auth-register").hidden).toBe(false);
+    expect(doc.querySelector("#auth-email-group").hidden).toBe(false);
 
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
     expect(doc.querySelector("#auth-feedback").textContent).toContain("Login required");
@@ -348,6 +351,10 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#auth-status").textContent).toContain("user@example.com");
     expect(doc.querySelector("#auth-gate").hidden).toBe(true);
     expect(doc.querySelector("#app-shell").hidden).toBe(false);
+    expect(doc.querySelector("#auth-login").hidden).toBe(true);
+    expect(doc.querySelector("#auth-register").hidden).toBe(true);
+    expect(doc.querySelector("#auth-email-group").hidden).toBe(true);
+    expect(doc.querySelector("#auth-password-group").hidden).toBe(true);
 
     const poolFetch = harness.calls.find((call) => call.path === "/me/pools" && call.method === "GET");
     expect(poolFetch).toBeTruthy();

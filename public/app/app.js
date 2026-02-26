@@ -217,13 +217,18 @@ function createElements() {
     navTitle: runtimeDocument.querySelector("#nav-title"),
     navMeta: runtimeDocument.querySelector("#nav-meta"),
     authEmail: runtimeDocument.querySelector("#auth-email"),
+    authEmailGroup: runtimeDocument.querySelector("#auth-email-group"),
     authGameName: runtimeDocument.querySelector("#auth-game-name"),
+    authGameNameGroup: runtimeDocument.querySelector("#auth-game-name-group"),
     authTagline: runtimeDocument.querySelector("#auth-tagline"),
+    authTaglineGroup: runtimeDocument.querySelector("#auth-tagline-group"),
     authPassword: runtimeDocument.querySelector("#auth-password"),
+    authPasswordGroup: runtimeDocument.querySelector("#auth-password-group"),
     authRegister: runtimeDocument.querySelector("#auth-register"),
     authLogin: runtimeDocument.querySelector("#auth-login"),
     authLogout: runtimeDocument.querySelector("#auth-logout"),
     authStatus: runtimeDocument.querySelector("#auth-status"),
+    authRegistrationHelp: runtimeDocument.querySelector("#auth-registration-help"),
     authFeedback: runtimeDocument.querySelector("#auth-feedback"),
     explorerTitle: runtimeDocument.querySelector("#explorer-title"),
     explorerMeta: runtimeDocument.querySelector("#explorer-meta"),
@@ -450,6 +455,23 @@ function clearAuthSession(feedback = "") {
   setAuthFeedback(feedback);
 }
 
+function setAuthControlsVisibility(showLoginControls) {
+  const controls = [
+    elements.authEmailGroup,
+    elements.authGameNameGroup,
+    elements.authTaglineGroup,
+    elements.authPasswordGroup,
+    elements.authRegister,
+    elements.authLogin,
+    elements.authRegistrationHelp
+  ];
+  for (const control of controls) {
+    if (control) {
+      control.hidden = !showLoginControls;
+    }
+  }
+}
+
 function renderAuthGate() {
   const signedIn = hasAuthSession();
   if (elements.appShell) {
@@ -469,12 +491,14 @@ function renderAuthGate() {
 function renderAuth() {
   const signedIn = hasAuthSession();
   if (!signedIn) {
+    setAuthControlsVisibility(true);
     elements.authStatus.textContent = "Signed out.";
     elements.authLogout.disabled = true;
     renderAuthGate();
     return;
   }
 
+  setAuthControlsVisibility(false);
   const email = typeof state.auth.user.email === "string" ? state.auth.user.email : "unknown";
   const gameName = typeof state.auth.user.gameName === "string" ? state.auth.user.gameName : "";
   const tagline = typeof state.auth.user.tagline === "string" ? state.auth.user.tagline : "";
