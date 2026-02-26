@@ -18,6 +18,13 @@ function mapUniqueConstraintError(error) {
   if (error && error.code === "23505") {
     return conflict("Email already exists.", { field: "email" });
   }
+  if (error && (error.code === "42703" || error.code === "42P01")) {
+    return new ApiError(
+      500,
+      "SCHEMA_MISMATCH",
+      "Database schema is out of date. Run migrations with 'npm run migrate:up'."
+    );
+  }
   return error;
 }
 

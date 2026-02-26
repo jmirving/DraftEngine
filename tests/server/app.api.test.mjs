@@ -326,7 +326,7 @@ function createMockContext() {
     teamsRepository
   });
 
-  return { app, config, state };
+  return { app, config, state, usersRepository };
 }
 
 function buildAuthHeader(userId, config) {
@@ -390,6 +390,28 @@ describe("API routes", () => {
         message: "Invalid email or password."
       }
     });
+  });
+
+  it("returns a clear error when registration schema is out of date", async () => {
+    const { app, usersRepository } = createMockContext();
+    usersRepository.createUser = async () => {
+      const error = new Error("column missing");
+      error.code = "42703";
+      throw error;
+    };
+
+    const response = await request(app)
+      .post("/auth/register")
+      .send({
+        email: "schema-mismatch@example.com",
+        password: "strong-pass-123",
+        gameName: "SchemaUser",
+        tagline: "NA1"
+      });
+
+    expect(response.status).toBe(500);
+    expect(response.body.error.code).toBe("SCHEMA_MISMATCH");
+    expect(response.body.error.message).toContain("npm run migrate:up");
   });
 
   it("enforces auth and returns consistent JSON errors", async () => {
