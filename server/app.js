@@ -1,10 +1,16 @@
 import express from "express";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { createRequireAuth } from "./auth/middleware.js";
 import { ApiError, badRequest, formatErrorResponse } from "./errors.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createChampionsRouter } from "./routes/champions.js";
 import { createPoolsRouter } from "./routes/pools.js";
+
+const serverDir = path.dirname(fileURLToPath(import.meta.url));
+const publicDir = path.resolve(serverDir, "..", "public");
+const srcDir = path.resolve(serverDir, "..", "src");
 
 function requireDependency(value, name) {
   if (!value) {
@@ -48,6 +54,9 @@ export function createApp({
   });
 
   app.use(express.json());
+  app.use(express.static(publicDir));
+  app.use("/public", express.static(publicDir));
+  app.use("/src", express.static(srcDir));
 
   app.get("/health", (_request, response) => {
     response.json({ ok: true });
