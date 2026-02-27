@@ -3804,6 +3804,11 @@ function renderExplorer() {
     const summary = runtimeDocument.createElement("p");
     summary.className = "meta";
     summary.textContent = `${champion.roles.join(" / ")} | ${champion.damageType} | ${champion.scaling}`;
+    summary.title = "Roles | Damage Type | Scaling";
+    summary.setAttribute(
+      "aria-label",
+      `Roles: ${champion.roles.join(" / ")}. Damage Type: ${champion.damageType}. Scaling: ${champion.scaling}.`
+    );
 
     heading.append(name, summary);
     header.append(image, heading);

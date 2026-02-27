@@ -7,10 +7,11 @@ import { parseChampionsCsv } from "../../src/index.js";
 
 const htmlFixture = readFileSync(resolve("public/index.html"), "utf8");
 const championsCsv = readFileSync(resolve("public/data/champions.csv"), "utf8");
+const championCatalog = parseChampionsCsv(championsCsv);
+const expectedChampionCount = championCatalog.champions.length;
 
 function createFetchImpl() {
-  const parsed = parseChampionsCsv(championsCsv);
-  const champions = parsed.champions.map((champion, index) => ({
+  const champions = championCatalog.champions.map((champion, index) => ({
     id: index + 1,
     name: champion.name,
     role: champion.roles[0],
@@ -430,6 +431,29 @@ describe("workflow app integration", () => {
     doc.querySelector("#explorer-clear-all").click();
     expect(state.explorer.includeTags).toEqual([]);
     expect(state.explorer.excludeTags).toEqual([]);
+  });
+
+  test("explorer renders all champions from the loaded catalog by default", async () => {
+    const { dom } = await bootApp();
+    const doc = dom.window.document;
+
+    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+
+    expect(expectedChampionCount).toBeGreaterThanOrEqual(170);
+    expect(doc.querySelectorAll("#explorer-results .champ-card").length).toBe(expectedChampionCount);
+    expect(doc.querySelector("#explorer-count").textContent).toContain(`${expectedChampionCount} champions`);
+  });
+
+  test("explorer indicator key clarifies summary labels", async () => {
+    const { dom } = await bootApp();
+    const doc = dom.window.document;
+
+    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+
+    expect(doc.querySelector("#explorer-indicator-legend").textContent).toContain("Roles | Damage Type | Scaling");
+    const firstSummary = doc.querySelector("#explorer-results .champ-card .meta");
+    expect(firstSummary).toBeTruthy();
+    expect(firstSummary.title).toBe("Roles | Damage Type | Scaling");
   });
 
   test("profile screen defaults to primary role pool when API pools are missing", async () => {
