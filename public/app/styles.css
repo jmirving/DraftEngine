@@ -549,7 +549,7 @@ h3 {
 
 .team-admin-members-list {
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.55rem;
+  gap: 0.62rem;
 }
 
 .roster-board {
@@ -558,36 +558,80 @@ h3 {
 
 .roster-slot-card {
   display: grid;
-  gap: 0.4rem;
+  gap: 0.38rem;
   align-content: start;
   border-radius: 10px;
-  padding: 0.5rem;
+  padding: 0.45rem;
 }
 
 .roster-slot-title {
   margin: 0;
-  font-size: 1rem;
-}
-
-.roster-slot-empty {
-  margin: 0;
-  padding: 0.2rem 0;
+  font-size: 1.05rem;
 }
 
 .roster-slot-list {
   display: grid;
-  gap: 0.4rem;
+  gap: 0.42rem;
 }
 
-.roster-slot-row {
+.roster-member-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fffefa;
-  padding: 0.38rem 0.48rem;
+  padding: 0.42rem 0.5rem;
 }
 
-.roster-slot-row .meta {
-  margin: 0.15rem 0 0;
+.roster-member-row-empty {
+  border-style: solid;
+}
+
+.roster-member-info {
+  min-width: 0;
+}
+
+.roster-member-name {
+  display: block;
+  line-height: 1.2;
+}
+
+.roster-member-info .meta {
+  margin: 0;
+  margin-top: 0.15rem;
+}
+
+.roster-slot-empty {
+  padding: 0.06rem 0;
+}
+
+.roster-member-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.34rem;
+  justify-content: flex-end;
+}
+
+.roster-quick-action {
+  width: auto;
+  margin-top: 0;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+@media (max-width: 680px) {
+  .roster-member-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .roster-member-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
 }
 
 .player-team-controls {

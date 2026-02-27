@@ -405,6 +405,7 @@ function createElements() {
     teamAdminCreateLogoUrl: runtimeDocument.querySelector("#team-admin-create-logo-url"),
     teamAdminCreate: runtimeDocument.querySelector("#team-admin-create"),
     teamAdminTeamSelect: runtimeDocument.querySelector("#team-admin-team-select"),
+    teamAdminOpenEdit: runtimeDocument.querySelector("#team-admin-open-edit"),
     teamAdminRefresh: runtimeDocument.querySelector("#team-admin-refresh"),
     teamAdminRenameName: runtimeDocument.querySelector("#team-admin-rename-name"),
     teamAdminRenameTag: runtimeDocument.querySelector("#team-admin-rename-tag"),
@@ -2848,6 +2849,11 @@ function setTeamManageAction(action) {
   renderTeamManageActions();
 }
 
+function openTeamManageAction(action) {
+  state.ui.teamManageAction = TEAM_MANAGE_ACTION_SET.has(action) ? action : null;
+  renderTeamManageActions();
+}
+
 function renderTeamConfig() {
   syncConfiguredTeamSelection();
   if (elements.teamConfigDefaultTeam) {
@@ -2957,6 +2963,177 @@ function renderTeamAdminCurrentLogo(selectedTeam) {
   }
 }
 
+function sortRosterMembers(members) {
+  return [...members].sort((left, right) => {
+    const leftLead = left?.role === "lead" ? 0 : 1;
+    const rightLead = right?.role === "lead" ? 0 : 1;
+    if (leftLead !== rightLead) {
+      return leftLead - rightLead;
+    }
+    return resolveMemberDisplayName(left).localeCompare(resolveMemberDisplayName(right));
+  });
+}
+
+function resolveMemberUserId(member) {
+  const memberId = Number.parseInt(String(member?.user_id ?? ""), 10);
+  return Number.isInteger(memberId) && memberId > 0 ? memberId : null;
+}
+
+function createRosterQuickActionButton({
+  label,
+  quickAction,
+  userId = null,
+  teamRole = null,
+  lane = null,
+  disabled = false
+}) {
+  const button = runtimeDocument.createElement("button");
+  button.type = "button";
+  button.className = "ghost roster-quick-action";
+  button.textContent = label;
+  button.dataset.rosterQuickAction = quickAction;
+  if (Number.isInteger(userId)) {
+    button.dataset.userId = String(userId);
+  }
+  if (typeof teamRole === "string") {
+    button.dataset.teamRole = teamRole;
+  }
+  if (typeof lane === "string") {
+    button.dataset.lane = lane;
+  }
+  button.disabled = disabled;
+  return button;
+}
+
+function createRosterOpenSlotRow({ lane, teamRole, adminEnabled, emptyClass = false }) {
+  const row = runtimeDocument.createElement("div");
+  row.className = "roster-member-row roster-member-row-empty";
+
+  const info = runtimeDocument.createElement("div");
+  info.className = "roster-member-info";
+
+  const empty = runtimeDocument.createElement("p");
+  empty.className = `meta${emptyClass ? " roster-slot-empty" : ""}`;
+  empty.textContent = "Open slot";
+  info.append(empty);
+  row.append(info);
+
+  if (adminEnabled) {
+    const actions = runtimeDocument.createElement("div");
+    actions.className = "roster-member-actions";
+    actions.append(
+      createRosterQuickActionButton({
+        label: "Add Member",
+        quickAction: "open-add-member",
+        teamRole,
+        lane,
+        disabled: !adminEnabled
+      })
+    );
+    row.append(actions);
+  }
+
+  return row;
+}
+
+function createRosterMemberRow(member, { adminEnabled, showLane = false }) {
+  const teamRole = member?.team_role === "substitute" ? "substitute" : "primary";
+  const userId = resolveMemberUserId(member);
+
+  const row = runtimeDocument.createElement("div");
+  row.className = "roster-member-row";
+
+  const info = runtimeDocument.createElement("div");
+  info.className = "roster-member-info";
+
+  const title = runtimeDocument.createElement("strong");
+  title.className = "roster-member-name";
+  title.textContent = resolveMemberDisplayName(member);
+
+  const details = runtimeDocument.createElement("p");
+  details.className = "meta";
+  const detailParts = [formatMembershipRole(member.role), formatRosterRole(teamRole)];
+  if (showLane) {
+    detailParts.push(formatPositionLabel(resolveMemberLane(member)));
+  }
+  details.textContent = detailParts.join(" | ");
+
+  info.append(title, details);
+  row.append(info);
+
+  if (!adminEnabled) {
+    return row;
+  }
+
+  const actions = runtimeDocument.createElement("div");
+  actions.className = "roster-member-actions";
+
+  actions.append(
+    createRosterQuickActionButton({
+      label: "Remove Member",
+      quickAction: "remove-member",
+      userId,
+      disabled: !adminEnabled || !Number.isInteger(userId)
+    })
+  );
+
+  if (member?.role !== "lead") {
+    actions.append(
+      createRosterQuickActionButton({
+        label: "Promote to Lead",
+        quickAction: "promote-lead",
+        userId,
+        disabled: !adminEnabled || !Number.isInteger(userId)
+      })
+    );
+  }
+
+  actions.append(
+    createRosterQuickActionButton({
+      label: teamRole === "substitute" ? "Move to Primary" : "Move to Sub",
+      quickAction: "move-team-role",
+      userId,
+      teamRole: teamRole === "substitute" ? "primary" : "substitute",
+      disabled: !adminEnabled || !Number.isInteger(userId)
+    })
+  );
+
+  row.append(actions);
+  return row;
+}
+
+function appendRosterLaneCard({ laneLabel, members, teamRole, adminEnabled, showLane = false, emptyClass = false }) {
+  const laneCard = runtimeDocument.createElement("section");
+  laneCard.className = "summary-card roster-slot-card";
+  laneCard.dataset.lane = laneLabel;
+
+  const header = runtimeDocument.createElement("h4");
+  header.className = "roster-slot-title";
+  header.textContent = laneLabel;
+  laneCard.append(header);
+
+  const body = runtimeDocument.createElement("div");
+  body.className = "roster-slot-list";
+
+  if (members.length === 0) {
+    body.append(
+      createRosterOpenSlotRow({
+        lane: laneLabel,
+        teamRole,
+        adminEnabled,
+        emptyClass
+      })
+    );
+  } else {
+    for (const member of sortRosterMembers(members)) {
+      body.append(createRosterMemberRow(member, { adminEnabled, showLane }));
+    }
+  }
+
+  laneCard.append(body);
+  elements.teamAdminMembers.append(laneCard);
+}
+
 function renderTeamAdmin() {
   const teamOptions = state.api.teams
     .map((team) => ({ value: String(team.id), label: formatTeamCardTitle(team) }))
@@ -3023,6 +3200,9 @@ function renderTeamAdmin() {
   if (elements.teamAdminRefresh) {
     elements.teamAdminRefresh.disabled = !isAuthenticated();
   }
+  if (elements.teamAdminOpenEdit) {
+    elements.teamAdminOpenEdit.disabled = !adminEnabled;
+  }
   setTeamCreateControlsDisabled(state.api.isCreatingTeam);
 
   elements.teamAdminMembers.innerHTML = "";
@@ -3037,92 +3217,64 @@ function renderTeamAdmin() {
     return;
   }
 
-  const groupedMembers = new Map();
+  const primaryMembersByLane = new Map(LANE_ORDER.map((lane) => [lane, []]));
+  const substituteMembers = [];
+  const unassignedPrimaryMembers = [];
+
   for (const member of members) {
-    const lane = resolveMemberLane(member) ?? "Unassigned";
-    const bucket = groupedMembers.get(lane) ?? [];
-    bucket.push(member);
-    groupedMembers.set(lane, bucket);
-  }
-
-  for (const lane of LANE_ORDER) {
-    const laneMembers = groupedMembers.get(lane) ?? [];
-
-    laneMembers.sort((left, right) => {
-      const leftLead = left?.role === "lead" ? 0 : 1;
-      const rightLead = right?.role === "lead" ? 0 : 1;
-      if (leftLead !== rightLead) {
-        return leftLead - rightLead;
-      }
-      return resolveMemberDisplayName(left).localeCompare(resolveMemberDisplayName(right));
-    });
-
-    const slotCard = runtimeDocument.createElement("article");
-    slotCard.className = "summary-card roster-slot-card";
-    slotCard.dataset.lane = lane;
-
-    const slotTitle = runtimeDocument.createElement("h4");
-    slotTitle.className = "roster-slot-title";
-    slotTitle.textContent = lane;
-    slotCard.append(slotTitle);
-
-    if (laneMembers.length === 0) {
-      const empty = runtimeDocument.createElement("p");
-      empty.className = "meta roster-slot-empty";
-      empty.textContent = "Open slot";
-      slotCard.append(empty);
-      elements.teamAdminMembers.append(slotCard);
+    const teamRole = member?.team_role === "substitute" ? "substitute" : "primary";
+    if (teamRole === "substitute") {
+      substituteMembers.push(member);
       continue;
     }
 
-    const slotList = runtimeDocument.createElement("div");
-    slotList.className = "roster-slot-list";
-    for (const member of laneMembers) {
-      const row = runtimeDocument.createElement("div");
-      row.className = "roster-slot-row";
-
-      const title = runtimeDocument.createElement("strong");
-      title.textContent = resolveMemberDisplayName(member);
-
-      const details = runtimeDocument.createElement("p");
-      details.className = "meta";
-      details.textContent = `${formatMembershipRole(member.role)} | ${formatRosterRole(member.team_role ?? "primary")}`;
-      row.append(title, details);
-      slotList.append(row);
+    const lane = resolveMemberLane(member);
+    if (lane && primaryMembersByLane.has(lane)) {
+      primaryMembersByLane.get(lane).push(member);
+    } else {
+      unassignedPrimaryMembers.push(member);
     }
-
-    slotCard.append(slotList);
-    elements.teamAdminMembers.append(slotCard);
   }
 
-  const unassignedMembers = groupedMembers.get("Unassigned") ?? [];
-  if (unassignedMembers.length > 0) {
-    const slotCard = runtimeDocument.createElement("article");
-    slotCard.className = "summary-card roster-slot-card";
-    slotCard.dataset.lane = "Unassigned";
+  for (const lane of LANE_ORDER) {
+    appendRosterLaneCard({
+      laneLabel: lane,
+      members: primaryMembersByLane.get(lane) ?? [],
+      teamRole: "primary",
+      adminEnabled,
+      emptyClass: true
+    });
+  }
 
-    const slotTitle = runtimeDocument.createElement("h4");
-    slotTitle.className = "roster-slot-title";
-    slotTitle.textContent = "Unassigned";
-    slotCard.append(slotTitle);
+  if (unassignedPrimaryMembers.length > 0) {
+    appendRosterLaneCard({
+      laneLabel: "Unassigned",
+      members: unassignedPrimaryMembers,
+      teamRole: "primary",
+      adminEnabled,
+      showLane: true
+    });
+  }
 
-    const slotList = runtimeDocument.createElement("div");
-    slotList.className = "roster-slot-list";
-    for (const member of unassignedMembers) {
-      const row = runtimeDocument.createElement("div");
-      row.className = "roster-slot-row";
+  appendRosterLaneCard({
+    laneLabel: "Substitutes",
+    members: substituteMembers,
+    teamRole: "substitute",
+    adminEnabled,
+    showLane: true
+  });
 
-      const title = runtimeDocument.createElement("strong");
-      title.textContent = resolveMemberDisplayName(member);
-
-      const details = runtimeDocument.createElement("p");
-      details.className = "meta";
-      details.textContent = `${formatMembershipRole(member.role)} | ${formatRosterRole(member.team_role ?? "primary")}`;
-      row.append(title, details);
-      slotList.append(row);
+  if (adminEnabled && substituteMembers.length > 0) {
+    const substituteCard = elements.teamAdminMembers.querySelector("[data-lane='Substitutes'] .roster-slot-list");
+    if (substituteCard) {
+      substituteCard.append(
+        createRosterOpenSlotRow({
+          lane: "Substitutes",
+          teamRole: "substitute",
+          adminEnabled
+        })
+      );
     }
-    slotCard.append(slotList);
-    elements.teamAdminMembers.append(slotCard);
   }
 }
 
@@ -5563,6 +5715,68 @@ function attachEvents() {
       void loadTeamsFromApi(state.api.selectedTeamId).then(() => {
         renderTeamAdmin();
       });
+    });
+  }
+
+  if (elements.teamAdminOpenEdit) {
+    elements.teamAdminOpenEdit.addEventListener("click", () => {
+      openTeamManageAction(TEAM_MANAGE_ACTION_TEAM_SETTINGS);
+    });
+  }
+
+  if (elements.teamAdminMembers) {
+    elements.teamAdminMembers.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("button[data-roster-quick-action]");
+      if (!actionButton) {
+        return;
+      }
+
+      const selectedTeam = getSelectedAdminTeam();
+      if (!selectedTeam || actionButton.disabled) {
+        return;
+      }
+
+      const userId = Number.parseInt(actionButton.dataset.userId ?? "", 10);
+      const nextTeamRole = actionButton.dataset.teamRole;
+      const quickAction = actionButton.dataset.rosterQuickAction;
+
+      if (quickAction === "open-add-member") {
+        openTeamManageAction(TEAM_MANAGE_ACTION_ADD_MEMBER);
+        elements.teamAdminAddRole.value = DEFAULT_MEMBER_ROLE;
+        elements.teamAdminAddTeamRole.value = TEAM_MEMBER_TYPE_OPTIONS.includes(nextTeamRole)
+          ? nextTeamRole
+          : "primary";
+        elements.teamAdminAddUserId.value = "";
+        const lane = actionButton.dataset.lane ?? "selected lane";
+        setTeamAdminFeedback(`Enter a user id to add to ${lane}.`);
+        elements.teamAdminAddUserId.focus();
+        return;
+      }
+
+      if (!Number.isInteger(userId) || userId <= 0) {
+        return;
+      }
+
+      if (quickAction === "remove-member") {
+        elements.teamAdminRemoveUserId.value = String(userId);
+        elements.teamAdminRemoveMember.click();
+        return;
+      }
+
+      if (quickAction === "promote-lead") {
+        elements.teamAdminRoleUserId.value = String(userId);
+        elements.teamAdminRole.value = "lead";
+        elements.teamAdminUpdateRole.click();
+        return;
+      }
+
+      if (quickAction === "move-team-role") {
+        elements.teamAdminTeamRoleUserId.value = String(userId);
+        elements.teamAdminTeamRole.value = TEAM_MEMBER_TYPE_OPTIONS.includes(nextTeamRole)
+          ? nextTeamRole
+          : DEFAULT_TEAM_MEMBER_TYPE;
+        elements.teamAdminUpdateTeamRole.click();
+      }
     });
   }
 

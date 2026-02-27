@@ -1553,7 +1553,7 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#team-admin-members").textContent).toContain("Mid");
     expect(doc.querySelector("#team-admin-members").textContent).toContain("ADC");
     expect(doc.querySelector("#team-admin-members").textContent).toContain("Support");
-    expect(doc.querySelectorAll("#team-admin-members .roster-slot-empty")).toHaveLength(3);
+    expect(doc.querySelectorAll("#team-admin-members .roster-slot-empty")).toHaveLength(4);
 
     const leadStorage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
