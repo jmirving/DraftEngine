@@ -456,6 +456,32 @@ describe("workflow app integration", () => {
     expect(firstSummary.title).toBe("Roles | Damage Type | Scaling");
   });
 
+  test("explorer uses explicit Data Dragon image-key overrides for special champion names", async () => {
+    const { dom } = await bootApp();
+    const doc = dom.window.document;
+    const searchInput = doc.querySelector("#explorer-search");
+
+    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+
+    function expectChampionImageKey(championName, expectedImageKey) {
+      searchInput.value = championName;
+      searchInput.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+
+      const card = doc.querySelector("#explorer-results .champ-card");
+      expect(card).toBeTruthy();
+      expect(card.querySelector(".champ-name").textContent).toBe(championName);
+      expect(card.querySelector(".champ-thumb").src).toContain(`/loading/${expectedImageKey}_0.jpg`);
+    }
+
+    expectChampionImageKey("Renata Glasc", "Renata");
+    expectChampionImageKey("Nunu & Willump", "Nunu");
+    expectChampionImageKey("Wukong", "MonkeyKing");
+    expectChampionImageKey("LeBlanc", "Leblanc");
+    expectChampionImageKey("Kha'Zix", "Khazix");
+    expectChampionImageKey("Kai'Sa", "Kaisa");
+    expectChampionImageKey("Cho'Gath", "Chogath");
+  });
+
   test("profile screen defaults to primary role pool when API pools are missing", async () => {
     const { dom, state } = await bootApp();
     const doc = dom.window.document;

@@ -86,7 +86,15 @@ const FAMILIARITY_LEVEL_LABELS = Object.freeze({
 });
 
 const CHAMPION_IMAGE_OVERRIDES = Object.freeze({
-  VelKoz: "Velkoz"
+  "Bel'Veth": "Belveth",
+  "Cho'Gath": "Chogath",
+  "Kai'Sa": "Kaisa",
+  "Kha'Zix": "Khazix",
+  LeBlanc: "Leblanc",
+  "Nunu & Willump": "Nunu",
+  "Renata Glasc": "Renata",
+  VelKoz: "Velkoz",
+  Wukong: "MonkeyKing"
 });
 
 const DEFAULT_APP_CONFIG = Object.freeze({
