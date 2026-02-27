@@ -5,6 +5,13 @@ Always read `~/.config/agent/POLICY.md` before doing any work; it defines the sh
 ## Mission
 Implement tasks for this repo safely and incrementally.
 
+## Coming Soon Sync (Mandatory)
+
+For every user-facing feature or behavior change:
+- Review the Coming Soon content in `public/index.html`.
+- Remove or rewrite items that are now implemented.
+- Add or update items for newly deferred/follow-up functionality so the page stays accurate.
+
 ## Landing the Plane (Session Completion)
 
 **When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
