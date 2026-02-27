@@ -120,6 +120,9 @@ const UI_COPY = Object.freeze({
 });
 
 const COMPACT_NAV_MEDIA_QUERY = "(max-width: 1099px)";
+const DEFAULT_TAB_ROUTE = "workflow";
+const TAB_ROUTES = Object.freeze(["workflow", "team-config", "player-config", "explorer"]);
+const TAB_ROUTE_SET = new Set(TAB_ROUTES);
 
 let runtimeWindow = null;
 let runtimeDocument = null;
@@ -146,7 +149,7 @@ const SCALING_ALIASES = Object.freeze({
 function createInitialState() {
   return {
     data: null,
-    activeTab: "workflow",
+    activeTab: DEFAULT_TAB_ROUTE,
     ui: {
       isNavOpen: false
     },
@@ -614,7 +617,7 @@ function hasDefinedProfileRoles(user) {
 }
 
 function resolvePostLoginTab(user) {
-  return hasDefinedProfileRoles(user) ? "workflow" : "player-config";
+  return hasDefinedProfileRoles(user) ? DEFAULT_TAB_ROUTE : "player-config";
 }
 
 function setAuthControlsVisibility(showAuthControls, mode = "login") {
@@ -979,15 +982,60 @@ function createCheckboxMultiControl({
   };
 }
 
-function setTab(tabName) {
-  if (!hasAuthSession()) {
-    state.activeTab = "workflow";
+function parseTabRouteHash(rawHash) {
+  if (typeof rawHash !== "string" || rawHash === "") {
+    return { tab: null, status: "missing" };
+  }
+  const normalized = rawHash.startsWith("#") ? rawHash.slice(1).trim() : rawHash.trim();
+  if (!normalized) {
+    return { tab: null, status: "missing" };
+  }
+  if (TAB_ROUTE_SET.has(normalized)) {
+    return { tab: normalized, status: "valid" };
+  }
+  return { tab: null, status: "invalid" };
+}
+
+function formatTabRouteHash(tab) {
+  const resolved = TAB_ROUTE_SET.has(tab) ? tab : DEFAULT_TAB_ROUTE;
+  return `#${resolved}`;
+}
+
+function updateLocationHashForTab(tab, { replace = false } = {}) {
+  const targetHash = formatTabRouteHash(tab);
+  if (!runtimeWindow?.location || runtimeWindow.location.hash === targetHash) {
     return;
   }
 
-  const validTabs = new Set(["workflow", "team-config", "player-config", "explorer"]);
-  const resolvedTab = validTabs.has(tabName) ? tabName : "workflow";
+  const nextUrl = `${runtimeWindow.location.pathname}${runtimeWindow.location.search}${targetHash}`;
+  if (replace && runtimeWindow.history?.replaceState) {
+    runtimeWindow.history.replaceState(null, "", nextUrl);
+    return;
+  }
+
+  if (runtimeWindow.history?.pushState) {
+    runtimeWindow.history.pushState(null, "", nextUrl);
+    return;
+  }
+
+  runtimeWindow.location.hash = targetHash;
+}
+
+function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
+  const requestedTab = typeof tabName === "string" ? tabName : "";
+  const normalizedRequestedTab = TAB_ROUTE_SET.has(requestedTab) ? requestedTab : DEFAULT_TAB_ROUTE;
+  const resolvedTab = hasAuthSession() ? normalizedRequestedTab : DEFAULT_TAB_ROUTE;
+  const shouldNormalizeRoute = requestedTab !== resolvedTab || !TAB_ROUTE_SET.has(requestedTab);
+  const shouldSyncRoute = syncRoute || shouldNormalizeRoute;
+  const tabChanged = state.activeTab !== resolvedTab;
+
   state.activeTab = resolvedTab;
+
+  if (shouldSyncRoute) {
+    updateLocationHashForTab(resolvedTab, {
+      replace: replaceRoute || shouldNormalizeRoute
+    });
+  }
 
   for (const button of elements.sideMenuLinks) {
     const isActive = button.dataset.tab === resolvedTab;
@@ -1010,7 +1058,7 @@ function setTab(tabName) {
     renderExplorer();
   }
 
-  if (isCompactNavViewport()) {
+  if ((tabChanged || syncRoute) && isCompactNavViewport()) {
     setNavOpen(false);
   }
 }
@@ -3747,7 +3795,7 @@ async function handleAuthSubmit(path, mode = "login") {
   saveAuthSession();
   clearAuthForm();
   setAuthMode("login");
-  setTab(resolvePostLoginTab(payload.user));
+  setTab(resolvePostLoginTab(payload.user), { syncRoute: true });
   setAuthFeedback("");
   renderAuth();
   await hydrateAuthenticatedViews();
@@ -3792,6 +3840,7 @@ function attachEvents() {
 
   elements.authLogout.addEventListener("click", () => {
     clearAuthSession("");
+    setTab(DEFAULT_TAB_ROUTE, { syncRoute: true, replaceRoute: true });
     clearApiPoolState();
     state.api.teams = [];
     state.api.membersByTeamId = {};
@@ -3818,6 +3867,14 @@ function attachEvents() {
   runtimeWindow.addEventListener("resize", () => {
     syncNavLayout();
   });
+  runtimeWindow.addEventListener("hashchange", () => {
+    const route = parseTabRouteHash(runtimeWindow.location.hash);
+    if (route.status === "valid") {
+      setTab(route.tab);
+      return;
+    }
+    setTab(DEFAULT_TAB_ROUTE, { syncRoute: true, replaceRoute: true });
+  });
 
   for (const button of elements.tabTriggers) {
     button.addEventListener("click", () => {
@@ -3825,7 +3882,7 @@ function attachEvents() {
         setAuthFeedback("Login required to access app screens.");
         return;
       }
-      setTab(button.dataset.tab);
+      setTab(button.dataset.tab, { syncRoute: true });
     });
   }
 
@@ -4289,8 +4346,8 @@ async function init() {
   try {
     applyUiCopy();
     syncNavLayout();
-    setTab("workflow");
     loadStoredAuthSession();
+    const initialRoute = parseTabRouteHash(runtimeWindow.location.hash);
     await loadMvpData();
     if (isAuthenticated()) {
       await loadProfileFromApi();
@@ -4312,7 +4369,16 @@ async function init() {
     resetBuilderToDefaults();
 
     attachEvents();
-    setTab(state.activeTab);
+    const initialTab =
+      initialRoute.status === "valid"
+        ? initialRoute.tab
+        : initialRoute.status === "invalid"
+          ? DEFAULT_TAB_ROUTE
+          : state.activeTab;
+    setTab(initialTab, {
+      syncRoute: true,
+      replaceRoute: initialRoute.status !== "valid"
+    });
     syncSlotSelectOptions();
     renderTeamConfig();
     renderTeamAdmin();

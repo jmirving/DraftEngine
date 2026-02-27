@@ -72,6 +72,16 @@ Build a Composition is stage-focused: one guided stage is shown at a time (Setup
 Setup keeps team selection and slot inputs in a single vertical list that follows Node Draft Order.
 Feedback is contextual to Setup/Inspect panels (no global status banner).
 
+Navigation routing:
+- Tab routes are hash-based: `#workflow`, `#team-config`, `#player-config`, `#explorer`.
+- Clicking side-menu tabs updates the hash and browser history.
+- Browser Back/Forward replays in-app tab navigation.
+- For unauthenticated sessions, non-workflow hashes are normalized to `#workflow`.
+
+Troubleshooting:
+- If the URL hash is invalid (for example `#unknown`), the app normalizes to `#workflow`.
+- If no hash is present, the app sets a hash to the resolved initial tab.
+
 Frontend API integration:
 - `public/index.html` sets `window.DRAFTENGINE_API_BASE_URL` (default points to Render API URL).
 - Override `window.DRAFTENGINE_API_BASE_URL` before `public/app/main.js` loads when using a different API host.
