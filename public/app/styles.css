@@ -130,7 +130,6 @@ h3 {
 }
 
 .app-shell {
-  position: relative;
   display: grid;
   grid-template-columns: minmax(210px, 240px) minmax(0, 1fr);
   gap: 0.9rem;
@@ -138,31 +137,8 @@ h3 {
   transition: grid-template-columns 180ms ease;
 }
 
-.nav-desktop-toggle {
-  position: absolute;
-  top: 1rem;
-  left: clamp(198px, 21vw, 228px);
-  width: 2.2rem;
-  min-width: 2.2rem;
-  height: 2.2rem;
-  margin-top: 0;
-  padding: 0;
-  font-size: 1.05rem;
-  line-height: 1;
-  border-radius: 999px;
-  z-index: 6;
-}
-
 .app-shell.is-nav-collapsed {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.app-shell.is-nav-collapsed .nav-drawer {
-  display: none;
-}
-
-.app-shell.is-nav-collapsed .nav-desktop-toggle {
-  left: 0.45rem;
+  grid-template-columns: 3.35rem minmax(0, 1fr);
 }
 
 .nav-drawer {
@@ -193,6 +169,18 @@ h3 {
   top: 1rem;
 }
 
+.side-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  margin-bottom: 0.3rem;
+}
+
+.side-menu-header #nav-title {
+  margin: 0;
+}
+
 .button-subtle,
 .side-menu-link {
   background: #fff8f2;
@@ -212,6 +200,18 @@ h3 {
 
 .button-subtle {
   border-radius: 10px;
+}
+
+.nav-desktop-toggle {
+  width: 2.05rem;
+  min-width: 2.05rem;
+  min-height: 2.05rem;
+  height: 2.05rem;
+  margin-top: 0;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+  border-radius: 999px;
 }
 
 .side-menu-link {
@@ -248,6 +248,22 @@ h3 {
 
 .report-issue-link:hover {
   color: var(--accent);
+}
+
+.app-shell.is-nav-collapsed .side-menu {
+  padding: 0.45rem 0.3rem;
+}
+
+.app-shell.is-nav-collapsed .side-menu-header {
+  justify-content: center;
+  margin-bottom: 0;
+}
+
+.app-shell.is-nav-collapsed #nav-title,
+.app-shell.is-nav-collapsed #nav-meta,
+.app-shell.is-nav-collapsed .side-menu-link,
+.app-shell.is-nav-collapsed .report-issue-link {
+  display: none;
 }
 
 .coming-soon-list {
