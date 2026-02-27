@@ -178,6 +178,16 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       return state.users.find((candidate) => candidate.id === userId) ?? null;
     },
 
+    async findByRiotId(gameName, tagline) {
+      const normalizedGameName = String(gameName ?? "").trim().toLowerCase();
+      const normalizedTagline = String(tagline ?? "").trim().toLowerCase();
+      return state.users.find((candidate) => {
+        const candidateGameName = String(candidate.game_name ?? "").trim().toLowerCase();
+        const candidateTagline = String(candidate.tagline ?? "").trim().toLowerCase();
+        return candidateGameName === normalizedGameName && candidateTagline === normalizedTagline;
+      }) ?? null;
+    },
+
     async findProfileById(userId) {
       return state.users.find((candidate) => candidate.id === userId) ?? null;
     },
@@ -1431,7 +1441,7 @@ describe("API routes", () => {
     const addOutsider = await request(app)
       .post("/teams/1/members")
       .set("Authorization", leadAuth)
-      .send({ user_id: 3, role: "member" });
+      .send({ riot_id: "Outsider#NA1", role: "member" });
     expect(addOutsider.status).toBe(201);
     expect(addOutsider.body.member.user_id).toBe(3);
 

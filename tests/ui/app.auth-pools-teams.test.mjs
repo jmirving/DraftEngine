@@ -99,6 +99,60 @@ function createFetchHarness({
     secondaryRoles: ["Top"]
   };
 
+  function parseRiotId(rawValue) {
+    const normalizedValue = typeof rawValue === "string" ? rawValue.trim() : "";
+    const segments = normalizedValue.split("#");
+    if (segments.length !== 2) {
+      return null;
+    }
+    const gameName = segments[0].trim();
+    const tagline = segments[1].trim();
+    if (!gameName || !tagline) {
+      return null;
+    }
+    return `${gameName.toLowerCase()}#${tagline.toLowerCase()}`;
+  }
+
+  function resolveMemberRiotId(member) {
+    const gameName = typeof member?.game_name === "string" ? member.game_name.trim() : "";
+    const tagline = typeof member?.tagline === "string" ? member.tagline.trim() : "";
+    if (gameName && tagline) {
+      return `${gameName}#${tagline}`;
+    }
+    return typeof member?.display_name === "string" ? member.display_name.trim() : "";
+  }
+
+  function findUserIdByRiotId(rawRiotId) {
+    const candidateKey = parseRiotId(rawRiotId);
+    if (!candidateKey) {
+      return null;
+    }
+
+    for (const roster of Object.values(membersByTeam)) {
+      for (const member of roster ?? []) {
+        const memberKey = parseRiotId(resolveMemberRiotId(member));
+        if (memberKey && memberKey === candidateKey) {
+          const memberUserId = Number(member.user_id);
+          if (Number.isInteger(memberUserId) && memberUserId > 0) {
+            return memberUserId;
+          }
+        }
+      }
+    }
+
+    const profileRiotId = `${resolvedProfile.gameName ?? ""}#${resolvedProfile.tagline ?? ""}`;
+    if (parseRiotId(profileRiotId) === candidateKey) {
+      return Number(resolvedProfile.id);
+    }
+
+    const loginRiotId = `${resolvedLoginUser.gameName ?? ""}#${resolvedLoginUser.tagline ?? ""}`;
+    if (parseRiotId(loginRiotId) === candidateKey) {
+      return Number(resolvedLoginUser.id);
+    }
+
+    return null;
+  }
+
   function toTeamLogoDataUrl(value) {
     if (!value) {
       return null;
@@ -505,11 +559,17 @@ function createFetchHarness({
     }
 
     if (membersMatch && method === "POST") {
+      const resolvedUserId = Number.isInteger(Number(body.user_id))
+        ? Number(body.user_id)
+        : findUserIdByRiotId(body.riot_id);
+      if (!Number.isInteger(resolvedUserId) || resolvedUserId <= 0) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "User not found." } }, 404);
+      }
       return createJsonResponse(
         {
           member: {
             team_id: Number(membersMatch[1]),
-            user_id: body.user_id,
+            user_id: resolvedUserId,
             role: body.role,
             team_role: body.team_role ?? "substitute"
           }
@@ -1054,7 +1114,7 @@ describe("auth + pools + team management", () => {
     expect(createTab.getAttribute("aria-selected")).toBe("true");
   });
 
-  test("team manage row actions send role and team-role updates", async () => {
+  test("team manage row actions open role-scoped panes and send updates on confirm", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -1104,7 +1164,18 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
     await flush();
 
+    doc.querySelector("button[data-roster-quick-action='open-add-member'][data-lane='Jungle']").click();
+    const addPanel = doc.querySelector("[data-team-manage-panel='add-member']");
+    expect(addPanel.hidden).toBe(false);
+    expect(doc.querySelector("#team-admin-add-title").textContent).toBe("Jungle: Add Member");
+    doc.querySelector("#team-admin-add-cancel").click();
+    expect(addPanel.hidden).toBe(true);
+
     doc.querySelector("button[data-roster-quick-action='promote-lead'][data-user-id='22']").click();
+    expect(doc.querySelector("[data-team-manage-panel='update-member-role']").hidden).toBe(false);
+    expect(doc.querySelector("#team-admin-update-role-title").textContent).toBe("ADC: Update Member Role");
+    expect(doc.querySelector("#team-admin-role-riot-id").value).toBe("Member#NA1");
+    doc.querySelector("#team-admin-update-role").click();
     await flush();
     await flush();
 
@@ -1115,6 +1186,10 @@ describe("auth + pools + team management", () => {
     expect(updateRoleCall.body).toEqual({ role: "lead" });
 
     doc.querySelector("button[data-roster-quick-action='move-team-role'][data-user-id='22']").click();
+    expect(doc.querySelector("[data-team-manage-panel='update-team-role']").hidden).toBe(false);
+    expect(doc.querySelector("#team-admin-update-team-role-title").textContent).toBe("ADC: Update Member Team Role");
+    expect(doc.querySelector("#team-admin-team-role-riot-id").value).toBe("Member#NA1");
+    doc.querySelector("#team-admin-update-team-role").click();
     await flush();
     await flush();
 
@@ -1123,6 +1198,57 @@ describe("auth + pools + team management", () => {
     );
     expect(updateTeamRoleCall).toBeTruthy();
     expect(updateTeamRoleCall.body).toEqual({ team_role: "primary" });
+  });
+
+  test("add member posts riot_id payload", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", gameName: "Lead", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness({
+      pools: [],
+      teams: [
+        {
+          id: 1,
+          name: "Team Alpha",
+          tag: "ALPHA",
+          created_by: 11,
+          membership_role: "lead",
+          membership_team_role: "primary",
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      membersByTeam: {
+        "1": [
+          {
+            team_id: 1,
+            user_id: 11,
+            role: "lead",
+            team_role: "primary",
+            display_name: "Lead#NA1",
+            lane: "Top"
+          }
+        ]
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    await flush();
+
+    doc.querySelector("button[data-roster-quick-action='open-add-member'][data-lane='Jungle']").click();
+    doc.querySelector("#team-admin-add-riot-id").value = "Lead#NA1";
+    doc.querySelector("#team-admin-add-member").click();
+    await flush();
+    await flush();
+
+    const addMemberCall = harness.calls.find((call) => call.path === "/teams/1/members" && call.method === "POST");
+    expect(addMemberCall).toBeTruthy();
+    expect(addMemberCall.body.riot_id).toBe("Lead#NA1");
+    expect(addMemberCall.body.user_id).toBeUndefined();
   });
 
   test("team update remove-logo action sends JSON remove_logo contract", async () => {

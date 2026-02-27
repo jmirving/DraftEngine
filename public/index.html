@@ -431,11 +431,11 @@
 
                     <div class="team-manage-panel" data-team-manage-panel="add-member" hidden>
                       <div class="team-admin-block">
-                        <h3>Add Member</h3>
+                        <h3 id="team-admin-add-title">Add Member</h3>
                         <div class="grid grid-2">
                           <label>
-                            User ID
-                            <input id="team-admin-add-user-id" type="number" min="1" step="1" placeholder="User ID" />
+                            Riot ID
+                            <input id="team-admin-add-riot-id" type="text" placeholder="GameName#NA1" />
                           </label>
                           <label>
                             Role
@@ -454,17 +454,20 @@
                         </label>
                         <div class="button-row">
                           <button id="team-admin-add-member" type="button">Add Member</button>
+                          <button id="team-admin-add-cancel" class="ghost" type="button" data-team-manage-cancel>
+                            Cancel
+                          </button>
                         </div>
                       </div>
                     </div>
 
                     <div class="team-manage-panel" data-team-manage-panel="update-member-role" hidden>
                       <div class="team-admin-block">
-                        <h3>Update Member Role</h3>
+                        <h3 id="team-admin-update-role-title">Update Member Role</h3>
                         <div class="grid grid-2">
                           <label>
-                            User ID
-                            <input id="team-admin-role-user-id" type="number" min="1" step="1" placeholder="User ID" />
+                            Riot ID
+                            <input id="team-admin-role-riot-id" type="text" placeholder="GameName#NA1" />
                           </label>
                           <label>
                             New Role
@@ -476,17 +479,20 @@
                         </div>
                         <div class="button-row">
                           <button id="team-admin-update-role" type="button">Update Role</button>
+                          <button id="team-admin-update-role-cancel" class="ghost" type="button" data-team-manage-cancel>
+                            Cancel
+                          </button>
                         </div>
                       </div>
                     </div>
 
                     <div class="team-manage-panel" data-team-manage-panel="update-team-role" hidden>
                       <div class="team-admin-block">
-                        <h3>Update Member Team Role</h3>
+                        <h3 id="team-admin-update-team-role-title">Update Member Team Role</h3>
                         <div class="grid grid-2">
                           <label>
-                            User ID
-                            <input id="team-admin-team-role-user-id" type="number" min="1" step="1" placeholder="User ID" />
+                            Riot ID
+                            <input id="team-admin-team-role-riot-id" type="text" placeholder="GameName#NA1" />
                           </label>
                           <label>
                             New Team Role
@@ -498,19 +504,30 @@
                         </div>
                         <div class="button-row">
                           <button id="team-admin-update-team-role" type="button">Update Team Role</button>
+                          <button
+                            id="team-admin-update-team-role-cancel"
+                            class="ghost"
+                            type="button"
+                            data-team-manage-cancel
+                          >
+                            Cancel
+                          </button>
                         </div>
                       </div>
                     </div>
 
                     <div class="team-manage-panel" data-team-manage-panel="remove-member" hidden>
                       <div class="team-admin-block">
-                        <h3>Remove Member</h3>
+                        <h3 id="team-admin-remove-title">Remove Member</h3>
                         <label>
-                          User ID
-                          <input id="team-admin-remove-user-id" type="number" min="1" step="1" placeholder="User ID" />
+                          Riot ID
+                          <input id="team-admin-remove-riot-id" type="text" placeholder="GameName#NA1" />
                         </label>
                         <div class="button-row">
                           <button id="team-admin-remove-member" class="ghost" type="button">Remove Member</button>
+                          <button id="team-admin-remove-cancel" class="ghost" type="button" data-team-manage-cancel>
+                            Cancel
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -607,6 +624,7 @@
                 <li>Champion tag edits are not durably isolated from catalog seed refresh yet; restart/seed flows can overwrite editable tags.</li>
                 <li>Required Checks settings (composition tags) do not yet have a dedicated management surface outside Composer.</li>
                 <li>Team join request flows are API-ready, but request/review controls are not exposed in Team Workspace yet.</li>
+                <li>Team Workspace member actions require exact Riot ID entry (`GameName#Tagline`); search/autocomplete is not implemented yet.</li>
                 <li>Some legacy helper copy remains in Composer/Explorer and will be trimmed as controls are further consolidated.</li>
               </ul>
               <h3>Future Features</h3>

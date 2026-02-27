@@ -165,6 +165,47 @@ function parseTeamRole(rawRole, fieldName = "team_role", fallback = "substitute"
   return normalized;
 }
 
+function parseRiotId(rawRiotId, fieldName = "riot_id") {
+  const normalized = requireNonEmptyString(rawRiotId, fieldName);
+  const segments = normalized.split("#");
+  if (segments.length !== 2) {
+    throw badRequest(`Expected '${fieldName}' in 'gameName#tagline' format.`);
+  }
+  const gameName = segments[0].trim();
+  const tagline = segments[1].trim();
+  if (!gameName || !tagline) {
+    throw badRequest(`Expected '${fieldName}' in 'gameName#tagline' format.`);
+  }
+  return { gameName, tagline };
+}
+
+async function resolveMemberFromInput(body, usersRepository) {
+  const hasUserId = body.user_id !== undefined && body.user_id !== null && body.user_id !== "";
+  const hasRiotId = body.riot_id !== undefined && body.riot_id !== null && body.riot_id !== "";
+
+  if (hasUserId && hasRiotId) {
+    throw badRequest("Provide either 'user_id' or 'riot_id', not both.");
+  }
+  if (!hasUserId && !hasRiotId) {
+    throw badRequest("Expected 'user_id' or 'riot_id'.");
+  }
+
+  if (hasRiotId) {
+    const { gameName, tagline } = parseRiotId(body.riot_id, "riot_id");
+    const user = await usersRepository.findByRiotId(gameName, tagline);
+    if (!user) {
+      throw notFound("User not found.");
+    }
+    return {
+      userId: Number(user.id),
+      user
+    };
+  }
+
+  const userId = parsePositiveInteger(body.user_id, "user_id");
+  return { userId, user: null };
+}
+
 function parseJoinRequestNote(rawNote) {
   if (rawNote === undefined || rawNote === null || rawNote === "") {
     return "";
@@ -456,13 +497,14 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
     const userId = request.user.userId;
     const teamId = parsePositiveInteger(request.params.id, "id");
     const body = requireObject(request.body);
-    const memberUserId = parsePositiveInteger(body.user_id, "user_id");
+    const memberInput = await resolveMemberFromInput(body, usersRepository);
+    const memberUserId = memberInput.userId;
     const role = parseMemberRole(body.role, "role", "member");
     const teamRole = parseTeamRole(body.team_role, "team_role", "substitute");
 
     await requireTeamLead(teamId, userId, teamsRepository);
 
-    const targetUser = await usersRepository.findById(memberUserId);
+    const targetUser = memberInput.user ?? await usersRepository.findById(memberUserId);
     if (!targetUser) {
       throw notFound("User not found.");
     }

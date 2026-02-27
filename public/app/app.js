@@ -206,7 +206,8 @@ function createInitialState() {
       isNavOpen: false,
       isNavCollapsed: false,
       teamWorkspaceTab: TEAM_WORKSPACE_TAB_MANAGE,
-      teamManageAction: null
+      teamManageAction: null,
+      teamManageActionContext: null
     },
     auth: {
       token: null,
@@ -418,18 +419,23 @@ function createElements() {
     teamAdminRename: runtimeDocument.querySelector("#team-admin-rename"),
     teamAdminDelete: runtimeDocument.querySelector("#team-admin-delete"),
     teamAdminMembers: runtimeDocument.querySelector("#team-admin-members"),
-    teamAdminAddUserId: runtimeDocument.querySelector("#team-admin-add-user-id"),
+    teamAdminAddTitle: runtimeDocument.querySelector("#team-admin-add-title"),
+    teamAdminAddRiotId: runtimeDocument.querySelector("#team-admin-add-riot-id"),
     teamAdminAddRole: runtimeDocument.querySelector("#team-admin-add-role"),
     teamAdminAddTeamRole: runtimeDocument.querySelector("#team-admin-add-team-role"),
     teamAdminAddMember: runtimeDocument.querySelector("#team-admin-add-member"),
-    teamAdminRoleUserId: runtimeDocument.querySelector("#team-admin-role-user-id"),
+    teamAdminUpdateRoleTitle: runtimeDocument.querySelector("#team-admin-update-role-title"),
+    teamAdminRoleRiotId: runtimeDocument.querySelector("#team-admin-role-riot-id"),
     teamAdminRole: runtimeDocument.querySelector("#team-admin-role"),
     teamAdminUpdateRole: runtimeDocument.querySelector("#team-admin-update-role"),
-    teamAdminTeamRoleUserId: runtimeDocument.querySelector("#team-admin-team-role-user-id"),
+    teamAdminUpdateTeamRoleTitle: runtimeDocument.querySelector("#team-admin-update-team-role-title"),
+    teamAdminTeamRoleRiotId: runtimeDocument.querySelector("#team-admin-team-role-riot-id"),
     teamAdminTeamRole: runtimeDocument.querySelector("#team-admin-team-role"),
     teamAdminUpdateTeamRole: runtimeDocument.querySelector("#team-admin-update-team-role"),
-    teamAdminRemoveUserId: runtimeDocument.querySelector("#team-admin-remove-user-id"),
+    teamAdminRemoveTitle: runtimeDocument.querySelector("#team-admin-remove-title"),
+    teamAdminRemoveRiotId: runtimeDocument.querySelector("#team-admin-remove-riot-id"),
     teamAdminRemoveMember: runtimeDocument.querySelector("#team-admin-remove-member"),
+    teamManageCancelButtons: Array.from(runtimeDocument.querySelectorAll("button[data-team-manage-cancel]")),
     teamAdminFeedback: runtimeDocument.querySelector("#team-admin-feedback"),
     poolApiFeedback: runtimeDocument.querySelector("#pool-api-feedback"),
     playerConfigTeam: runtimeDocument.querySelector("#player-config-team"),
@@ -2817,11 +2823,32 @@ function setTeamWorkspaceTab(tab) {
   renderTeamWorkspaceTabs();
 }
 
+function resolveTeamManageActionTitle(action, context) {
+  const laneLabel = typeof context?.lane === "string" && context.lane.trim() !== ""
+    ? context.lane.trim()
+    : "";
+
+  if (action === TEAM_MANAGE_ACTION_ADD_MEMBER) {
+    return laneLabel ? `${laneLabel}: Add Member` : "Add Member";
+  }
+  if (action === TEAM_MANAGE_ACTION_UPDATE_MEMBER_ROLE) {
+    return laneLabel ? `${laneLabel}: Update Member Role` : "Update Member Role";
+  }
+  if (action === TEAM_MANAGE_ACTION_UPDATE_TEAM_ROLE) {
+    return laneLabel ? `${laneLabel}: Update Member Team Role` : "Update Member Team Role";
+  }
+  if (action === TEAM_MANAGE_ACTION_REMOVE_MEMBER) {
+    return laneLabel ? `${laneLabel}: Remove Member` : "Remove Member";
+  }
+  return "Edit Team";
+}
+
 function renderTeamManageActions() {
   const activeAction = TEAM_MANAGE_ACTION_SET.has(state.ui.teamManageAction)
     ? state.ui.teamManageAction
     : null;
   state.ui.teamManageAction = activeAction;
+  const actionContext = activeAction ? state.ui.teamManageActionContext : null;
 
   for (const button of elements.teamManageActionButtons) {
     const action = button.dataset.teamManageAction;
@@ -2838,19 +2865,49 @@ function renderTeamManageActions() {
   if (elements.teamManageActionHelp) {
     elements.teamManageActionHelp.hidden = Boolean(activeAction);
   }
+
+  if (elements.teamAdminAddTitle) {
+    elements.teamAdminAddTitle.textContent = resolveTeamManageActionTitle(
+      TEAM_MANAGE_ACTION_ADD_MEMBER,
+      actionContext
+    );
+  }
+  if (elements.teamAdminUpdateRoleTitle) {
+    elements.teamAdminUpdateRoleTitle.textContent = resolveTeamManageActionTitle(
+      TEAM_MANAGE_ACTION_UPDATE_MEMBER_ROLE,
+      actionContext
+    );
+  }
+  if (elements.teamAdminUpdateTeamRoleTitle) {
+    elements.teamAdminUpdateTeamRoleTitle.textContent = resolveTeamManageActionTitle(
+      TEAM_MANAGE_ACTION_UPDATE_TEAM_ROLE,
+      actionContext
+    );
+  }
+  if (elements.teamAdminRemoveTitle) {
+    elements.teamAdminRemoveTitle.textContent = resolveTeamManageActionTitle(
+      TEAM_MANAGE_ACTION_REMOVE_MEMBER,
+      actionContext
+    );
+  }
 }
 
 function setTeamManageAction(action) {
   if (!TEAM_MANAGE_ACTION_SET.has(action)) {
     state.ui.teamManageAction = null;
+    state.ui.teamManageActionContext = null;
   } else {
     state.ui.teamManageAction = state.ui.teamManageAction === action ? null : action;
+    state.ui.teamManageActionContext = state.ui.teamManageAction === null ? null : {};
   }
   renderTeamManageActions();
 }
 
-function openTeamManageAction(action) {
+function openTeamManageAction(action, context = null) {
   state.ui.teamManageAction = TEAM_MANAGE_ACTION_SET.has(action) ? action : null;
+  state.ui.teamManageActionContext = state.ui.teamManageAction
+    ? (context && typeof context === "object" ? { ...context } : {})
+    : null;
   renderTeamManageActions();
 }
 
@@ -2979,10 +3036,70 @@ function resolveMemberUserId(member) {
   return Number.isInteger(memberId) && memberId > 0 ? memberId : null;
 }
 
+function parseRiotIdInput(rawValue) {
+  const normalizedValue = typeof rawValue === "string" ? rawValue.trim() : "";
+  const segments = normalizedValue.split("#");
+  if (segments.length !== 2) {
+    return null;
+  }
+  const gameName = segments[0].trim();
+  const tagline = segments[1].trim();
+  if (!gameName || !tagline) {
+    return null;
+  }
+  return {
+    gameName,
+    tagline,
+    display: `${gameName}#${tagline}`,
+    key: `${gameName.toLowerCase()}#${tagline.toLowerCase()}`
+  };
+}
+
+function resolveMemberRiotId(member) {
+  const gameName = typeof member?.game_name === "string" ? member.game_name.trim() : "";
+  const tagline = typeof member?.tagline === "string" ? member.tagline.trim() : "";
+  if (gameName && tagline) {
+    return `${gameName}#${tagline}`;
+  }
+
+  const displayName = typeof member?.display_name === "string" ? member.display_name.trim() : "";
+  const parsedDisplayName = parseRiotIdInput(displayName);
+  return parsedDisplayName ? parsedDisplayName.display : "";
+}
+
+function resolveSelectedTeamMemberByRiotId(rawRiotId) {
+  const selectedTeam = getSelectedAdminTeam();
+  if (!selectedTeam) {
+    return { error: "Select a team first.", member: null, riotId: null };
+  }
+
+  const parsedRiotId = parseRiotIdInput(rawRiotId);
+  if (!parsedRiotId) {
+    return { error: "Enter a Riot ID in the format GameName#NA1.", member: null, riotId: null };
+  }
+
+  const members = state.api.membersByTeamId[String(selectedTeam.id)] ?? [];
+  const member = members.find((candidate) => {
+    const candidateRiotId = parseRiotIdInput(resolveMemberRiotId(candidate));
+    return candidateRiotId?.key === parsedRiotId.key;
+  }) ?? null;
+
+  if (!member) {
+    return {
+      error: `No team member found for Riot ID ${parsedRiotId.display}.`,
+      member: null,
+      riotId: parsedRiotId.display
+    };
+  }
+
+  return { error: "", member, riotId: parsedRiotId.display };
+}
+
 function createRosterQuickActionButton({
   label,
   quickAction,
   userId = null,
+  riotId = null,
   teamRole = null,
   lane = null,
   disabled = false
@@ -2994,6 +3111,9 @@ function createRosterQuickActionButton({
   button.dataset.rosterQuickAction = quickAction;
   if (Number.isInteger(userId)) {
     button.dataset.userId = String(userId);
+  }
+  if (typeof riotId === "string" && riotId.trim() !== "") {
+    button.dataset.riotId = riotId.trim();
   }
   if (typeof teamRole === "string") {
     button.dataset.teamRole = teamRole;
@@ -3039,6 +3159,8 @@ function createRosterOpenSlotRow({ lane, teamRole, adminEnabled, emptyClass = fa
 function createRosterMemberRow(member, { adminEnabled, showLane = false, totalMembers = 0 }) {
   const teamRole = member?.team_role === "substitute" ? "substitute" : "primary";
   const userId = resolveMemberUserId(member);
+  const riotId = resolveMemberRiotId(member);
+  const lane = formatPositionLabel(resolveMemberLane(member));
 
   const row = runtimeDocument.createElement("div");
   row.className = "roster-member-row";
@@ -3054,7 +3176,7 @@ function createRosterMemberRow(member, { adminEnabled, showLane = false, totalMe
   details.className = "meta";
   const detailParts = [formatMembershipRole(member.role)];
   if (showLane) {
-    detailParts.push(formatPositionLabel(resolveMemberLane(member)));
+    detailParts.push(lane);
   }
   details.textContent = detailParts.join(" | ");
 
@@ -3073,6 +3195,8 @@ function createRosterMemberRow(member, { adminEnabled, showLane = false, totalMe
       label: "Remove Member",
       quickAction: "remove-member",
       userId,
+      riotId,
+      lane,
       disabled: !adminEnabled || !Number.isInteger(userId) || totalMembers <= 1
     })
   );
@@ -3083,6 +3207,8 @@ function createRosterMemberRow(member, { adminEnabled, showLane = false, totalMe
         label: "Promote to Lead",
         quickAction: "promote-lead",
         userId,
+        riotId,
+        lane,
         disabled: !adminEnabled || !Number.isInteger(userId)
       })
     );
@@ -3093,7 +3219,9 @@ function createRosterMemberRow(member, { adminEnabled, showLane = false, totalMe
       label: teamRole === "substitute" ? "Move to Primary" : "Move to Sub",
       quickAction: "move-team-role",
       userId,
+      riotId,
       teamRole: teamRole === "substitute" ? "primary" : "substitute",
+      lane,
       disabled: !adminEnabled || !Number.isInteger(userId)
     })
   );
@@ -3176,6 +3304,7 @@ function renderTeamAdmin() {
 
   if (!adminEnabled && state.ui.teamManageAction !== null) {
     state.ui.teamManageAction = null;
+    state.ui.teamManageActionContext = null;
   }
   renderTeamManageActions();
 
@@ -3185,15 +3314,15 @@ function renderTeamAdmin() {
   elements.teamAdminUpdateRole.disabled = !adminEnabled;
   elements.teamAdminRemoveMember.disabled = !adminEnabled || teamMemberCount <= 1;
   elements.teamAdminRenameName.disabled = !adminEnabled;
-  elements.teamAdminAddUserId.disabled = !adminEnabled;
+  elements.teamAdminAddRiotId.disabled = !adminEnabled;
   elements.teamAdminAddRole.disabled = !adminEnabled;
   elements.teamAdminAddTeamRole.disabled = !adminEnabled;
-  elements.teamAdminRoleUserId.disabled = !adminEnabled;
+  elements.teamAdminRoleRiotId.disabled = !adminEnabled;
   elements.teamAdminRole.disabled = !adminEnabled;
-  elements.teamAdminTeamRoleUserId.disabled = !adminEnabled;
+  elements.teamAdminTeamRoleRiotId.disabled = !adminEnabled;
   elements.teamAdminTeamRole.disabled = !adminEnabled;
   elements.teamAdminUpdateTeamRole.disabled = !adminEnabled;
-  elements.teamAdminRemoveUserId.disabled = !adminEnabled;
+  elements.teamAdminRemoveRiotId.disabled = !adminEnabled;
   elements.teamAdminRenameTag.disabled = !adminEnabled;
   elements.teamAdminRenameLogoUrl.disabled = !adminEnabled;
   if (elements.teamAdminRenameRemoveLogo) {
@@ -5611,6 +5740,11 @@ function attachEvents() {
       setTeamManageAction(button.dataset.teamManageAction);
     });
   }
+  for (const button of elements.teamManageCancelButtons) {
+    button.addEventListener("click", () => {
+      openTeamManageAction(null);
+    });
+  }
 
   elements.playerConfigTeam.addEventListener("change", () => {
     state.playerConfig.teamId = normalizePlayerConfigTeamId(elements.playerConfigTeam.value);
@@ -5723,45 +5857,53 @@ function attachEvents() {
         return;
       }
 
-      const userId = Number.parseInt(actionButton.dataset.userId ?? "", 10);
+      const riotId = actionButton.dataset.riotId ?? "";
       const nextTeamRole = actionButton.dataset.teamRole;
+      const lane = actionButton.dataset.lane ?? "";
       const quickAction = actionButton.dataset.rosterQuickAction;
 
       if (quickAction === "open-add-member") {
-        openTeamManageAction(TEAM_MANAGE_ACTION_ADD_MEMBER);
+        openTeamManageAction(TEAM_MANAGE_ACTION_ADD_MEMBER, { lane });
         elements.teamAdminAddRole.value = DEFAULT_MEMBER_ROLE;
         elements.teamAdminAddTeamRole.value = TEAM_MEMBER_TYPE_OPTIONS.includes(nextTeamRole)
           ? nextTeamRole
           : "primary";
-        elements.teamAdminAddUserId.value = "";
+        elements.teamAdminAddRiotId.value = "";
         setTeamAdminFeedback("");
-        elements.teamAdminAddUserId.focus();
+        elements.teamAdminAddRiotId.focus();
         return;
       }
 
-      if (!Number.isInteger(userId) || userId <= 0) {
+      if (!riotId) {
+        setTeamAdminFeedback("Riot ID is missing for that roster member.");
         return;
       }
 
       if (quickAction === "remove-member") {
-        elements.teamAdminRemoveUserId.value = String(userId);
-        elements.teamAdminRemoveMember.click();
+        openTeamManageAction(TEAM_MANAGE_ACTION_REMOVE_MEMBER, { lane });
+        elements.teamAdminRemoveRiotId.value = riotId;
+        setTeamAdminFeedback("");
+        elements.teamAdminRemoveRiotId.focus();
         return;
       }
 
       if (quickAction === "promote-lead") {
-        elements.teamAdminRoleUserId.value = String(userId);
+        openTeamManageAction(TEAM_MANAGE_ACTION_UPDATE_MEMBER_ROLE, { lane });
+        elements.teamAdminRoleRiotId.value = riotId;
         elements.teamAdminRole.value = "lead";
-        elements.teamAdminUpdateRole.click();
+        setTeamAdminFeedback("");
+        elements.teamAdminRoleRiotId.focus();
         return;
       }
 
       if (quickAction === "move-team-role") {
-        elements.teamAdminTeamRoleUserId.value = String(userId);
+        openTeamManageAction(TEAM_MANAGE_ACTION_UPDATE_TEAM_ROLE, { lane });
+        elements.teamAdminTeamRoleRiotId.value = riotId;
         elements.teamAdminTeamRole.value = TEAM_MEMBER_TYPE_OPTIONS.includes(nextTeamRole)
           ? nextTeamRole
           : DEFAULT_TEAM_MEMBER_TYPE;
-        elements.teamAdminUpdateTeamRole.click();
+        setTeamAdminFeedback("");
+        elements.teamAdminTeamRoleRiotId.focus();
       }
     });
   }
@@ -5858,9 +6000,9 @@ function attachEvents() {
       setTeamAdminFeedback("Select a team first.");
       return;
     }
-    const userId = Number.parseInt(elements.teamAdminAddUserId.value, 10);
-    if (!Number.isInteger(userId) || userId <= 0) {
-      setTeamAdminFeedback("Enter a valid user id to add.");
+    const parsedRiotId = parseRiotIdInput(elements.teamAdminAddRiotId.value);
+    if (!parsedRiotId) {
+      setTeamAdminFeedback("Enter a Riot ID in the format GameName#NA1.");
       return;
     }
     const role = MEMBER_ROLE_OPTIONS.includes(elements.teamAdminAddRole.value)
@@ -5873,11 +6015,11 @@ function attachEvents() {
     void apiRequest(`/teams/${selectedTeam.id}/members`, {
       method: "POST",
       auth: true,
-      body: { user_id: userId, role, team_role: teamRole }
+      body: { riot_id: parsedRiotId.display, role, team_role: teamRole }
     })
       .then(async () => {
-        elements.teamAdminAddUserId.value = "";
-        setTeamAdminFeedback(`Added user ${userId} as ${role}/${teamRole}.`);
+        elements.teamAdminAddRiotId.value = "";
+        setTeamAdminFeedback(`Added ${parsedRiotId.display} as ${role}/${teamRole}.`);
         await loadTeamsFromApi(selectedTeam.id);
         renderTeamAdmin();
       })
@@ -5892,9 +6034,14 @@ function attachEvents() {
       setTeamAdminFeedback("Select a team first.");
       return;
     }
-    const userId = Number.parseInt(elements.teamAdminRoleUserId.value, 10);
+    const lookup = resolveSelectedTeamMemberByRiotId(elements.teamAdminRoleRiotId.value);
+    if (lookup.error || !lookup.member) {
+      setTeamAdminFeedback(lookup.error || "Team member not found.");
+      return;
+    }
+    const userId = resolveMemberUserId(lookup.member);
     if (!Number.isInteger(userId) || userId <= 0) {
-      setTeamAdminFeedback("Enter a valid user id to update.");
+      setTeamAdminFeedback("Could not resolve that member to an internal user ID.");
       return;
     }
     const role = MEMBER_ROLE_OPTIONS.includes(elements.teamAdminRole.value)
@@ -5907,7 +6054,7 @@ function attachEvents() {
       body: { role }
     })
       .then(async () => {
-        setTeamAdminFeedback(`Updated user ${userId} role to ${role}.`);
+        setTeamAdminFeedback(`Updated ${lookup.riotId} role to ${role}.`);
         await loadTeamsFromApi(selectedTeam.id);
         renderTeamAdmin();
       })
@@ -5922,9 +6069,14 @@ function attachEvents() {
       setTeamAdminFeedback("Select a team first.");
       return;
     }
-    const userId = Number.parseInt(elements.teamAdminTeamRoleUserId.value, 10);
+    const lookup = resolveSelectedTeamMemberByRiotId(elements.teamAdminTeamRoleRiotId.value);
+    if (lookup.error || !lookup.member) {
+      setTeamAdminFeedback(lookup.error || "Team member not found.");
+      return;
+    }
+    const userId = resolveMemberUserId(lookup.member);
     if (!Number.isInteger(userId) || userId <= 0) {
-      setTeamAdminFeedback("Enter a valid user id to update.");
+      setTeamAdminFeedback("Could not resolve that member to an internal user ID.");
       return;
     }
     const teamRole = TEAM_MEMBER_TYPE_OPTIONS.includes(elements.teamAdminTeamRole.value)
@@ -5937,7 +6089,7 @@ function attachEvents() {
       body: { team_role: teamRole }
     })
       .then(async () => {
-        setTeamAdminFeedback(`Updated user ${userId} team role to ${teamRole}.`);
+        setTeamAdminFeedback(`Updated ${lookup.riotId} team role to ${teamRole}.`);
         await loadTeamsFromApi(selectedTeam.id);
         renderTeamAdmin();
       })
@@ -5952,9 +6104,14 @@ function attachEvents() {
       setTeamAdminFeedback("Select a team first.");
       return;
     }
-    const userId = Number.parseInt(elements.teamAdminRemoveUserId.value, 10);
+    const lookup = resolveSelectedTeamMemberByRiotId(elements.teamAdminRemoveRiotId.value);
+    if (lookup.error || !lookup.member) {
+      setTeamAdminFeedback(lookup.error || "Team member not found.");
+      return;
+    }
+    const userId = resolveMemberUserId(lookup.member);
     if (!Number.isInteger(userId) || userId <= 0) {
-      setTeamAdminFeedback("Enter a valid user id to remove.");
+      setTeamAdminFeedback("Could not resolve that member to an internal user ID.");
       return;
     }
     const teamMembers = state.api.membersByTeamId[String(selectedTeam.id)] ?? [];
@@ -5968,8 +6125,8 @@ function attachEvents() {
       auth: true
     })
       .then(async () => {
-        elements.teamAdminRemoveUserId.value = "";
-        setTeamAdminFeedback(`Removed user ${userId} from team.`);
+        elements.teamAdminRemoveRiotId.value = "";
+        setTeamAdminFeedback(`Removed ${lookup.riotId} from team.`);
         await loadTeamsFromApi(selectedTeam.id);
         renderTeamAdmin();
       })

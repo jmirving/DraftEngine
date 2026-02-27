@@ -36,6 +36,21 @@ export function createUsersRepository(pool) {
       return result.rows[0] ?? null;
     },
 
+    async findByRiotId(gameName, tagline) {
+      const result = await pool.query(
+        `
+          SELECT id, email, password_hash, game_name, tagline, role, primary_role, secondary_roles, created_at
+          FROM users
+          WHERE lower(game_name) = lower($1)
+            AND lower(tagline) = lower($2)
+          ORDER BY id ASC
+          LIMIT 1
+        `,
+        [gameName, tagline]
+      );
+      return result.rows[0] ?? null;
+    },
+
     async findProfileById(userId) {
       const result = await pool.query(
         `
