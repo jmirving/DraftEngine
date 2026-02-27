@@ -12,7 +12,7 @@
     <main class="layout">
       <header class="hero">
         <p id="hero-kicker" class="kicker">DraftEngine</p>
-        <h1 id="hero-title">Build a Composition</h1>
+        <h1 id="hero-title">Composer</h1>
         <p id="hero-subtitle" class="subtitle">
           Configure team context, shape compositions, and inspect deterministic next-pick trees.
         </p>
@@ -176,7 +176,7 @@
 
           <section id="tab-workflow" class="tab-panel tab-surface workflow-surface is-active">
             <section id="builder-stage-guide" class="panel draft-board-panel stage-guide" aria-live="polite">
-              <h2 id="builder-workflow-title">Build a Composition</h2>
+              <h2 id="builder-workflow-title">Composer</h2>
               <p id="builder-stage-guide-meta" class="meta"></p>
               <div class="button-row stage-guide-actions">
                 <button id="builder-continue-validate" type="button">Review Composition</button>
@@ -348,7 +348,7 @@
           <section id="tab-team-config" class="tab-panel tab-surface">
             <div class="team-context-stack">
               <div class="panel draft-board-panel team-context-panel">
-                <h2 id="team-config-title">Team Workspace</h2>
+                <h2 id="team-config-title">Teams</h2>
                 <div class="team-workspace-tabs" role="tablist" aria-label="Team workspace modes">
                   <button
                     id="team-workspace-tab-manage"
@@ -615,28 +615,37 @@
           <section id="tab-coming-soon" class="tab-panel tab-surface">
             <div class="panel draft-board-panel">
               <h2 id="coming-soon-title">Coming Soon</h2>
-              <p id="coming-soon-meta" class="meta">Known issues and planned features for upcoming releases.</p>
+              <p id="coming-soon-meta" class="meta">Known gaps and planned follow-up grouped by workspace page.</p>
             </div>
             <div class="panel draft-board-panel">
-              <h3>Known Issues</h3>
+              <h3>General</h3>
               <ul class="coming-soon-list">
                 <li>Champion catalog refresh checks are still manual; automatic release ingestion is not enabled yet.</li>
                 <li>Champion tag edits are not durably isolated from catalog seed refresh yet; restart/seed flows can overwrite editable tags.</li>
+                <li>Stronger admin safeguards are still needed to prevent misuse of champion tags and draft checks.</li>
+              </ul>
+              <h3>Composer</h3>
+              <ul class="coming-soon-list">
                 <li>Required Checks settings (composition tags) do not yet have a dedicated management surface outside Composer.</li>
-                <li>Team join request flows are API-ready, but request/review controls are not exposed in Team Workspace yet.</li>
-                <li>Team Workspace member actions require exact Riot ID entry (`GameName#Tagline`); search/autocomplete is not implemented yet.</li>
+                <li>Dedicated Composition Checks management page with separate scoped flows (self/team/global + promotion requests).</li>
                 <li>Some legacy helper copy remains in Composer/Explorer and will be trimmed as controls are further consolidated.</li>
               </ul>
-              <h3>Future Features</h3>
+              <h3>Teams</h3>
               <ul class="coming-soon-list">
+                <li>Team join request flows are API-ready, but request/review controls are not exposed in Teams yet.</li>
+                <li>Teams member actions require exact Riot ID entry (`GameName#Tagline`); search/autocomplete is not implemented yet.</li>
                 <li>Request a position on an existing team.</li>
                 <li>Team leads can accept or decline incoming team requests.</li>
+              </ul>
+              <h3>Champions</h3>
+              <ul class="coming-soon-list">
                 <li>Dedicated Champion Tags management page with full catalog controls and scoped flows (self/team/global + promotion requests).</li>
-                <li>Dedicated Composition Checks management page with separate scoped flows (self/team/global + promotion requests).</li>
                 <li>Ship champion auto-ingest and durable champion-tag persistence together so release refreshes never overwrite edits.</li>
+              </ul>
+              <h3>Profile</h3>
+              <ul class="coming-soon-list">
                 <li>Set your champion familiarity level in your personal pool.</li>
                 <li>Get champion pool suggestions based on your real League match history.</li>
-                <li>Stronger admin safeguards to prevent misuse of champion tags and draft checks.</li>
               </ul>
             </div>
           </section>

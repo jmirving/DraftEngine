@@ -118,8 +118,28 @@ const BUILDER_DEFAULTS = Object.freeze({
 const UI_COPY = Object.freeze({
   hero: {
     kicker: "DraftEngine",
-    title: "Build a Composition",
-    subtitle: "Configure team context, scout candidates, and run deterministic next-pick simulations."
+    tabs: {
+      workflow: {
+        title: "Composer",
+        subtitle: "Configure team context, scout candidates, and run deterministic next-pick simulations."
+      },
+      "team-config": {
+        title: "Teams",
+        subtitle: "Create teams, manage rosters, and maintain team settings."
+      },
+      "player-config": {
+        title: "Profile",
+        subtitle: "Manage your roles, champion pools, and Riot champion stats."
+      },
+      explorer: {
+        title: "Champions",
+        subtitle: "Browse champion cards, filter by tags, and edit scoped champion metadata."
+      },
+      "coming-soon": {
+        title: "Coming Soon",
+        subtitle: "Track known gaps and upcoming work grouped by workspace page."
+      }
+    }
   },
   nav: {
     title: "Workspace",
@@ -141,15 +161,15 @@ const UI_COPY = Object.freeze({
   panels: {
     explorerTitle: "Champions",
     explorerMeta: "Filter champions by role, damage profile, scaling, and tags.",
-    teamConfigTitle: "Team Workspace",
+    teamConfigTitle: "Teams",
     teamConfigMeta: "Lead-only controls are grouped by Create and Manage modes.",
     playerConfigTitle: "Profile",
     playerConfigMeta: "Manage your roles, champion pools, and teams.",
     comingSoonTitle: "Coming Soon",
-    comingSoonMeta: "Known issues and planned features for upcoming releases."
+    comingSoonMeta: "Known gaps and planned follow-up grouped by workspace page."
   },
   builder: {
-    workflowTitle: "Build a Composition",
+    workflowTitle: "Composer",
     stages: [
       {
         key: "setup",
@@ -1127,8 +1147,6 @@ function renderAuth() {
 
 function applyUiCopy() {
   elements.heroKicker.textContent = UI_COPY.hero.kicker;
-  elements.heroTitle.textContent = UI_COPY.hero.title;
-  elements.heroSubtitle.textContent = UI_COPY.hero.subtitle;
   elements.navTitle.textContent = UI_COPY.nav.title;
   if (elements.navMeta) {
     elements.navMeta.textContent = UI_COPY.nav.meta;
@@ -1164,6 +1182,15 @@ function applyUiCopy() {
       button.textContent = label;
     }
   }
+
+  applyHeroCopy(state.activeTab);
+}
+
+function applyHeroCopy(tab) {
+  const normalizedTab = TAB_ROUTE_SET.has(tab) ? tab : DEFAULT_TAB_ROUTE;
+  const hero = UI_COPY.hero.tabs[normalizedTab] ?? UI_COPY.hero.tabs[DEFAULT_TAB_ROUTE];
+  elements.heroTitle.textContent = hero.title;
+  elements.heroSubtitle.textContent = hero.subtitle;
 }
 
 function getBuilderStageSteps() {
@@ -1551,6 +1578,7 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
   elements.tabTeamConfig.classList.toggle("is-active", resolvedTab === "team-config");
   elements.tabPlayerConfig.classList.toggle("is-active", resolvedTab === "player-config");
   elements.tabComingSoon.classList.toggle("is-active", resolvedTab === "coming-soon");
+  applyHeroCopy(resolvedTab);
 
   if (resolvedTab === "team-config" && state.data) {
     renderTeamConfig();
