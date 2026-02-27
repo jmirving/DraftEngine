@@ -1,10 +1,10 @@
 import request from "supertest";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../../server/app.js";
 import { signAccessToken } from "../../server/auth/tokens.js";
 
-function createMockContext() {
+function createMockContext({ riotChampionStatsService = null } = {}) {
   function makeLogoDataUrl(logoBlob, logoMimeType) {
     if (!logoBlob || typeof logoMimeType !== "string" || logoMimeType.trim() === "") {
       return null;
@@ -469,7 +469,8 @@ function createMockContext() {
     championsRepository,
     tagsRepository,
     poolsRepository,
-    teamsRepository
+    teamsRepository,
+    riotChampionStatsService
   });
 
   return { app, config, state, usersRepository };
@@ -605,6 +606,48 @@ describe("API routes", () => {
     expect(updateResponse.status).toBe(200);
     expect(updateResponse.body.profile.primaryRole).toBe("Support");
     expect(updateResponse.body.profile.secondaryRoles).toEqual(["Mid", "ADC"]);
+  });
+
+  it("includes Riot champion stats in the authenticated profile response", async () => {
+    const getProfileChampionStats = vi.fn(async () => ({
+      provider: "riot",
+      status: "ok",
+      fetchedAt: "2026-02-26T17:25:00.000Z",
+      champions: [
+        {
+          championId: 99,
+          championLevel: 7,
+          championPoints: 234567,
+          lastPlayedAt: "2026-02-24T10:00:00.000Z"
+        }
+      ]
+    }));
+    const { app, config } = createMockContext({
+      riotChampionStatsService: {
+        getProfileChampionStats
+      }
+    });
+    const leadAuth = buildAuthHeader(1, config);
+
+    const response = await request(app).get("/me/profile").set("Authorization", leadAuth);
+    expect(response.status).toBe(200);
+    expect(getProfileChampionStats).toHaveBeenCalledWith({
+      gameName: "LeadPlayer",
+      tagline: "NA1"
+    });
+    expect(response.body.profile.championStats).toEqual({
+      provider: "riot",
+      status: "ok",
+      fetchedAt: "2026-02-26T17:25:00.000Z",
+      champions: [
+        {
+          championId: 99,
+          championLevel: 7,
+          championPoints: 234567,
+          lastPlayedAt: "2026-02-24T10:00:00.000Z"
+        }
+      ]
+    });
   });
 
   it("reads and updates team-context preferences with membership validation", async () => {

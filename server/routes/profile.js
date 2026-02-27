@@ -43,8 +43,8 @@ function parseSecondaryRoles(rawRoles, primaryRole) {
   return unique;
 }
 
-function serializeProfile(user) {
-  return {
+function serializeProfile(user, championStats = undefined) {
+  const serialized = {
     id: Number(user.id),
     email: user.email,
     gameName: user.game_name ?? "",
@@ -52,6 +52,12 @@ function serializeProfile(user) {
     primaryRole: user.primary_role,
     secondaryRoles: Array.isArray(user.secondary_roles) ? user.secondary_roles : []
   };
+
+  if (championStats && typeof championStats === "object" && !Array.isArray(championStats)) {
+    serialized.championStats = championStats;
+  }
+
+  return serialized;
 }
 
 function parseNullableTeamId(rawValue, fieldName) {
@@ -90,7 +96,7 @@ async function assertTeamMembershipOrNull(teamId, userId, teamsRepository, field
   }
 }
 
-export function createProfileRouter({ usersRepository, teamsRepository, requireAuth }) {
+export function createProfileRouter({ usersRepository, teamsRepository, requireAuth, riotChampionStatsService = null }) {
   const router = Router();
   router.use("/me/profile", requireAuth);
   router.use("/me/team-context", requireAuth);
@@ -101,7 +107,15 @@ export function createProfileRouter({ usersRepository, teamsRepository, requireA
     if (!profile) {
       throw notFound("User not found.");
     }
-    response.json({ profile: serializeProfile(profile) });
+    let championStats;
+    if (riotChampionStatsService?.getProfileChampionStats) {
+      championStats = await riotChampionStatsService.getProfileChampionStats({
+        gameName: profile.game_name,
+        tagline: profile.tagline
+      });
+    }
+
+    response.json({ profile: serializeProfile(profile, championStats) });
   });
 
   router.put("/me/profile", async (request, response) => {

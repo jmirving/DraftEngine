@@ -27,7 +27,8 @@ export function createApp({
   championsRepository,
   tagsRepository,
   poolsRepository,
-  teamsRepository
+  teamsRepository,
+  riotChampionStatsService = null
 }) {
   requireDependency(config, "config");
   requireDependency(usersRepository, "usersRepository");
@@ -72,7 +73,8 @@ export function createApp({
     createProfileRouter({
       usersRepository,
       teamsRepository,
-      requireAuth
+      requireAuth,
+      riotChampionStatsService
     })
   );
   app.use(

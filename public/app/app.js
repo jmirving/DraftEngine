@@ -174,6 +174,8 @@ const SCALING_ALIASES = Object.freeze({
   LATE: "Late"
 });
 
+const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
+
 function createInitialState() {
   return {
     data: null,
@@ -193,7 +195,8 @@ function createInitialState() {
     profile: {
       primaryRole: DEFAULT_PRIMARY_ROLE,
       secondaryRoles: [],
-      isSavingRoles: false
+      isSavingRoles: false,
+      championStats: createEmptyChampionStatsState()
     },
     api: {
       pools: [],
@@ -408,6 +411,8 @@ function createElements() {
     profileSecondaryRoles: runtimeDocument.querySelector("#profile-secondary-roles"),
     profileSaveRoles: runtimeDocument.querySelector("#profile-save-roles"),
     profileRolesFeedback: runtimeDocument.querySelector("#profile-roles-feedback"),
+    profileRiotStatsSummary: runtimeDocument.querySelector("#profile-riot-stats-summary"),
+    profileRiotStatsList: runtimeDocument.querySelector("#profile-riot-stats-list"),
     playerConfigSummary: runtimeDocument.querySelector("#player-config-summary"),
     playerConfigSavePool: runtimeDocument.querySelector("#player-config-save-pool"),
     playerConfigFeedback: runtimeDocument.querySelector("#player-config-feedback"),
@@ -759,6 +764,53 @@ function normalizeSecondaryRoles(roles, primaryRole) {
   return Array.from(new Set(roles.filter((role) => SLOTS.includes(role) && role !== primaryRole)));
 }
 
+function createEmptyChampionStatsState() {
+  return {
+    provider: "riot",
+    status: "idle",
+    champions: [],
+    fetchedAt: "",
+    message: ""
+  };
+}
+
+function normalizeChampionStats(rawStats) {
+  const normalized = createEmptyChampionStatsState();
+  if (!rawStats || typeof rawStats !== "object" || Array.isArray(rawStats)) {
+    return normalized;
+  }
+
+  normalized.provider = typeof rawStats.provider === "string" && rawStats.provider.trim() !== ""
+    ? rawStats.provider.trim()
+    : "riot";
+  normalized.status = typeof rawStats.status === "string" && rawStats.status.trim() !== ""
+    ? rawStats.status.trim()
+    : "idle";
+  normalized.fetchedAt = typeof rawStats.fetchedAt === "string" ? rawStats.fetchedAt : "";
+  normalized.message = typeof rawStats.message === "string" ? rawStats.message : "";
+
+  if (Array.isArray(rawStats.champions)) {
+    normalized.champions = rawStats.champions
+      .map((entry) => {
+        const championId = Number.parseInt(String(entry?.championId), 10);
+        const championLevel = Number.parseInt(String(entry?.championLevel), 10);
+        const championPoints = Number.parseInt(String(entry?.championPoints), 10);
+        const championName = typeof entry?.championName === "string" ? entry.championName.trim() : "";
+        const lastPlayedAt = typeof entry?.lastPlayedAt === "string" ? entry.lastPlayedAt : null;
+        return {
+          championId: Number.isInteger(championId) ? championId : null,
+          championName,
+          championLevel: Number.isInteger(championLevel) ? championLevel : 0,
+          championPoints: Number.isInteger(championPoints) ? championPoints : 0,
+          lastPlayedAt
+        };
+      })
+      .filter((entry) => entry.championId !== null);
+  }
+
+  return normalized;
+}
+
 function getConfiguredProfileRoles() {
   const primaryRole = normalizeProfileRole(state.profile.primaryRole);
   const secondaryRoles = normalizeSecondaryRoles(state.profile.secondaryRoles, primaryRole);
@@ -802,6 +854,7 @@ function clearAuthSession(feedback = "") {
   state.profile.primaryRole = DEFAULT_PRIMARY_ROLE;
   state.profile.secondaryRoles = [];
   state.profile.isSavingRoles = false;
+  state.profile.championStats = createEmptyChampionStatsState();
   state.api.isCreatingTeam = false;
   state.playerConfig.dirtyPoolByTeamId = {};
   state.playerConfig.isSavingPool = false;
@@ -2107,6 +2160,7 @@ async function loadProfileFromApi() {
   if (!isAuthenticated()) {
     state.profile.primaryRole = DEFAULT_PRIMARY_ROLE;
     state.profile.secondaryRoles = [];
+    state.profile.championStats = createEmptyChampionStatsState();
     return false;
   }
 
@@ -2116,6 +2170,7 @@ async function loadProfileFromApi() {
     const primaryRole = normalizeProfileRole(profile.primaryRole);
     state.profile.primaryRole = primaryRole;
     state.profile.secondaryRoles = normalizeSecondaryRoles(profile.secondaryRoles, primaryRole);
+    state.profile.championStats = normalizeChampionStats(profile.championStats);
     if (state.auth.user && typeof state.auth.user === "object") {
       state.auth.user.primaryRole = state.profile.primaryRole;
       state.auth.user.secondaryRoles = [...state.profile.secondaryRoles];
@@ -2123,6 +2178,7 @@ async function loadProfileFromApi() {
     }
     return true;
   } catch (error) {
+    state.profile.championStats = createEmptyChampionStatsState();
     setProfileRolesFeedback(normalizeApiErrorMessage(error, "Failed to load profile roles."), true);
     return false;
   }
@@ -2844,6 +2900,90 @@ function renderProfileRolesSection() {
   }
 }
 
+function formatProfileChampionStatsSummary(championStats, authenticated) {
+  if (!authenticated) {
+    return "Sign in to load Riot champion stats.";
+  }
+
+  if (!championStats || typeof championStats !== "object") {
+    return "Riot champion stats are unavailable.";
+  }
+
+  const status = typeof championStats.status === "string" ? championStats.status : "idle";
+  const champions = Array.isArray(championStats.champions) ? championStats.champions : [];
+
+  if (status === "ok") {
+    if (champions.length === 0) {
+      return "No Riot champion mastery data returned for this account.";
+    }
+    return `Top ${champions.length} champion mastery entr${champions.length === 1 ? "y" : "ies"} from Riot.`;
+  }
+
+  if (status === "disabled") {
+    return championStats.message || "Riot integration is not configured on this deployment.";
+  }
+  if (status === "unlinked") {
+    return championStats.message || "Link a Riot game name and tagline to load champion stats.";
+  }
+  if (status === "not_found") {
+    return championStats.message || "No Riot account found for the linked Riot ID.";
+  }
+  if (status === "error") {
+    return championStats.message || "Riot champion stats are temporarily unavailable.";
+  }
+
+  return "Riot champion stats are loading.";
+}
+
+function formatLastPlayedText(lastPlayedAt) {
+  if (typeof lastPlayedAt !== "string" || lastPlayedAt.trim() === "") {
+    return "Last played: n/a";
+  }
+  const asDate = new Date(lastPlayedAt);
+  if (Number.isNaN(asDate.getTime())) {
+    return "Last played: n/a";
+  }
+  return `Last played: ${asDate.toLocaleDateString()}`;
+}
+
+function renderProfileChampionStatsSection() {
+  if (!elements.profileRiotStatsSummary || !elements.profileRiotStatsList) {
+    return;
+  }
+
+  const authenticated = isAuthenticated();
+  const championStats = normalizeChampionStats(state.profile.championStats);
+  elements.profileRiotStatsSummary.textContent = formatProfileChampionStatsSummary(championStats, authenticated);
+  elements.profileRiotStatsList.innerHTML = "";
+
+  if (!authenticated || championStats.status !== "ok" || championStats.champions.length === 0) {
+    return;
+  }
+
+  for (const champion of championStats.champions) {
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card";
+
+    const title = runtimeDocument.createElement("strong");
+    const championLabel =
+      champion.championName && champion.championName.trim() !== ""
+        ? champion.championName
+        : `Champion #${champion.championId}`;
+    title.textContent = championLabel;
+
+    const mastery = runtimeDocument.createElement("p");
+    mastery.className = "meta";
+    mastery.textContent = `Mastery ${champion.championLevel} | ${NUMBER_FORMATTER.format(champion.championPoints)} pts`;
+
+    const played = runtimeDocument.createElement("p");
+    played.className = "meta";
+    played.textContent = formatLastPlayedText(champion.lastPlayedAt);
+
+    card.append(title, mastery, played);
+    elements.profileRiotStatsList.append(card);
+  }
+}
+
 function renderSettingsTeamList(target, teams, emptyMessage) {
   if (!target) {
     return;
@@ -3010,6 +3150,7 @@ function renderPlayerConfig() {
   elements.playerConfigTeam.value = state.playerConfig.teamId;
 
   renderProfileRolesSection();
+  renderProfileChampionStatsSection();
   const activeRole = parseRolePoolTeamId(state.playerConfig.teamId) ?? state.profile.primaryRole;
   const poolDirty = isPlayerPoolDirty(state.playerConfig.teamId);
 

@@ -767,6 +767,55 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#logo-lightbox").hidden).toBe(true);
   });
 
+  test("profile page renders Riot champion stats from the profile payload", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const harness = createFetchHarness({
+      profile: {
+        id: 11,
+        email: "lead@example.com",
+        gameName: "LeadPlayer",
+        tagline: "NA1",
+        primaryRole: "Mid",
+        secondaryRoles: ["Top"],
+        championStats: {
+          provider: "riot",
+          status: "ok",
+          fetchedAt: "2026-02-26T17:25:00.000Z",
+          champions: [
+            {
+              championId: 99,
+              championLevel: 7,
+              championPoints: 234567,
+              lastPlayedAt: "2026-02-24T10:00:00.000Z"
+            },
+            {
+              championId: 266,
+              championLevel: 6,
+              championPoints: 123456,
+              lastPlayedAt: "2026-02-20T10:00:00.000Z"
+            }
+          ]
+        }
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='player-config']").click();
+    await flush();
+
+    expect(doc.querySelector("#profile-riot-stats-summary").textContent).toContain("Top 2 champion mastery entries");
+    const riotStatsText = doc.querySelector("#profile-riot-stats-list").textContent;
+    expect(riotStatsText).toContain("Champion #99");
+    expect(riotStatsText).toContain("Mastery 7");
+    expect(riotStatsText).toContain("Champion #266");
+  });
+
   test("creating a team from team context sends name and tag", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
