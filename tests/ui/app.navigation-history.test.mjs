@@ -330,13 +330,15 @@ describe("hash navigation routing", () => {
     const navToggle = doc.querySelector("#nav-toggle");
     const appShell = doc.querySelector("#app-shell");
 
-    expect(navToggle.textContent).toBe("Hide Sidebar");
+    expect(navToggle.textContent).toBe("◀");
+    expect(navToggle.getAttribute("aria-label")).toBe("Collapse sidebar");
     expect(doc.querySelector("#nav-title").textContent).toBe("Workspace");
     expect(appShell.classList.contains("is-nav-collapsed")).toBe(false);
 
     navToggle.click();
     expect(appShell.classList.contains("is-nav-collapsed")).toBe(true);
-    expect(navToggle.textContent).toBe("Show Sidebar");
+    expect(navToggle.textContent).toBe("▶");
+    expect(navToggle.getAttribute("aria-label")).toBe("Expand sidebar");
 
     navToggle.click();
     doc.querySelector(".side-menu-link[data-tab='coming-soon']").click();
@@ -379,7 +381,7 @@ describe("hash navigation routing", () => {
     const doc = dom.window.document;
 
     expect(doc.querySelector("#app-shell").classList.contains("is-nav-collapsed")).toBe(true);
-    expect(doc.querySelector("#nav-toggle").textContent).toBe("Show Sidebar");
+    expect(doc.querySelector("#nav-toggle").textContent).toBe("▶");
   });
 
   test("login without defined roles routes to player-config hash", async () => {

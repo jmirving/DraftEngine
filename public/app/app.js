@@ -104,8 +104,10 @@ const UI_COPY = Object.freeze({
     meta: "Jump between Composer, Teams, Profile, Champions, and Coming Soon.",
     toggleClosed: "Menu",
     toggleOpen: "Close Menu",
-    desktopCollapse: "Hide Sidebar",
-    desktopExpand: "Show Sidebar",
+    desktopCollapseIcon: "◀",
+    desktopExpandIcon: "▶",
+    desktopCollapseLabel: "Collapse sidebar",
+    desktopExpandLabel: "Expand sidebar",
     items: {
       workflow: "Composer",
       "team-config": "Teams",
@@ -927,11 +929,17 @@ function applyNavLayout() {
   runtimeDocument.body.classList.toggle("nav-open", showDrawer);
   elements.appShell.classList.toggle("is-nav-collapsed", hideDesktopNav);
   if (compact) {
-    elements.navToggle.textContent = showDrawer ? UI_COPY.nav.toggleOpen : UI_COPY.nav.toggleClosed;
+    const label = showDrawer ? UI_COPY.nav.toggleOpen : UI_COPY.nav.toggleClosed;
+    elements.navToggle.textContent = label;
+    elements.navToggle.setAttribute("aria-label", label);
+    elements.navToggle.setAttribute("title", label);
     elements.navToggle.setAttribute("aria-expanded", String(showDrawer));
     return;
   }
-  elements.navToggle.textContent = hideDesktopNav ? UI_COPY.nav.desktopExpand : UI_COPY.nav.desktopCollapse;
+  const label = hideDesktopNav ? UI_COPY.nav.desktopExpandLabel : UI_COPY.nav.desktopCollapseLabel;
+  elements.navToggle.textContent = hideDesktopNav ? UI_COPY.nav.desktopExpandIcon : UI_COPY.nav.desktopCollapseIcon;
+  elements.navToggle.setAttribute("aria-label", label);
+  elements.navToggle.setAttribute("title", label);
   elements.navToggle.setAttribute("aria-expanded", String(!hideDesktopNav));
 }
 
