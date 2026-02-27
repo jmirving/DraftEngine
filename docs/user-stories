@@ -1,0 +1,15 @@
+As a user, I want to be able to see what position I play for a given team.
+As a user, I want to be able to request a position on existing teams.
+As a team lead, I want to be able to accept or decline users that request permission to my team.
+As a user, I want to see team rosters by user name not by email.
+As a user, I want to see team rosters organized by position not user_id.
+As a user, I want to be able to see all 170+ league of legends champions.
+As a user, I want to see new champions when they are released.
+As a user, I want clear indicators for what the text below a champions name means. Example "Top | AD | Mid"
+As a user, I want to be able to customize my champion pool to show level of familiarity
+As a user, I want to have suggestions for my champion pool based on my actual LoL stats.
+As a user, I want to be able to view all existing champion tags
+As a user, I want to be able to edit tags on champions for all users, my teammates, myself
+As an admin, I don't want bad actors to be able to modify tags in incorrect ways
+As a user, I want to be able to add/remove required checks for all users, my teammates, myself
+As an admin, I don't want bad actors to be able to modify checks in incorrect ways
