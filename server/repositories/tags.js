@@ -1,3 +1,8 @@
+import { BOOLEAN_TAGS } from "../../src/domain/model.js";
+
+const DEFAULT_TAG_CATEGORY = "composition";
+const DEFAULT_TAG_NAMES = Object.freeze([...BOOLEAN_TAGS]);
+
 function normalizeTagIds(rows) {
   return rows.map((row) => Number(row.tag_id));
 }
@@ -76,6 +81,22 @@ function buildScopeConfig(scope) {
 }
 
 export function createTagsRepository(pool) {
+  async function ensureDefaultTagCatalog() {
+    if (DEFAULT_TAG_NAMES.length === 0) {
+      return;
+    }
+    const defaultCategories = DEFAULT_TAG_NAMES.map(() => DEFAULT_TAG_CATEGORY);
+    await pool.query(
+      `
+        INSERT INTO tags (name, category)
+        SELECT seeded.name, seeded.category
+        FROM unnest($1::text[], $2::text[]) AS seeded(name, category)
+        ON CONFLICT (name) DO NOTHING
+      `,
+      [DEFAULT_TAG_NAMES, defaultCategories]
+    );
+  }
+
   async function listChampionTagIdsForScope({
     championId,
     scope = "all",
@@ -116,6 +137,7 @@ export function createTagsRepository(pool) {
 
   return {
     async listTags() {
+      await ensureDefaultTagCatalog();
       const result = await pool.query(
         `
           SELECT id, name, category
@@ -127,6 +149,7 @@ export function createTagsRepository(pool) {
     },
 
     async allTagIdsExist(tagIds) {
+      await ensureDefaultTagCatalog();
       if (tagIds.length === 0) {
         return true;
       }
