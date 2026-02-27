@@ -1977,7 +1977,20 @@ function clearExplorerFilters() {
 }
 
 function getSlotLabel(slot) {
-  return slot;
+  if (state.builder.teamId === NONE_TEAM_ID) {
+    return slot;
+  }
+  const selectedTeam = findTeamById(state.builder.teamId);
+  if (!selectedTeam || selectedTeam.membership_team_role !== "primary") {
+    return slot;
+  }
+  if (slot !== state.profile.primaryRole) {
+    return slot;
+  }
+  const gameName = typeof state.auth.user?.gameName === "string" ? state.auth.user.gameName.trim() : "";
+  const email = typeof state.auth.user?.email === "string" ? state.auth.user.email.trim() : "";
+  const displayName = gameName || email || "You";
+  return `${slot} (${displayName})`;
 }
 
 function updateTeamHelpAndSlotLabels() {
