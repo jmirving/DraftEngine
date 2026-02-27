@@ -1391,6 +1391,39 @@ button.ghost {
   width: auto;
 }
 
+.tags-workspace-categories {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.6rem;
+}
+
+.tags-category-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fffefa;
+  box-shadow: inset 0 3px 0 rgba(204, 91, 52, 0.22);
+  padding: 0.55rem;
+}
+
+.tags-workspace-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.36rem;
+}
+
+.tags-workspace-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fffcf5;
+  padding: 0.3rem 0.36rem;
+}
+
 .player-config-card {
   border: 1px solid var(--border);
   border-radius: 10px;

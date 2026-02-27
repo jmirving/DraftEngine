@@ -271,6 +271,9 @@ describe("hash navigation routing", () => {
 
     doc.querySelector(".side-menu-link[data-tab='explorer']").click();
     expect(dom.window.location.hash).toBe("#explorer");
+
+    doc.querySelector(".side-menu-link[data-tab='tags']").click();
+    expect(dom.window.location.hash).toBe("#tags");
   });
 
   test("browser back/forward updates active tab from hash", async () => {
@@ -365,6 +368,10 @@ describe("hash navigation routing", () => {
 
     doc.querySelector(".side-menu-link[data-tab='player-config']").click();
     expect(doc.querySelector("#hero-title").textContent).toBe("Profile");
+
+    doc.querySelector(".side-menu-link[data-tab='tags']").click();
+    expect(doc.querySelector("#hero-title").textContent).toBe("Tags");
+    expect(doc.querySelector("#tags-title").textContent).toBe("Tags");
   });
 
   test("coming soon categories follow stable page order", async () => {
@@ -382,7 +389,7 @@ describe("hash navigation routing", () => {
       doc.querySelectorAll("#tab-coming-soon .panel.draft-board-panel h3"),
       (node) => node.textContent.trim()
     );
-    expect(headings).toEqual(["General", "Profile", "Composer", "Teams", "Champions"]);
+    expect(headings).toEqual(["General", "Profile", "Composer", "Teams", "Champions", "Tags"]);
   });
 
   test("mobile nav toggle still controls drawer open state", async () => {

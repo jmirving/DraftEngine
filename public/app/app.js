@@ -146,6 +146,10 @@ const UI_COPY = Object.freeze({
         title: "Champions",
         subtitle: "Browse champion cards, filter by tags, and edit global champion metadata."
       },
+      tags: {
+        title: "Tags",
+        subtitle: "Review tag categories and current champion coverage."
+      },
       "coming-soon": {
         title: "Coming Soon",
         subtitle: "Track known gaps and upcoming work grouped by workspace page."
@@ -154,7 +158,7 @@ const UI_COPY = Object.freeze({
   },
   nav: {
     title: "Workspace",
-    meta: "Jump between Composer, Teams, Profile, Champions, and Coming Soon.",
+    meta: "Jump between Composer, Teams, Profile, Champions, Tags, and Coming Soon.",
     toggleClosed: "Menu",
     toggleOpen: "Close Menu",
     desktopCollapseIcon: "◀",
@@ -166,12 +170,15 @@ const UI_COPY = Object.freeze({
       "team-config": "Teams",
       "player-config": "Profile",
       explorer: "Champions",
+      tags: "Tags",
       "coming-soon": "Coming Soon"
     }
   },
   panels: {
     explorerTitle: "Champions",
     explorerMeta: "Filter champions by role, damage profile, scaling, and tags.",
+    tagsTitle: "Tags",
+    tagsMeta: "Review tag categories and current champion coverage.",
     teamConfigTitle: "Teams",
     teamConfigMeta: "Lead-only controls are grouped by Create and Manage modes.",
     playerConfigTitle: "Profile",
@@ -201,7 +208,7 @@ const UI_COPY = Object.freeze({
 
 const COMPACT_NAV_MEDIA_QUERY = "(max-width: 1099px)";
 const DEFAULT_TAB_ROUTE = "workflow";
-const TAB_ROUTES = Object.freeze(["workflow", "team-config", "player-config", "explorer", "coming-soon"]);
+const TAB_ROUTES = Object.freeze(["workflow", "team-config", "player-config", "explorer", "tags", "coming-soon"]);
 const TAB_ROUTE_SET = new Set(TAB_ROUTES);
 const LANE_ORDER = Object.freeze(["Top", "Jungle", "Mid", "ADC", "Support"]);
 
@@ -357,10 +364,13 @@ function createElements() {
     teamConfigMeta: runtimeDocument.querySelector("#team-config-meta"),
     playerConfigTitle: runtimeDocument.querySelector("#player-config-title"),
     playerConfigMeta: runtimeDocument.querySelector("#player-config-meta"),
+    tagsTitle: runtimeDocument.querySelector("#tags-title"),
+    tagsMeta: runtimeDocument.querySelector("#tags-meta"),
     comingSoonTitle: runtimeDocument.querySelector("#coming-soon-title"),
     comingSoonMeta: runtimeDocument.querySelector("#coming-soon-meta"),
     tabExplorer: runtimeDocument.querySelector("#tab-explorer"),
     tabWorkflow: runtimeDocument.querySelector("#tab-workflow"),
+    tabTags: runtimeDocument.querySelector("#tab-tags"),
     tabTeamConfig: runtimeDocument.querySelector("#tab-team-config"),
     tabPlayerConfig: runtimeDocument.querySelector("#tab-player-config"),
     tabComingSoon: runtimeDocument.querySelector("#tab-coming-soon"),
@@ -396,6 +406,8 @@ function createElements() {
     championTagEditorSave: runtimeDocument.querySelector("#champion-tag-editor-save"),
     championTagEditorClear: runtimeDocument.querySelector("#champion-tag-editor-clear"),
     championTagEditorFeedback: runtimeDocument.querySelector("#champion-tag-editor-feedback"),
+    tagsWorkspaceSummary: runtimeDocument.querySelector("#tags-workspace-summary"),
+    tagsWorkspaceCategories: runtimeDocument.querySelector("#tags-workspace-categories"),
     builderWorkflowTitle: runtimeDocument.querySelector("#builder-workflow-title"),
     builderStageGuide: runtimeDocument.querySelector("#builder-stage-guide"),
     builderStageGuideMeta: runtimeDocument.querySelector("#builder-stage-guide-meta"),
@@ -1238,6 +1250,12 @@ function applyUiCopy() {
   if (elements.explorerMeta) {
     elements.explorerMeta.textContent = UI_COPY.panels.explorerMeta;
   }
+  if (elements.tagsTitle) {
+    elements.tagsTitle.textContent = UI_COPY.panels.tagsTitle;
+  }
+  if (elements.tagsMeta) {
+    elements.tagsMeta.textContent = UI_COPY.panels.tagsMeta;
+  }
   if (elements.teamConfigTitle) {
     elements.teamConfigTitle.textContent = UI_COPY.panels.teamConfigTitle;
   }
@@ -1658,6 +1676,7 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
 
   elements.tabExplorer.classList.toggle("is-active", resolvedTab === "explorer");
   elements.tabWorkflow.classList.toggle("is-active", resolvedTab === "workflow");
+  elements.tabTags.classList.toggle("is-active", resolvedTab === "tags");
   elements.tabTeamConfig.classList.toggle("is-active", resolvedTab === "team-config");
   elements.tabPlayerConfig.classList.toggle("is-active", resolvedTab === "player-config");
   elements.tabComingSoon.classList.toggle("is-active", resolvedTab === "coming-soon");
@@ -1672,6 +1691,9 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
   }
   if (resolvedTab === "explorer" && state.data) {
     renderExplorer();
+  }
+  if (resolvedTab === "tags") {
+    renderTagsWorkspace();
   }
 
   if ((tabChanged || syncRoute) && isCompactNavViewport()) {
@@ -2046,6 +2068,106 @@ function renderChampionTagCatalog() {
     chip.className = "chip";
     chip.textContent = `${tag.name} (${tag.category})`;
     elements.championTagCatalogList.append(chip);
+  }
+}
+
+function normalizeTagCategoryLabel(value) {
+  if (typeof value !== "string" || value.trim() === "") {
+    return "uncategorized";
+  }
+  return value.trim();
+}
+
+function buildChampionUsageByTagId() {
+  const usageByTagId = new Map();
+  if (!state.data || !Array.isArray(state.data.champions)) {
+    return usageByTagId;
+  }
+
+  for (const champion of state.data.champions) {
+    if (!champion || typeof champion.name !== "string") {
+      continue;
+    }
+    for (const tagId of normalizeChampionTagIdArray(champion.tagIds)) {
+      if (!usageByTagId.has(tagId)) {
+        usageByTagId.set(tagId, []);
+      }
+      usageByTagId.get(tagId).push(champion.name);
+    }
+  }
+
+  for (const championNames of usageByTagId.values()) {
+    championNames.sort((left, right) => left.localeCompare(right));
+  }
+
+  return usageByTagId;
+}
+
+function renderTagsWorkspace() {
+  if (!elements.tagsWorkspaceSummary || !elements.tagsWorkspaceCategories) {
+    return;
+  }
+
+  const tags = Array.isArray(state.api.tags) ? state.api.tags : [];
+  const usageByTagId = buildChampionUsageByTagId();
+  elements.tagsWorkspaceCategories.innerHTML = "";
+
+  if (tags.length === 0) {
+    elements.tagsWorkspaceSummary.textContent = runtimeApiBaseUrl
+      ? "No tags were returned by the API."
+      : "Tag workspace is available when API mode is enabled.";
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "No tags to display.";
+    elements.tagsWorkspaceCategories.append(empty);
+    return;
+  }
+
+  const groupedByCategory = new Map();
+  for (const tag of tags) {
+    const category = normalizeTagCategoryLabel(tag.category).toLowerCase();
+    if (!groupedByCategory.has(category)) {
+      groupedByCategory.set(category, []);
+    }
+    groupedByCategory.get(category).push(tag);
+  }
+
+  const sortedCategories = [...groupedByCategory.keys()].sort((left, right) => left.localeCompare(right));
+  elements.tagsWorkspaceSummary.textContent = `${tags.length} tags across ${sortedCategories.length} categories.`;
+
+  for (const category of sortedCategories) {
+    const categoryTags = groupedByCategory.get(category).slice().sort((left, right) => left.name.localeCompare(right.name));
+
+    const card = runtimeDocument.createElement("section");
+    card.className = "tags-category-card";
+
+    const heading = runtimeDocument.createElement("h3");
+    heading.textContent = category;
+    const meta = runtimeDocument.createElement("p");
+    meta.className = "meta";
+    meta.textContent = `${categoryTags.length} tags`;
+
+    const list = runtimeDocument.createElement("ul");
+    list.className = "tags-workspace-list";
+    for (const tag of categoryTags) {
+      const item = runtimeDocument.createElement("li");
+      item.className = "tags-workspace-item";
+
+      const chip = runtimeDocument.createElement("span");
+      chip.className = "chip";
+      chip.textContent = tag.name;
+
+      const usageCount = (usageByTagId.get(tag.id) ?? []).length;
+      const usage = runtimeDocument.createElement("span");
+      usage.className = "meta";
+      usage.textContent = usageCount === 1 ? "Used by 1 champion" : `Used by ${usageCount} champions`;
+
+      item.append(chip, usage);
+      list.append(item);
+    }
+
+    card.append(heading, meta, list);
+    elements.tagsWorkspaceCategories.append(card);
   }
 }
 
@@ -5525,6 +5647,7 @@ async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAd
   renderPlayerConfig();
   renderBuilder();
   renderChampionTagCatalog();
+  renderTagsWorkspace();
   renderChampionTagEditor();
   syncSlotSelectOptions();
 }
@@ -6408,6 +6531,7 @@ async function init() {
     renderPlayerConfig();
     renderBuilder();
     renderChampionTagCatalog();
+    renderTagsWorkspace();
     renderChampionTagEditor();
     renderAuth();
     clearBuilderFeedback();

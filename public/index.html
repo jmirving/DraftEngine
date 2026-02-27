@@ -78,6 +78,7 @@
             <button class="side-menu-link is-active" data-tab="workflow" type="button">Composer</button>
             <button class="side-menu-link" data-tab="team-config" type="button">Teams</button>
             <button class="side-menu-link" data-tab="explorer" type="button">Champions</button>
+            <button class="side-menu-link" data-tab="tags" type="button">Tags</button>
             <button class="side-menu-link" data-tab="coming-soon" type="button">Coming Soon</button>
             <button id="auth-logout" class="side-menu-link side-menu-link-logout" type="button">Logout</button>
             <a
@@ -418,6 +419,18 @@
             </div>
           </section>
 
+          <section id="tab-tags" class="tab-panel tab-surface">
+            <div class="panel draft-board-panel">
+              <h2 id="tags-title">Tags</h2>
+              <p id="tags-meta" class="meta">Review tag categories and current champion coverage.</p>
+              <p class="meta">MVP editing remains in Champions; this page is a catalog and governance foundation.</p>
+              <p id="tags-workspace-summary" class="meta"></p>
+            </div>
+            <div class="panel draft-board-panel">
+              <div id="tags-workspace-categories" class="tags-workspace-categories"></div>
+            </div>
+          </section>
+
           <section id="tab-team-config" class="tab-panel tab-surface">
             <div class="team-context-stack">
               <div class="panel draft-board-panel team-context-panel">
@@ -718,8 +731,13 @@
               <h3>Champions</h3>
               <ul class="coming-soon-list">
                 <li>MVP supports global champion editing tabs in Explorer (Composition, Roles, Damage Type, Scaling); self/team scoped workflows are deferred.</li>
-                <li>Dedicated Champion Tags management page with full catalog controls remains deferred beyond MVP.</li>
                 <li>Ship champion auto-ingest now that global champion-tag persistence is in place.</li>
+              </ul>
+              <h3>Tags</h3>
+              <ul class="coming-soon-list">
+                <li>Tag lifecycle operations (create, rename, merge, deprecate) are not implemented yet.</li>
+                <li>Bulk operations for assigning tags across champions are not implemented yet.</li>
+                <li>Audit history and approval workflows for high-impact tag changes are not implemented yet.</li>
               </ul>
             </div>
           </section>

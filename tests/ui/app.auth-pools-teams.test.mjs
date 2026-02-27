@@ -795,6 +795,30 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#champion-tag-editor-feedback").textContent).toContain("saved");
   });
 
+  test("tags workspace renders grouped categories from API catalog", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness();
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector(".side-menu-link[data-tab='tags']").click();
+    await flush();
+
+    expect(doc.querySelector("#hero-title").textContent).toBe("Tags");
+    expect(doc.querySelector("#tags-workspace-summary").textContent).toContain("3 tags");
+
+    const headings = Array.from(
+      doc.querySelectorAll("#tags-workspace-categories .tags-category-card h3"),
+      (node) => node.textContent.trim()
+    );
+    expect(headings).toEqual(["damage", "utility"]);
+  });
+
   test("login routes users without defined roles to My Profile tab", async () => {
     const storage = createStorageStub();
     const harness = createFetchHarness({
