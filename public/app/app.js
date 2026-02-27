@@ -67,6 +67,7 @@ const DEFAULT_MEMBER_ROLE = "member";
 const MEMBER_ROLE_OPTIONS = Object.freeze(["lead", "member"]);
 const DEFAULT_TEAM_MEMBER_TYPE = "substitute";
 const TEAM_MEMBER_TYPE_OPTIONS = Object.freeze(["primary", "substitute"]);
+const CHAMPION_TAG_SCOPES = Object.freeze(["self", "team", "all"]);
 const DEFAULT_PRIMARY_ROLE = "Mid";
 const ALLOWED_TEAM_LOGO_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const MAX_TEAM_LOGO_BYTES = 512 * 1024;
@@ -200,7 +201,14 @@ function createInitialState() {
       teams: [],
       membersByTeamId: {},
       selectedTeamId: "",
-      isCreatingTeam: false
+      isCreatingTeam: false,
+      tags: [],
+      tagById: {},
+      selectedChampionTagEditorId: null,
+      selectedChampionTagIds: [],
+      championTagScope: "self",
+      championTagTeamId: "",
+      isSavingChampionTags: false
     },
     explorer: {
       search: "",
@@ -300,6 +308,18 @@ function createElements() {
     explorerClearExclude: runtimeDocument.querySelector("#explorer-clear-exclude"),
     explorerCount: runtimeDocument.querySelector("#explorer-count"),
     explorerResults: runtimeDocument.querySelector("#explorer-results"),
+    championTagCatalogMeta: runtimeDocument.querySelector("#champion-tag-catalog-meta"),
+    championTagCatalogList: runtimeDocument.querySelector("#champion-tag-catalog-list"),
+    championTagEditor: runtimeDocument.querySelector("#champion-tag-editor"),
+    championTagEditorTitle: runtimeDocument.querySelector("#champion-tag-editor-title"),
+    championTagEditorMeta: runtimeDocument.querySelector("#champion-tag-editor-meta"),
+    championTagEditorScope: runtimeDocument.querySelector("#champion-tag-editor-scope"),
+    championTagEditorTeamGroup: runtimeDocument.querySelector("#champion-tag-editor-team-group"),
+    championTagEditorTeam: runtimeDocument.querySelector("#champion-tag-editor-team"),
+    championTagEditorTags: runtimeDocument.querySelector("#champion-tag-editor-tags"),
+    championTagEditorSave: runtimeDocument.querySelector("#champion-tag-editor-save"),
+    championTagEditorClear: runtimeDocument.querySelector("#champion-tag-editor-clear"),
+    championTagEditorFeedback: runtimeDocument.querySelector("#champion-tag-editor-feedback"),
     builderWorkflowTitle: runtimeDocument.querySelector("#builder-workflow-title"),
     builderStageGuide: runtimeDocument.querySelector("#builder-stage-guide"),
     builderStageGuideMeta: runtimeDocument.querySelector("#builder-stage-guide-meta"),
@@ -489,6 +509,25 @@ function setTeamAdminFeedback(message) {
   if (elements.teamAdminFeedback) {
     elements.teamAdminFeedback.textContent = message;
   }
+}
+
+function setChampionTagEditorFeedback(message) {
+  if (elements.championTagEditorFeedback) {
+    elements.championTagEditorFeedback.textContent = message;
+  }
+}
+
+function normalizeChampionTagScope(scope) {
+  return CHAMPION_TAG_SCOPES.includes(scope) ? scope : "self";
+}
+
+function clearChampionTagEditorState() {
+  state.api.selectedChampionTagEditorId = null;
+  state.api.selectedChampionTagIds = [];
+  state.api.championTagScope = "self";
+  state.api.championTagTeamId = "";
+  state.api.isSavingChampionTags = false;
+  setChampionTagEditorFeedback("");
 }
 
 function formatTeamCardTitle(team) {
@@ -766,6 +805,7 @@ function clearAuthSession(feedback = "") {
   state.api.isCreatingTeam = false;
   state.playerConfig.dirtyPoolByTeamId = {};
   state.playerConfig.isSavingPool = false;
+  clearChampionTagEditorState();
   saveAuthSession();
   setAuthFeedback(feedback);
 }
@@ -1439,6 +1479,16 @@ function normalizeApiTags(rawTags) {
   return tags;
 }
 
+function normalizeChampionTagIdArray(rawValue) {
+  if (!Array.isArray(rawValue)) {
+    return [];
+  }
+  const normalized = rawValue
+    .map((value) => normalizeApiEntityId(value))
+    .filter((value) => value !== null);
+  return Array.from(new Set(normalized)).sort((left, right) => left - right);
+}
+
 function buildChampionFromApiRecord(rawChampion, index) {
   if (!rawChampion || typeof rawChampion !== "object" || Array.isArray(rawChampion)) {
     throw new DataValidationError(`Invalid champion payload at index ${index}.`);
@@ -1484,7 +1534,8 @@ function buildChampionFromApiRecord(rawChampion, index) {
     roles: normalizedRoles,
     damageType,
     scaling,
-    tags: normalizeApiTags(metadata.tags)
+    tags: normalizeApiTags(metadata.tags),
+    tagIds: normalizeChampionTagIdArray(rawChampion.tagIds ?? rawChampion.tag_ids)
   };
 }
 
@@ -1575,6 +1626,294 @@ async function loadMvpData() {
     teamPools: buildTeamPoolsFromPlayerPools(playerPoolsByTeam),
     teamPlayersByRole: buildTeamPlayersByRoleFromPlayerPools(playerPoolsByTeam)
   };
+}
+
+function getChampionById(championId) {
+  if (!state.data || !Array.isArray(state.data.champions)) {
+    return null;
+  }
+  return state.data.champions.find((champion) => champion.id === championId) ?? null;
+}
+
+function normalizeTagCatalogEntry(rawTag) {
+  if (!rawTag || typeof rawTag !== "object" || Array.isArray(rawTag)) {
+    return null;
+  }
+  const id = normalizeApiEntityId(rawTag.id);
+  if (!id) {
+    return null;
+  }
+  const name = typeof rawTag.name === "string" ? rawTag.name.trim() : "";
+  const category = typeof rawTag.category === "string" ? rawTag.category.trim() : "";
+  if (!name || !category) {
+    return null;
+  }
+  return { id, name, category };
+}
+
+async function loadTagCatalogFromApi() {
+  if (!runtimeApiBaseUrl) {
+    state.api.tags = [];
+    state.api.tagById = {};
+    return false;
+  }
+
+  try {
+    const payload = await fetchJson(resolveApiUrl("/tags"));
+    const source = Array.isArray(payload?.tags) ? payload.tags : [];
+    const tags = source.map(normalizeTagCatalogEntry).filter(Boolean);
+    state.api.tags = tags;
+    state.api.tagById = Object.fromEntries(tags.map((tag) => [String(tag.id), tag]));
+    return true;
+  } catch (_error) {
+    state.api.tags = [];
+    state.api.tagById = {};
+    return false;
+  }
+}
+
+function getChampionTagEditorTeamOptions() {
+  return [...state.api.teams]
+    .map((team) => ({ value: String(team.id), label: formatTeamCardTitle(team) }))
+    .sort((left, right) => left.label.localeCompare(right.label));
+}
+
+function ensureChampionTagEditorTeamSelection() {
+  if (state.api.championTagScope !== "team") {
+    state.api.championTagTeamId = "";
+    return;
+  }
+
+  const teamOptions = getChampionTagEditorTeamOptions();
+  const activeTeamId = normalizeTeamEntityId(state.teamConfig.activeTeamId);
+  const selected = normalizeTeamEntityId(state.api.championTagTeamId);
+  if (selected && teamOptions.some((option) => option.value === selected)) {
+    state.api.championTagTeamId = selected;
+    return;
+  }
+
+  if (activeTeamId && teamOptions.some((option) => option.value === activeTeamId)) {
+    state.api.championTagTeamId = activeTeamId;
+    return;
+  }
+
+  state.api.championTagTeamId = teamOptions[0]?.value ?? "";
+}
+
+function renderChampionTagCatalog() {
+  if (!elements.championTagCatalogList || !elements.championTagCatalogMeta) {
+    return;
+  }
+
+  const tags = Array.isArray(state.api.tags) ? state.api.tags : [];
+  elements.championTagCatalogList.innerHTML = "";
+
+  if (tags.length === 0) {
+    elements.championTagCatalogMeta.textContent = runtimeApiBaseUrl
+      ? "No API tag catalog entries returned."
+      : "Tag catalog is available when API mode is enabled.";
+    const empty = runtimeDocument.createElement("span");
+    empty.className = "meta";
+    empty.textContent = "No tags available.";
+    elements.championTagCatalogList.append(empty);
+    return;
+  }
+
+  elements.championTagCatalogMeta.textContent = `${tags.length} tags available across champion metadata categories.`;
+  for (const tag of tags) {
+    const chip = runtimeDocument.createElement("span");
+    chip.className = "chip";
+    chip.textContent = `${tag.name} (${tag.category})`;
+    elements.championTagCatalogList.append(chip);
+  }
+}
+
+function normalizeApiTagIdArray(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  const normalized = values
+    .map((value) => normalizeApiEntityId(value))
+    .filter((value) => value !== null);
+  return Array.from(new Set(normalized)).sort((left, right) => left - right);
+}
+
+function renderChampionTagEditorTagOptions() {
+  if (!elements.championTagEditorTags) {
+    return;
+  }
+
+  elements.championTagEditorTags.innerHTML = "";
+  const tags = Array.isArray(state.api.tags) ? state.api.tags : [];
+  if (tags.length === 0) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "No tags available to edit.";
+    elements.championTagEditorTags.append(empty);
+    return;
+  }
+
+  const selected = new Set(state.api.selectedChampionTagIds);
+  for (const tag of tags) {
+    const label = runtimeDocument.createElement("label");
+    label.className = "champion-tag-checkbox selection-option";
+
+    const checkbox = runtimeDocument.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = String(tag.id);
+    checkbox.checked = selected.has(tag.id);
+    checkbox.disabled = state.api.isSavingChampionTags;
+    checkbox.addEventListener("change", () => {
+      const next = new Set(state.api.selectedChampionTagIds);
+      if (checkbox.checked) {
+        next.add(tag.id);
+      } else {
+        next.delete(tag.id);
+      }
+      state.api.selectedChampionTagIds = [...next].sort((left, right) => left - right);
+    });
+
+    const text = runtimeDocument.createElement("span");
+    text.textContent = `${tag.name} (${tag.category})`;
+    label.append(checkbox, text);
+    elements.championTagEditorTags.append(label);
+  }
+}
+
+function renderChampionTagEditor() {
+  if (!elements.championTagEditor) {
+    return;
+  }
+
+  const championId = state.api.selectedChampionTagEditorId;
+  const champion = Number.isInteger(championId) ? getChampionById(championId) : null;
+  const canRenderEditor = Boolean(champion && isAuthenticated() && runtimeApiBaseUrl);
+  elements.championTagEditor.hidden = !canRenderEditor;
+  if (!canRenderEditor) {
+    return;
+  }
+
+  state.api.championTagScope = normalizeChampionTagScope(state.api.championTagScope);
+  ensureChampionTagEditorTeamSelection();
+
+  if (elements.championTagEditorTitle) {
+    elements.championTagEditorTitle.textContent = `Edit ${champion.name} Tags`;
+  }
+  if (elements.championTagEditorMeta) {
+    elements.championTagEditorMeta.textContent = "Scope controls where tags are applied: yourself, your selected team, or all users.";
+  }
+  if (elements.championTagEditorScope) {
+    elements.championTagEditorScope.value = state.api.championTagScope;
+    elements.championTagEditorScope.disabled = state.api.isSavingChampionTags;
+  }
+
+  const showTeamSelect = state.api.championTagScope === "team";
+  if (elements.championTagEditorTeamGroup) {
+    elements.championTagEditorTeamGroup.hidden = !showTeamSelect;
+  }
+  if (elements.championTagEditorTeam) {
+    const teamOptions = getChampionTagEditorTeamOptions();
+    replaceOptions(elements.championTagEditorTeam, teamOptions);
+    elements.championTagEditorTeam.value = state.api.championTagTeamId;
+    elements.championTagEditorTeam.disabled = state.api.isSavingChampionTags;
+  }
+
+  renderChampionTagEditorTagOptions();
+  if (elements.championTagEditorSave) {
+    elements.championTagEditorSave.disabled = state.api.isSavingChampionTags || (showTeamSelect && !state.api.championTagTeamId);
+  }
+  if (elements.championTagEditorClear) {
+    elements.championTagEditorClear.disabled = state.api.isSavingChampionTags;
+  }
+}
+
+async function loadChampionScopedTags(championId) {
+  if (!isAuthenticated() || !Number.isInteger(championId) || championId <= 0) {
+    return false;
+  }
+
+  const query = new URLSearchParams({ scope: state.api.championTagScope });
+  if (state.api.championTagScope === "team" && state.api.championTagTeamId) {
+    query.set("team_id", state.api.championTagTeamId);
+  }
+
+  try {
+    const payload = await apiRequest(`/champions/${championId}/tags?${query.toString()}`, { auth: true });
+    state.api.selectedChampionTagIds = normalizeApiTagIdArray(payload?.tag_ids);
+    if (state.api.championTagScope === "team") {
+      const teamId = normalizeTeamEntityId(payload?.team_id);
+      if (teamId) {
+        state.api.championTagTeamId = teamId;
+      }
+    }
+    setChampionTagEditorFeedback("");
+    return true;
+  } catch (error) {
+    setChampionTagEditorFeedback(normalizeApiErrorMessage(error, "Failed to load scoped champion tags."));
+    state.api.selectedChampionTagIds = [];
+    return false;
+  }
+}
+
+async function openChampionTagEditor(championId) {
+  if (!isAuthenticated() || !Number.isInteger(championId) || championId <= 0) {
+    return;
+  }
+
+  state.api.selectedChampionTagEditorId = championId;
+  state.api.championTagScope = "self";
+  ensureChampionTagEditorTeamSelection();
+  setChampionTagEditorFeedback("Loading scoped tags...");
+  renderChampionTagEditor();
+  await loadChampionScopedTags(championId);
+  renderChampionTagEditor();
+}
+
+async function saveChampionTagEditor() {
+  const championId = state.api.selectedChampionTagEditorId;
+  if (!isAuthenticated() || !Number.isInteger(championId) || championId <= 0 || state.api.isSavingChampionTags) {
+    return;
+  }
+
+  const payload = {
+    scope: state.api.championTagScope,
+    tag_ids: [...state.api.selectedChampionTagIds].sort((left, right) => left - right)
+  };
+  if (state.api.championTagScope === "team") {
+    const teamId = normalizeTeamEntityId(state.api.championTagTeamId);
+    if (!teamId) {
+      setChampionTagEditorFeedback("Select a team before saving team-scoped tags.");
+      renderChampionTagEditor();
+      return;
+    }
+    payload.team_id = Number(teamId);
+  }
+
+  state.api.isSavingChampionTags = true;
+  setChampionTagEditorFeedback("Saving champion tags...");
+  renderChampionTagEditor();
+
+  try {
+    const response = await apiRequest(`/champions/${championId}/tags`, {
+      method: "PUT",
+      auth: true,
+      body: payload
+    });
+    state.api.selectedChampionTagIds = normalizeApiTagIdArray(response?.tag_ids);
+    if (payload.scope === "all") {
+      const champion = getChampionById(championId);
+      if (champion) {
+        champion.tagIds = [...state.api.selectedChampionTagIds];
+      }
+    }
+    setChampionTagEditorFeedback("Champion tags saved.");
+    renderExplorer();
+  } catch (error) {
+    setChampionTagEditorFeedback(normalizeApiErrorMessage(error, "Failed to save champion tags."));
+  } finally {
+    state.api.isSavingChampionTags = false;
+    renderChampionTagEditor();
+  }
 }
 
 function buildRolePoolTeamId(role) {
@@ -2401,6 +2740,7 @@ function renderTeamAdmin() {
   setTeamCreateControlsDisabled(state.api.isCreatingTeam);
 
   elements.teamAdminMembers.innerHTML = "";
+  renderChampionTagEditor();
   if (!selectedTeam) {
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
@@ -3105,6 +3445,9 @@ function sortChampions(champions) {
 }
 
 function renderExplorer() {
+  renderChampionTagCatalog();
+  renderChampionTagEditor();
+
   const query = state.explorer.search.trim().toLowerCase();
   const includeTags = new Set(state.explorer.includeTags);
   const excludeTags = new Set(state.explorer.excludeTags);
@@ -3188,7 +3531,41 @@ function renderExplorer() {
       chips.append(chip);
     }
 
-    card.append(header, chips);
+    const scopedTags = runtimeDocument.createElement("div");
+    scopedTags.className = "chip-row champ-card-scope-tags";
+    const scopedTagNames = Array.isArray(champion.tagIds)
+      ? champion.tagIds.map((tagId) => state.api.tagById[String(tagId)]?.name ?? `#${tagId}`)
+      : [];
+    if (scopedTagNames.length > 0) {
+      for (const tagName of scopedTagNames) {
+        const chip = runtimeDocument.createElement("span");
+        chip.className = "chip";
+        chip.textContent = tagName;
+        scopedTags.append(chip);
+      }
+    } else {
+      const empty = runtimeDocument.createElement("span");
+      empty.className = "meta";
+      empty.textContent = "No global tags assigned.";
+      scopedTags.append(empty);
+    }
+
+    const actions = runtimeDocument.createElement("div");
+    actions.className = "button-row champ-card-actions";
+    const editButton = runtimeDocument.createElement("button");
+    editButton.type = "button";
+    editButton.textContent = "Edit Tags";
+    const canEdit = isAuthenticated() && Number.isInteger(champion.id) && champion.id > 0 && runtimeApiBaseUrl;
+    editButton.disabled = !canEdit;
+    editButton.addEventListener("click", () => {
+      if (!canEdit) {
+        return;
+      }
+      void openChampionTagEditor(champion.id);
+    });
+    actions.append(editButton);
+
+    card.append(header, chips, scopedTags, actions);
     elements.explorerResults.append(card);
   }
 }
@@ -4207,10 +4584,13 @@ async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAd
   await loadPoolsFromApi(preferredPoolTeamId);
   await loadTeamsFromApi(preferredAdminTeamId);
   await loadTeamContextFromApi();
+  await loadTagCatalogFromApi();
   initializeTeamConfigControls();
   renderTeamAdmin();
   renderPlayerConfig();
   renderBuilder();
+  renderChampionTagCatalog();
+  renderChampionTagEditor();
   syncSlotSelectOptions();
 }
 
@@ -4405,6 +4785,46 @@ function attachEvents() {
     clearExplorerFilters();
     renderExplorer();
   });
+
+  if (elements.championTagEditorScope) {
+    elements.championTagEditorScope.addEventListener("change", () => {
+      state.api.championTagScope = normalizeChampionTagScope(elements.championTagEditorScope.value);
+      ensureChampionTagEditorTeamSelection();
+      renderChampionTagEditor();
+      if (state.api.selectedChampionTagEditorId) {
+        setChampionTagEditorFeedback("Loading scoped tags...");
+        void loadChampionScopedTags(state.api.selectedChampionTagEditorId).then(() => {
+          renderChampionTagEditor();
+        });
+      }
+    });
+  }
+
+  if (elements.championTagEditorTeam) {
+    elements.championTagEditorTeam.addEventListener("change", () => {
+      state.api.championTagTeamId = normalizeTeamEntityId(elements.championTagEditorTeam.value) ?? "";
+      renderChampionTagEditor();
+      if (state.api.selectedChampionTagEditorId && state.api.championTagScope === "team") {
+        setChampionTagEditorFeedback("Loading team scoped tags...");
+        void loadChampionScopedTags(state.api.selectedChampionTagEditorId).then(() => {
+          renderChampionTagEditor();
+        });
+      }
+    });
+  }
+
+  if (elements.championTagEditorSave) {
+    elements.championTagEditorSave.addEventListener("click", () => {
+      void saveChampionTagEditor();
+    });
+  }
+
+  if (elements.championTagEditorClear) {
+    elements.championTagEditorClear.addEventListener("click", () => {
+      clearChampionTagEditorState();
+      renderChampionTagEditor();
+    });
+  }
 
   elements.builderActiveTeam.addEventListener("change", () => {
     state.builder.teamId = normalizeConfiguredTeamId(elements.builderActiveTeam.value);
@@ -4880,6 +5300,7 @@ async function init() {
     loadStoredAuthSession();
     const initialRoute = parseTabRouteHash(runtimeWindow.location.hash);
     await loadMvpData();
+    await loadTagCatalogFromApi();
     let loadedTeamContextFromApi = false;
     if (isAuthenticated()) {
       await loadProfileFromApi();
@@ -4917,6 +5338,8 @@ async function init() {
     renderTeamAdmin();
     renderPlayerConfig();
     renderBuilder();
+    renderChampionTagCatalog();
+    renderChampionTagEditor();
     renderAuth();
     clearBuilderFeedback();
   } catch (error) {

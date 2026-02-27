@@ -773,6 +773,36 @@ button.ghost {
   width: auto;
 }
 
+.champion-tag-catalog,
+.champion-tag-editor {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fffefa;
+  padding: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.champion-tag-editor .excluded-options {
+  margin-bottom: 0.55rem;
+}
+
+.champion-tag-checkbox {
+  border-radius: 8px;
+  padding: 0.18rem 0.25rem;
+}
+
+.champ-card-scope-tags {
+  margin-top: 0.5rem;
+}
+
+.champ-card-actions {
+  margin-top: 0.55rem;
+}
+
+.champ-card-actions button {
+  width: auto;
+}
+
 .builder-grid {
   display: grid;
   gap: 0.9rem;

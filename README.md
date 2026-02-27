@@ -41,7 +41,8 @@ MVP API routes:
 - `GET /champions`
 - `GET /champions/:id`
 - `GET /tags`
-- `PUT /champions/:id/tags` (auth required, replace-all semantics)
+- `GET /champions/:id/tags` (auth required; scoped read with `scope=self|team|all`, optional `team_id` for team scope)
+- `PUT /champions/:id/tags` (auth required; scoped replace semantics with `scope=self|team|all`, optional `team_id` for team scope)
 - `GET /me/pools` (auth required)
 - `POST /me/pools` (auth required)
 - `PUT /me/pools/:id` (auth required)

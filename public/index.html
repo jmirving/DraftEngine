@@ -144,6 +144,36 @@
                 </div>
               </div>
               <p class="meta">Include and Exclude tags are mutually exclusive. Selecting one removes it from the other.</p>
+              <div class="champion-tag-catalog">
+                <p class="panel-kicker">Tag Catalog</p>
+                <p id="champion-tag-catalog-meta" class="meta">Load API tags to review available champion tags.</p>
+                <div id="champion-tag-catalog-list" class="chip-row"></div>
+              </div>
+              <div id="champion-tag-editor" class="champion-tag-editor" hidden>
+                <p class="panel-kicker">Tag Editor</p>
+                <h3 id="champion-tag-editor-title">Edit Champion Tags</h3>
+                <p id="champion-tag-editor-meta" class="meta">Select a champion card to edit scoped tags.</p>
+                <div class="explorer-filters-grid">
+                  <label>
+                    Scope
+                    <select id="champion-tag-editor-scope">
+                      <option value="self">Myself</option>
+                      <option value="team">My Teammates</option>
+                      <option value="all">All Users</option>
+                    </select>
+                  </label>
+                  <label id="champion-tag-editor-team-group" hidden>
+                    Team
+                    <select id="champion-tag-editor-team"></select>
+                  </label>
+                </div>
+                <div id="champion-tag-editor-tags" class="excluded-options"></div>
+                <div class="button-row">
+                  <button id="champion-tag-editor-save" type="button">Save Champion Tags</button>
+                  <button id="champion-tag-editor-clear" class="ghost" type="button">Close Editor</button>
+                </div>
+                <p id="champion-tag-editor-feedback" class="meta"></p>
+              </div>
             </div>
             <div class="panel draft-board-panel">
               <p class="panel-kicker">Draft Board</p>

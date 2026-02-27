@@ -80,6 +80,8 @@ export function createApp({
     createChampionsRouter({
       championsRepository,
       tagsRepository,
+      usersRepository,
+      teamsRepository,
       requireAuth
     })
   );

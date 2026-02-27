@@ -72,6 +72,12 @@ function createMockContext() {
       { id: 1, name: "engage", category: "utility" },
       { id: 2, name: "frontline", category: "utility" }
     ],
+    userChampionTagIds: new Map([
+      ["2:1", new Set([2])]
+    ]),
+    teamChampionTagIds: new Map([
+      ["1:1", new Set([1])]
+    ]),
     pools: [
       { id: 1, user_id: 1, name: "Main", created_at: "2026-01-01T00:00:00.000Z" },
       { id: 2, user_id: 2, name: "Alt", created_at: "2026-01-01T00:00:00.000Z" }
@@ -196,16 +202,62 @@ function createMockContext() {
   };
 
   const tagsRepository = {
+    scopedKey(scope, ownerId, championId) {
+      return `${scope}:${ownerId}:${championId}`;
+    },
+
     async listTags() {
       return [...state.tags];
     },
+
+    async listChampionTagIdsForScope({ championId, scope, userId, teamId }) {
+      if (scope === "all") {
+        return state.champions.find((item) => item.id === championId)?.tagIds ?? [];
+      }
+
+      if (scope === "self") {
+        const key = this.scopedKey("self", userId, championId);
+        return [...(state.userChampionTagIds.get(key) ?? new Set())].sort((left, right) => left - right);
+      }
+
+      if (scope === "team") {
+        const key = this.scopedKey("team", teamId, championId);
+        return [...(state.teamChampionTagIds.get(key) ?? new Set())].sort((left, right) => left - right);
+      }
+
+      return [];
+    },
+
     async allTagIdsExist(tagIds) {
       const tagSet = new Set(state.tags.map((tag) => tag.id));
       return tagIds.every((id) => tagSet.has(id));
     },
+
+    async replaceChampionTagsForScope({ championId, tagIds, scope, userId, teamId }) {
+      if (scope === "all") {
+        const champion = state.champions.find((item) => item.id === championId);
+        champion.tagIds = [...new Set(tagIds)];
+        return;
+      }
+
+      if (scope === "self") {
+        const key = this.scopedKey("self", userId, championId);
+        state.userChampionTagIds.set(key, new Set(tagIds));
+        return;
+      }
+
+      if (scope === "team") {
+        const key = this.scopedKey("team", teamId, championId);
+        state.teamChampionTagIds.set(key, new Set(tagIds));
+      }
+    },
+
     async replaceChampionTags(championId, tagIds) {
-      const champion = state.champions.find((item) => item.id === championId);
-      champion.tagIds = [...new Set(tagIds)];
+      await this.replaceChampionTagsForScope({
+        championId,
+        tagIds,
+        scope: "all"
+      });
     }
   };
 
@@ -612,7 +664,7 @@ describe("API routes", () => {
     expect(preflightResponse.headers["access-control-allow-methods"]).toContain("GET");
   });
 
-  it("serves champions and tags, and updates champion tags", async () => {
+  it("serves champion tags and enforces scoped tag edit authorization", async () => {
     const { app, config } = createMockContext();
 
     const listResponse = await request(app).get("/champions");
@@ -627,6 +679,9 @@ describe("API routes", () => {
     expect(tagsResponse.status).toBe(200);
     expect(tagsResponse.body.tags).toHaveLength(2);
 
+    const scopedReadUnauthorized = await request(app).get("/champions/1/tags");
+    expect(scopedReadUnauthorized.status).toBe(401);
+
     const writeUnauthorized = await request(app)
       .put("/champions/1/tags")
       .send({ tag_ids: [1, 2] });
@@ -638,12 +693,56 @@ describe("API routes", () => {
       .send({ tag_ids: [999] });
     expect(invalidTagResponse.status).toBe(400);
 
-    const updateResponse = await request(app)
+    const memberCannotWriteGlobal = await request(app)
       .put("/champions/1/tags")
       .set("Authorization", buildAuthHeader(2, config))
-      .send({ tag_ids: [2] });
-    expect(updateResponse.status).toBe(200);
-    expect(updateResponse.body.champion.tagIds).toEqual([2]);
+      .send({ scope: "all", tag_ids: [2] });
+    expect(memberCannotWriteGlobal.status).toBe(403);
+
+    const memberCanWriteSelf = await request(app)
+      .put("/champions/1/tags")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({ scope: "self", tag_ids: [2, 1, 2] });
+    expect(memberCanWriteSelf.status).toBe(200);
+    expect(memberCanWriteSelf.body.tag_ids).toEqual([1, 2]);
+
+    const selfRead = await request(app)
+      .get("/champions/1/tags?scope=self")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(selfRead.status).toBe(200);
+    expect(selfRead.body.tag_ids).toEqual([1, 2]);
+
+    const outsiderCannotWriteTeam = await request(app)
+      .put("/champions/1/tags")
+      .set("Authorization", buildAuthHeader(3, config))
+      .send({ scope: "team", team_id: 1, tag_ids: [2] });
+    expect(outsiderCannotWriteTeam.status).toBe(403);
+
+    const memberCanWriteTeam = await request(app)
+      .put("/champions/1/tags")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({ scope: "team", team_id: 1, tag_ids: [2] });
+    expect(memberCanWriteTeam.status).toBe(200);
+    expect(memberCanWriteTeam.body.team_id).toBe(1);
+
+    const teamRead = await request(app)
+      .get("/champions/1/tags?scope=team&team_id=1")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(teamRead.status).toBe(200);
+    expect(teamRead.body.tag_ids).toEqual([2]);
+
+    const leadCanWriteGlobal = await request(app)
+      .put("/champions/1/tags")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({ scope: "all", tag_ids: [2] });
+    expect(leadCanWriteGlobal.status).toBe(200);
+    expect(leadCanWriteGlobal.body.champion.tagIds).toEqual([2]);
+
+    const globalRead = await request(app)
+      .get("/champions/1/tags?scope=all")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(globalRead.status).toBe(200);
+    expect(globalRead.body.tag_ids).toEqual([2]);
   });
 
   it("enforces per-user pool isolation and idempotent membership updates", async () => {

@@ -63,6 +63,13 @@ function createFetchHarness({
 } = {}) {
   const calls = [];
   let nextPoolId = pools.length + 1;
+  const globalChampionTagIds = new Map([
+    [1, new Set([1])],
+    [2, new Set([])],
+    [3, new Set([])]
+  ]);
+  const selfChampionTagIds = new Map();
+  const teamChampionTagIds = new Map();
   let persistedTeamContext = {
     defaultTeamId: null,
     activeTeamId: null,
@@ -100,6 +107,7 @@ function createFetchHarness({
     const method = (init.method ?? "GET").toUpperCase();
     const parsedUrl = new URL(url, "http://api.test");
     const path = parsedUrl.pathname;
+    const query = parsedUrl.searchParams;
     const headers = init.headers ?? {};
     const authHeader = headers.Authorization ?? headers.authorization ?? null;
     let body = undefined;
@@ -124,6 +132,7 @@ function createFetchHarness({
             id: toChampionId(1),
             name: "Ahri",
             role: "Mid",
+            tagIds: [...(globalChampionTagIds.get(1) ?? [])],
             metadata: {
               roles: ["Mid"],
               damageType: "AP",
@@ -135,6 +144,7 @@ function createFetchHarness({
             id: toChampionId(2),
             name: "Ashe",
             role: "ADC",
+            tagIds: [...(globalChampionTagIds.get(2) ?? [])],
             metadata: {
               roles: ["ADC", "Support"],
               damageType: "AD",
@@ -146,6 +156,7 @@ function createFetchHarness({
             id: toChampionId(3),
             name: "Braum",
             role: "Support",
+            tagIds: [...(globalChampionTagIds.get(3) ?? [])],
             metadata: {
               roles: ["Support"],
               damageType: "AD",
@@ -154,6 +165,81 @@ function createFetchHarness({
             }
           }
         ]
+      });
+    }
+
+    if (path === "/tags" && method === "GET") {
+      return createJsonResponse({
+        tags: [
+          { id: 1, name: "engage", category: "utility" },
+          { id: 2, name: "frontline", category: "utility" },
+          { id: 3, name: "burst", category: "damage" }
+        ]
+      });
+    }
+
+    const championTagsMatch = path.match(/^\/champions\/(\d+)\/tags$/);
+    if (championTagsMatch && method === "GET") {
+      const championId = Number(championTagsMatch[1]);
+      const scope = query.get("scope") ?? "self";
+      if (scope === "all") {
+        return createJsonResponse({
+          scope,
+          team_id: null,
+          tag_ids: [...(globalChampionTagIds.get(championId) ?? [])].sort((left, right) => left - right)
+        });
+      }
+      if (scope === "team") {
+        const teamId = Number.parseInt(query.get("team_id") ?? "", 10);
+        const key = `${teamId}:${championId}`;
+        return createJsonResponse({
+          scope,
+          team_id: Number.isInteger(teamId) ? teamId : null,
+          tag_ids: [...(teamChampionTagIds.get(key) ?? [])].sort((left, right) => left - right)
+        });
+      }
+      const key = `${resolvedLoginUser.id}:${championId}`;
+      return createJsonResponse({
+        scope: "self",
+        team_id: null,
+        tag_ids: [...(selfChampionTagIds.get(key) ?? [])].sort((left, right) => left - right)
+      });
+    }
+
+    if (championTagsMatch && method === "PUT") {
+      const championId = Number(championTagsMatch[1]);
+      const scope = body?.scope ?? "self";
+      const nextTagIds = Array.isArray(body?.tag_ids)
+        ? [...new Set(body.tag_ids.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0))]
+            .sort((left, right) => left - right)
+        : [];
+
+      if (scope === "all") {
+        globalChampionTagIds.set(championId, new Set(nextTagIds));
+        return createJsonResponse({
+          scope,
+          team_id: null,
+          tag_ids: nextTagIds
+        });
+      }
+
+      if (scope === "team") {
+        const teamId = Number.parseInt(String(body?.team_id ?? ""), 10);
+        const key = `${teamId}:${championId}`;
+        teamChampionTagIds.set(key, new Set(nextTagIds));
+        return createJsonResponse({
+          scope,
+          team_id: Number.isInteger(teamId) ? teamId : null,
+          tag_ids: nextTagIds
+        });
+      }
+
+      const key = `${resolvedLoginUser.id}:${championId}`;
+      selfChampionTagIds.set(key, new Set(nextTagIds));
+      return createJsonResponse({
+        scope: "self",
+        team_id: null,
+        tag_ids: nextTagIds
       });
     }
 
@@ -525,6 +611,45 @@ describe("auth + pools + team management", () => {
     expect(registerCall).toBeTruthy();
     expect(registerCall.body.gameName).toBe("MyRiotName");
     expect(registerCall.body.tagline).toBe("NA1");
+  });
+
+  test("champion explorer loads tag catalog and saves scoped tag edits", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness();
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    await flush();
+
+    expect(doc.querySelector("#champion-tag-catalog-list").textContent).toContain("engage");
+
+    const editButton = doc.querySelector("#explorer-results .champ-card-actions button");
+    expect(editButton).toBeTruthy();
+    editButton.click();
+    await flush();
+
+    expect(doc.querySelector("#champion-tag-editor").hidden).toBe(false);
+    const firstTagCheckbox = doc.querySelector("#champion-tag-editor-tags input[type='checkbox']");
+    expect(firstTagCheckbox).toBeTruthy();
+    firstTagCheckbox.checked = true;
+    firstTagCheckbox.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+    doc.querySelector("#champion-tag-editor-save").click();
+    await flush();
+
+    const saveCall = harness.calls.find(
+      (call) => /^\/champions\/\d+\/tags$/.test(call.path) && call.method === "PUT"
+    );
+    expect(saveCall).toBeTruthy();
+    expect(saveCall.body.scope).toBe("self");
+    expect(Array.isArray(saveCall.body.tag_ids)).toBe(true);
+    expect(doc.querySelector("#champion-tag-editor-feedback").textContent).toContain("saved");
   });
 
   test("login routes users without defined roles to My Profile tab", async () => {
