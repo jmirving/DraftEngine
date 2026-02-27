@@ -346,8 +346,6 @@ h3 {
 }
 
 .stage-guide-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-bottom: 0.45rem;
 }
 
@@ -504,14 +502,6 @@ h3 {
 .team-admin-block label.inline-checkbox input[type="checkbox"] {
   width: auto;
   margin-top: 0;
-}
-
-.team-admin-readonly-note {
-  border: 1px solid #e9ccb9;
-  border-left: 4px solid #cf6c45;
-  border-radius: 10px;
-  background: #fff5ef;
-  padding: 0.5rem 0.6rem;
 }
 
 .team-admin-members-list {
@@ -961,7 +951,7 @@ button.ghost {
   flex-wrap: wrap;
 }
 
-.button-row-inline > button {
+.button-row > button {
   width: auto;
 }
 
@@ -1646,10 +1636,6 @@ button.ghost {
   .optional-checks-header {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .stage-guide-actions {
-    grid-template-columns: 1fr;
   }
 
   .setup-board-grid,

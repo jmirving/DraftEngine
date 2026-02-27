@@ -1009,7 +1009,6 @@ describe("auth + pools + team management", () => {
     const editPanel = doc.querySelector("[data-team-manage-panel='team-settings']");
     const addPanel = doc.querySelector("[data-team-manage-panel='add-member']");
     const inlineAddAction = doc.querySelector("button[data-roster-quick-action='open-add-member']");
-    const teamWorkspaceHelp = doc.querySelector("#team-admin-team-help");
     const currentLogoHelp = doc.querySelector("#team-admin-current-logo-help");
     const currentLogoOpen = doc.querySelector("#team-admin-current-logo-open");
 
@@ -1019,7 +1018,6 @@ describe("auth + pools + team management", () => {
     expect(createTab.getAttribute("aria-selected")).toBe("false");
     expect(activeTeamOptions.some((option) => option.includes("Team Alpha"))).toBe(true);
     expect(activeTeamOptions.some((option) => option === "Mid")).toBe(false);
-    expect(teamWorkspaceHelp.textContent).toContain("Team Workspace only");
     expect(editAction).toBeTruthy();
     expect(inlineAddAction).toBeTruthy();
     expect(editPanel.hidden).toBe(true);
@@ -1529,7 +1527,7 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
     await flush();
 
-    expect(doc.querySelector("#team-admin-readonly-note").textContent).toContain("Read-only mode");
+    expect(doc.querySelector("#team-admin-open-edit").hidden).toBe(true);
     expect(doc.querySelector("#team-admin-rename").disabled).toBe(true);
     expect(doc.querySelector("#team-admin-add-member").disabled).toBe(true);
     expect(doc.querySelector("#team-admin-members").textContent).toContain("Lead#NA1");
@@ -1592,7 +1590,7 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
     await flush();
 
-    expect(doc.querySelector("#team-admin-readonly-note").textContent).toContain("Lead mode");
+    expect(doc.querySelector("#team-admin-open-edit").hidden).toBe(false);
     expect(doc.querySelector("#team-admin-rename").disabled).toBe(false);
     expect(doc.querySelector("#team-admin-add-member").disabled).toBe(false);
   });

@@ -97,10 +97,6 @@
           <section id="tab-explorer" class="tab-panel tab-surface">
             <div class="panel draft-board-panel">
               <h2 id="explorer-title">Champions</h2>
-            </div>
-            <div class="panel draft-board-panel">
-              <p class="panel-kicker">Filter Stack</p>
-              <h2>Draft Filters</h2>
               <div class="button-row explorer-toolbar">
                 <button id="explorer-clear-all" class="ghost" type="button">Clear All Filters</button>
               </div>
@@ -181,7 +177,6 @@
 
           <section id="tab-workflow" class="tab-panel tab-surface workflow-surface is-active">
             <section id="builder-stage-guide" class="panel draft-board-panel stage-guide" aria-live="polite">
-              <p class="panel-kicker">Command Center</p>
               <h2 id="builder-workflow-title">Build a Composition</h2>
               <p id="builder-stage-guide-meta" class="meta"></p>
               <div class="button-row stage-guide-actions">
@@ -357,7 +352,6 @@
             <div class="team-context-stack">
               <div class="panel draft-board-panel team-context-panel">
                 <h2 id="team-config-title">Team Workspace</h2>
-                <p id="team-admin-readonly-note" class="meta team-admin-readonly-note" aria-live="polite"></p>
                 <div class="team-workspace-tabs" role="tablist" aria-label="Team workspace modes">
                   <button
                     id="team-workspace-tab-manage"
@@ -397,7 +391,6 @@
                           <button id="team-admin-refresh" class="ghost" type="button">Refresh Teams</button>
                         </div>
                       </div>
-                      <p id="team-admin-team-help" class="meta">This team selector is for Team Workspace only.</p>
                     </div>
 
                     <div class="team-manage-panel" data-team-manage-panel="team-settings" hidden>
@@ -432,7 +425,7 @@
                           <input id="team-admin-rename-remove-logo" type="checkbox" />
                           Remove existing logo
                         </label>
-                        <div class="button-row button-row-inline">
+                        <div class="button-row">
                           <button id="team-admin-rename" type="button">Update Team</button>
                           <button id="team-admin-delete" class="ghost" type="button">Delete Team</button>
                         </div>
@@ -462,7 +455,7 @@
                             <option value="primary">primary</option>
                           </select>
                         </label>
-                        <div class="button-row button-row-inline">
+                        <div class="button-row">
                           <button id="team-admin-add-member" type="button">Add Member</button>
                         </div>
                       </div>
@@ -484,7 +477,7 @@
                             </select>
                           </label>
                         </div>
-                        <div class="button-row button-row-inline">
+                        <div class="button-row">
                           <button id="team-admin-update-role" type="button">Update Role</button>
                         </div>
                       </div>
@@ -506,7 +499,7 @@
                             </select>
                           </label>
                         </div>
-                        <div class="button-row button-row-inline">
+                        <div class="button-row">
                           <button id="team-admin-update-team-role" type="button">Update Team Role</button>
                         </div>
                       </div>
@@ -519,7 +512,7 @@
                           User ID
                           <input id="team-admin-remove-user-id" type="number" min="1" step="1" placeholder="User ID" />
                         </label>
-                        <div class="button-row button-row-inline">
+                        <div class="button-row">
                           <button id="team-admin-remove-member" class="ghost" type="button">Remove Member</button>
                         </div>
                       </div>
@@ -548,7 +541,7 @@
                         Team Logo
                         <input id="team-admin-create-logo-url" type="file" accept="image/png,image/jpeg,image/webp" />
                       </label>
-                      <div class="button-row button-row-inline">
+                      <div class="button-row">
                         <button id="team-admin-create" type="button">Create Team</button>
                       </div>
                     </div>
@@ -575,7 +568,7 @@
                     <div id="profile-secondary-roles"></div>
                   </label>
                 </div>
-                <div class="button-row button-row-inline">
+                <div class="button-row">
                   <button id="profile-save-roles" type="button">Save Roles</button>
                 </div>
                 <p id="profile-roles-feedback" class="meta"></p>
@@ -588,7 +581,7 @@
                 </label>
                 <p id="player-config-summary" class="meta"></p>
                 <div id="player-config-grid" class="player-pools-grid"></div>
-                <div class="button-row button-row-inline">
+                <div class="button-row">
                   <button id="player-config-save-pool" type="button">Save Champions</button>
                 </div>
                 <p id="player-config-feedback" class="meta"></p>
@@ -609,7 +602,6 @@
 
           <section id="tab-coming-soon" class="tab-panel tab-surface">
             <div class="panel draft-board-panel">
-              <p class="panel-kicker">Roadmap</p>
               <h2 id="coming-soon-title">Coming Soon</h2>
               <p id="coming-soon-meta" class="meta">Known issues and planned features for upcoming releases.</p>
             </div>

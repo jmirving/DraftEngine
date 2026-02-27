@@ -430,7 +430,6 @@ function createElements() {
     teamAdminUpdateTeamRole: runtimeDocument.querySelector("#team-admin-update-team-role"),
     teamAdminRemoveUserId: runtimeDocument.querySelector("#team-admin-remove-user-id"),
     teamAdminRemoveMember: runtimeDocument.querySelector("#team-admin-remove-member"),
-    teamAdminReadonlyNote: runtimeDocument.querySelector("#team-admin-readonly-note"),
     teamAdminFeedback: runtimeDocument.querySelector("#team-admin-feedback"),
     poolApiFeedback: runtimeDocument.querySelector("#pool-api-feedback"),
     playerConfigTeam: runtimeDocument.querySelector("#player-config-team"),
@@ -3180,17 +3179,10 @@ function renderTeamAdmin() {
   const isLead = selectedTeam?.membership_role === "lead";
   const adminEnabled = Boolean(selectedTeam) && isLead;
 
-  if (elements.teamAdminReadonlyNote) {
-    if (!selectedTeam) {
-      elements.teamAdminReadonlyNote.textContent = isAuthenticated()
-        ? "Select a team to view roster access details."
-        : "Sign in to view team roster and lead controls.";
-    } else if (isLead) {
-      elements.teamAdminReadonlyNote.textContent = "Lead mode: team and roster controls are enabled.";
-    } else {
-      elements.teamAdminReadonlyNote.textContent = "Read-only mode: only team leads can mutate this roster.";
-    }
+  if (!adminEnabled && state.ui.teamManageAction !== null) {
+    state.ui.teamManageAction = null;
   }
+  renderTeamManageActions();
 
   elements.teamAdminRename.disabled = !adminEnabled;
   elements.teamAdminDelete.disabled = !adminEnabled;
@@ -3216,6 +3208,7 @@ function renderTeamAdmin() {
     elements.teamAdminRefresh.disabled = !isAuthenticated();
   }
   if (elements.teamAdminOpenEdit) {
+    elements.teamAdminOpenEdit.hidden = !adminEnabled;
     elements.teamAdminOpenEdit.disabled = !adminEnabled;
   }
   setTeamCreateControlsDisabled(state.api.isCreatingTeam);
