@@ -327,7 +327,7 @@ describe("hash navigation routing", () => {
       fetchHarness: harness
     });
     const doc = dom.window.document;
-    const navToggle = doc.querySelector("#nav-toggle");
+    const navToggle = doc.querySelector("#nav-desktop-toggle");
     const appShell = doc.querySelector("#app-shell");
 
     expect(navToggle.textContent).toBe("◀");
@@ -381,7 +381,7 @@ describe("hash navigation routing", () => {
     const doc = dom.window.document;
 
     expect(doc.querySelector("#app-shell").classList.contains("is-nav-collapsed")).toBe(true);
-    expect(doc.querySelector("#nav-toggle").textContent).toBe("▶");
+    expect(doc.querySelector("#nav-desktop-toggle").textContent).toBe("▶");
   });
 
   test("login without defined roles routes to player-config hash", async () => {

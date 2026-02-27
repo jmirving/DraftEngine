@@ -251,6 +251,7 @@ function createElements() {
     appShell: runtimeDocument.querySelector("#app-shell"),
     authGate: runtimeDocument.querySelector("#auth-gate"),
     navToggle: runtimeDocument.querySelector("#nav-toggle"),
+    navDesktopToggle: runtimeDocument.querySelector("#nav-desktop-toggle"),
     navDrawer: runtimeDocument.querySelector("#nav-drawer"),
     navOverlay: runtimeDocument.querySelector("#nav-overlay"),
     tabTriggers: Array.from(runtimeDocument.querySelectorAll("button[data-tab]")),
@@ -827,12 +828,11 @@ function renderAuthGate() {
   if (elements.authGate) {
     elements.authGate.hidden = signedIn;
   }
-  if (elements.navToggle) {
-    elements.navToggle.hidden = !signedIn;
-  }
   if (!signedIn) {
     setNavOpen(false);
+    return;
   }
+  applyNavLayout();
 }
 
 function renderAuth() {
@@ -924,6 +924,15 @@ function applyNavLayout() {
   const compact = isCompactNavViewport();
   const showDrawer = state.ui.isNavOpen && compact;
   const hideDesktopNav = state.ui.isNavCollapsed && !compact;
+  const signedIn = hasAuthSession();
+
+  if (elements.navToggle) {
+    elements.navToggle.hidden = !signedIn || !compact;
+  }
+  if (elements.navDesktopToggle) {
+    elements.navDesktopToggle.hidden = !signedIn || compact;
+  }
+
   elements.navDrawer.classList.toggle("is-open", showDrawer);
   elements.navOverlay.classList.toggle("is-open", showDrawer);
   runtimeDocument.body.classList.toggle("nav-open", showDrawer);
@@ -937,10 +946,14 @@ function applyNavLayout() {
     return;
   }
   const label = hideDesktopNav ? UI_COPY.nav.desktopExpandLabel : UI_COPY.nav.desktopCollapseLabel;
-  elements.navToggle.textContent = hideDesktopNav ? UI_COPY.nav.desktopExpandIcon : UI_COPY.nav.desktopCollapseIcon;
-  elements.navToggle.setAttribute("aria-label", label);
-  elements.navToggle.setAttribute("title", label);
-  elements.navToggle.setAttribute("aria-expanded", String(!hideDesktopNav));
+  if (elements.navDesktopToggle) {
+    elements.navDesktopToggle.textContent = hideDesktopNav
+      ? UI_COPY.nav.desktopExpandIcon
+      : UI_COPY.nav.desktopCollapseIcon;
+    elements.navDesktopToggle.setAttribute("aria-label", label);
+    elements.navDesktopToggle.setAttribute("title", label);
+    elements.navDesktopToggle.setAttribute("aria-expanded", String(!hideDesktopNav));
+  }
 }
 
 function toggleNav() {
@@ -4311,6 +4324,11 @@ function attachEvents() {
   elements.navToggle.addEventListener("click", () => {
     toggleNav();
   });
+  if (elements.navDesktopToggle) {
+    elements.navDesktopToggle.addEventListener("click", () => {
+      toggleNav();
+    });
+  }
   elements.navOverlay.addEventListener("click", () => {
     setNavOpen(false);
   });
