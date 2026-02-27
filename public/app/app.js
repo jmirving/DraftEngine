@@ -3036,7 +3036,7 @@ function createRosterOpenSlotRow({ lane, teamRole, adminEnabled, emptyClass = fa
   return row;
 }
 
-function createRosterMemberRow(member, { adminEnabled, showLane = false }) {
+function createRosterMemberRow(member, { adminEnabled, showLane = false, totalMembers = 0 }) {
   const teamRole = member?.team_role === "substitute" ? "substitute" : "primary";
   const userId = resolveMemberUserId(member);
 
@@ -3052,7 +3052,7 @@ function createRosterMemberRow(member, { adminEnabled, showLane = false }) {
 
   const details = runtimeDocument.createElement("p");
   details.className = "meta";
-  const detailParts = [formatMembershipRole(member.role), formatRosterRole(teamRole)];
+  const detailParts = [formatMembershipRole(member.role)];
   if (showLane) {
     detailParts.push(formatPositionLabel(resolveMemberLane(member)));
   }
@@ -3073,7 +3073,7 @@ function createRosterMemberRow(member, { adminEnabled, showLane = false }) {
       label: "Remove Member",
       quickAction: "remove-member",
       userId,
-      disabled: !adminEnabled || !Number.isInteger(userId)
+      disabled: !adminEnabled || !Number.isInteger(userId) || totalMembers <= 1
     })
   );
 
@@ -3102,7 +3102,15 @@ function createRosterMemberRow(member, { adminEnabled, showLane = false }) {
   return row;
 }
 
-function appendRosterLaneCard({ laneLabel, members, teamRole, adminEnabled, showLane = false, emptyClass = false }) {
+function appendRosterLaneCard({
+  laneLabel,
+  members,
+  teamRole,
+  adminEnabled,
+  showLane = false,
+  emptyClass = false,
+  teamMemberCount = 0
+}) {
   const laneCard = runtimeDocument.createElement("section");
   laneCard.className = "summary-card roster-slot-card";
   laneCard.dataset.lane = laneLabel;
@@ -3126,7 +3134,7 @@ function appendRosterLaneCard({ laneLabel, members, teamRole, adminEnabled, show
     );
   } else {
     for (const member of sortRosterMembers(members)) {
-      body.append(createRosterMemberRow(member, { adminEnabled, showLane }));
+      body.append(createRosterMemberRow(member, { adminEnabled, showLane, totalMembers: teamMemberCount }));
     }
   }
 
@@ -3162,6 +3170,7 @@ function renderTeamAdmin() {
   renderTeamAdminCurrentLogo(selectedTeam);
 
   const members = selectedTeam ? state.api.membersByTeamId[String(selectedTeam.id)] ?? [] : [];
+  const teamMemberCount = members.length;
   const isLead = selectedTeam?.membership_role === "lead";
   const adminEnabled = Boolean(selectedTeam) && isLead;
 
@@ -3181,7 +3190,7 @@ function renderTeamAdmin() {
   elements.teamAdminDelete.disabled = !adminEnabled;
   elements.teamAdminAddMember.disabled = !adminEnabled;
   elements.teamAdminUpdateRole.disabled = !adminEnabled;
-  elements.teamAdminRemoveMember.disabled = !adminEnabled;
+  elements.teamAdminRemoveMember.disabled = !adminEnabled || teamMemberCount <= 1;
   elements.teamAdminRenameName.disabled = !adminEnabled;
   elements.teamAdminAddUserId.disabled = !adminEnabled;
   elements.teamAdminAddRole.disabled = !adminEnabled;
@@ -3242,7 +3251,8 @@ function renderTeamAdmin() {
       members: primaryMembersByLane.get(lane) ?? [],
       teamRole: "primary",
       adminEnabled,
-      emptyClass: true
+      emptyClass: true,
+      teamMemberCount
     });
   }
 
@@ -3252,7 +3262,8 @@ function renderTeamAdmin() {
       members: unassignedPrimaryMembers,
       teamRole: "primary",
       adminEnabled,
-      showLane: true
+      showLane: true,
+      teamMemberCount
     });
   }
 
@@ -3261,7 +3272,8 @@ function renderTeamAdmin() {
     members: substituteMembers,
     teamRole: "substitute",
     adminEnabled,
-    showLane: true
+    showLane: true,
+    teamMemberCount
   });
 
   if (adminEnabled && substituteMembers.length > 0) {
@@ -5969,6 +5981,11 @@ function attachEvents() {
     const userId = Number.parseInt(elements.teamAdminRemoveUserId.value, 10);
     if (!Number.isInteger(userId) || userId <= 0) {
       setTeamAdminFeedback("Enter a valid user id to remove.");
+      return;
+    }
+    const teamMembers = state.api.membersByTeamId[String(selectedTeam.id)] ?? [];
+    if (teamMembers.length <= 1) {
+      setTeamAdminFeedback("Cannot remove the last team member.");
       return;
     }
 

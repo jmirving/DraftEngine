@@ -9,6 +9,7 @@
     "migrate:down": "node-pg-migrate down --migrations-dir server/migrations",
     "migrate:up": "node-pg-migrate up --migrations-dir server/migrations",
     "seed:champions": "node server/scripts/seed-champions.js",
+    "seed:fake-users": "node server/scripts/seed-fake-users.js",
     "start:api": "node server/index.js",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"

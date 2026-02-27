@@ -1005,11 +1005,10 @@ describe("auth + pools + team management", () => {
     const createTab = doc.querySelector("#team-workspace-tab-create");
     const composerActiveTeamSelect = doc.querySelector("#builder-active-team");
     const activeTeamOptions = Array.from(composerActiveTeamSelect.options, (option) => option.textContent);
-    const editAction = doc.querySelector("button[data-team-manage-action='team-settings']");
-    const addAction = doc.querySelector("button[data-team-manage-action='add-member']");
+    const editAction = doc.querySelector("#team-admin-open-edit");
     const editPanel = doc.querySelector("[data-team-manage-panel='team-settings']");
     const addPanel = doc.querySelector("[data-team-manage-panel='add-member']");
-    const actionHelp = doc.querySelector("#team-manage-action-help");
+    const inlineAddAction = doc.querySelector("button[data-roster-quick-action='open-add-member']");
     const teamWorkspaceHelp = doc.querySelector("#team-admin-team-help");
     const currentLogoHelp = doc.querySelector("#team-admin-current-logo-help");
     const currentLogoOpen = doc.querySelector("#team-admin-current-logo-open");
@@ -1021,15 +1020,14 @@ describe("auth + pools + team management", () => {
     expect(activeTeamOptions.some((option) => option.includes("Team Alpha"))).toBe(true);
     expect(activeTeamOptions.some((option) => option === "Mid")).toBe(false);
     expect(teamWorkspaceHelp.textContent).toContain("Draft context is controlled from Composer Active Team");
+    expect(editAction).toBeTruthy();
+    expect(inlineAddAction).toBeTruthy();
     expect(editPanel.hidden).toBe(true);
     expect(addPanel.hidden).toBe(true);
-    expect(actionHelp.hidden).toBe(false);
 
     editAction.click();
-    expect(editAction.getAttribute("aria-pressed")).toBe("true");
     expect(editPanel.hidden).toBe(false);
     expect(addPanel.hidden).toBe(true);
-    expect(actionHelp.hidden).toBe(true);
     expect(currentLogoHelp.textContent).toContain("Current logo shown");
     expect(currentLogoOpen.hidden).toBe(false);
 
@@ -1047,13 +1045,9 @@ describe("auth + pools + team management", () => {
     expect(saveTeamContextCall).toBeTruthy();
     expect(saveTeamContextCall.body.activeTeamId).toBe(1);
 
-    addAction.click();
+    inlineAddAction.click();
     expect(editPanel.hidden).toBe(true);
     expect(addPanel.hidden).toBe(false);
-
-    addAction.click();
-    expect(addPanel.hidden).toBe(true);
-    expect(actionHelp.hidden).toBe(false);
 
     createTab.click();
     expect(managePanel.hidden).toBe(true);
@@ -1112,10 +1106,7 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
     await flush();
 
-    doc.querySelector("button[data-team-manage-action='update-member-role']").click();
-    doc.querySelector("#team-admin-role-user-id").value = "22";
-    doc.querySelector("#team-admin-role").value = "lead";
-    doc.querySelector("#team-admin-update-role").click();
+    doc.querySelector("button[data-roster-quick-action='promote-lead'][data-user-id='22']").click();
     await flush();
     await flush();
 
@@ -1125,10 +1116,7 @@ describe("auth + pools + team management", () => {
     expect(updateRoleCall).toBeTruthy();
     expect(updateRoleCall.body).toEqual({ role: "lead" });
 
-    doc.querySelector("button[data-team-manage-action='update-team-role']").click();
-    doc.querySelector("#team-admin-team-role-user-id").value = "22";
-    doc.querySelector("#team-admin-team-role").value = "primary";
-    doc.querySelector("#team-admin-update-team-role").click();
+    doc.querySelector("button[data-roster-quick-action='move-team-role'][data-user-id='22']").click();
     await flush();
     await flush();
 
@@ -1170,7 +1158,7 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
     await flush();
 
-    doc.querySelector("button[data-team-manage-action='team-settings']").click();
+    doc.querySelector("#team-admin-open-edit").click();
     doc.querySelector("#team-admin-rename-remove-logo").checked = true;
     doc.querySelector("#team-admin-rename-remove-logo").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
     doc.querySelector("#team-admin-rename").click();

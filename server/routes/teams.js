@@ -493,6 +493,11 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
       throw notFound("Team member not found.");
     }
 
+    const currentMembers = await teamsRepository.listMembers(teamId);
+    if (currentMembers.length <= 1) {
+      throw badRequest("Cannot remove the last team member.");
+    }
+
     if (existingMembership.role === "lead") {
       await assertLeadInvariantBeforeLeadRemoval(teamId, teamsRepository);
     }

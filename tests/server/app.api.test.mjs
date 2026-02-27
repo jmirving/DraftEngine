@@ -1473,6 +1473,18 @@ describe("API routes", () => {
       .send({ role: "member" });
     expect(lastLeadDemotionBlocked.status).toBe(400);
     expect(lastLeadDemotionBlocked.body.error.code).toBe("BAD_REQUEST");
+
+    const soloTeam = await request(app)
+      .post("/teams")
+      .set("Authorization", leadAuth)
+      .send({ name: "Solo Team", tag: "SOLO" });
+    expect(soloTeam.status).toBe(201);
+
+    const removeLastMemberBlocked = await request(app)
+      .delete(`/teams/${soloTeam.body.team.id}/members/1`)
+      .set("Authorization", leadAuth);
+    expect(removeLastMemberBlocked.status).toBe(400);
+    expect(removeLastMemberBlocked.body.error.message).toContain("last team member");
   });
 
   it("supports join request lifecycle with pending, approval, and cancellation", async () => {
