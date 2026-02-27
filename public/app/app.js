@@ -810,7 +810,7 @@ function setPlayerPoolDirty(teamId, dirty) {
 }
 
 function formatPlayerPoolSummary(role, championCount) {
-  return `Editing ${role} pool. ${championCount} champion${championCount === 1 ? "" : "s"} selected.`;
+  return `${role}: ${championCount} champion${championCount === 1 ? "" : "s"} selected.`;
 }
 
 function normalizeProfileRole(role) {
@@ -3653,18 +3653,7 @@ function renderPlayerConfig() {
   card.className = "player-config-card";
 
   const title = runtimeDocument.createElement("h3");
-  title.textContent = `${activeRole} Champion Pool`;
-
-  const roleMeta = runtimeDocument.createElement("p");
-  roleMeta.className = "meta";
-  roleMeta.textContent = `Role: ${activeRole}`;
-
-  const countMeta = runtimeDocument.createElement("p");
-  countMeta.className = "meta";
-  countMeta.textContent = `${activePlayer.champions.length} champion${activePlayer.champions.length === 1 ? "" : "s"} in pool.`;
-
-  const label = runtimeDocument.createElement("label");
-  label.textContent = "Champion Pool";
+  title.textContent = `${activeRole} Champions`;
 
   const poolControlHost = runtimeDocument.createElement("div");
   poolControlHost.className = "player-pool-control";
@@ -3696,7 +3685,6 @@ function renderPlayerConfig() {
       syncSlotSelectOptions();
       renderTeamConfig();
       renderBuilder();
-      countMeta.textContent = `${activePlayer.champions.length} champion${activePlayer.champions.length === 1 ? "" : "s"} in pool.`;
       elements.playerConfigSummary.textContent = formatPlayerPoolSummary(activeRole, activePlayer.champions.length);
       if (elements.playerConfigSavePool) {
         elements.playerConfigSavePool.disabled = state.playerConfig.isSavingPool;
@@ -3705,8 +3693,7 @@ function renderPlayerConfig() {
     }
   });
 
-  label.append(poolControlHost);
-  card.append(title, roleMeta, countMeta, label);
+  card.append(title, poolControlHost);
   elements.playerConfigGrid.append(card);
 }
 

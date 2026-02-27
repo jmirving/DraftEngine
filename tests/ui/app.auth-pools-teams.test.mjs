@@ -1347,7 +1347,7 @@ describe("auth + pools + team management", () => {
 
     expect(doc.querySelector("#profile-primary-role").value).toBe("Mid");
     expect(doc.querySelectorAll("#player-config-grid .player-config-card").length).toBe(1);
-    expect(doc.querySelector("#player-config-summary").textContent).toContain("Editing Mid pool. 1 champion selected.");
+    expect(doc.querySelector("#player-config-summary").textContent).toContain("Mid: 1 champion selected.");
 
     const legacyMigrationCall = harness.calls.find((call) => call.path === "/me/pools/1" && call.method === "PUT");
     expect(legacyMigrationCall).toBeTruthy();
@@ -1376,7 +1376,7 @@ describe("auth + pools + team management", () => {
 
     doc.querySelector("#player-config-team").value = "role:Top";
     doc.querySelector("#player-config-team").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-    expect(doc.querySelector("#player-config-grid").textContent).toContain("Top Champion Pool");
+    expect(doc.querySelector("#player-config-grid").textContent).toContain("Top Champions");
     expect(doc.querySelectorAll("#player-config-grid .player-config-card").length).toBe(1);
   });
 
@@ -1412,7 +1412,7 @@ describe("auth + pools + team management", () => {
     await flush();
 
     expect(doc.querySelector("#player-config-feedback").textContent).toContain("Unsaved champion changes");
-    expect(doc.querySelector("#player-config-summary").textContent).toContain("Editing Mid pool. 0 champions selected.");
+    expect(doc.querySelector("#player-config-summary").textContent).toContain("Mid: 0 champions selected.");
     expect(doc.querySelector("#player-config-save-pool").disabled).toBe(false);
 
     const immediatePoolSync = harness.calls.filter(
@@ -1474,7 +1474,7 @@ describe("auth + pools + team management", () => {
     expect(addChampionCall).toBeTruthy();
     expect(addChampionCall.body.champion_id).toBe(1);
     expect(doc.querySelector("#player-config-feedback").textContent).toContain("Saved pool updates for Mid");
-    expect(doc.querySelector("#player-config-summary").textContent).toContain("Editing Mid pool. 1 champion selected.");
+    expect(doc.querySelector("#player-config-summary").textContent).toContain("Mid: 1 champion selected.");
   });
 
   test("team admin controls are disabled for non-leads and enabled for leads", async () => {
