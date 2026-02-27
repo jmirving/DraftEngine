@@ -2169,7 +2169,9 @@ function renderTeamConfig() {
 
   const pools = getPoolsForTeam(state.teamConfig.activeTeamId);
   const roleCounts = SLOTS.map((slot) => `${slot}: ${(pools[slot] ?? []).length}`);
-  elements.teamConfigPoolSummary.textContent = `${state.teamConfig.activeTeamId === NONE_TEAM_ID ? "None" : getTeamDisplayLabel(state.teamConfig.activeTeamId)} pool sizes -> ${roleCounts.join(" | ")}`;
+  elements.teamConfigPoolSummary.textContent = state.teamConfig.activeTeamId === NONE_TEAM_ID
+    ? `Global candidate pools -> ${roleCounts.join(" | ")}`
+    : `Profile pool snapshot (${getTeamDisplayLabel(state.teamConfig.activeTeamId)} context) -> ${roleCounts.join(" | ")}`;
 
   elements.teamConfigPoolGrid.innerHTML = "";
   for (const slot of SLOTS) {
