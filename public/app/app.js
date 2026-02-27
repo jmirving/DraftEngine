@@ -46,6 +46,7 @@ const NONE_TEAM_ID = "__NONE_TEAM__";
 const TEAM_CONFIG_STORAGE_KEY = "draftflow.teamConfig.v1";
 const PLAYER_CONFIG_STORAGE_KEY = "draftflow.playerConfig.v1";
 const AUTH_SESSION_STORAGE_KEY = "draftflow.authSession.v1";
+const UI_STATE_STORAGE_KEY = "draftflow.ui.v1";
 const TEAM_WORKSPACE_TAB_MANAGE = "manage";
 const TEAM_WORKSPACE_TAB_CREATE = "create";
 const TEAM_WORKSPACE_TAB_SET = new Set([TEAM_WORKSPACE_TAB_MANAGE, TEAM_WORKSPACE_TAB_CREATE]);
@@ -99,24 +100,29 @@ const UI_COPY = Object.freeze({
     subtitle: "Configure team context, scout candidates, and run deterministic next-pick simulations."
   },
   nav: {
-    title: "Navigation",
-    meta: "Switch between Build a Composition and configuration pages.",
+    title: "Workspace",
+    meta: "Jump between Composer, Teams, Profile, Champions, and Coming Soon.",
     toggleClosed: "Menu",
     toggleOpen: "Close Menu",
+    desktopCollapse: "Hide Sidebar",
+    desktopExpand: "Show Sidebar",
     items: {
-      workflow: "Build a Composition",
-      "team-config": "Team Context",
-      "player-config": "My Profile",
-      explorer: "Champion Tags"
+      workflow: "Composer",
+      "team-config": "Teams",
+      "player-config": "Profile",
+      explorer: "Champions",
+      "coming-soon": "Coming Soon"
     }
   },
   panels: {
-    explorerTitle: "Champion Tags",
+    explorerTitle: "Champions",
     explorerMeta: "Filter champions by role, damage profile, scaling, and tags.",
-    teamConfigTitle: "Team Context",
-    teamConfigMeta: "Set the active team profile that drives role pools across composition work.",
-    playerConfigTitle: "My Profile",
-    playerConfigMeta: "Manage your roles, champion pools, and teams."
+    teamConfigTitle: "Teams",
+    teamConfigMeta: "Set active team context and manage team memberships.",
+    playerConfigTitle: "Profile",
+    playerConfigMeta: "Manage your roles, champion pools, and teams.",
+    comingSoonTitle: "Coming Soon",
+    comingSoonMeta: "Known issues and planned features for upcoming releases."
   },
   builder: {
     workflowTitle: "Build a Composition",
@@ -140,7 +146,7 @@ const UI_COPY = Object.freeze({
 
 const COMPACT_NAV_MEDIA_QUERY = "(max-width: 1099px)";
 const DEFAULT_TAB_ROUTE = "workflow";
-const TAB_ROUTES = Object.freeze(["workflow", "team-config", "player-config", "explorer"]);
+const TAB_ROUTES = Object.freeze(["workflow", "team-config", "player-config", "explorer", "coming-soon"]);
 const TAB_ROUTE_SET = new Set(TAB_ROUTES);
 
 let runtimeWindow = null;
@@ -171,6 +177,7 @@ function createInitialState() {
     activeTab: DEFAULT_TAB_ROUTE,
     ui: {
       isNavOpen: false,
+      isNavCollapsed: false,
       teamWorkspaceTab: TEAM_WORKSPACE_TAB_MANAGE,
       teamManageAction: null
     },
@@ -271,10 +278,13 @@ function createElements() {
     teamConfigMeta: runtimeDocument.querySelector("#team-config-meta"),
     playerConfigTitle: runtimeDocument.querySelector("#player-config-title"),
     playerConfigMeta: runtimeDocument.querySelector("#player-config-meta"),
+    comingSoonTitle: runtimeDocument.querySelector("#coming-soon-title"),
+    comingSoonMeta: runtimeDocument.querySelector("#coming-soon-meta"),
     tabExplorer: runtimeDocument.querySelector("#tab-explorer"),
     tabWorkflow: runtimeDocument.querySelector("#tab-workflow"),
     tabTeamConfig: runtimeDocument.querySelector("#tab-team-config"),
     tabPlayerConfig: runtimeDocument.querySelector("#tab-player-config"),
+    tabComingSoon: runtimeDocument.querySelector("#tab-coming-soon"),
     explorerSearch: runtimeDocument.querySelector("#explorer-search"),
     explorerRole: runtimeDocument.querySelector("#explorer-role"),
     explorerDamage: runtimeDocument.querySelector("#explorer-damage"),
@@ -857,6 +867,12 @@ function applyUiCopy() {
   elements.teamConfigMeta.textContent = UI_COPY.panels.teamConfigMeta;
   elements.playerConfigTitle.textContent = UI_COPY.panels.playerConfigTitle;
   elements.playerConfigMeta.textContent = UI_COPY.panels.playerConfigMeta;
+  if (elements.comingSoonTitle) {
+    elements.comingSoonTitle.textContent = UI_COPY.panels.comingSoonTitle;
+  }
+  if (elements.comingSoonMeta) {
+    elements.comingSoonMeta.textContent = UI_COPY.panels.comingSoonMeta;
+  }
 
   for (const button of elements.sideMenuLinks) {
     const tabId = button.dataset.tab;
@@ -891,19 +907,47 @@ function setBuilderStage(stage) {
 
 function setNavOpen(open) {
   state.ui.isNavOpen = open;
-  const showDrawer = state.ui.isNavOpen && isCompactNavViewport();
+  applyNavLayout();
+}
+
+function setNavCollapsed(collapsed, { persist = true } = {}) {
+  state.ui.isNavCollapsed = Boolean(collapsed);
+  if (persist) {
+    saveUiState();
+  }
+  applyNavLayout();
+}
+
+function applyNavLayout() {
+  const compact = isCompactNavViewport();
+  const showDrawer = state.ui.isNavOpen && compact;
+  const hideDesktopNav = state.ui.isNavCollapsed && !compact;
   elements.navDrawer.classList.toggle("is-open", showDrawer);
   elements.navOverlay.classList.toggle("is-open", showDrawer);
   runtimeDocument.body.classList.toggle("nav-open", showDrawer);
-  elements.navToggle.textContent = showDrawer ? UI_COPY.nav.toggleOpen : UI_COPY.nav.toggleClosed;
-  elements.navToggle.setAttribute("aria-expanded", String(showDrawer));
+  elements.appShell.classList.toggle("is-nav-collapsed", hideDesktopNav);
+  if (compact) {
+    elements.navToggle.textContent = showDrawer ? UI_COPY.nav.toggleOpen : UI_COPY.nav.toggleClosed;
+    elements.navToggle.setAttribute("aria-expanded", String(showDrawer));
+    return;
+  }
+  elements.navToggle.textContent = hideDesktopNav ? UI_COPY.nav.desktopExpand : UI_COPY.nav.desktopCollapse;
+  elements.navToggle.setAttribute("aria-expanded", String(!hideDesktopNav));
+}
+
+function toggleNav() {
+  if (isCompactNavViewport()) {
+    setNavOpen(!state.ui.isNavOpen);
+    return;
+  }
+  setNavCollapsed(!state.ui.isNavCollapsed);
 }
 
 function syncNavLayout() {
   if (!isCompactNavViewport() && state.ui.isNavOpen) {
     state.ui.isNavOpen = false;
   }
-  setNavOpen(state.ui.isNavOpen);
+  applyNavLayout();
 }
 
 function resetBuilderTreeState() {
@@ -1207,6 +1251,7 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
   elements.tabWorkflow.classList.toggle("is-active", resolvedTab === "workflow");
   elements.tabTeamConfig.classList.toggle("is-active", resolvedTab === "team-config");
   elements.tabPlayerConfig.classList.toggle("is-active", resolvedTab === "player-config");
+  elements.tabComingSoon.classList.toggle("is-active", resolvedTab === "coming-soon");
 
   if (resolvedTab === "team-config" && state.data) {
     renderTeamConfig();
@@ -2753,6 +2798,17 @@ function savePlayerConfig() {
   });
 }
 
+function loadStoredUiState() {
+  const stored = tryReadJsonStorage(UI_STATE_STORAGE_KEY, {});
+  state.ui.isNavCollapsed = stored.navCollapsed === true;
+}
+
+function saveUiState() {
+  return tryWriteJsonStorage(UI_STATE_STORAGE_KEY, {
+    navCollapsed: state.ui.isNavCollapsed
+  });
+}
+
 function loadStoredAuthSession() {
   const stored = readStoredAuthSession();
   state.auth.token = stored.token;
@@ -4245,7 +4301,7 @@ function attachEvents() {
   });
 
   elements.navToggle.addEventListener("click", () => {
-    setNavOpen(!state.ui.isNavOpen);
+    toggleNav();
   });
   elements.navOverlay.addEventListener("click", () => {
     setNavOpen(false);
@@ -4793,6 +4849,7 @@ function attachEvents() {
 async function init() {
   try {
     applyUiCopy();
+    loadStoredUiState();
     syncNavLayout();
     loadStoredAuthSession();
     const initialRoute = parseTabRouteHash(runtimeWindow.location.hash);

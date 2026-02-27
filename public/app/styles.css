@@ -121,7 +121,9 @@ h3 {
 }
 
 .nav-toggle {
-  display: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: auto;
   min-width: 8.5rem;
   padding-inline: 0.8rem;
@@ -132,6 +134,15 @@ h3 {
   grid-template-columns: minmax(210px, 240px) minmax(0, 1fr);
   gap: 0.9rem;
   align-items: start;
+  transition: grid-template-columns 180ms ease;
+}
+
+.app-shell.is-nav-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app-shell.is-nav-collapsed .nav-drawer {
+  display: none;
 }
 
 .nav-drawer {
@@ -197,6 +208,11 @@ h3 {
 
 .report-issue-link:hover {
   color: var(--accent);
+}
+
+.coming-soon-list {
+  margin: 0.4rem 0 1rem 1rem;
+  color: var(--ink);
 }
 
 .tab-panel {
@@ -1419,9 +1435,7 @@ button.ghost {
   }
 
   .nav-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    min-width: 8rem;
   }
 
   .auth-bar {

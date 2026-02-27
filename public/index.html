@@ -56,18 +56,19 @@
       <section id="auth-gate" class="panel auth-gate">
         <p class="panel-kicker">Access Required</p>
         <h2>Login or Register</h2>
-        <p class="meta">Sign in to access Build a Composition, Team Context, Profile, and Champion Tags.</p>
+        <p class="meta">Sign in to access Composer, Teams, Profile, Champions, and Coming Soon.</p>
       </section>
 
       <div id="app-shell" class="app-shell" hidden>
         <aside id="nav-drawer" class="nav-drawer" aria-label="Primary">
           <nav class="panel side-menu">
-            <h2 id="nav-title">Navigation</h2>
-            <p id="nav-meta" class="meta">Switch between Build a Composition and configuration pages.</p>
-            <button class="side-menu-link" data-tab="player-config" type="button">My Profile</button>
-            <button class="side-menu-link is-active" data-tab="workflow" type="button">Build a Composition</button>
-            <button class="side-menu-link" data-tab="team-config" type="button">Team Context</button>
-            <button class="side-menu-link" data-tab="explorer" type="button">Champion Tags</button>
+            <h2 id="nav-title">Workspace</h2>
+            <p id="nav-meta" class="meta">Jump between Composer, Teams, Profile, Champions, and Coming Soon.</p>
+            <button class="side-menu-link" data-tab="player-config" type="button">Profile</button>
+            <button class="side-menu-link is-active" data-tab="workflow" type="button">Composer</button>
+            <button class="side-menu-link" data-tab="team-config" type="button">Teams</button>
+            <button class="side-menu-link" data-tab="explorer" type="button">Champions</button>
+            <button class="side-menu-link" data-tab="coming-soon" type="button">Coming Soon</button>
             <a
               id="report-issue-link"
               class="report-issue-link"
@@ -84,8 +85,8 @@
         <div class="main-content">
           <section id="tab-explorer" class="tab-panel tab-surface">
             <div class="panel draft-board-panel">
-              <p class="panel-kicker">Champion Tags</p>
-              <h2 id="explorer-title">Champion Tags</h2>
+              <p class="panel-kicker">Champions</p>
+              <h2 id="explorer-title">Champions</h2>
               <p id="explorer-meta" class="meta">Browse champions and filter by role, damage profile, scaling, and tags.</p>
             </div>
             <div class="panel draft-board-panel">
@@ -317,7 +318,7 @@
             <div class="team-context-stack">
               <div class="panel draft-board-panel team-context-panel">
                 <p class="panel-kicker">Draft Context</p>
-                <h2 id="team-config-title">Team Context</h2>
+                <h2 id="team-config-title">Teams</h2>
                 <p id="team-config-meta" class="meta">Set the active team context for composition workflow.</p>
                 <div class="team-context-controls">
                   <label>
@@ -554,7 +555,7 @@
           <section id="tab-player-config" class="tab-panel tab-surface">
             <div class="panel draft-board-panel">
               <p class="panel-kicker">Profile</p>
-              <h2 id="player-config-title">My Profile</h2>
+              <h2 id="player-config-title">Profile</h2>
               <p id="player-config-meta" class="meta">Manage your roles, champion pools, and teams.</p>
               <div class="profile-section">
                 <p class="panel-kicker">My Roles</p>
@@ -592,6 +593,24 @@
                 <p id="settings-teams-member-summary" class="meta"></p>
                 <div id="settings-teams-member-list" class="summary-card-list"></div>
               </div>
+            </div>
+          </section>
+
+          <section id="tab-coming-soon" class="tab-panel tab-surface">
+            <div class="panel draft-board-panel">
+              <p class="panel-kicker">Roadmap</p>
+              <h2 id="coming-soon-title">Coming Soon</h2>
+              <p id="coming-soon-meta" class="meta">Known issues and planned features for upcoming releases.</p>
+            </div>
+            <div class="panel draft-board-panel">
+              <h3>Known Issues</h3>
+              <ul class="coming-soon-list">
+                <li>Track active bugs and UX pain points here.</li>
+              </ul>
+              <h3>Future Features</h3>
+              <ul class="coming-soon-list">
+                <li>List upcoming enhancements and ideas here.</li>
+              </ul>
             </div>
           </section>
         </div>

@@ -20,15 +20,22 @@ function createStorageStub(initial = {}) {
   };
 }
 
-function createMatchMedia() {
-  return (query) => ({
-    matches: false,
+function createMatchMedia(initialMatches = false) {
+  let matches = Boolean(initialMatches);
+  const impl = (query) => ({
+    get matches() {
+      return matches;
+    },
     media: query,
     addListener() {},
     removeListener() {},
     addEventListener() {},
     removeEventListener() {}
   });
+  impl.setMatches = (next) => {
+    matches = Boolean(next);
+  };
+  return impl;
 }
 
 function createJsonResponse(body, status = 200) {
@@ -176,7 +183,7 @@ async function flush() {
   await new Promise((resolvePromise) => setTimeout(resolvePromise, 0));
 }
 
-async function bootApp({ url, storageInitial = {}, fetchHarness } = {}) {
+async function bootApp({ url, storageInitial = {}, fetchHarness, matchMediaImpl = createMatchMedia() } = {}) {
   vi.resetModules();
   const dom = new JSDOM(htmlFixture, {
     url: url ?? "http://localhost/public/index.html",
@@ -191,14 +198,15 @@ async function bootApp({ url, storageInitial = {}, fetchHarness } = {}) {
     window: dom.window,
     fetchImpl: fetchHarness.impl,
     storage: createStorageStub(storageInitial),
-    matchMediaImpl: createMatchMedia(),
+    matchMediaImpl,
     apiBaseUrl: "http://api.test"
   });
 
   return {
     dom,
     state: getAppState(),
-    historyLengthBeforeInit
+    historyLengthBeforeInit,
+    matchMediaImpl
   };
 }
 
@@ -309,6 +317,69 @@ describe("hash navigation routing", () => {
 
     expect(dom.window.location.hash).toBe("#workflow");
     expect(dom.window.history.length).toBe(historyLength);
+  });
+
+  test("desktop nav toggle collapses sidebar and coming-soon tab routes correctly", async () => {
+    const harness = createFetchHarness();
+    const { dom } = await bootApp({
+      url: "http://localhost/public/index.html#workflow",
+      storageInitial: createAuthStorage(),
+      fetchHarness: harness
+    });
+    const doc = dom.window.document;
+    const navToggle = doc.querySelector("#nav-toggle");
+    const appShell = doc.querySelector("#app-shell");
+
+    expect(navToggle.textContent).toBe("Hide Sidebar");
+    expect(doc.querySelector("#nav-title").textContent).toBe("Workspace");
+    expect(appShell.classList.contains("is-nav-collapsed")).toBe(false);
+
+    navToggle.click();
+    expect(appShell.classList.contains("is-nav-collapsed")).toBe(true);
+    expect(navToggle.textContent).toBe("Show Sidebar");
+
+    navToggle.click();
+    doc.querySelector(".side-menu-link[data-tab='coming-soon']").click();
+
+    expect(dom.window.location.hash).toBe("#coming-soon");
+    expect(doc.querySelector("#tab-coming-soon").classList.contains("is-active")).toBe(true);
+  });
+
+  test("mobile nav toggle still controls drawer open state", async () => {
+    const harness = createFetchHarness();
+    const matchMediaImpl = createMatchMedia(true);
+    const { dom } = await bootApp({
+      url: "http://localhost/public/index.html#workflow",
+      storageInitial: createAuthStorage(),
+      fetchHarness: harness,
+      matchMediaImpl
+    });
+    const doc = dom.window.document;
+    const navToggle = doc.querySelector("#nav-toggle");
+    const navDrawer = doc.querySelector("#nav-drawer");
+
+    expect(navToggle.textContent).toBe("Menu");
+    expect(navDrawer.classList.contains("is-open")).toBe(false);
+
+    navToggle.click();
+    expect(navDrawer.classList.contains("is-open")).toBe(true);
+    expect(navToggle.textContent).toBe("Close Menu");
+  });
+
+  test("stored desktop nav collapse state is restored on boot", async () => {
+    const harness = createFetchHarness();
+    const { dom } = await bootApp({
+      url: "http://localhost/public/index.html#workflow",
+      storageInitial: {
+        ...createAuthStorage(),
+        "draftflow.ui.v1": JSON.stringify({ navCollapsed: true })
+      },
+      fetchHarness: harness
+    });
+    const doc = dom.window.document;
+
+    expect(doc.querySelector("#app-shell").classList.contains("is-nav-collapsed")).toBe(true);
+    expect(doc.querySelector("#nav-toggle").textContent).toBe("Show Sidebar");
   });
 
   test("login without defined roles routes to player-config hash", async () => {
