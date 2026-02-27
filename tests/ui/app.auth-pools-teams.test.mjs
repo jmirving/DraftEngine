@@ -34,6 +34,13 @@ function createMatchMedia() {
   });
 }
 
+function setInputFiles(inputElement, files) {
+  Object.defineProperty(inputElement, "files", {
+    configurable: true,
+    value: files
+  });
+}
+
 function tagsFalse() {
   return Object.fromEntries(BOOLEAN_TAGS.map((tag) => [tag, false]));
 }
@@ -860,6 +867,54 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#team-admin-feedback").textContent).toContain("Created team 'My New Team'.");
   });
 
+  test("creating a team with logo upload sends multipart contract", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const harness = createFetchHarness({
+      pools: [],
+      teams: [
+        {
+          id: 1,
+          name: "Team Alpha",
+          tag: "ALPHA",
+          logo_data_url: "data:image/png;base64,bW9jazE=",
+          created_by: 11,
+          membership_role: "lead",
+          membership_team_role: "primary",
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      membersByTeam: {
+        "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "lead@example.com" }]
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    doc.querySelector("#team-workspace-tab-create").click();
+    doc.querySelector("#team-admin-create-name").value = "Logo Team";
+    doc.querySelector("#team-admin-create-tag").value = "lgo";
+
+    const logoFile = new dom.window.File([Buffer.from("fake-png")], "logo.png", { type: "image/png" });
+    setInputFiles(doc.querySelector("#team-admin-create-logo-url"), [logoFile]);
+
+    doc.querySelector("#team-admin-create").click();
+    await flush();
+    await flush();
+
+    const createTeamCall = harness.calls.find((call) => call.path === "/teams" && call.method === "POST");
+    expect(createTeamCall).toBeTruthy();
+    expect(createTeamCall.isFormData).toBe(true);
+    expect(createTeamCall.body.name).toBe("Logo Team");
+    expect(createTeamCall.body.tag).toBe("LGO");
+    expect(createTeamCall.body.logo).toBe(logoFile);
+  });
+
   test("team context uses real teams and manage forms are action-driven", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
@@ -950,6 +1005,170 @@ describe("auth + pools + team management", () => {
     expect(createPanel.hidden).toBe(false);
     expect(manageTab.getAttribute("aria-selected")).toBe("false");
     expect(createTab.getAttribute("aria-selected")).toBe("true");
+  });
+
+  test("team manage row actions send role and team-role updates", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const harness = createFetchHarness({
+      pools: [],
+      teams: [
+        {
+          id: 1,
+          name: "Team Alpha",
+          tag: "ALPHA",
+          logo_data_url: "data:image/png;base64,bW9jazE=",
+          created_by: 11,
+          membership_role: "lead",
+          membership_team_role: "primary",
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      membersByTeam: {
+        "1": [
+          { team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "lead@example.com" },
+          { team_id: 1, user_id: 22, role: "member", team_role: "substitute", email: "member@example.com" }
+        ]
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    await flush();
+
+    doc.querySelector("button[data-team-manage-action='update-member-role']").click();
+    doc.querySelector("#team-admin-role-user-id").value = "22";
+    doc.querySelector("#team-admin-role").value = "lead";
+    doc.querySelector("#team-admin-update-role").click();
+    await flush();
+    await flush();
+
+    const updateRoleCall = harness.calls.find(
+      (call) => call.path === "/teams/1/members/22/role" && call.method === "PUT"
+    );
+    expect(updateRoleCall).toBeTruthy();
+    expect(updateRoleCall.body).toEqual({ role: "lead" });
+
+    doc.querySelector("button[data-team-manage-action='update-team-role']").click();
+    doc.querySelector("#team-admin-team-role-user-id").value = "22";
+    doc.querySelector("#team-admin-team-role").value = "primary";
+    doc.querySelector("#team-admin-update-team-role").click();
+    await flush();
+    await flush();
+
+    const updateTeamRoleCall = harness.calls.find(
+      (call) => call.path === "/teams/1/members/22/team-role" && call.method === "PUT"
+    );
+    expect(updateTeamRoleCall).toBeTruthy();
+    expect(updateTeamRoleCall.body).toEqual({ team_role: "primary" });
+  });
+
+  test("team update remove-logo action sends JSON remove_logo contract", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const harness = createFetchHarness({
+      pools: [],
+      teams: [
+        {
+          id: 1,
+          name: "Team Alpha",
+          tag: "ALPHA",
+          logo_data_url: "data:image/png;base64,bW9jazE=",
+          created_by: 11,
+          membership_role: "lead",
+          membership_team_role: "primary",
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      membersByTeam: {
+        "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "lead@example.com" }]
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    await flush();
+
+    doc.querySelector("button[data-team-manage-action='team-settings']").click();
+    doc.querySelector("#team-admin-rename-remove-logo").checked = true;
+    doc.querySelector("#team-admin-rename-remove-logo").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    doc.querySelector("#team-admin-rename").click();
+    await flush();
+    await flush();
+
+    const renameCall = harness.calls.find((call) => call.path === "/teams/1" && call.method === "PATCH");
+    expect(renameCall).toBeTruthy();
+    expect(renameCall.isFormData).toBe(false);
+    expect(renameCall.body.remove_logo).toBe(true);
+    expect(renameCall.body.logo).toBeUndefined();
+  });
+
+  test("team-context active team persists across reload via API", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const harness = createFetchHarness({
+      pools: [],
+      teams: [
+        {
+          id: 1,
+          name: "Team Alpha",
+          tag: "ALPHA",
+          logo_data_url: "data:image/png;base64,bW9jazE=",
+          created_by: 11,
+          membership_role: "lead",
+          membership_team_role: "primary",
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      membersByTeam: {
+        "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "lead@example.com" }]
+      },
+      teamContext: {
+        defaultTeamId: null,
+        activeTeamId: null
+      }
+    });
+
+    const firstBoot = await bootApp({ fetchImpl: harness.impl, storage });
+    const firstDoc = firstBoot.dom.window.document;
+    firstDoc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    await flush();
+    firstDoc.querySelector("#team-config-active-team").value = "1";
+    firstDoc.querySelector("#team-config-active-team").dispatchEvent(
+      new firstBoot.dom.window.Event("change", { bubbles: true })
+    );
+    await flush();
+    await flush();
+
+    const saveCall = harness.calls.find((call) => call.path === "/me/team-context" && call.method === "PUT");
+    expect(saveCall).toBeTruthy();
+    expect(saveCall.body.activeTeamId).toBe(1);
+
+    const secondStorage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const secondBoot = await bootApp({ fetchImpl: harness.impl, storage: secondStorage });
+    const secondDoc = secondBoot.dom.window.document;
+    await flush();
+
+    expect(secondDoc.querySelector("#team-config-active-team").value).toBe("1");
   });
 
   test("selected team shows signed-in user name on their primary role slot label", async () => {
@@ -1235,8 +1454,11 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
     await flush();
 
+    expect(doc.querySelector("#team-admin-readonly-note").textContent).toContain("Read-only mode");
     expect(doc.querySelector("#team-admin-rename").disabled).toBe(true);
     expect(doc.querySelector("#team-admin-add-member").disabled).toBe(true);
+    expect(doc.querySelector("#team-admin-members").textContent).toContain("member@example.com");
+    expect(doc.querySelector("#team-admin-members").textContent).toContain("lead@example.com");
 
     const leadStorage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
@@ -1271,6 +1493,7 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
     await flush();
 
+    expect(doc.querySelector("#team-admin-readonly-note").textContent).toContain("Lead mode");
     expect(doc.querySelector("#team-admin-rename").disabled).toBe(false);
     expect(doc.querySelector("#team-admin-add-member").disabled).toBe(false);
   });

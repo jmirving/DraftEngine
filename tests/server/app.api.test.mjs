@@ -671,6 +671,13 @@ describe("API routes", () => {
       activeTeamId: 1
     });
 
+    const persisted = await request(app).get("/me/team-context").set("Authorization", leadAuth);
+    expect(persisted.status).toBe(200);
+    expect(persisted.body.teamContext).toEqual({
+      defaultTeamId: 1,
+      activeTeamId: 1
+    });
+
     const invalidMembership = await request(app)
       .put("/me/team-context")
       .set("Authorization", leadAuth)
@@ -912,6 +919,34 @@ describe("API routes", () => {
       .set("Authorization", memberAuth)
       .send({ name: "Nope", tag: "NOPE" });
     expect(memberDeniedPatch.status).toBe(403);
+
+    const memberDeniedAddMember = await request(app)
+      .post("/teams/1/members")
+      .set("Authorization", memberAuth)
+      .send({ user_id: 3, role: "member", team_role: "substitute" });
+    expect(memberDeniedAddMember.status).toBe(403);
+
+    const memberDeniedRoleUpdate = await request(app)
+      .put("/teams/1/members/1/role")
+      .set("Authorization", memberAuth)
+      .send({ role: "member" });
+    expect(memberDeniedRoleUpdate.status).toBe(403);
+
+    const memberDeniedTeamRoleUpdate = await request(app)
+      .put("/teams/1/members/1/team-role")
+      .set("Authorization", memberAuth)
+      .send({ team_role: "substitute" });
+    expect(memberDeniedTeamRoleUpdate.status).toBe(403);
+
+    const memberDeniedRemove = await request(app)
+      .delete("/teams/1/members/2")
+      .set("Authorization", memberAuth);
+    expect(memberDeniedRemove.status).toBe(403);
+
+    const memberDeniedDeleteTeam = await request(app)
+      .delete("/teams/1")
+      .set("Authorization", memberAuth);
+    expect(memberDeniedDeleteTeam.status).toBe(403);
 
     const addOutsider = await request(app)
       .post("/teams/1/members")
