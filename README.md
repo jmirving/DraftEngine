@@ -21,6 +21,11 @@ Required environment variables:
 
 Optional environment variables:
 - `CORS_ORIGIN` (default `*`; set to your frontend URL when deployed separately)
+- `RIOT_API_KEY` (enables Riot profile champion-mastery enrichment on `GET /me/profile`)
+- `RIOT_PLATFORM_ROUTING` (default `na1`)
+- `RIOT_ACCOUNT_ROUTING` (optional override; otherwise inferred from platform with regional fallback)
+- `RIOT_API_TIMEOUT_MS` (request timeout, clamped to safe range)
+- `RIOT_PROFILE_CHAMPION_STATS_LIMIT` (top mastery entries returned, max `20`)
 
 Start API:
 ```bash
@@ -43,6 +48,10 @@ MVP API routes:
 - `GET /tags`
 - `GET /champions/:id/tags` (auth required; scoped read with `scope=self|team|all`, optional `team_id` for team scope)
 - `PUT /champions/:id/tags` (auth required; scoped replace semantics with `scope=self|team|all`, optional `team_id` for team scope)
+- `GET /me/profile` (auth required; includes optional `profile.championStats` when Riot integration is enabled)
+- `PUT /me/profile` (auth required)
+- `GET /me/team-context` (auth required)
+- `PUT /me/team-context` (auth required)
 - `GET /me/pools` (auth required)
 - `POST /me/pools` (auth required)
 - `PUT /me/pools/:id` (auth required)
@@ -57,6 +66,12 @@ MVP API routes:
 - `POST /teams/:id/members` (auth + lead required)
 - `DELETE /teams/:id/members/:user_id` (auth + lead required)
 - `PUT /teams/:id/members/:user_id/role` (auth + lead required)
+- `PUT /teams/:id/members/:user_id/team-role` (auth + lead required)
+
+Team API mutation payloads:
+- `POST /teams` and `PATCH /teams/:id` accept `application/json` and `multipart/form-data`.
+- Logo uploads are restricted to `image/png`, `image/jpeg`, `image/webp` and `<= 512KB`.
+- Team patch supports `remove_logo=true`; supplying both `logo` and `remove_logo=true` is rejected (`400`).
 
 Error contract (all API errors):
 ```json
@@ -89,9 +104,9 @@ Frontend API integration:
 
 Primary surfaces:
 - `Build a Composition` (single mode)
-- `Team Context` (team defaults + role-pool preview)
+- `Team Context` (server-backed active team context + lead-gated team workspace + role-pool preview)
 - `Player Pools` (API-backed pool editing)
-- `Champion Tags` (filter + inspect)
+- `Champion Tags` (filter + inspect + scoped tag editing: self/team/all)
 
 ## Testing
 
