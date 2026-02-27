@@ -1022,7 +1022,7 @@ describe("auth + pools + team management", () => {
     expect(activeTeamOptions.some((option) => option.includes("Team Alpha"))).toBe(true);
     expect(activeTeamOptions.some((option) => option === "Mid")).toBe(false);
     expect(contextHelp.textContent).toContain("Team Workspace's Team selector only chooses");
-    expect(teamWorkspaceHelp.textContent).toContain("does not change Active Team");
+    expect(teamWorkspaceHelp.textContent).toContain("Draft context is controlled from Composer Active Team");
     expect(editPanel.hidden).toBe(true);
     expect(addPanel.hidden).toBe(true);
     expect(actionHelp.hidden).toBe(false);
