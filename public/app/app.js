@@ -69,8 +69,21 @@ const DEFAULT_TEAM_MEMBER_TYPE = "substitute";
 const TEAM_MEMBER_TYPE_OPTIONS = Object.freeze(["primary", "substitute"]);
 const CHAMPION_TAG_SCOPES = Object.freeze(["self", "team", "all"]);
 const DEFAULT_PRIMARY_ROLE = "Mid";
+const DEFAULT_FAMILIARITY_LEVEL = 3;
 const ALLOWED_TEAM_LOGO_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const MAX_TEAM_LOGO_BYTES = 512 * 1024;
+const PREFILLED_RECOMMENDATION_LIMIT = 3;
+const HIGH_SIGNAL_MASTERY_LEVEL = 6;
+const HIGH_SIGNAL_CHAMPION_POINTS = 100000;
+
+const FAMILIARITY_LEVEL_LABELS = Object.freeze({
+  1: "I know all the intricacies and how to use them",
+  2: "I've got all the normal and a lot of the harder skills down.",
+  3: "I am familiar enough to play at an average level.",
+  4: "I will potentially panic or misinput a spell",
+  5: "There are intricacies I straight up don't know.",
+  6: "I don't know how that champion works."
+});
 
 const CHAMPION_IMAGE_OVERRIDES = Object.freeze({
   VelKoz: "Velkoz"
@@ -762,6 +775,120 @@ function normalizeSecondaryRoles(roles, primaryRole) {
     return [];
   }
   return Array.from(new Set(roles.filter((role) => SLOTS.includes(role) && role !== primaryRole)));
+}
+
+function normalizeFamiliarityLevel(rawValue, fallback = DEFAULT_FAMILIARITY_LEVEL) {
+  const parsed = Number.parseInt(String(rawValue), 10);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 6) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function getFamiliarityLabel(level) {
+  return FAMILIARITY_LEVEL_LABELS[normalizeFamiliarityLevel(level)] ?? FAMILIARITY_LEVEL_LABELS[DEFAULT_FAMILIARITY_LEVEL];
+}
+
+function normalizeFamiliarityByChampion(championNames, rawMap) {
+  const names = Array.isArray(championNames) ? championNames : [];
+  const source = rawMap && typeof rawMap === "object" && !Array.isArray(rawMap) ? rawMap : {};
+  const normalized = {};
+
+  for (const championName of names) {
+    if (typeof championName !== "string" || championName.trim() === "") {
+      continue;
+    }
+    normalized[championName] = normalizeFamiliarityLevel(source[championName]);
+  }
+
+  return normalized;
+}
+
+function deriveFamiliarityFromMastery({ championLevel, championPoints }) {
+  const level = Number.parseInt(String(championLevel), 10);
+  const points = Number.parseInt(String(championPoints), 10);
+
+  if (level >= 7 || points >= 250000) {
+    return 1;
+  }
+  if (level >= 6 || points >= 120000) {
+    return 2;
+  }
+  if (level >= 5 || points >= 60000) {
+    return 3;
+  }
+  if (level >= 4 || points >= 25000) {
+    return 4;
+  }
+  if (level >= 3 || points >= 8000) {
+    return 5;
+  }
+  return 6;
+}
+
+function isHighSignalMasteryEntry(entry) {
+  const level = Number.parseInt(String(entry?.championLevel), 10);
+  const points = Number.parseInt(String(entry?.championPoints), 10);
+  return level >= HIGH_SIGNAL_MASTERY_LEVEL || points >= HIGH_SIGNAL_CHAMPION_POINTS;
+}
+
+function buildMasteryRecommendationsByRole() {
+  const byRole = Object.fromEntries(SLOTS.map((role) => [role, []]));
+  const championStats = normalizeChampionStats(state.profile.championStats);
+  if (championStats.status !== "ok" || championStats.champions.length === 0) {
+    return byRole;
+  }
+
+  for (const entry of championStats.champions) {
+    const champion = getChampionById(entry.championId);
+    if (!champion) {
+      continue;
+    }
+
+    const recommendation = {
+      championName: champion.name,
+      championLevel: entry.championLevel,
+      championPoints: entry.championPoints,
+      familiarity: deriveFamiliarityFromMastery(entry),
+      highSignal: isHighSignalMasteryEntry(entry)
+    };
+
+    for (const role of champion.roles) {
+      if (SLOTS.includes(role)) {
+        byRole[role].push(recommendation);
+      }
+    }
+  }
+
+  for (const role of SLOTS) {
+    const uniqueByChampion = new Map();
+    for (const recommendation of byRole[role]) {
+      const existing = uniqueByChampion.get(recommendation.championName);
+      if (!existing) {
+        uniqueByChampion.set(recommendation.championName, recommendation);
+        continue;
+      }
+      if (
+        recommendation.championLevel > existing.championLevel ||
+        (recommendation.championLevel === existing.championLevel &&
+          recommendation.championPoints > existing.championPoints)
+      ) {
+        uniqueByChampion.set(recommendation.championName, recommendation);
+      }
+    }
+
+    byRole[role] = [...uniqueByChampion.values()].sort((left, right) => {
+      if (left.championLevel !== right.championLevel) {
+        return right.championLevel - left.championLevel;
+      }
+      if (left.championPoints !== right.championPoints) {
+        return right.championPoints - left.championPoints;
+      }
+      return left.championName.localeCompare(right.championName);
+    });
+  }
+
+  return byRole;
 }
 
 function createEmptyChampionStatsState() {
@@ -1992,17 +2119,19 @@ function getTeamDisplayLabel(teamId) {
   return state.data.teamLabels?.[teamId] ?? String(teamId);
 }
 
-function buildRolePlayerFromChampionNames(role, championNames) {
+function buildRolePlayerFromChampionNames(role, championNames, familiarityByChampion = {}) {
   const roleEligible = new Set(state.data.noneTeamPools[role] ?? []);
   const uniqueNames = Array.from(new Set(championNames))
     .filter((name) => roleEligible.has(name))
     .sort((left, right) => left.localeCompare(right));
+  const normalizedFamiliarity = normalizeFamiliarityByChampion(uniqueNames, familiarityByChampion);
   return [
     {
       id: `${role}::${role} Player`,
       player: `${role} Player`,
       role,
-      champions: uniqueNames
+      champions: uniqueNames,
+      familiarityByChampion: normalizedFamiliarity
     }
   ];
 }
@@ -2036,10 +2165,27 @@ function applyApiPoolsToState(pools, preferredTeamId = null) {
   for (const role of configuredRoles) {
     const teamId = buildRolePoolTeamId(role);
     const pool = poolByRole.get(role) ?? null;
-    const championNames = (pool?.champion_ids ?? [])
-      .map((championId) => state.data.championNamesById[championId])
-      .filter((name) => Boolean(name));
-    byTeam[teamId] = buildRolePlayerFromChampionNames(role, championNames);
+    const championNames = [];
+    const familiarityByChampion = {};
+    const poolFamiliarity =
+      pool?.champion_familiarity && typeof pool.champion_familiarity === "object"
+        ? pool.champion_familiarity
+        : {};
+
+    for (const rawChampionId of pool?.champion_ids ?? []) {
+      const championId = Number.parseInt(String(rawChampionId), 10);
+      if (!Number.isInteger(championId)) {
+        continue;
+      }
+      const championName = state.data.championNamesById[championId];
+      if (!championName) {
+        continue;
+      }
+      championNames.push(championName);
+      familiarityByChampion[championName] = normalizeFamiliarityLevel(poolFamiliarity[String(championId)]);
+    }
+
+    byTeam[teamId] = buildRolePlayerFromChampionNames(role, championNames, familiarityByChampion);
     teamLabels[teamId] = role;
     poolByTeamId[teamId] = pool;
   }

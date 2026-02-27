@@ -63,13 +63,24 @@ test("buildPlayerPoolsByTeam deduplicates champions and sorts players", () => {
 
 test("clonePlayerPoolsByTeam deep clones nested player champion arrays", () => {
   const original = {
-    TTT: [{ id: "Top::Ari", player: "Ari", role: "Top", champions: ["Aatrox"] }]
+    TTT: [
+      {
+        id: "Top::Ari",
+        player: "Ari",
+        role: "Top",
+        champions: ["Aatrox"],
+        familiarityByChampion: { Aatrox: 2 }
+      }
+    ]
   };
   const clone = clonePlayerPoolsByTeam(original);
   clone.TTT[0].champions.push("Camille");
+  clone.TTT[0].familiarityByChampion.Aatrox = 1;
 
   expect(original.TTT[0].champions).toEqual(["Aatrox"]);
+  expect(original.TTT[0].familiarityByChampion).toEqual({ Aatrox: 2 });
   expect(clone.TTT[0].champions).toEqual(["Aatrox", "Camille"]);
+  expect(clone.TTT[0].familiarityByChampion).toEqual({ Aatrox: 1 });
 });
 
 test("buildTeamPoolsFromPlayerPools merges role champions with dedupe and sorting", () => {

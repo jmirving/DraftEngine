@@ -64,12 +64,24 @@ export function createPoolsRepository(pool) {
     async addChampionToPool(poolId, championId) {
       await pool.query(
         `
-          INSERT INTO user_pool_champions (pool_id, champion_id)
-          VALUES ($1, $2)
+          INSERT INTO user_pool_champions (pool_id, champion_id, familiarity)
+          VALUES ($1, $2, 3)
           ON CONFLICT (pool_id, champion_id) DO NOTHING
         `,
         [poolId, championId]
       );
+    },
+
+    async setChampionFamiliarity(poolId, championId, familiarity) {
+      const result = await pool.query(
+        `
+          UPDATE user_pool_champions
+          SET familiarity = $3
+          WHERE pool_id = $1 AND champion_id = $2
+        `,
+        [poolId, championId, familiarity]
+      );
+      return result.rowCount > 0;
     },
 
     async removeChampionFromPool(poolId, championId) {
@@ -82,18 +94,25 @@ export function createPoolsRepository(pool) {
       );
     },
 
-    async listPoolChampionIds(poolId) {
+    async listPoolChampions(poolId) {
       const result = await pool.query(
         `
-          SELECT champion_id
+          SELECT champion_id, familiarity
           FROM user_pool_champions
           WHERE pool_id = $1
           ORDER BY champion_id ASC
         `,
         [poolId]
       );
-      return result.rows.map((row) => Number(row.champion_id));
+      return result.rows.map((row) => ({
+        champion_id: Number(row.champion_id),
+        familiarity: Number(row.familiarity)
+      }));
+    },
+
+    async listPoolChampionIds(poolId) {
+      const rows = await this.listPoolChampions(poolId);
+      return rows.map((row) => row.champion_id);
     }
   };
 }
-

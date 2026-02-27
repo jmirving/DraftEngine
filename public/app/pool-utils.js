@@ -47,7 +47,8 @@ export function buildPlayerPoolsByTeam(teamPoolEntries) {
         id: playerKey,
         player: playerName,
         role: entry.role,
-        champions: []
+        champions: [],
+        familiarityByChampion: {}
       };
     }
 
@@ -81,7 +82,11 @@ export function clonePlayerPoolsByTeam(playerPoolsByTeam) {
       id: player.id,
       player: player.player,
       role: player.role,
-      champions: [...player.champions]
+      champions: [...player.champions],
+      familiarityByChampion:
+        player.familiarityByChampion && typeof player.familiarityByChampion === "object"
+          ? { ...player.familiarityByChampion }
+          : {}
     }));
   }
   return clone;

@@ -110,6 +110,21 @@ function createFetchHarness({
     return `data:${type};base64,bW9ja19sb2dv`;
   }
 
+  const ensurePoolFamiliarity = (pool) => {
+    if (!pool || typeof pool !== "object") {
+      return {};
+    }
+    if (!pool.champion_familiarity || typeof pool.champion_familiarity !== "object") {
+      pool.champion_familiarity = {};
+    }
+    for (const championId of pool.champion_ids ?? []) {
+      const key = String(championId);
+      const existing = Number.parseInt(String(pool.champion_familiarity[key]), 10);
+      pool.champion_familiarity[key] = Number.isInteger(existing) && existing >= 1 && existing <= 6 ? existing : 3;
+    }
+    return pool.champion_familiarity;
+  };
+
   const impl = async (url, init = {}) => {
     const method = (init.method ?? "GET").toUpperCase();
     const parsedUrl = new URL(url, "http://api.test");
@@ -321,6 +336,9 @@ function createFetchHarness({
     }
 
     if (path === "/me/pools" && method === "GET") {
+      for (const pool of pools) {
+        ensurePoolFamiliarity(pool);
+      }
       return createJsonResponse({ pools });
     }
 
@@ -341,6 +359,7 @@ function createFetchHarness({
         user_id: 11,
         name: body.name,
         champion_ids: [],
+        champion_familiarity: {},
         created_at: "2026-01-01T00:00:00.000Z"
       };
       nextPoolId += 1;
@@ -370,8 +389,19 @@ function createFetchHarness({
     if (/^\/me\/pools\/\d+\/champions$/.test(path) && method === "POST") {
       const poolId = Number(path.split("/")[3]);
       const pool = pools.find((candidate) => candidate.id === poolId);
+      if (pool) {
+        ensurePoolFamiliarity(pool);
+      }
+      const familiarity = Number.parseInt(String(body?.familiarity), 10);
+      const normalizedFamiliarity = Number.isInteger(familiarity) && familiarity >= 1 && familiarity <= 6 ? familiarity : 3;
       if (pool && !pool.champion_ids.includes(body.champion_id)) {
         pool.champion_ids.push(body.champion_id);
+        pool.champion_familiarity[String(body.champion_id)] = normalizedFamiliarity;
+      } else if (pool && body?.champion_id !== undefined && body?.champion_id !== null) {
+        const existingKey = String(body.champion_id);
+        if (pool.champion_familiarity[existingKey] === undefined) {
+          pool.champion_familiarity[existingKey] = 3;
+        }
       }
       return createJsonResponse({ pool });
     }
@@ -380,8 +410,31 @@ function createFetchHarness({
       const [poolIdRaw, championIdRaw] = [path.split("/")[3], path.split("/")[5]];
       const pool = pools.find((candidate) => candidate.id === Number(poolIdRaw));
       if (pool) {
+        ensurePoolFamiliarity(pool);
         pool.champion_ids = pool.champion_ids.filter((id) => id !== Number(championIdRaw));
+        delete pool.champion_familiarity[String(championIdRaw)];
       }
+      return createJsonResponse({ pool });
+    }
+
+    if (/^\/me\/pools\/\d+\/champions\/\d+\/familiarity$/.test(path) && method === "PUT") {
+      const [poolIdRaw, championIdRaw] = [path.split("/")[3], path.split("/")[5]];
+      const pool = pools.find((candidate) => candidate.id === Number(poolIdRaw));
+      if (!pool) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "Pool not found." } }, 404);
+      }
+      ensurePoolFamiliarity(pool);
+      if (!pool.champion_ids.includes(Number(championIdRaw))) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "Champion is not in this pool." } }, 404);
+      }
+      const familiarity = Number.parseInt(String(body?.familiarity), 10);
+      if (!Number.isInteger(familiarity) || familiarity < 1 || familiarity > 6) {
+        return createJsonResponse(
+          { error: { code: "BAD_REQUEST", message: "Expected 'familiarity' to be between 1 and 6." } },
+          400
+        );
+      }
+      pool.champion_familiarity[String(championIdRaw)] = familiarity;
       return createJsonResponse({ pool });
     }
 

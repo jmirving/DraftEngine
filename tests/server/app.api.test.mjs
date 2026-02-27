@@ -98,6 +98,10 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       [1, new Set([1])],
       [2, new Set([2])]
     ]),
+    poolChampionFamiliarity: new Map([
+      ["1:1", 3],
+      ["2:2", 3]
+    ]),
     teams: [
       {
         id: 1,
@@ -312,10 +316,39 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       return true;
     },
     async addChampionToPool(poolId, championId) {
-      state.poolChampionIds.get(poolId)?.add(championId);
+      const champions = state.poolChampionIds.get(poolId);
+      if (!champions) {
+        return;
+      }
+      champions.add(championId);
+      const key = `${poolId}:${championId}`;
+      if (!state.poolChampionFamiliarity.has(key)) {
+        state.poolChampionFamiliarity.set(key, 3);
+      }
+    },
+    async setChampionFamiliarity(poolId, championId, familiarity) {
+      const champions = state.poolChampionIds.get(poolId);
+      if (!champions || !champions.has(championId)) {
+        return false;
+      }
+      state.poolChampionFamiliarity.set(`${poolId}:${championId}`, familiarity);
+      return true;
     },
     async removeChampionFromPool(poolId, championId) {
       state.poolChampionIds.get(poolId)?.delete(championId);
+      state.poolChampionFamiliarity.delete(`${poolId}:${championId}`);
+    },
+    async listPoolChampions(poolId) {
+      const set = state.poolChampionIds.get(poolId);
+      if (!set) {
+        return [];
+      }
+      return [...set]
+        .sort((left, right) => left - right)
+        .map((championId) => ({
+          champion_id: championId,
+          familiarity: state.poolChampionFamiliarity.get(`${poolId}:${championId}`) ?? 3
+        }));
     },
     async listPoolChampionIds(poolId) {
       const set = state.poolChampionIds.get(poolId);
@@ -972,6 +1005,7 @@ describe("API routes", () => {
     expect(listUser1.status).toBe(200);
     expect(listUser1.body.pools).toHaveLength(1);
     expect(listUser1.body.pools[0].id).toBe(1);
+    expect(listUser1.body.pools[0].champion_familiarity).toEqual({ 1: 3 });
 
     const crossUserUpdate = await request(app)
       .put("/me/pools/1")
@@ -989,9 +1023,10 @@ describe("API routes", () => {
     const addOnce = await request(app)
       .post(`/me/pools/${newPoolId}/champions`)
       .set("Authorization", user1Auth)
-      .send({ champion_id: 2 });
+      .send({ champion_id: 2, familiarity: 5 });
     expect(addOnce.status).toBe(200);
     expect(addOnce.body.pool.champion_ids).toEqual([2]);
+    expect(addOnce.body.pool.champion_familiarity).toEqual({ 2: 5 });
 
     const addTwice = await request(app)
       .post(`/me/pools/${newPoolId}/champions`)
@@ -999,12 +1034,27 @@ describe("API routes", () => {
       .send({ champion_id: 2 });
     expect(addTwice.status).toBe(200);
     expect(addTwice.body.pool.champion_ids).toEqual([2]);
+    expect(addTwice.body.pool.champion_familiarity).toEqual({ 2: 5 });
+
+    const updateFamiliarity = await request(app)
+      .put(`/me/pools/${newPoolId}/champions/2/familiarity`)
+      .set("Authorization", user1Auth)
+      .send({ familiarity: 1 });
+    expect(updateFamiliarity.status).toBe(200);
+    expect(updateFamiliarity.body.pool.champion_familiarity).toEqual({ 2: 1 });
 
     const removeMissing = await request(app)
       .delete(`/me/pools/${newPoolId}/champions/999`)
       .set("Authorization", user1Auth);
     expect(removeMissing.status).toBe(200);
     expect(removeMissing.body.pool.champion_ids).toEqual([2]);
+    expect(removeMissing.body.pool.champion_familiarity).toEqual({ 2: 1 });
+
+    const invalidFamiliarity = await request(app)
+      .put(`/me/pools/${newPoolId}/champions/2/familiarity`)
+      .set("Authorization", user1Auth)
+      .send({ familiarity: 9 });
+    expect(invalidFamiliarity.status).toBe(400);
   });
 
   it("supports JSON and multipart team logo contracts", async () => {
