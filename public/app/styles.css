@@ -466,10 +466,6 @@ h3 {
   display: none;
 }
 
-.team-manage-submit-row button {
-  width: auto;
-}
-
 .team-current-logo {
   display: flex;
   align-items: center;
@@ -962,11 +958,11 @@ button.ghost {
 .button-row {
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
-.button-inline {
+.button-row-inline > button {
   width: auto;
-  min-width: 10rem;
 }
 
 .optional-checks-header {

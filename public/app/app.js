@@ -1130,9 +1130,13 @@ function applyUiCopy() {
   elements.heroTitle.textContent = UI_COPY.hero.title;
   elements.heroSubtitle.textContent = UI_COPY.hero.subtitle;
   elements.navTitle.textContent = UI_COPY.nav.title;
-  elements.navMeta.textContent = UI_COPY.nav.meta;
+  if (elements.navMeta) {
+    elements.navMeta.textContent = UI_COPY.nav.meta;
+  }
   elements.explorerTitle.textContent = UI_COPY.panels.explorerTitle;
-  elements.explorerMeta.textContent = UI_COPY.panels.explorerMeta;
+  if (elements.explorerMeta) {
+    elements.explorerMeta.textContent = UI_COPY.panels.explorerMeta;
+  }
   if (elements.teamConfigTitle) {
     elements.teamConfigTitle.textContent = UI_COPY.panels.teamConfigTitle;
   }
@@ -1140,7 +1144,9 @@ function applyUiCopy() {
     elements.teamConfigMeta.textContent = UI_COPY.panels.teamConfigMeta;
   }
   elements.playerConfigTitle.textContent = UI_COPY.panels.playerConfigTitle;
-  elements.playerConfigMeta.textContent = UI_COPY.panels.playerConfigMeta;
+  if (elements.playerConfigMeta) {
+    elements.playerConfigMeta.textContent = UI_COPY.panels.playerConfigMeta;
+  }
   if (elements.comingSoonTitle) {
     elements.comingSoonTitle.textContent = UI_COPY.panels.comingSoonTitle;
   }
@@ -5326,7 +5332,7 @@ function attachEvents() {
     initializeTeamConfigControls();
     renderTeamAdmin();
     renderPlayerConfig();
-    setProfileRolesFeedback("Sign in to manage profile roles.");
+    setProfileRolesFeedback("");
     renderBuilder();
     renderAuth();
   });
@@ -5665,7 +5671,6 @@ function attachEvents() {
 
   elements.profileSaveRoles.addEventListener("click", () => {
     if (!isAuthenticated()) {
-      setProfileRolesFeedback("Sign in to save profile roles.", true);
       return;
     }
     if (state.profile.isSavingRoles) {
@@ -6024,7 +6029,7 @@ async function init() {
       loadStoredPlayerConfig();
       setPoolApiFeedback("Sign in to manage API-backed pools.");
       setTeamAdminFeedback("Sign in to manage teams.");
-      setProfileRolesFeedback("Sign in to manage profile roles.");
+      setProfileRolesFeedback("");
     }
     if (!loadedTeamContextFromApi) {
       loadStoredTeamConfig();

@@ -1019,7 +1019,7 @@ describe("auth + pools + team management", () => {
     expect(createTab.getAttribute("aria-selected")).toBe("false");
     expect(activeTeamOptions.some((option) => option.includes("Team Alpha"))).toBe(true);
     expect(activeTeamOptions.some((option) => option === "Mid")).toBe(false);
-    expect(teamWorkspaceHelp.textContent).toContain("Draft context is controlled from Composer Active Team");
+    expect(teamWorkspaceHelp.textContent).toContain("Team Workspace only");
     expect(editAction).toBeTruthy();
     expect(inlineAddAction).toBeTruthy();
     expect(editPanel.hidden).toBe(true);

@@ -55,7 +55,6 @@
       <section id="auth-gate" class="panel auth-gate">
         <p class="panel-kicker">Access Required</p>
         <h2>Login or Register</h2>
-        <p class="meta">Sign in to access Composer, Teams, Profile, Champions, and Coming Soon.</p>
       </section>
 
       <div id="app-shell" class="app-shell" hidden>
@@ -75,7 +74,6 @@
                 ◀
               </button>
             </div>
-            <p id="nav-meta" class="meta">Jump between Composer, Teams, Profile, Champions, and Coming Soon.</p>
             <button class="side-menu-link" data-tab="player-config" type="button">Profile</button>
             <button class="side-menu-link is-active" data-tab="workflow" type="button">Composer</button>
             <button class="side-menu-link" data-tab="team-config" type="button">Teams</button>
@@ -98,14 +96,11 @@
         <div class="main-content">
           <section id="tab-explorer" class="tab-panel tab-surface">
             <div class="panel draft-board-panel">
-              <p class="panel-kicker">Champions</p>
               <h2 id="explorer-title">Champions</h2>
-              <p id="explorer-meta" class="meta">Browse champions and filter by role, damage profile, scaling, and tags.</p>
             </div>
             <div class="panel draft-board-panel">
               <p class="panel-kicker">Filter Stack</p>
               <h2>Draft Filters</h2>
-              <p class="meta">Narrow the candidate board with role, damage, scaling, and tag filters.</p>
               <div class="button-row explorer-toolbar">
                 <button id="explorer-clear-all" class="ghost" type="button">Clear All Filters</button>
               </div>
@@ -361,9 +356,7 @@
           <section id="tab-team-config" class="tab-panel tab-surface">
             <div class="team-context-stack">
               <div class="panel draft-board-panel team-context-panel">
-                <p class="panel-kicker">Team Workspace</p>
                 <h2 id="team-config-title">Team Workspace</h2>
-                <p id="team-config-meta" class="meta">Lead-only controls are grouped by Create and Manage modes.</p>
                 <p id="team-admin-readonly-note" class="meta team-admin-readonly-note" aria-live="polite"></p>
                 <div class="team-workspace-tabs" role="tablist" aria-label="Team workspace modes">
                   <button
@@ -404,10 +397,7 @@
                           <button id="team-admin-refresh" class="ghost" type="button">Refresh Teams</button>
                         </div>
                       </div>
-                      <p id="team-admin-team-help" class="meta">
-                        This Team selector controls Team Workspace editing + roster review. Draft context is controlled from Composer Active Team.
-                      </p>
-                      <p class="meta">Use Edit Team above or roster row actions below.</p>
+                      <p id="team-admin-team-help" class="meta">This team selector is for Team Workspace only.</p>
                     </div>
 
                     <div class="team-manage-panel" data-team-manage-panel="team-settings" hidden>
@@ -442,7 +432,7 @@
                           <input id="team-admin-rename-remove-logo" type="checkbox" />
                           Remove existing logo
                         </label>
-                        <div class="button-row team-manage-submit-row">
+                        <div class="button-row button-row-inline">
                           <button id="team-admin-rename" type="button">Update Team</button>
                           <button id="team-admin-delete" class="ghost" type="button">Delete Team</button>
                         </div>
@@ -472,7 +462,7 @@
                             <option value="primary">primary</option>
                           </select>
                         </label>
-                        <div class="button-row team-manage-submit-row">
+                        <div class="button-row button-row-inline">
                           <button id="team-admin-add-member" type="button">Add Member</button>
                         </div>
                       </div>
@@ -494,7 +484,7 @@
                             </select>
                           </label>
                         </div>
-                        <div class="button-row team-manage-submit-row">
+                        <div class="button-row button-row-inline">
                           <button id="team-admin-update-role" type="button">Update Role</button>
                         </div>
                       </div>
@@ -516,7 +506,7 @@
                             </select>
                           </label>
                         </div>
-                        <div class="button-row team-manage-submit-row">
+                        <div class="button-row button-row-inline">
                           <button id="team-admin-update-team-role" type="button">Update Team Role</button>
                         </div>
                       </div>
@@ -529,7 +519,7 @@
                           User ID
                           <input id="team-admin-remove-user-id" type="number" min="1" step="1" placeholder="User ID" />
                         </label>
-                        <div class="button-row team-manage-submit-row">
+                        <div class="button-row button-row-inline">
                           <button id="team-admin-remove-member" class="ghost" type="button">Remove Member</button>
                         </div>
                       </div>
@@ -558,7 +548,7 @@
                         Team Logo
                         <input id="team-admin-create-logo-url" type="file" accept="image/png,image/jpeg,image/webp" />
                       </label>
-                      <div class="button-row">
+                      <div class="button-row button-row-inline">
                         <button id="team-admin-create" type="button">Create Team</button>
                       </div>
                     </div>
@@ -572,9 +562,7 @@
 
           <section id="tab-player-config" class="tab-panel tab-surface">
             <div class="panel draft-board-panel">
-              <p class="panel-kicker">Profile</p>
               <h2 id="player-config-title">Profile</h2>
-              <p id="player-config-meta" class="meta">Manage your roles, champion pools, and teams.</p>
               <div class="profile-section">
                 <p class="panel-kicker">My Roles</p>
                 <div class="grid grid-2">
@@ -587,8 +575,8 @@
                     <div id="profile-secondary-roles"></div>
                   </label>
                 </div>
-                <div class="button-row">
-                  <button id="profile-save-roles" class="button-inline" type="button">Save Roles</button>
+                <div class="button-row button-row-inline">
+                  <button id="profile-save-roles" type="button">Save Roles</button>
                 </div>
                 <p id="profile-roles-feedback" class="meta"></p>
               </div>
@@ -600,8 +588,8 @@
                 </label>
                 <p id="player-config-summary" class="meta"></p>
                 <div id="player-config-grid" class="player-pools-grid"></div>
-                <div class="button-row">
-                  <button id="player-config-save-pool" class="button-inline" type="button">Save Champions</button>
+                <div class="button-row button-row-inline">
+                  <button id="player-config-save-pool" type="button">Save Champions</button>
                 </div>
                 <p id="player-config-feedback" class="meta"></p>
               </div>
@@ -632,6 +620,7 @@
                 <li>Champion tag edits are not durably isolated from catalog seed refresh yet; restart/seed flows can overwrite editable tags.</li>
                 <li>Required Checks settings (composition tags) do not yet have a dedicated management surface outside Composer.</li>
                 <li>Team join request flows are API-ready, but request/review controls are not exposed in Team Workspace yet.</li>
+                <li>Some legacy helper copy remains in Composer/Explorer and will be trimmed as controls are further consolidated.</li>
               </ul>
               <h3>Future Features</h3>
               <ul class="coming-soon-list">
