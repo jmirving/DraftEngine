@@ -490,7 +490,6 @@ describe("workflow app integration", () => {
     const firstPoolCheckbox = doc.querySelector(".player-pool-control input[type='checkbox']");
     expect(firstPoolCheckbox).toBeTruthy();
     expect(doc.querySelector("#player-config-team").value).toBe("role:Mid");
-    expect(doc.querySelector("#player-config-summary").textContent).toContain("Mid:");
     expect(state.builder.stage).toBe("setup");
   });
 

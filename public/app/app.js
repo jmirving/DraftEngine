@@ -439,7 +439,6 @@ function createElements() {
     profileRolesFeedback: runtimeDocument.querySelector("#profile-roles-feedback"),
     profileRiotStatsSummary: runtimeDocument.querySelector("#profile-riot-stats-summary"),
     profileRiotStatsList: runtimeDocument.querySelector("#profile-riot-stats-list"),
-    playerConfigSummary: runtimeDocument.querySelector("#player-config-summary"),
     playerConfigSavePool: runtimeDocument.querySelector("#player-config-save-pool"),
     playerConfigFeedback: runtimeDocument.querySelector("#player-config-feedback"),
     playerConfigGrid: runtimeDocument.querySelector("#player-config-grid"),
@@ -807,10 +806,6 @@ function setPlayerPoolDirty(teamId, dirty) {
     state.playerConfig.dirtyPoolByTeamId = {};
   }
   state.playerConfig.dirtyPoolByTeamId[teamId] = Boolean(dirty);
-}
-
-function formatPlayerPoolSummary(role, championCount) {
-  return `${role}: ${championCount} champion${championCount === 1 ? "" : "s"} selected.`;
 }
 
 function normalizeProfileRole(role) {
@@ -3631,13 +3626,6 @@ function renderPlayerConfig() {
 
   const players = state.playerConfig.byTeam[state.playerConfig.teamId] ?? [];
   const activePlayer = players.find((player) => player.role === activeRole) ?? null;
-  if (activePlayer) {
-    elements.playerConfigSummary.textContent = formatPlayerPoolSummary(activeRole, activePlayer.champions.length);
-  } else {
-    elements.playerConfigSummary.textContent = isAuthenticated()
-      ? `No champions selected for ${activeRole}.`
-      : "Sign in to load API-backed pools.";
-  }
   if (elements.playerConfigSavePool) {
     elements.playerConfigSavePool.disabled = !activePlayer || !poolDirty || state.playerConfig.isSavingPool;
     elements.playerConfigSavePool.textContent = state.playerConfig.isSavingPool ? "Saving..." : "Save Champions";
@@ -3646,14 +3634,17 @@ function renderPlayerConfig() {
   renderSettingsTeamMembership();
   elements.playerConfigGrid.innerHTML = "";
   if (!activePlayer) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = isAuthenticated()
+      ? `No champions selected for ${activeRole}.`
+      : "Sign in to load API-backed pools.";
+    elements.playerConfigGrid.append(empty);
     return;
   }
 
   const card = runtimeDocument.createElement("article");
   card.className = "player-config-card";
-
-  const title = runtimeDocument.createElement("h3");
-  title.textContent = `${activeRole} Champions`;
 
   const poolControlHost = runtimeDocument.createElement("div");
   poolControlHost.className = "player-pool-control";
@@ -3685,7 +3676,6 @@ function renderPlayerConfig() {
       syncSlotSelectOptions();
       renderTeamConfig();
       renderBuilder();
-      elements.playerConfigSummary.textContent = formatPlayerPoolSummary(activeRole, activePlayer.champions.length);
       if (elements.playerConfigSavePool) {
         elements.playerConfigSavePool.disabled = state.playerConfig.isSavingPool;
       }
@@ -3693,7 +3683,7 @@ function renderPlayerConfig() {
     }
   });
 
-  card.append(title, poolControlHost);
+  card.append(poolControlHost);
   elements.playerConfigGrid.append(card);
 }
 
@@ -5744,8 +5734,7 @@ function attachEvents() {
           ? nextTeamRole
           : "primary";
         elements.teamAdminAddUserId.value = "";
-        const lane = actionButton.dataset.lane ?? "selected lane";
-        setTeamAdminFeedback(`Enter a user id to add to ${lane}.`);
+        setTeamAdminFeedback("");
         elements.teamAdminAddUserId.focus();
         return;
       }
