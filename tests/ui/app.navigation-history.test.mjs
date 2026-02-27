@@ -347,6 +347,26 @@ describe("hash navigation routing", () => {
     expect(doc.querySelector("#tab-coming-soon").classList.contains("is-active")).toBe(true);
   });
 
+  test("workspace pages use workspace names as primary titles", async () => {
+    const harness = createFetchHarness();
+    const { dom } = await bootApp({
+      url: "http://localhost/public/index.html#workflow",
+      storageInitial: createAuthStorage(),
+      fetchHarness: harness
+    });
+    const doc = dom.window.document;
+
+    expect(doc.querySelector("#hero-title").textContent).toBe("Composer");
+    expect(doc.querySelector("#builder-workflow-title").textContent).toBe("Composer");
+    expect(doc.querySelector("#team-config-title").textContent).toBe("Teams");
+
+    doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    expect(doc.querySelector("#hero-title").textContent).toBe("Teams");
+
+    doc.querySelector(".side-menu-link[data-tab='player-config']").click();
+    expect(doc.querySelector("#hero-title").textContent).toBe("Profile");
+  });
+
   test("mobile nav toggle still controls drawer open state", async () => {
     const harness = createFetchHarness();
     const matchMediaImpl = createMatchMedia(true);
