@@ -657,20 +657,18 @@
                 <li>Team rosters still show email addresses in some places instead of player names.</li>
                 <li>Team rosters are not consistently grouped by position yet.</li>
                 <li>Champion catalog refresh checks are still manual; automatic release ingestion is not enabled yet.</li>
-                <li>Champion tags are CSV-driven today and can refresh on server restart/deploy.</li>
-                <li>Your position for each team is not easy to see at a glance yet.</li>
+                <li>Champion tag edits are not durably isolated from catalog seed refresh yet; restart/seed flows can overwrite editable tags.</li>
+                <li>Required Checks settings (composition tags) do not yet have a dedicated management surface outside Composer.</li>
               </ul>
               <h3>Future Features</h3>
               <ul class="coming-soon-list">
                 <li>Request a position on an existing team.</li>
                 <li>Team leads can accept or decline incoming team requests.</li>
-                <li>Automatic champion catalog ingestion from Riot Data Dragon after new champion releases.</li>
+                <li>Dedicated Champion Tags management page with full catalog controls and scoped flows (self/team/global + promotion requests).</li>
+                <li>Dedicated Composition Checks management page with separate scoped flows (self/team/global + promotion requests).</li>
+                <li>Ship champion auto-ingest and durable champion-tag persistence together so release refreshes never overwrite edits.</li>
                 <li>Set your champion familiarity level in your personal pool.</li>
                 <li>Get champion pool suggestions based on your real League match history.</li>
-                <li>Browse the full list of champion tags.</li>
-                <li>Edit champion tags for yourself, teammates, or all users (with permissions).</li>
-                <li>Persist editable champion tags independently from CSV refreshes and server restarts.</li>
-                <li>Add or remove required draft checks for yourself, teammates, or all users (with permissions).</li>
                 <li>Stronger admin safeguards to prevent misuse of champion tags and draft checks.</li>
               </ul>
             </div>
