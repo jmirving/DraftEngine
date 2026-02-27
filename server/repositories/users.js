@@ -15,7 +15,7 @@ export function createUsersRepository(pool) {
     async findByEmail(email) {
       const result = await pool.query(
         `
-          SELECT id, email, password_hash, game_name, tagline, created_at
+          SELECT id, email, password_hash, game_name, tagline, primary_role, secondary_roles, created_at
           FROM users
           WHERE email = $1
         `,
@@ -27,7 +27,7 @@ export function createUsersRepository(pool) {
     async findById(userId) {
       const result = await pool.query(
         `
-          SELECT id, email, password_hash, game_name, tagline, created_at
+          SELECT id, email, password_hash, game_name, tagline, primary_role, secondary_roles, created_at
           FROM users
           WHERE id = $1
         `,

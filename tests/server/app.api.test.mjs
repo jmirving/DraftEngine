@@ -50,6 +50,18 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         default_team_id: null,
         active_team_id: null,
         created_at: "2026-01-01T00:00:00.000Z"
+      },
+      {
+        id: 4,
+        email: "norole@example.com",
+        password_hash: "seeded",
+        game_name: "NoRole",
+        tagline: "NA1",
+        primary_role: null,
+        secondary_roles: [],
+        default_team_id: null,
+        active_team_id: null,
+        created_at: "2026-01-01T00:00:00.000Z"
       }
     ],
     champions: [
@@ -99,12 +111,14 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
     teamMembers: [
       { team_id: 1, user_id: 1, role: "lead", team_role: "primary", created_at: "2026-01-01T00:00:00.000Z" },
       { team_id: 1, user_id: 2, role: "member", team_role: "substitute", created_at: "2026-01-01T00:00:00.000Z" }
-    ]
+    ],
+    joinRequests: []
   };
 
-  let nextUserId = 4;
+  let nextUserId = 5;
   let nextPoolId = 3;
   let nextTeamId = 2;
+  let nextJoinRequestId = 1;
 
   const usersRepository = {
     async createUser({ email, passwordHash, gameName, tagline }) {
@@ -345,13 +359,39 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
           if (!membership) {
             return null;
           }
+          const user = state.users.find((candidate) => candidate.id === userId) ?? null;
           return {
             ...team,
             membership_role: membership.role,
-            membership_team_role: membership.team_role
+            membership_team_role: membership.team_role,
+            membership_lane: user?.primary_role ?? null
           };
         })
         .filter(Boolean);
+    },
+    async listDiscoverableTeams(userId) {
+      return state.teams
+        .map((team) => {
+          const membership = state.teamMembers.find(
+            (candidate) => candidate.team_id === team.id && candidate.user_id === userId
+          );
+          const pendingRequest = state.joinRequests.find(
+            (candidate) =>
+              candidate.team_id === team.id &&
+              candidate.requester_user_id === userId &&
+              candidate.status === "pending"
+          );
+          const user = state.users.find((candidate) => candidate.id === userId) ?? null;
+          return {
+            ...team,
+            membership_role: membership?.role ?? null,
+            membership_team_role: membership?.team_role ?? null,
+            membership_lane: membership ? user?.primary_role ?? null : null,
+            pending_join_request_id: pendingRequest?.id ?? null,
+            pending_join_request_status: pendingRequest?.status ?? null
+          };
+        })
+        .sort((left, right) => left.name.localeCompare(right.name));
     },
     async getMembership(teamId, userId) {
       const membership = state.teamMembers.find(
@@ -361,9 +401,17 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         return null;
       }
       const user = state.users.find((candidate) => candidate.id === userId);
+      const gameName = user?.game_name ?? "";
+      const tagline = user?.tagline ?? "";
+      const email = user?.email ?? null;
+      const displayName = gameName && tagline ? `${gameName}#${tagline}` : (gameName || email || `User ${userId}`);
       return {
         ...membership,
-        email: user?.email ?? null
+        email,
+        game_name: gameName,
+        tagline,
+        primary_role: user?.primary_role ?? null,
+        display_name: displayName
       };
     },
     async countLeads(teamId) {
@@ -397,16 +445,32 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         .filter((candidate) => candidate.team_id === teamId)
         .map((membership) => {
           const user = state.users.find((candidate) => candidate.id === membership.user_id);
+          const gameName = user?.game_name ?? "";
+          const tagline = user?.tagline ?? "";
+          const email = user?.email ?? null;
+          const displayName = gameName && tagline
+            ? `${gameName}#${tagline}`
+            : (gameName || email || `User ${membership.user_id}`);
           return {
             ...membership,
-            email: user?.email ?? null
+            email,
+            game_name: gameName,
+            tagline,
+            primary_role: user?.primary_role ?? null,
+            display_name: displayName
           };
         })
         .sort((left, right) => {
+          const laneOrder = { Top: 0, Jungle: 1, Mid: 2, ADC: 3, Support: 4 };
+          const leftLane = laneOrder[left.primary_role] ?? 99;
+          const rightLane = laneOrder[right.primary_role] ?? 99;
+          if (leftLane !== rightLane) {
+            return leftLane - rightLane;
+          }
           if (left.role !== right.role) {
             return left.role === "lead" ? -1 : 1;
           }
-          return (left.email ?? "").localeCompare(right.email ?? "");
+          return (left.display_name ?? "").localeCompare(right.display_name ?? "");
         });
     },
     async addMember(teamId, userId, role, teamRole) {
@@ -425,6 +489,110 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         team_role: teamRole,
         created_at: "2026-01-01T00:00:00.000Z"
       });
+    },
+    async createJoinRequest({ teamId, requesterUserId, requestedLane, note = "" }) {
+      const existing = state.joinRequests.find(
+        (candidate) =>
+          candidate.team_id === teamId &&
+          candidate.requester_user_id === requesterUserId &&
+          candidate.status === "pending"
+      );
+      if (existing) {
+        const error = new Error("duplicate");
+        error.code = "23505";
+        throw error;
+      }
+
+      const requestRecord = {
+        id: nextJoinRequestId,
+        team_id: teamId,
+        requester_user_id: requesterUserId,
+        requested_lane: requestedLane,
+        status: "pending",
+        note,
+        reviewed_by_user_id: null,
+        reviewed_at: null,
+        created_at: "2026-01-01T00:00:00.000Z"
+      };
+      nextJoinRequestId += 1;
+      state.joinRequests.push(requestRecord);
+      return requestRecord;
+    },
+    async listJoinRequests(teamId, { status = null } = {}) {
+      return state.joinRequests
+        .filter((candidate) => candidate.team_id === teamId && (!status || candidate.status === status))
+        .map((requestRecord) => {
+          const requester = state.users.find((candidate) => candidate.id === requestRecord.requester_user_id) ?? null;
+          const gameName = requester?.game_name ?? "";
+          const tagline = requester?.tagline ?? "";
+          const email = requester?.email ?? null;
+          return {
+            ...requestRecord,
+            requester: {
+              user_id: requestRecord.requester_user_id,
+              email,
+              game_name: gameName,
+              tagline,
+              primary_role: requester?.primary_role ?? null,
+              display_name: gameName && tagline ? `${gameName}#${tagline}` : (gameName || email || "Unknown Player")
+            }
+          };
+        });
+    },
+    async getJoinRequestById(teamId, requestId) {
+      const requestRecord = state.joinRequests.find(
+        (candidate) => candidate.team_id === teamId && candidate.id === requestId
+      );
+      if (!requestRecord) {
+        return null;
+      }
+      const requester = state.users.find((candidate) => candidate.id === requestRecord.requester_user_id) ?? null;
+      const gameName = requester?.game_name ?? "";
+      const tagline = requester?.tagline ?? "";
+      const email = requester?.email ?? null;
+      return {
+        ...requestRecord,
+        requester: {
+          user_id: requestRecord.requester_user_id,
+          email,
+          game_name: gameName,
+          tagline,
+          primary_role: requester?.primary_role ?? null,
+          display_name: gameName && tagline ? `${gameName}#${tagline}` : (gameName || email || "Unknown Player")
+        }
+      };
+    },
+    async setJoinRequestStatus(teamId, requestId, { status, reviewedByUserId }) {
+      const requestRecord = state.joinRequests.find(
+        (candidate) => candidate.team_id === teamId && candidate.id === requestId && candidate.status === "pending"
+      );
+      if (!requestRecord) {
+        return null;
+      }
+      requestRecord.status = status;
+      requestRecord.reviewed_by_user_id = reviewedByUserId;
+      requestRecord.reviewed_at = "2026-01-01T00:00:00.000Z";
+      return requestRecord;
+    },
+    async deletePendingJoinRequest(teamId, requestId, requesterUserId) {
+      const index = state.joinRequests.findIndex(
+        (candidate) =>
+          candidate.team_id === teamId &&
+          candidate.id === requestId &&
+          candidate.requester_user_id === requesterUserId &&
+          candidate.status === "pending"
+      );
+      if (index < 0) {
+        return false;
+      }
+      state.joinRequests.splice(index, 1);
+      return true;
+    },
+    async clearPendingJoinRequestsForUser(teamId, requesterUserId) {
+      state.joinRequests = state.joinRequests.filter(
+        (candidate) =>
+          !(candidate.team_id === teamId && candidate.requester_user_id === requesterUserId && candidate.status === "pending")
+      );
     },
     async removeMember(teamId, userId) {
       const index = state.teamMembers.findIndex(
@@ -510,15 +678,15 @@ describe("API routes", () => {
     expect(registerResponse.body.user.primaryRole).toBe("Mid");
     expect(registerResponse.body.user.secondaryRoles).toEqual([]);
     expect(registerResponse.body.token).toBeTypeOf("string");
-    expect(state.users).toHaveLength(4);
-    expect(state.users[3].password_hash).not.toBe("strong-pass-123");
+    expect(state.users).toHaveLength(5);
+    expect(state.users[4].password_hash).not.toBe("strong-pass-123");
 
     const loginResponse = await request(app)
       .post("/auth/login")
       .send({ email: "test@example.com", password: "strong-pass-123" });
 
     expect(loginResponse.status).toBe(200);
-    expect(loginResponse.body.user.id).toBe(4);
+    expect(loginResponse.body.user.id).toBe(5);
     expect(loginResponse.body.user.gameName).toBe("TestPlayer");
     expect(loginResponse.body.user.tagline).toBe("NA1");
     expect(loginResponse.body.user.primaryRole).toBe("Mid");
@@ -993,5 +1161,104 @@ describe("API routes", () => {
       .send({ role: "member" });
     expect(lastLeadDemotionBlocked.status).toBe(400);
     expect(lastLeadDemotionBlocked.body.error.code).toBe("BAD_REQUEST");
+  });
+
+  it("supports join request lifecycle with pending, approval, and cancellation", async () => {
+    const { app, config } = createMockContext();
+    const leadAuth = buildAuthHeader(1, config);
+    const outsiderAuth = buildAuthHeader(3, config);
+
+    const createRequest = await request(app)
+      .post("/teams/1/join-requests")
+      .set("Authorization", outsiderAuth)
+      .send({ note: "Interested in joining." });
+    expect(createRequest.status).toBe(201);
+    expect(createRequest.body.request.status).toBe("pending");
+    expect(createRequest.body.request.requested_lane).toBe("Top");
+    expect(createRequest.body.request.requester.display_name).toBe("Outsider#NA1");
+
+    const duplicate = await request(app)
+      .post("/teams/1/join-requests")
+      .set("Authorization", outsiderAuth)
+      .send({ note: "Interested in joining." });
+    expect(duplicate.status).toBe(409);
+
+    const pendingForLead = await request(app)
+      .get("/teams/1/join-requests?status=pending")
+      .set("Authorization", leadAuth);
+    expect(pendingForLead.status).toBe(200);
+    expect(pendingForLead.body.requests).toHaveLength(1);
+
+    const approve = await request(app)
+      .put(`/teams/1/join-requests/${createRequest.body.request.id}`)
+      .set("Authorization", leadAuth)
+      .send({ status: "approved" });
+    expect(approve.status).toBe(200);
+    expect(approve.body.request.status).toBe("approved");
+
+    const membersAfterApprove = await request(app)
+      .get("/teams/1/members")
+      .set("Authorization", leadAuth);
+    expect(membersAfterApprove.status).toBe(200);
+    expect(
+      membersAfterApprove.body.members.some(
+        (member) => member.user_id === 3 && member.lane === "Top" && member.display_name === "Outsider#NA1"
+      )
+    ).toBe(true);
+
+    const teamCreate = await request(app)
+      .post("/teams")
+      .set("Authorization", leadAuth)
+      .send({ name: "Team Bravo", tag: "BRV" });
+    expect(teamCreate.status).toBe(201);
+
+    const requestToCancel = await request(app)
+      .post(`/teams/${teamCreate.body.team.id}/join-requests`)
+      .set("Authorization", outsiderAuth)
+      .send({ note: "Please review." });
+    expect(requestToCancel.status).toBe(201);
+
+    const cancel = await request(app)
+      .delete(`/teams/${teamCreate.body.team.id}/join-requests/${requestToCancel.body.request.id}`)
+      .set("Authorization", outsiderAuth);
+    expect(cancel.status).toBe(200);
+    expect(cancel.body.ok).toBe(true);
+  });
+
+  it("blocks join flows when user has no primary role set", async () => {
+    const { app, config, state } = createMockContext();
+    const leadAuth = buildAuthHeader(1, config);
+    const noRoleAuth = buildAuthHeader(4, config);
+    const outsiderAuth = buildAuthHeader(3, config);
+
+    const noRoleRequest = await request(app)
+      .post("/teams/1/join-requests")
+      .set("Authorization", noRoleAuth)
+      .send({ note: "Can I join?" });
+    expect(noRoleRequest.status).toBe(400);
+    expect(noRoleRequest.body.error.message).toContain("primary role");
+
+    const noRoleInvite = await request(app)
+      .post("/teams/1/members")
+      .set("Authorization", leadAuth)
+      .send({ user_id: 4, role: "member", team_role: "substitute" });
+    expect(noRoleInvite.status).toBe(400);
+    expect(noRoleInvite.body.error.message).toContain("primary role");
+
+    const joinRequest = await request(app)
+      .post("/teams/1/join-requests")
+      .set("Authorization", outsiderAuth)
+      .send({ note: "I can fill top lane." });
+    expect(joinRequest.status).toBe(201);
+
+    const outsider = state.users.find((candidate) => candidate.id === 3);
+    outsider.primary_role = null;
+
+    const approve = await request(app)
+      .put(`/teams/1/join-requests/${joinRequest.body.request.id}`)
+      .set("Authorization", leadAuth)
+      .send({ status: "approved" });
+    expect(approve.status).toBe(400);
+    expect(approve.body.error.message).toContain("primary role");
   });
 });
