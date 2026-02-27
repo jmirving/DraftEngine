@@ -173,28 +173,48 @@ h3 {
   top: 1rem;
 }
 
+.button-subtle,
 .side-menu-link {
-  text-align: left;
-  margin-top: 0.45rem;
   background: #fff8f2;
   color: #6b2a12;
   border: 1px solid var(--accent-soft);
-  border-radius: 12px;
   padding: 0.56rem 0.66rem;
   min-height: 2.4rem;
   font-weight: 700;
   transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
 }
 
+.button-subtle:hover,
 .side-menu-link:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(113, 54, 27, 0.14);
+}
+
+.button-subtle {
+  border-radius: 10px;
+}
+
+.side-menu-link {
+  text-align: left;
+  margin-top: 0.45rem;
+  border-radius: 12px;
 }
 
 .side-menu-link.is-active {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff7f2;
+}
+
+.side-menu-link-logout {
+  margin-top: 0.7rem;
+  background: #fff3ee;
+  color: #7d2f1d;
+  border-color: #efc8bc;
+}
+
+.side-menu-link-logout:hover {
+  box-shadow: 0 4px 12px rgba(125, 47, 29, 0.14);
 }
 
 .report-issue-link {
