@@ -45,6 +45,9 @@ const NONE_TEAM_ID = "__NONE_TEAM__";
 const TEAM_CONFIG_STORAGE_KEY = "draftflow.teamConfig.v1";
 const PLAYER_CONFIG_STORAGE_KEY = "draftflow.playerConfig.v1";
 const AUTH_SESSION_STORAGE_KEY = "draftflow.authSession.v1";
+const TEAM_WORKSPACE_TAB_MANAGE = "manage";
+const TEAM_WORKSPACE_TAB_CREATE = "create";
+const TEAM_WORKSPACE_TAB_SET = new Set([TEAM_WORKSPACE_TAB_MANAGE, TEAM_WORKSPACE_TAB_CREATE]);
 const DEFAULT_MEMBER_ROLE = "member";
 const MEMBER_ROLE_OPTIONS = Object.freeze(["lead", "member"]);
 const DEFAULT_TEAM_MEMBER_TYPE = "substitute";
@@ -96,8 +99,8 @@ const UI_COPY = Object.freeze({
   panels: {
     explorerTitle: "Champion Tags",
     explorerMeta: "Filter champions by role, damage profile, scaling, and tags.",
-    teamConfigTitle: "Team Draft Context",
-    teamConfigMeta: "Set the team profile that drives role pools across composition work.",
+    teamConfigTitle: "Team Context",
+    teamConfigMeta: "Set the active team profile that drives role pools across composition work.",
     playerConfigTitle: "My Profile",
     playerConfigMeta: "Manage your roles, champion pools, and teams."
   },
@@ -153,7 +156,8 @@ function createInitialState() {
     data: null,
     activeTab: DEFAULT_TAB_ROUTE,
     ui: {
-      isNavOpen: false
+      isNavOpen: false,
+      teamWorkspaceTab: TEAM_WORKSPACE_TAB_MANAGE
     },
     auth: {
       token: null,
@@ -184,7 +188,6 @@ function createInitialState() {
       sortBy: "alpha-asc"
     },
     teamConfig: {
-      defaultTeamId: null,
       activeTeamId: null
     },
     playerConfig: {
@@ -310,12 +313,13 @@ function createElements() {
     treeMapLegend: runtimeDocument.querySelector("#tree-map-legend"),
     treeExpandAll: runtimeDocument.querySelector("#tree-expand-all"),
     treeCollapseAll: runtimeDocument.querySelector("#tree-collapse-all"),
-    teamConfigDefaultTeam: runtimeDocument.querySelector("#team-config-default-team"),
     teamConfigActiveTeam: runtimeDocument.querySelector("#team-config-active-team"),
-    teamConfigDefaultHelp: runtimeDocument.querySelector("#team-config-default-help"),
     teamConfigActiveHelp: runtimeDocument.querySelector("#team-config-active-help"),
     teamConfigPoolSummary: runtimeDocument.querySelector("#team-config-pool-summary"),
     teamConfigPoolGrid: runtimeDocument.querySelector("#team-config-pool-grid"),
+    teamWorkspaceTabButtons: Array.from(runtimeDocument.querySelectorAll("button[data-team-workspace-tab]")),
+    teamWorkspaceManagePanel: runtimeDocument.querySelector("#team-workspace-manage"),
+    teamWorkspaceCreatePanel: runtimeDocument.querySelector("#team-workspace-create"),
     teamAdminCreateName: runtimeDocument.querySelector("#team-admin-create-name"),
     teamAdminCreateTag: runtimeDocument.querySelector("#team-admin-create-tag"),
     teamAdminCreateLogoUrl: runtimeDocument.querySelector("#team-admin-create-logo-url"),
@@ -1508,10 +1512,7 @@ function applyApiPoolsToState(pools, preferredTeamId = null) {
   state.data.teamLabels = teamLabels;
   state.playerConfig.teamId = normalizePlayerConfigTeamId(preferredTeamId ?? state.playerConfig.teamId);
   syncDerivedTeamDataFromPlayerConfig();
-
-  state.teamConfig.defaultTeamId = normalizeConfiguredTeamId(state.teamConfig.defaultTeamId);
-  state.teamConfig.activeTeamId = normalizeConfiguredTeamId(state.teamConfig.activeTeamId);
-  state.builder.teamId = normalizeConfiguredTeamId(state.builder.teamId);
+  syncConfiguredTeamSelection();
 }
 
 function normalizeApiErrorMessage(error, fallbackMessage) {
@@ -1892,6 +1893,27 @@ function normalizeConfiguredTeamId(teamId) {
   return NONE_TEAM_ID;
 }
 
+function getOnlyConfiguredTeamId() {
+  const teamIds = Object.keys(state.data.teamPools);
+  return teamIds.length === 1 ? teamIds[0] : null;
+}
+
+function resolveConfiguredTeamSelection(teamId) {
+  const normalizedTeamId = normalizeConfiguredTeamId(teamId);
+  if (normalizedTeamId !== NONE_TEAM_ID) {
+    return normalizedTeamId;
+  }
+  if (teamId === NONE_TEAM_ID) {
+    return NONE_TEAM_ID;
+  }
+  return getOnlyConfiguredTeamId() ?? NONE_TEAM_ID;
+}
+
+function syncConfiguredTeamSelection() {
+  state.teamConfig.activeTeamId = resolveConfiguredTeamSelection(state.teamConfig.activeTeamId);
+  state.builder.teamId = state.teamConfig.activeTeamId;
+}
+
 function getPoolsForTeam(teamId) {
   if (teamId === NONE_TEAM_ID) {
     return state.data.noneTeamPools;
@@ -1900,11 +1922,8 @@ function getPoolsForTeam(teamId) {
 }
 
 function initializeBuilderControls() {
-  const candidateDefaultTeamId = state.teamConfig.defaultTeamId ?? state.data.config.teamDefault ?? NONE_TEAM_ID;
-  state.teamConfig.defaultTeamId = normalizeConfiguredTeamId(
-    candidateDefaultTeamId
-  );
-  state.teamConfig.activeTeamId = state.teamConfig.defaultTeamId;
+  const candidateActiveTeamId = state.teamConfig.activeTeamId ?? state.data.config.teamDefault ?? null;
+  state.teamConfig.activeTeamId = resolveConfiguredTeamSelection(candidateActiveTeamId);
   state.builder.teamId = state.teamConfig.activeTeamId;
   state.builder.showOptionalChecks = BUILDER_DEFAULTS.showOptionalChecksByDefault;
   state.builder.treeDensity = BUILDER_DEFAULTS.defaultTreeDensity;
@@ -1946,13 +1965,36 @@ function syncBuilderToggleInputs() {
   }
 }
 
-function renderTeamConfig() {
-  elements.teamConfigDefaultTeam.value = state.teamConfig.defaultTeamId;
-  elements.teamConfigActiveTeam.value = state.teamConfig.activeTeamId;
+function renderTeamWorkspaceTabs() {
+  const activeTab = TEAM_WORKSPACE_TAB_SET.has(state.ui.teamWorkspaceTab)
+    ? state.ui.teamWorkspaceTab
+    : TEAM_WORKSPACE_TAB_MANAGE;
+  state.ui.teamWorkspaceTab = activeTab;
 
-  elements.teamConfigDefaultHelp.textContent = state.teamConfig.defaultTeamId === NONE_TEAM_ID
-    ? "Default team: None (global role pools)."
-    : `Default team: ${getTeamDisplayLabel(state.teamConfig.defaultTeamId)}.`;
+  for (const button of elements.teamWorkspaceTabButtons) {
+    const tab = button.dataset.teamWorkspaceTab;
+    const selected = tab === activeTab;
+    button.classList.toggle("is-active", selected);
+    button.setAttribute("aria-selected", String(selected));
+    button.setAttribute("tabindex", selected ? "0" : "-1");
+  }
+
+  if (elements.teamWorkspaceManagePanel) {
+    elements.teamWorkspaceManagePanel.hidden = activeTab !== TEAM_WORKSPACE_TAB_MANAGE;
+  }
+  if (elements.teamWorkspaceCreatePanel) {
+    elements.teamWorkspaceCreatePanel.hidden = activeTab !== TEAM_WORKSPACE_TAB_CREATE;
+  }
+}
+
+function setTeamWorkspaceTab(tab) {
+  state.ui.teamWorkspaceTab = TEAM_WORKSPACE_TAB_SET.has(tab) ? tab : TEAM_WORKSPACE_TAB_MANAGE;
+  renderTeamWorkspaceTabs();
+}
+
+function renderTeamConfig() {
+  syncConfiguredTeamSelection();
+  elements.teamConfigActiveTeam.value = state.teamConfig.activeTeamId;
 
   elements.teamConfigActiveHelp.textContent = state.teamConfig.activeTeamId === NONE_TEAM_ID
     ? "Active team: None (global role pools)."
@@ -2085,9 +2127,10 @@ function renderTeamAdmin() {
 
 function initializeTeamConfigControls() {
   const options = getTeamSelectOptions();
-  replaceOptions(elements.teamConfigDefaultTeam, options);
   replaceOptions(elements.teamConfigActiveTeam, options);
+  syncConfiguredTeamSelection();
   renderTeamConfig();
+  renderTeamWorkspaceTabs();
   renderTeamAdmin();
 }
 
@@ -2381,9 +2424,7 @@ function renderPlayerConfig() {
       activePlayer.champions = Array.from(new Set(selectedValues)).sort((left, right) => left.localeCompare(right));
       setPlayerPoolDirty(state.playerConfig.teamId, true);
       syncDerivedTeamDataFromPlayerConfig();
-      state.teamConfig.defaultTeamId = normalizeConfiguredTeamId(state.teamConfig.defaultTeamId);
-      state.teamConfig.activeTeamId = normalizeConfiguredTeamId(state.teamConfig.activeTeamId);
-      state.builder.teamId = normalizeConfiguredTeamId(state.builder.teamId);
+      syncConfiguredTeamSelection();
       setBuilderStage("setup");
       resetBuilderTreeState();
       syncSlotSelectOptions();
@@ -2442,12 +2483,17 @@ function tryWriteJsonStorage(key, value) {
 
 function loadStoredTeamConfig() {
   const stored = tryReadJsonStorage(TEAM_CONFIG_STORAGE_KEY, {});
-  state.teamConfig.defaultTeamId = typeof stored.defaultTeamId === "string" ? stored.defaultTeamId : null;
-  state.teamConfig.activeTeamId = typeof stored.activeTeamId === "string" ? stored.activeTeamId : null;
+  if (typeof stored.activeTeamId === "string") {
+    state.teamConfig.activeTeamId = stored.activeTeamId;
+    return;
+  }
+  state.teamConfig.activeTeamId = typeof stored.defaultTeamId === "string" ? stored.defaultTeamId : null;
 }
 
 function saveTeamConfig() {
-  tryWriteJsonStorage(TEAM_CONFIG_STORAGE_KEY, state.teamConfig);
+  tryWriteJsonStorage(TEAM_CONFIG_STORAGE_KEY, {
+    activeTeamId: state.teamConfig.activeTeamId
+  });
 }
 
 function savePlayerConfig() {
@@ -2542,10 +2588,7 @@ function loadStoredPlayerConfig() {
 }
 
 function resetBuilderToDefaults() {
-  const defaultTeamId = normalizeConfiguredTeamId(state.teamConfig.defaultTeamId);
-
-  state.builder.teamId = defaultTeamId;
-  state.teamConfig.activeTeamId = defaultTeamId;
+  syncConfiguredTeamSelection();
   state.builder.teamState = createEmptyTeamState();
   state.builder.draftOrder = [...SLOTS];
   state.builder.toggles = { ...DEFAULT_REQUIREMENT_TOGGLES };
@@ -4137,20 +4180,8 @@ function attachEvents() {
     setAllTreeDetails(false);
   });
 
-  elements.teamConfigDefaultTeam.addEventListener("change", () => {
-    state.teamConfig.defaultTeamId = normalizeConfiguredTeamId(elements.teamConfigDefaultTeam.value);
-    state.teamConfig.activeTeamId = state.teamConfig.defaultTeamId;
-    state.builder.teamId = state.teamConfig.activeTeamId;
-    setBuilderStage("setup");
-    resetBuilderTreeState();
-    syncSlotSelectOptions();
-    saveTeamConfig();
-    renderTeamConfig();
-    renderBuilder();
-  });
-
   elements.teamConfigActiveTeam.addEventListener("change", () => {
-    state.teamConfig.activeTeamId = normalizeConfiguredTeamId(elements.teamConfigActiveTeam.value);
+    state.teamConfig.activeTeamId = resolveConfiguredTeamSelection(elements.teamConfigActiveTeam.value);
     state.builder.teamId = state.teamConfig.activeTeamId;
     setBuilderStage("setup");
     resetBuilderTreeState();
@@ -4160,6 +4191,12 @@ function attachEvents() {
     renderBuilder();
     clearBuilderFeedback();
   });
+
+  for (const button of elements.teamWorkspaceTabButtons) {
+    button.addEventListener("click", () => {
+      setTeamWorkspaceTab(button.dataset.teamWorkspaceTab);
+    });
+  }
 
   elements.playerConfigTeam.addEventListener("change", () => {
     state.playerConfig.teamId = normalizePlayerConfigTeamId(elements.playerConfigTeam.value);

@@ -641,6 +641,7 @@ describe("auth + pools + team management", () => {
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    doc.querySelector("#team-workspace-tab-create").click();
     doc.querySelector("#team-admin-create-name").value = "My New Team";
     doc.querySelector("#team-admin-create-tag").value = "MNT";
     doc.querySelector("#team-admin-create").click();
@@ -653,6 +654,54 @@ describe("auth + pools + team management", () => {
     expect(createTeamCall.body.tag).toBe("MNT");
     expect(createTeamCall.body.logo).toBeUndefined();
     expect(doc.querySelector("#team-admin-feedback").textContent).toContain("Created team 'My New Team'.");
+  });
+
+  test("team workspace uses create and manage sub-tabs", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const harness = createFetchHarness({
+      pools: [],
+      teams: [
+        {
+          id: 1,
+          name: "Team Alpha",
+          tag: "ALPHA",
+          logo_data_url: "data:image/png;base64,bW9jazE=",
+          created_by: 11,
+          membership_role: "lead",
+          membership_team_role: "primary",
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      membersByTeam: {
+        "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "lead@example.com" }]
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    await flush();
+
+    const managePanel = doc.querySelector("#team-workspace-manage");
+    const createPanel = doc.querySelector("#team-workspace-create");
+    const manageTab = doc.querySelector("#team-workspace-tab-manage");
+    const createTab = doc.querySelector("#team-workspace-tab-create");
+
+    expect(managePanel.hidden).toBe(false);
+    expect(createPanel.hidden).toBe(true);
+    expect(manageTab.getAttribute("aria-selected")).toBe("true");
+    expect(createTab.getAttribute("aria-selected")).toBe("false");
+
+    createTab.click();
+    expect(managePanel.hidden).toBe(true);
+    expect(createPanel.hidden).toBe(false);
+    expect(manageTab.getAttribute("aria-selected")).toBe("false");
+    expect(createTab.getAttribute("aria-selected")).toBe("true");
   });
 
   test("profile roles save and champion editing stays scoped to one role", async () => {

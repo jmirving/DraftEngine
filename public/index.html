@@ -312,163 +312,186 @@
               <div class="panel draft-board-panel team-context-panel">
                 <p class="panel-kicker">Draft Context</p>
                 <h2 id="team-config-title">Team Context</h2>
-                <p id="team-config-meta" class="meta">Set default and active team context for composition workflow.</p>
+                <p id="team-config-meta" class="meta">Set the active team context for composition workflow.</p>
                 <div class="team-context-controls">
-                  <label>
-                    Default Team
-                    <select id="team-config-default-team"></select>
-                  </label>
                   <label>
                     Active Team
                     <select id="team-config-active-team"></select>
                   </label>
                 </div>
-                <p id="team-config-default-help" class="meta"></p>
                 <p id="team-config-active-help" class="meta"></p>
               </div>
               <div class="panel draft-board-panel team-context-panel">
                 <p class="panel-kicker">Team Workspace</p>
                 <h2>Team Workspace</h2>
-                <p class="meta">Lead-only controls are grouped. Members can view full roster details below.</p>
+                <p class="meta">Lead-only controls are grouped by Create and Manage modes.</p>
                 <p id="team-admin-readonly-note" class="meta team-admin-readonly-note" aria-live="polite"></p>
+                <div class="team-workspace-tabs" role="tablist" aria-label="Team workspace modes">
+                  <button
+                    id="team-workspace-tab-manage"
+                    class="team-workspace-tab is-active"
+                    type="button"
+                    role="tab"
+                    aria-selected="true"
+                    aria-controls="team-workspace-manage"
+                    data-team-workspace-tab="manage"
+                  >
+                    Manage
+                  </button>
+                  <button
+                    id="team-workspace-tab-create"
+                    class="team-workspace-tab"
+                    type="button"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="team-workspace-create"
+                    data-team-workspace-tab="create"
+                  >
+                    Create
+                  </button>
+                </div>
 
                 <div class="team-admin-workspace">
-                  <div class="team-admin-block">
-                    <h3>Create Team</h3>
-                    <div class="grid grid-2">
-                      <label>
-                        Team Name
-                        <input id="team-admin-create-name" type="text" placeholder="Team name" />
-                      </label>
-                      <label>
-                        Team Tag
-                        <input id="team-admin-create-tag" type="text" maxlength="12" placeholder="TAG" />
-                      </label>
-                    </div>
-                    <label>
-                      Team Logo
-                      <input id="team-admin-create-logo-url" type="file" accept="image/png,image/jpeg,image/webp" />
-                    </label>
-                    <div class="button-row">
-                      <button id="team-admin-create" type="button">Create Team</button>
-                    </div>
-                  </div>
-
-                  <div class="team-admin-block">
-                    <h3>Manage Team</h3>
-                    <div class="grid grid-2">
-                      <label>
-                        Team
-                        <select id="team-admin-team-select"></select>
+                  <div id="team-workspace-manage" class="team-workspace-panel" role="tabpanel" aria-labelledby="team-workspace-tab-manage">
+                    <div class="team-admin-block">
+                      <h3>Manage Team</h3>
+                      <div class="grid grid-2">
+                        <label>
+                          Team
+                          <select id="team-admin-team-select"></select>
+                        </label>
+                        <div class="button-row">
+                          <button id="team-admin-refresh" type="button">Refresh Teams</button>
+                        </div>
+                      </div>
+                      <div class="grid grid-3">
+                        <label>
+                          Team Name
+                          <input id="team-admin-rename-name" type="text" placeholder="Team name" />
+                        </label>
+                        <label>
+                          Team Tag
+                          <input id="team-admin-rename-tag" type="text" maxlength="12" placeholder="TAG" />
+                        </label>
+                        <label>
+                          Team Logo
+                          <input id="team-admin-rename-logo-url" type="file" accept="image/png,image/jpeg,image/webp" />
+                        </label>
+                      </div>
+                      <label class="inline-checkbox">
+                        <input id="team-admin-rename-remove-logo" type="checkbox" />
+                        Remove existing logo
                       </label>
                       <div class="button-row">
-                        <button id="team-admin-refresh" type="button">Refresh Teams</button>
+                        <button id="team-admin-rename" type="button">Update Team</button>
+                        <button id="team-admin-delete" class="ghost" type="button">Delete Team</button>
                       </div>
                     </div>
-                    <div class="grid grid-3">
-                      <label>
-                        Team Name
-                        <input id="team-admin-rename-name" type="text" placeholder="Team name" />
-                      </label>
-                      <label>
-                        Team Tag
-                        <input id="team-admin-rename-tag" type="text" maxlength="12" placeholder="TAG" />
-                      </label>
-                      <label>
-                        Team Logo
-                        <input id="team-admin-rename-logo-url" type="file" accept="image/png,image/jpeg,image/webp" />
-                      </label>
-                    </div>
-                    <label class="inline-checkbox">
-                      <input id="team-admin-rename-remove-logo" type="checkbox" />
-                      Remove existing logo
-                    </label>
-                    <div class="button-row">
-                      <button id="team-admin-rename" type="button">Update Team</button>
-                      <button id="team-admin-delete" class="ghost" type="button">Delete Team</button>
-                    </div>
-                  </div>
 
-                  <div class="team-admin-block">
-                    <h3>Roster</h3>
-                    <div id="team-admin-members" class="team-pool-grid team-admin-members-list"></div>
-                  </div>
+                    <div class="team-admin-block">
+                      <h3>Roster</h3>
+                      <div id="team-admin-members" class="team-pool-grid team-admin-members-list"></div>
+                    </div>
 
-                  <div class="team-admin-block">
-                    <h3>Add Member</h3>
-                    <div class="grid grid-2">
+                    <div class="team-admin-block">
+                      <h3>Add Member</h3>
+                      <div class="grid grid-2">
+                        <label>
+                          User ID
+                          <input id="team-admin-add-user-id" type="number" min="1" step="1" placeholder="User ID" />
+                        </label>
+                        <label>
+                          Role
+                          <select id="team-admin-add-role">
+                            <option value="member">member</option>
+                            <option value="lead">lead</option>
+                          </select>
+                        </label>
+                      </div>
                       <label>
-                        User ID
-                        <input id="team-admin-add-user-id" type="number" min="1" step="1" placeholder="User ID" />
-                      </label>
-                      <label>
-                        Role
-                        <select id="team-admin-add-role">
-                          <option value="member">member</option>
-                          <option value="lead">lead</option>
-                        </select>
-                      </label>
-                    </div>
-                    <label>
-                      Team Role
-                      <select id="team-admin-add-team-role">
-                        <option value="substitute">substitute</option>
-                        <option value="primary">primary</option>
-                      </select>
-                    </label>
-                    <div class="button-row">
-                      <button id="team-admin-add-member" type="button">Add Member</button>
-                    </div>
-                  </div>
-
-                  <div class="team-admin-block">
-                    <h3>Update Member Role</h3>
-                    <div class="grid grid-2">
-                      <label>
-                        User ID
-                        <input id="team-admin-role-user-id" type="number" min="1" step="1" placeholder="User ID" />
-                      </label>
-                      <label>
-                        New Role
-                        <select id="team-admin-role">
-                          <option value="member">member</option>
-                          <option value="lead">lead</option>
-                        </select>
-                      </label>
-                    </div>
-                    <div class="button-row">
-                      <button id="team-admin-update-role" type="button">Update Role</button>
-                    </div>
-                  </div>
-
-                  <div class="team-admin-block">
-                    <h3>Update Member Team Role</h3>
-                    <div class="grid grid-2">
-                      <label>
-                        User ID
-                        <input id="team-admin-team-role-user-id" type="number" min="1" step="1" placeholder="User ID" />
-                      </label>
-                      <label>
-                        New Team Role
-                        <select id="team-admin-team-role">
+                        Team Role
+                        <select id="team-admin-add-team-role">
                           <option value="substitute">substitute</option>
                           <option value="primary">primary</option>
                         </select>
                       </label>
+                      <div class="button-row">
+                        <button id="team-admin-add-member" type="button">Add Member</button>
+                      </div>
                     </div>
-                    <div class="button-row">
-                      <button id="team-admin-update-team-role" type="button">Update Team Role</button>
+
+                    <div class="team-admin-block">
+                      <h3>Update Member Role</h3>
+                      <div class="grid grid-2">
+                        <label>
+                          User ID
+                          <input id="team-admin-role-user-id" type="number" min="1" step="1" placeholder="User ID" />
+                        </label>
+                        <label>
+                          New Role
+                          <select id="team-admin-role">
+                            <option value="member">member</option>
+                            <option value="lead">lead</option>
+                          </select>
+                        </label>
+                      </div>
+                      <div class="button-row">
+                        <button id="team-admin-update-role" type="button">Update Role</button>
+                      </div>
+                    </div>
+
+                    <div class="team-admin-block">
+                      <h3>Update Member Team Role</h3>
+                      <div class="grid grid-2">
+                        <label>
+                          User ID
+                          <input id="team-admin-team-role-user-id" type="number" min="1" step="1" placeholder="User ID" />
+                        </label>
+                        <label>
+                          New Team Role
+                          <select id="team-admin-team-role">
+                            <option value="substitute">substitute</option>
+                            <option value="primary">primary</option>
+                          </select>
+                        </label>
+                      </div>
+                      <div class="button-row">
+                        <button id="team-admin-update-team-role" type="button">Update Team Role</button>
+                      </div>
+                    </div>
+
+                    <div class="team-admin-block">
+                      <h3>Remove Member</h3>
+                      <label>
+                        User ID
+                        <input id="team-admin-remove-user-id" type="number" min="1" step="1" placeholder="User ID" />
+                      </label>
+                      <div class="button-row">
+                        <button id="team-admin-remove-member" class="ghost" type="button">Remove Member</button>
+                      </div>
                     </div>
                   </div>
 
-                  <div class="team-admin-block">
-                    <h3>Remove Member</h3>
-                    <label>
-                      User ID
-                      <input id="team-admin-remove-user-id" type="number" min="1" step="1" placeholder="User ID" />
-                    </label>
-                    <div class="button-row">
-                      <button id="team-admin-remove-member" class="ghost" type="button">Remove Member</button>
+                  <div id="team-workspace-create" class="team-workspace-panel" role="tabpanel" aria-labelledby="team-workspace-tab-create" hidden>
+                    <div class="team-admin-block">
+                      <h3>Create Team</h3>
+                      <div class="grid grid-2">
+                        <label>
+                          Team Name
+                          <input id="team-admin-create-name" type="text" placeholder="Team name" />
+                        </label>
+                        <label>
+                          Team Tag
+                          <input id="team-admin-create-tag" type="text" maxlength="12" placeholder="TAG" />
+                        </label>
+                      </div>
+                      <label>
+                        Team Logo
+                        <input id="team-admin-create-logo-url" type="file" accept="image/png,image/jpeg,image/webp" />
+                      </label>
+                      <div class="button-row">
+                        <button id="team-admin-create" type="button">Create Team</button>
+                      </div>
                     </div>
                   </div>
 
