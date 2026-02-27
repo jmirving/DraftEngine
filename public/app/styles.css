@@ -437,6 +437,39 @@ h3 {
   border-color: transparent;
 }
 
+.champion-editor-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.champion-editor-tab {
+  width: auto;
+  margin-top: 0;
+  border-radius: 999px;
+  border: 1px solid var(--accent-soft);
+  background: transparent;
+  color: var(--accent);
+  font-weight: 700;
+  padding: 0.3rem 0.72rem;
+}
+
+.champion-editor-tab.is-active {
+  background: var(--accent);
+  color: #fff7f2;
+  border-color: transparent;
+}
+
+.champion-editor-panel {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.champion-editor-panel[hidden] {
+  display: none;
+}
+
 .team-workspace-panel {
   display: grid;
   gap: 0.85rem;

@@ -68,7 +68,49 @@ export function createChampionsRepository(pool) {
         [championId]
       );
       return result.rowCount > 0;
+    },
+
+    async updateChampionMetadata(championId, { roles, damageType, scaling }) {
+      const currentResult = await pool.query(
+        `
+          SELECT metadata_json
+          FROM champions
+          WHERE id = $1
+        `,
+        [championId]
+      );
+      if (currentResult.rowCount === 0) {
+        return null;
+      }
+
+      const currentMetadata =
+        currentResult.rows[0]?.metadata_json && typeof currentResult.rows[0].metadata_json === "object"
+          ? currentResult.rows[0].metadata_json
+          : {};
+      const currentTags =
+        currentMetadata.tags && typeof currentMetadata.tags === "object" && !Array.isArray(currentMetadata.tags)
+          ? currentMetadata.tags
+          : {};
+
+      const nextMetadata = {
+        ...currentMetadata,
+        roles: [...roles],
+        damageType,
+        scaling,
+        tags: currentTags
+      };
+
+      await pool.query(
+        `
+          UPDATE champions
+          SET role = $2,
+              metadata_json = $3::jsonb
+          WHERE id = $1
+        `,
+        [championId, roles[0], JSON.stringify(nextMetadata)]
+      );
+
+      return this.getChampionById(championId);
     }
   };
 }
-

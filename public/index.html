@@ -143,16 +143,95 @@
               <div id="champion-tag-editor" class="champion-tag-editor" hidden>
                 <p class="panel-kicker">Tag Editor</p>
                 <h3 id="champion-tag-editor-title">Edit Champion Tags</h3>
-                <p id="champion-tag-editor-meta" class="meta">Select a champion card to edit global tags.</p>
-                <div class="explorer-filters-grid">
+                <p id="champion-tag-editor-meta" class="meta">Edit global champion data by tab.</p>
+                <div class="champion-editor-tabs" role="tablist" aria-label="Champion editor tabs">
+                  <button
+                    id="champion-editor-tab-composition"
+                    class="champion-editor-tab is-active"
+                    type="button"
+                    role="tab"
+                    aria-selected="true"
+                    aria-controls="champion-editor-panel-composition"
+                    data-champion-editor-tab="composition"
+                  >
+                    Composition
+                  </button>
+                  <button
+                    id="champion-editor-tab-roles"
+                    class="champion-editor-tab"
+                    type="button"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="champion-editor-panel-roles"
+                    data-champion-editor-tab="roles"
+                  >
+                    Roles
+                  </button>
+                  <button
+                    id="champion-editor-tab-damage"
+                    class="champion-editor-tab"
+                    type="button"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="champion-editor-panel-damage"
+                    data-champion-editor-tab="damage"
+                  >
+                    Damage Type
+                  </button>
+                  <button
+                    id="champion-editor-tab-scaling"
+                    class="champion-editor-tab"
+                    type="button"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="champion-editor-panel-scaling"
+                    data-champion-editor-tab="scaling"
+                  >
+                    Scaling
+                  </button>
+                </div>
+                <div
+                  id="champion-editor-panel-composition"
+                  class="champion-editor-panel"
+                  role="tabpanel"
+                  aria-labelledby="champion-editor-tab-composition"
+                >
+                  <div id="champion-tag-editor-tags" class="excluded-options"></div>
+                </div>
+                <div
+                  id="champion-editor-panel-roles"
+                  class="champion-editor-panel"
+                  role="tabpanel"
+                  aria-labelledby="champion-editor-tab-roles"
+                  hidden
+                >
+                  <p class="meta">Choose one or more valid roles for this champion.</p>
+                  <div id="champion-metadata-editor-roles" class="excluded-options"></div>
+                </div>
+                <div
+                  id="champion-editor-panel-damage"
+                  class="champion-editor-panel"
+                  role="tabpanel"
+                  aria-labelledby="champion-editor-tab-damage"
+                  hidden
+                >
                   <label>
-                    Scope
-                    <select id="champion-tag-editor-scope">
-                      <option value="all">All Users (MVP)</option>
-                    </select>
+                    Damage Type
+                    <select id="champion-metadata-editor-damage-type"></select>
                   </label>
                 </div>
-                <div id="champion-tag-editor-tags" class="excluded-options"></div>
+                <div
+                  id="champion-editor-panel-scaling"
+                  class="champion-editor-panel"
+                  role="tabpanel"
+                  aria-labelledby="champion-editor-tab-scaling"
+                  hidden
+                >
+                  <label>
+                    Scaling
+                    <select id="champion-metadata-editor-scaling"></select>
+                  </label>
+                </div>
                 <div class="button-row">
                   <button id="champion-tag-editor-save" type="button">Save Champion Tags</button>
                   <button id="champion-tag-editor-clear" class="ghost" type="button">Close Editor</button>
@@ -638,7 +717,7 @@
               </ul>
               <h3>Champions</h3>
               <ul class="coming-soon-list">
-                <li>MVP supports global champion tag editing in Explorer; self/team scoped tag workflows and promotions are deferred.</li>
+                <li>MVP supports global champion editing tabs in Explorer (Composition, Roles, Damage Type, Scaling); self/team scoped workflows are deferred.</li>
                 <li>Dedicated Champion Tags management page with full catalog controls remains deferred beyond MVP.</li>
                 <li>Ship champion auto-ingest now that global champion-tag persistence is in place.</li>
               </ul>

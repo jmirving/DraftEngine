@@ -70,13 +70,16 @@ function createFetchHarness({
 } = {}) {
   const calls = [];
   let nextPoolId = pools.length + 1;
+  const championMetadataById = new Map([
+    [1, { roles: ["Mid"], damageType: "AP", scaling: "Mid", tags: tagsFalse() }],
+    [2, { roles: ["ADC", "Support"], damageType: "AD", scaling: "Late", tags: tagsFalse() }],
+    [3, { roles: ["Support"], damageType: "AD", scaling: "Mid", tags: tagsFalse() }]
+  ]);
   const globalChampionTagIds = new Map([
     [1, new Set([1])],
     [2, new Set([])],
     [3, new Set([])]
   ]);
-  const selfChampionTagIds = new Map();
-  const teamChampionTagIds = new Map();
   let persistedTeamContext = {
     defaultTeamId: null,
     activeTeamId: null,
@@ -209,36 +212,21 @@ function createFetchHarness({
             name: "Ahri",
             role: "Mid",
             tagIds: [...(globalChampionTagIds.get(1) ?? [])],
-            metadata: {
-              roles: ["Mid"],
-              damageType: "AP",
-              scaling: "Mid",
-              tags: tagsFalse()
-            }
+            metadata: championMetadataById.get(1)
           },
           {
             id: toChampionId(2),
             name: "Ashe",
             role: "ADC",
             tagIds: [...(globalChampionTagIds.get(2) ?? [])],
-            metadata: {
-              roles: ["ADC", "Support"],
-              damageType: "AD",
-              scaling: "Late",
-              tags: tagsFalse()
-            }
+            metadata: championMetadataById.get(2)
           },
           {
             id: toChampionId(3),
             name: "Braum",
             role: "Support",
             tagIds: [...(globalChampionTagIds.get(3) ?? [])],
-            metadata: {
-              roles: ["Support"],
-              damageType: "AD",
-              scaling: "Mid",
-              tags: tagsFalse()
-            }
+            metadata: championMetadataById.get(3)
           }
         ]
       });
@@ -257,65 +245,49 @@ function createFetchHarness({
     const championTagsMatch = path.match(/^\/champions\/(\d+)\/tags$/);
     if (championTagsMatch && method === "GET") {
       const championId = Number(championTagsMatch[1]);
-      const scope = query.get("scope") ?? "self";
-      if (scope === "all") {
-        return createJsonResponse({
-          scope,
-          team_id: null,
-          tag_ids: [...(globalChampionTagIds.get(championId) ?? [])].sort((left, right) => left - right)
-        });
-      }
-      if (scope === "team") {
-        const teamId = Number.parseInt(query.get("team_id") ?? "", 10);
-        const key = `${teamId}:${championId}`;
-        return createJsonResponse({
-          scope,
-          team_id: Number.isInteger(teamId) ? teamId : null,
-          tag_ids: [...(teamChampionTagIds.get(key) ?? [])].sort((left, right) => left - right)
-        });
-      }
-      const key = `${resolvedLoginUser.id}:${championId}`;
       return createJsonResponse({
-        scope: "self",
+        scope: "all",
         team_id: null,
-        tag_ids: [...(selfChampionTagIds.get(key) ?? [])].sort((left, right) => left - right)
+        tag_ids: [...(globalChampionTagIds.get(championId) ?? [])].sort((left, right) => left - right)
       });
     }
 
     if (championTagsMatch && method === "PUT") {
       const championId = Number(championTagsMatch[1]);
-      const scope = body?.scope ?? "self";
       const nextTagIds = Array.isArray(body?.tag_ids)
         ? [...new Set(body.tag_ids.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0))]
             .sort((left, right) => left - right)
         : [];
-
-      if (scope === "all") {
-        globalChampionTagIds.set(championId, new Set(nextTagIds));
-        return createJsonResponse({
-          scope,
-          team_id: null,
-          tag_ids: nextTagIds
-        });
-      }
-
-      if (scope === "team") {
-        const teamId = Number.parseInt(String(body?.team_id ?? ""), 10);
-        const key = `${teamId}:${championId}`;
-        teamChampionTagIds.set(key, new Set(nextTagIds));
-        return createJsonResponse({
-          scope,
-          team_id: Number.isInteger(teamId) ? teamId : null,
-          tag_ids: nextTagIds
-        });
-      }
-
-      const key = `${resolvedLoginUser.id}:${championId}`;
-      selfChampionTagIds.set(key, new Set(nextTagIds));
+      globalChampionTagIds.set(championId, new Set(nextTagIds));
       return createJsonResponse({
-        scope: "self",
+        scope: "all",
         team_id: null,
         tag_ids: nextTagIds
+      });
+    }
+
+    const championMetadataMatch = path.match(/^\/champions\/(\d+)\/metadata$/);
+    if (championMetadataMatch && method === "PUT") {
+      const championId = Number(championMetadataMatch[1]);
+      const existing = championMetadataById.get(championId) ?? {
+        roles: ["Mid"],
+        damageType: "AP",
+        scaling: "Mid",
+        tags: tagsFalse()
+      };
+      const nextMetadata = {
+        ...existing,
+        roles: Array.isArray(body?.roles) ? [...body.roles] : [...existing.roles],
+        damageType: typeof body?.damage_type === "string" ? body.damage_type : existing.damageType,
+        scaling: typeof body?.scaling === "string" ? body.scaling : existing.scaling
+      };
+      championMetadataById.set(championId, nextMetadata);
+      return createJsonResponse({
+        champion: {
+          id: championId,
+          metadata: nextMetadata,
+          tag_ids: [...(globalChampionTagIds.get(championId) ?? [])].sort((left, right) => left - right)
+        }
       });
     }
 
@@ -769,6 +741,57 @@ describe("auth + pools + team management", () => {
     expect(saveCall).toBeTruthy();
     expect(saveCall.body.scope).toBe("all");
     expect(Array.isArray(saveCall.body.tag_ids)).toBe(true);
+    expect(doc.querySelector("#champion-tag-editor-feedback").textContent).toContain("saved");
+  });
+
+  test("champion explorer metadata tabs save global metadata edits", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness();
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    await flush();
+
+    const editButton = doc.querySelector("#explorer-results .champ-card-actions button");
+    expect(editButton).toBeTruthy();
+    editButton.click();
+    await flush();
+
+    doc.querySelector("#champion-editor-tab-roles").click();
+    await flush();
+    const topRoleCheckbox = doc.querySelector("#champion-metadata-editor-roles input[value='Top']");
+    expect(topRoleCheckbox).toBeTruthy();
+    topRoleCheckbox.checked = true;
+    topRoleCheckbox.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+    doc.querySelector("#champion-editor-tab-damage").click();
+    await flush();
+    const damageTypeSelect = doc.querySelector("#champion-metadata-editor-damage-type");
+    damageTypeSelect.value = "Mixed";
+    damageTypeSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+    doc.querySelector("#champion-editor-tab-scaling").click();
+    await flush();
+    const scalingSelect = doc.querySelector("#champion-metadata-editor-scaling");
+    scalingSelect.value = "Late";
+    scalingSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+    doc.querySelector("#champion-tag-editor-save").click();
+    await flush();
+
+    const metadataSaveCall = harness.calls.find(
+      (call) => /^\/champions\/\d+\/metadata$/.test(call.path) && call.method === "PUT"
+    );
+    expect(metadataSaveCall).toBeTruthy();
+    expect(metadataSaveCall.body.damage_type).toBe("Mixed");
+    expect(metadataSaveCall.body.scaling).toBe("Late");
+    expect(new Set(metadataSaveCall.body.roles)).toEqual(new Set(["Top", "Mid"]));
     expect(doc.querySelector("#champion-tag-editor-feedback").textContent).toContain("saved");
   });
 

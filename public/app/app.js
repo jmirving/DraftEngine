@@ -68,6 +68,17 @@ const MEMBER_ROLE_OPTIONS = Object.freeze(["lead", "member"]);
 const DEFAULT_TEAM_MEMBER_TYPE = "substitute";
 const TEAM_MEMBER_TYPE_OPTIONS = Object.freeze(["primary", "substitute"]);
 const CHAMPION_TAG_SCOPES = Object.freeze(["all"]);
+const CHAMPION_EDITOR_TAB_COMPOSITION = "composition";
+const CHAMPION_EDITOR_TAB_ROLES = "roles";
+const CHAMPION_EDITOR_TAB_DAMAGE = "damage";
+const CHAMPION_EDITOR_TAB_SCALING = "scaling";
+const CHAMPION_EDITOR_TABS = Object.freeze([
+  CHAMPION_EDITOR_TAB_COMPOSITION,
+  CHAMPION_EDITOR_TAB_ROLES,
+  CHAMPION_EDITOR_TAB_DAMAGE,
+  CHAMPION_EDITOR_TAB_SCALING
+]);
+const CHAMPION_EDITOR_TAB_SET = new Set(CHAMPION_EDITOR_TABS);
 const DEFAULT_PRIMARY_ROLE = "Mid";
 const DEFAULT_FAMILIARITY_LEVEL = 3;
 const ALLOWED_TEAM_LOGO_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -218,6 +229,14 @@ const SCALING_ALIASES = Object.freeze({
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
 
+function createEmptyChampionMetadataDraft() {
+  return {
+    roles: [],
+    damageType: "",
+    scaling: ""
+  };
+}
+
 function createInitialState() {
   return {
     data: null,
@@ -254,6 +273,8 @@ function createInitialState() {
       selectedChampionTagIds: [],
       championTagScope: "all",
       championTagTeamId: "",
+      championEditorTab: CHAMPION_EDITOR_TAB_COMPOSITION,
+      championMetadataDraft: createEmptyChampionMetadataDraft(),
       isSavingChampionTags: false
     },
     explorer: {
@@ -363,7 +384,15 @@ function createElements() {
     championTagEditorScope: runtimeDocument.querySelector("#champion-tag-editor-scope"),
     championTagEditorTeamGroup: runtimeDocument.querySelector("#champion-tag-editor-team-group"),
     championTagEditorTeam: runtimeDocument.querySelector("#champion-tag-editor-team"),
+    championEditorTabButtons: Array.from(runtimeDocument.querySelectorAll("button[data-champion-editor-tab]")),
+    championEditorPanelComposition: runtimeDocument.querySelector("#champion-editor-panel-composition"),
+    championEditorPanelRoles: runtimeDocument.querySelector("#champion-editor-panel-roles"),
+    championEditorPanelDamage: runtimeDocument.querySelector("#champion-editor-panel-damage"),
+    championEditorPanelScaling: runtimeDocument.querySelector("#champion-editor-panel-scaling"),
     championTagEditorTags: runtimeDocument.querySelector("#champion-tag-editor-tags"),
+    championMetadataEditorRoles: runtimeDocument.querySelector("#champion-metadata-editor-roles"),
+    championMetadataEditorDamageType: runtimeDocument.querySelector("#champion-metadata-editor-damage-type"),
+    championMetadataEditorScaling: runtimeDocument.querySelector("#champion-metadata-editor-scaling"),
     championTagEditorSave: runtimeDocument.querySelector("#champion-tag-editor-save"),
     championTagEditorClear: runtimeDocument.querySelector("#champion-tag-editor-clear"),
     championTagEditorFeedback: runtimeDocument.querySelector("#champion-tag-editor-feedback"),
@@ -577,11 +606,65 @@ function normalizeChampionTagScope(scope) {
   return CHAMPION_TAG_SCOPES.includes(scope) ? scope : "all";
 }
 
+function normalizeChampionEditorTab(tab) {
+  return CHAMPION_EDITOR_TAB_SET.has(tab) ? tab : CHAMPION_EDITOR_TAB_COMPOSITION;
+}
+
+function normalizeChampionMetadataRoles(roles) {
+  const normalized = Array.isArray(roles)
+    ? roles.map((value) => normalizeApiSlot(value)).filter(Boolean)
+    : [];
+  return SLOTS.filter((slot) => normalized.includes(slot));
+}
+
+function initializeChampionMetadataDraft(champion) {
+  if (!champion) {
+    state.api.championMetadataDraft = createEmptyChampionMetadataDraft();
+    return;
+  }
+  state.api.championMetadataDraft = {
+    roles: normalizeChampionMetadataRoles(champion.roles),
+    damageType: normalizeApiDamageType(champion.damageType) ?? "",
+    scaling: normalizeApiScaling(champion.scaling) ?? ""
+  };
+}
+
+function syncChampionMetadataDraftToState(championId, championPayload) {
+  if (!Number.isInteger(championId) || championId <= 0 || !championPayload || typeof championPayload !== "object") {
+    return;
+  }
+  const champion = getChampionById(championId);
+  if (!champion) {
+    return;
+  }
+
+  const metadata =
+    championPayload.metadata && typeof championPayload.metadata === "object" && !Array.isArray(championPayload.metadata)
+      ? championPayload.metadata
+      : {};
+  const nextRoles = normalizeChampionMetadataRoles(metadata.roles);
+  const nextDamageType = normalizeApiDamageType(metadata.damageType);
+  const nextScaling = normalizeApiScaling(metadata.scaling);
+  if (nextRoles.length > 0) {
+    champion.roles = nextRoles;
+  }
+  if (nextDamageType) {
+    champion.damageType = nextDamageType;
+  }
+  if (nextScaling) {
+    champion.scaling = nextScaling;
+  }
+  champion.tagIds = normalizeChampionTagIdArray(championPayload.tagIds ?? championPayload.tag_ids);
+  initializeChampionMetadataDraft(champion);
+}
+
 function clearChampionTagEditorState() {
   state.api.selectedChampionTagEditorId = null;
   state.api.selectedChampionTagIds = [];
   state.api.championTagScope = "all";
   state.api.championTagTeamId = "";
+  state.api.championEditorTab = CHAMPION_EDITOR_TAB_COMPOSITION;
+  state.api.championMetadataDraft = createEmptyChampionMetadataDraft();
   state.api.isSavingChampionTags = false;
   setChampionTagEditorFeedback("");
 }
@@ -1982,7 +2065,11 @@ function renderChampionTagEditorTagOptions() {
   }
 
   elements.championTagEditorTags.innerHTML = "";
-  const tags = Array.isArray(state.api.tags) ? state.api.tags : [];
+  const allTags = Array.isArray(state.api.tags) ? state.api.tags : [];
+  const compositionTags = allTags.filter(
+    (tag) => typeof tag?.category === "string" && tag.category.trim().toLowerCase() === "composition"
+  );
+  const tags = compositionTags.length > 0 ? compositionTags : allTags;
   if (tags.length === 0) {
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
@@ -2012,9 +2099,91 @@ function renderChampionTagEditorTagOptions() {
     });
 
     const text = runtimeDocument.createElement("span");
-    text.textContent = `${tag.name} (${tag.category})`;
+    const category = typeof tag.category === "string" ? tag.category.trim() : "";
+    text.textContent = category.toLowerCase() === "composition" ? tag.name : `${tag.name} (${category})`;
     label.append(checkbox, text);
     elements.championTagEditorTags.append(label);
+  }
+}
+
+function renderChampionEditorTabs() {
+  const activeTab = normalizeChampionEditorTab(state.api.championEditorTab);
+  state.api.championEditorTab = activeTab;
+
+  for (const button of elements.championEditorTabButtons) {
+    const tab = button.dataset.championEditorTab;
+    const selected = tab === activeTab;
+    button.classList.toggle("is-active", selected);
+    button.setAttribute("aria-selected", selected ? "true" : "false");
+    button.setAttribute("tabindex", selected ? "0" : "-1");
+  }
+
+  if (elements.championEditorPanelComposition) {
+    elements.championEditorPanelComposition.hidden = activeTab !== CHAMPION_EDITOR_TAB_COMPOSITION;
+  }
+  if (elements.championEditorPanelRoles) {
+    elements.championEditorPanelRoles.hidden = activeTab !== CHAMPION_EDITOR_TAB_ROLES;
+  }
+  if (elements.championEditorPanelDamage) {
+    elements.championEditorPanelDamage.hidden = activeTab !== CHAMPION_EDITOR_TAB_DAMAGE;
+  }
+  if (elements.championEditorPanelScaling) {
+    elements.championEditorPanelScaling.hidden = activeTab !== CHAMPION_EDITOR_TAB_SCALING;
+  }
+}
+
+function renderChampionMetadataRoleOptions() {
+  if (!elements.championMetadataEditorRoles) {
+    return;
+  }
+  elements.championMetadataEditorRoles.innerHTML = "";
+  const selected = new Set(state.api.championMetadataDraft.roles);
+
+  for (const role of SLOTS) {
+    const label = runtimeDocument.createElement("label");
+    label.className = "selection-option";
+
+    const checkbox = runtimeDocument.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = role;
+    checkbox.checked = selected.has(role);
+    checkbox.disabled = state.api.isSavingChampionTags;
+    checkbox.addEventListener("change", () => {
+      const next = new Set(state.api.championMetadataDraft.roles);
+      if (checkbox.checked) {
+        next.add(role);
+      } else {
+        next.delete(role);
+      }
+      state.api.championMetadataDraft.roles = normalizeChampionMetadataRoles([...next]);
+    });
+
+    const text = runtimeDocument.createElement("span");
+    text.textContent = role;
+    label.append(checkbox, text);
+    elements.championMetadataEditorRoles.append(label);
+  }
+}
+
+function renderChampionMetadataEditors() {
+  renderChampionMetadataRoleOptions();
+
+  if (elements.championMetadataEditorDamageType) {
+    replaceOptions(
+      elements.championMetadataEditorDamageType,
+      DAMAGE_TYPES.map((value) => ({ value, label: value }))
+    );
+    elements.championMetadataEditorDamageType.value = state.api.championMetadataDraft.damageType;
+    elements.championMetadataEditorDamageType.disabled = state.api.isSavingChampionTags;
+  }
+
+  if (elements.championMetadataEditorScaling) {
+    replaceOptions(
+      elements.championMetadataEditorScaling,
+      SCALING_VALUES.map((value) => ({ value, label: value }))
+    );
+    elements.championMetadataEditorScaling.value = state.api.championMetadataDraft.scaling;
+    elements.championMetadataEditorScaling.disabled = state.api.isSavingChampionTags;
   }
 }
 
@@ -2037,7 +2206,7 @@ function renderChampionTagEditor() {
     elements.championTagEditorTitle.textContent = `Edit ${champion.name} Tags`;
   }
   if (elements.championTagEditorMeta) {
-    elements.championTagEditorMeta.textContent = "MVP supports global champion tag edits only.";
+    elements.championTagEditorMeta.textContent = "Edit global champion data by tab.";
   }
   if (elements.championTagEditorScope) {
     elements.championTagEditorScope.value = state.api.championTagScope;
@@ -2051,9 +2220,22 @@ function renderChampionTagEditor() {
     elements.championTagEditorTeam.disabled = true;
   }
 
+  renderChampionEditorTabs();
   renderChampionTagEditorTagOptions();
+  renderChampionMetadataEditors();
+
+  const activeTab = normalizeChampionEditorTab(state.api.championEditorTab);
+  const metadataDraftComplete =
+    state.api.championMetadataDraft.roles.length > 0 &&
+    Boolean(state.api.championMetadataDraft.damageType) &&
+    Boolean(state.api.championMetadataDraft.scaling);
+
   if (elements.championTagEditorSave) {
-    elements.championTagEditorSave.disabled = state.api.isSavingChampionTags;
+    elements.championTagEditorSave.textContent =
+      activeTab === CHAMPION_EDITOR_TAB_COMPOSITION ? "Save Composition" : "Save Metadata";
+    elements.championTagEditorSave.disabled =
+      state.api.isSavingChampionTags ||
+      (activeTab !== CHAMPION_EDITOR_TAB_COMPOSITION && !metadataDraftComplete);
   }
   if (elements.championTagEditorClear) {
     elements.championTagEditorClear.disabled = state.api.isSavingChampionTags;
@@ -2084,12 +2266,53 @@ async function openChampionTagEditor(championId) {
     return;
   }
 
+  const champion = getChampionById(championId);
   state.api.selectedChampionTagEditorId = championId;
   state.api.championTagScope = "all";
+  state.api.championEditorTab = CHAMPION_EDITOR_TAB_COMPOSITION;
+  initializeChampionMetadataDraft(champion);
   setChampionTagEditorFeedback("Loading champion tags...");
   renderChampionTagEditor();
   await loadChampionScopedTags(championId);
   renderChampionTagEditor();
+}
+
+function setChampionEditorTab(tab) {
+  state.api.championEditorTab = normalizeChampionEditorTab(tab);
+  renderChampionTagEditor();
+}
+
+async function saveChampionCompositionTab(championId) {
+  const payload = {
+    scope: "all",
+    tag_ids: [...state.api.selectedChampionTagIds].sort((left, right) => left - right)
+  };
+
+  const response = await apiRequest(`/champions/${championId}/tags`, {
+    method: "PUT",
+    auth: true,
+    body: payload
+  });
+  state.api.selectedChampionTagIds = normalizeApiTagIdArray(response?.tag_ids);
+  const champion = getChampionById(championId);
+  if (champion) {
+    champion.tagIds = [...state.api.selectedChampionTagIds];
+  }
+}
+
+async function saveChampionMetadataTab(championId) {
+  const payload = {
+    roles: [...state.api.championMetadataDraft.roles],
+    damage_type: state.api.championMetadataDraft.damageType,
+    scaling: state.api.championMetadataDraft.scaling
+  };
+
+  const response = await apiRequest(`/champions/${championId}/metadata`, {
+    method: "PUT",
+    auth: true,
+    body: payload
+  });
+  syncChampionMetadataDraftToState(championId, response?.champion);
 }
 
 async function saveChampionTagEditor() {
@@ -2097,31 +2320,34 @@ async function saveChampionTagEditor() {
   if (!isAuthenticated() || !Number.isInteger(championId) || championId <= 0 || state.api.isSavingChampionTags) {
     return;
   }
-
-  const payload = {
-    scope: "all",
-    tag_ids: [...state.api.selectedChampionTagIds].sort((left, right) => left - right)
-  };
+  const activeTab = normalizeChampionEditorTab(state.api.championEditorTab);
 
   state.api.isSavingChampionTags = true;
-  setChampionTagEditorFeedback("Saving champion tags...");
+  setChampionTagEditorFeedback(
+    activeTab === CHAMPION_EDITOR_TAB_COMPOSITION
+      ? "Saving composition tags..."
+      : "Saving champion metadata..."
+  );
   renderChampionTagEditor();
 
   try {
-    const response = await apiRequest(`/champions/${championId}/tags`, {
-      method: "PUT",
-      auth: true,
-      body: payload
-    });
-    state.api.selectedChampionTagIds = normalizeApiTagIdArray(response?.tag_ids);
-    const champion = getChampionById(championId);
-    if (champion) {
-      champion.tagIds = [...state.api.selectedChampionTagIds];
+    if (activeTab === CHAMPION_EDITOR_TAB_COMPOSITION) {
+      await saveChampionCompositionTab(championId);
+      setChampionTagEditorFeedback("Composition tags saved.");
+    } else {
+      await saveChampionMetadataTab(championId);
+      setChampionTagEditorFeedback("Champion metadata saved.");
     }
-    setChampionTagEditorFeedback("Champion tags saved.");
     renderExplorer();
   } catch (error) {
-    setChampionTagEditorFeedback(normalizeApiErrorMessage(error, "Failed to save champion tags."));
+    setChampionTagEditorFeedback(
+      normalizeApiErrorMessage(
+        error,
+        activeTab === CHAMPION_EDITOR_TAB_COMPOSITION
+          ? "Failed to save composition tags."
+          : "Failed to save champion metadata."
+      )
+    );
   } finally {
     state.api.isSavingChampionTags = false;
     renderChampionTagEditor();
@@ -5518,6 +5744,32 @@ function attachEvents() {
           renderChampionTagEditor();
         });
       }
+    });
+  }
+
+  for (const button of elements.championEditorTabButtons) {
+    button.addEventListener("click", () => {
+      setChampionEditorTab(button.dataset.championEditorTab);
+    });
+  }
+
+  if (elements.championMetadataEditorDamageType) {
+    elements.championMetadataEditorDamageType.addEventListener("change", () => {
+      const normalized = normalizeApiDamageType(elements.championMetadataEditorDamageType.value);
+      if (normalized) {
+        state.api.championMetadataDraft.damageType = normalized;
+      }
+      renderChampionTagEditor();
+    });
+  }
+
+  if (elements.championMetadataEditorScaling) {
+    elements.championMetadataEditorScaling.addEventListener("change", () => {
+      const normalized = normalizeApiScaling(elements.championMetadataEditorScaling.value);
+      if (normalized) {
+        state.api.championMetadataDraft.scaling = normalized;
+      }
+      renderChampionTagEditor();
     });
   }
 

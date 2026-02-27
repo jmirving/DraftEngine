@@ -238,6 +238,20 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
     },
     async championExists(championId) {
       return state.champions.some((champion) => champion.id === championId);
+    },
+    async updateChampionMetadata(championId, { roles, damageType, scaling }) {
+      const champion = state.champions.find((item) => item.id === championId);
+      if (!champion) {
+        return null;
+      }
+      champion.role = roles[0];
+      champion.metadata = {
+        ...(champion.metadata && typeof champion.metadata === "object" ? champion.metadata : {}),
+        roles: [...roles],
+        damageType,
+        scaling
+      };
+      return champion;
     }
   };
 
@@ -1082,6 +1096,51 @@ describe("API routes", () => {
       });
     expect(promotionNotSupported.status).toBe(400);
     expect(state.promotionRequests).toHaveLength(0);
+  });
+
+  it("updates champion metadata with admin-only global permissions", async () => {
+    const { app, config } = createMockContext();
+
+    const unauthorizedWrite = await request(app).put("/champions/1/metadata").send({
+      roles: ["Top"],
+      damage_type: "AD",
+      scaling: "Early"
+    });
+    expect(unauthorizedWrite.status).toBe(401);
+
+    const memberForbiddenWrite = await request(app)
+      .put("/champions/1/metadata")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        roles: ["Top"],
+        damage_type: "AD",
+        scaling: "Early"
+      });
+    expect(memberForbiddenWrite.status).toBe(403);
+
+    const invalidPayload = await request(app)
+      .put("/champions/1/metadata")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({
+        roles: ["InvalidRole"],
+        damage_type: "AD",
+        scaling: "Early"
+      });
+    expect(invalidPayload.status).toBe(400);
+
+    const adminWrite = await request(app)
+      .put("/champions/1/metadata")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({
+        roles: ["Top", "Jungle"],
+        damage_type: "AD",
+        scaling: "Late"
+      });
+    expect(adminWrite.status).toBe(200);
+    expect(adminWrite.body.champion.role).toBe("Top");
+    expect(adminWrite.body.champion.metadata.roles).toEqual(["Top", "Jungle"]);
+    expect(adminWrite.body.champion.metadata.damageType).toBe("AD");
+    expect(adminWrite.body.champion.metadata.scaling).toBe("Late");
   });
 
   it("enforces scoped required-check settings auth and promotion requests", async () => {

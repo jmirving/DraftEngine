@@ -10,9 +10,13 @@ import {
   assertScopeWriteAuthorization,
   parseScope
 } from "../scope-authorization.js";
+import { DAMAGE_TYPES, SCALING_VALUES, SLOTS } from "../../src/domain/model.js";
 
 const CHAMPION_TAG_SCOPE_SET = new Set(["all"]);
 const MAX_CHAMPION_TAGS_PER_SCOPE = 64;
+const SLOT_SET = new Set(SLOTS);
+const DAMAGE_TYPE_SET = new Set(DAMAGE_TYPES);
+const SCALING_SET = new Set(SCALING_VALUES);
 
 function normalizeTagIds(tagIds) {
   const deduplicated = Array.from(new Set(tagIds));
@@ -20,6 +24,39 @@ function normalizeTagIds(tagIds) {
     throw badRequest(`Expected 'tag_ids' to contain at most ${MAX_CHAMPION_TAGS_PER_SCOPE} entries.`);
   }
   return deduplicated.sort((left, right) => left - right);
+}
+
+function normalizeMetadataRoles(rawRoles) {
+  if (!Array.isArray(rawRoles) || rawRoles.length === 0) {
+    throw badRequest("Expected 'roles' to be a non-empty array.");
+  }
+  const normalized = rawRoles.map((value) => (typeof value === "string" ? value.trim() : ""));
+  if (normalized.some((value) => !SLOT_SET.has(value))) {
+    throw badRequest(`Expected 'roles' values to be one of: ${SLOTS.join(", ")}.`);
+  }
+  return Array.from(new Set(normalized));
+}
+
+function normalizeMetadataDamageType(rawValue) {
+  if (typeof rawValue !== "string") {
+    throw badRequest("Expected 'damage_type' to be a string.");
+  }
+  const normalized = rawValue.trim();
+  if (!DAMAGE_TYPE_SET.has(normalized)) {
+    throw badRequest(`Expected 'damage_type' to be one of: ${DAMAGE_TYPES.join(", ")}.`);
+  }
+  return normalized;
+}
+
+function normalizeMetadataScaling(rawValue) {
+  if (typeof rawValue !== "string") {
+    throw badRequest("Expected 'scaling' to be a string.");
+  }
+  const normalized = rawValue.trim();
+  if (!SCALING_SET.has(normalized)) {
+    throw badRequest(`Expected 'scaling' to be one of: ${SCALING_VALUES.join(", ")}.`);
+  }
+  return normalized;
 }
 
 export function createChampionsRouter({
@@ -125,6 +162,42 @@ export function createChampionsRouter({
       team_id: null,
       tag_ids: tagIds
     });
+  });
+
+  router.put("/champions/:id/metadata", requireAuth, async (request, response) => {
+    const championId = parsePositiveInteger(request.params.id, "id");
+    const body = requireObject(request.body);
+    const userId = request.user.userId;
+
+    const roles = normalizeMetadataRoles(body.roles);
+    const damageType = normalizeMetadataDamageType(body.damage_type ?? body.damageType);
+    const scaling = normalizeMetadataScaling(body.scaling);
+
+    const championExists = await championsRepository.championExists(championId);
+    if (!championExists) {
+      throw notFound("Champion not found.");
+    }
+
+    await assertScopeWriteAuthorization({
+      scope: "all",
+      userId,
+      teamId: null,
+      teamsRepository,
+      usersRepository,
+      teamWriteMessage: "You must be on the selected team to edit team champion metadata.",
+      teamLeadMessage: "Only team leads can edit team champion metadata.",
+      globalWriteMessage: "Only admins can edit global champion metadata."
+    });
+
+    const champion = await championsRepository.updateChampionMetadata(championId, {
+      roles,
+      damageType,
+      scaling
+    });
+    if (!champion) {
+      throw notFound("Champion not found.");
+    }
+    response.json({ champion });
   });
 
   router.post("/champions/:id/tags/promotion-requests", requireAuth, async (request, response) => {
