@@ -48,6 +48,18 @@ export function createUsersRepository(pool) {
       return result.rows[0] ?? null;
     },
 
+    async findTeamContextById(userId) {
+      const result = await pool.query(
+        `
+          SELECT id, default_team_id, active_team_id
+          FROM users
+          WHERE id = $1
+        `,
+        [userId]
+      );
+      return result.rows[0] ?? null;
+    },
+
     async updateProfileRoles(userId, { primaryRole, secondaryRoles }) {
       const result = await pool.query(
         `
@@ -58,6 +70,20 @@ export function createUsersRepository(pool) {
           RETURNING id, email, game_name, tagline, primary_role, secondary_roles, created_at
         `,
         [userId, primaryRole, secondaryRoles]
+      );
+      return result.rows[0] ?? null;
+    },
+
+    async updateTeamContext(userId, { defaultTeamId, activeTeamId }) {
+      const result = await pool.query(
+        `
+          UPDATE users
+          SET default_team_id = $2,
+              active_team_id = $3
+          WHERE id = $1
+          RETURNING id, default_team_id, active_team_id
+        `,
+        [userId, defaultTeamId, activeTeamId]
       );
       return result.rows[0] ?? null;
     }

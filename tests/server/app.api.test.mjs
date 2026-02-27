@@ -5,6 +5,14 @@ import { createApp } from "../../server/app.js";
 import { signAccessToken } from "../../server/auth/tokens.js";
 
 function createMockContext() {
+  function makeLogoDataUrl(logoBlob, logoMimeType) {
+    if (!logoBlob || typeof logoMimeType !== "string" || logoMimeType.trim() === "") {
+      return null;
+    }
+    const asBuffer = Buffer.isBuffer(logoBlob) ? logoBlob : Buffer.from(logoBlob);
+    return `data:${logoMimeType};base64,${asBuffer.toString("base64")}`;
+  }
+
   const state = {
     users: [
       {
@@ -15,6 +23,8 @@ function createMockContext() {
         tagline: "NA1",
         primary_role: "Mid",
         secondary_roles: ["Top"],
+        default_team_id: null,
+        active_team_id: null,
         created_at: "2026-01-01T00:00:00.000Z"
       },
       {
@@ -25,6 +35,8 @@ function createMockContext() {
         tagline: "NA1",
         primary_role: "Support",
         secondary_roles: ["ADC"],
+        default_team_id: null,
+        active_team_id: null,
         created_at: "2026-01-01T00:00:00.000Z"
       },
       {
@@ -35,6 +47,8 @@ function createMockContext() {
         tagline: "NA1",
         primary_role: "Top",
         secondary_roles: [],
+        default_team_id: null,
+        active_team_id: null,
         created_at: "2026-01-01T00:00:00.000Z"
       }
     ],
@@ -71,7 +85,7 @@ function createMockContext() {
         id: 1,
         name: "Team Alpha",
         tag: "ALPHA",
-        logo_url: "https://example.com/alpha.png",
+        logo_data_url: makeLogoDataUrl(Buffer.from("alpha-logo"), "image/png"),
         created_by: 1,
         created_at: "2026-01-01T00:00:00.000Z"
       }
@@ -103,6 +117,8 @@ function createMockContext() {
         tagline,
         primary_role: "Mid",
         secondary_roles: [],
+        default_team_id: null,
+        active_team_id: null,
         created_at: "2026-01-01T00:00:00.000Z"
       };
       nextUserId += 1;
@@ -138,6 +154,32 @@ function createMockContext() {
       user.primary_role = primaryRole;
       user.secondary_roles = [...secondaryRoles];
       return user;
+    },
+
+    async findTeamContextById(userId) {
+      const user = state.users.find((candidate) => candidate.id === userId) ?? null;
+      if (!user) {
+        return null;
+      }
+      return {
+        id: user.id,
+        default_team_id: user.default_team_id ?? null,
+        active_team_id: user.active_team_id ?? null
+      };
+    },
+
+    async updateTeamContext(userId, { defaultTeamId, activeTeamId }) {
+      const user = state.users.find((candidate) => candidate.id === userId) ?? null;
+      if (!user) {
+        return null;
+      }
+      user.default_team_id = defaultTeamId;
+      user.active_team_id = activeTeamId;
+      return {
+        id: user.id,
+        default_team_id: user.default_team_id,
+        active_team_id: user.active_team_id
+      };
     }
   };
 
@@ -222,12 +264,12 @@ function createMockContext() {
     async teamExists(teamId) {
       return state.teams.some((team) => team.id === teamId);
     },
-    async createTeam({ name, tag, logoUrl, creatorUserId }) {
+    async createTeam({ name, tag, logoBlob, logoMimeType, creatorUserId }) {
       const team = {
         id: nextTeamId,
         name,
         tag,
-        logo_url: logoUrl,
+        logo_data_url: makeLogoDataUrl(logoBlob, logoMimeType),
         created_by: creatorUserId,
         created_at: "2026-01-01T00:00:00.000Z"
       };
@@ -275,14 +317,18 @@ function createMockContext() {
     async countLeads(teamId) {
       return state.teamMembers.filter((candidate) => candidate.team_id === teamId && candidate.role === "lead").length;
     },
-    async updateTeam(teamId, { name, tag, logoUrl }) {
+    async updateTeam(teamId, { name, tag, logoBlob, logoMimeType, removeLogo }) {
       const team = state.teams.find((candidate) => candidate.id === teamId) ?? null;
       if (!team) {
         return null;
       }
       team.name = name;
       team.tag = tag;
-      team.logo_url = logoUrl;
+      if (removeLogo) {
+        team.logo_data_url = null;
+      } else if (logoBlob) {
+        team.logo_data_url = makeLogoDataUrl(logoBlob, logoMimeType);
+      }
       return team;
     },
     async deleteTeam(teamId) {
@@ -509,6 +555,48 @@ describe("API routes", () => {
     expect(updateResponse.body.profile.secondaryRoles).toEqual(["Mid", "ADC"]);
   });
 
+  it("reads and updates team-context preferences with membership validation", async () => {
+    const { app, config, state } = createMockContext();
+    const leadAuth = buildAuthHeader(1, config);
+
+    const initial = await request(app).get("/me/team-context").set("Authorization", leadAuth);
+    expect(initial.status).toBe(200);
+    expect(initial.body.teamContext).toEqual({
+      defaultTeamId: null,
+      activeTeamId: null
+    });
+
+    const updated = await request(app)
+      .put("/me/team-context")
+      .set("Authorization", leadAuth)
+      .send({ defaultTeamId: 1, activeTeamId: 1 });
+    expect(updated.status).toBe(200);
+    expect(updated.body.teamContext).toEqual({
+      defaultTeamId: 1,
+      activeTeamId: 1
+    });
+
+    const invalidMembership = await request(app)
+      .put("/me/team-context")
+      .set("Authorization", leadAuth)
+      .send({ defaultTeamId: 999, activeTeamId: 1 });
+    expect(invalidMembership.status).toBe(400);
+    expect(invalidMembership.body.error.code).toBe("BAD_REQUEST");
+
+    const leadUser = state.users.find((candidate) => candidate.id === 1);
+    leadUser.default_team_id = 999;
+    leadUser.active_team_id = 1;
+
+    const normalized = await request(app).get("/me/team-context").set("Authorization", leadAuth);
+    expect(normalized.status).toBe(200);
+    expect(normalized.body.teamContext).toEqual({
+      defaultTeamId: null,
+      activeTeamId: 1
+    });
+    expect(leadUser.default_team_id).toBe(null);
+    expect(leadUser.active_team_id).toBe(1);
+  });
+
   it("sets CORS headers and handles preflight requests", async () => {
     const { app } = createMockContext();
 
@@ -602,6 +690,75 @@ describe("API routes", () => {
     expect(removeMissing.body.pool.champion_ids).toEqual([2]);
   });
 
+  it("supports JSON and multipart team logo contracts", async () => {
+    const { app, config } = createMockContext();
+    const leadAuth = buildAuthHeader(1, config);
+
+    const jsonCreate = await request(app)
+      .post("/teams")
+      .set("Authorization", leadAuth)
+      .send({ name: "Team Json", tag: "json" });
+    expect(jsonCreate.status).toBe(201);
+    expect(jsonCreate.body.team.name).toBe("Team Json");
+    expect(jsonCreate.body.team.tag).toBe("JSON");
+    expect(jsonCreate.body.team.logo_data_url).toBe(null);
+
+    const multipartCreate = await request(app)
+      .post("/teams")
+      .set("Authorization", leadAuth)
+      .field("name", "Team Upload")
+      .field("tag", "upl")
+      .attach("logo", Buffer.from("fake-png"), { filename: "logo.png", contentType: "image/png" });
+    expect(multipartCreate.status).toBe(201);
+    expect(multipartCreate.body.team.tag).toBe("UPL");
+    expect(multipartCreate.body.team.logo_data_url).toContain("data:image/png;base64,");
+
+    const invalidType = await request(app)
+      .post("/teams")
+      .set("Authorization", leadAuth)
+      .field("name", "Bad Mime")
+      .field("tag", "bad")
+      .attach("logo", Buffer.from("not-image"), { filename: "logo.txt", contentType: "text/plain" });
+    expect(invalidType.status).toBe(400);
+    expect(invalidType.body.error.code).toBe("BAD_REQUEST");
+
+    const tooLarge = await request(app)
+      .post("/teams")
+      .set("Authorization", leadAuth)
+      .field("name", "Too Large")
+      .field("tag", "large")
+      .attach("logo", Buffer.alloc(512 * 1024 + 1, 7), { filename: "logo.png", contentType: "image/png" });
+    expect(tooLarge.status).toBe(400);
+    expect(tooLarge.body.error.message).toContain("512KB");
+
+    const uploadUpdate = await request(app)
+      .patch(`/teams/${jsonCreate.body.team.id}`)
+      .set("Authorization", leadAuth)
+      .field("name", "Team Json Updated")
+      .field("tag", "jsn")
+      .attach("logo", Buffer.from("fake-webp"), { filename: "logo.webp", contentType: "image/webp" });
+    expect(uploadUpdate.status).toBe(200);
+    expect(uploadUpdate.body.team.tag).toBe("JSN");
+    expect(uploadUpdate.body.team.logo_data_url).toContain("data:image/webp;base64,");
+
+    const removeLogo = await request(app)
+      .patch(`/teams/${jsonCreate.body.team.id}`)
+      .set("Authorization", leadAuth)
+      .send({ name: "Team Json Updated", tag: "jsn", remove_logo: true });
+    expect(removeLogo.status).toBe(200);
+    expect(removeLogo.body.team.logo_data_url).toBe(null);
+
+    const conflictUpdate = await request(app)
+      .patch(`/teams/${multipartCreate.body.team.id}`)
+      .set("Authorization", leadAuth)
+      .field("name", "Team Upload")
+      .field("tag", "upl")
+      .field("remove_logo", "true")
+      .attach("logo", Buffer.from("conflict"), { filename: "logo.png", contentType: "image/png" });
+    expect(conflictUpdate.status).toBe(400);
+    expect(conflictUpdate.body.error.code).toBe("BAD_REQUEST");
+  });
+
   it("enforces team lead authorization and lead invariants", async () => {
     const { app, config } = createMockContext();
     const leadAuth = buildAuthHeader(1, config);
@@ -611,7 +768,7 @@ describe("API routes", () => {
     const memberDeniedPatch = await request(app)
       .patch("/teams/1")
       .set("Authorization", memberAuth)
-      .send({ name: "Nope", tag: "NOPE", logo_url: "https://example.com/nope.png" });
+      .send({ name: "Nope", tag: "NOPE" });
     expect(memberDeniedPatch.status).toBe(403);
 
     const addOutsider = await request(app)

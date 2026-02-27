@@ -1,10 +1,19 @@
 import { Router } from "express";
+import multer from "multer";
 
 import { badRequest, conflict, forbidden, notFound } from "../errors.js";
 import { parsePositiveInteger, requireNonEmptyString, requireObject } from "../http/validation.js";
 
 const ALLOWED_MEMBER_ROLES = new Set(["lead", "member"]);
 const ALLOWED_TEAM_ROLES = new Set(["primary", "substitute"]);
+const ALLOWED_LOGO_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+const MAX_LOGO_BYTES = 512 * 1024;
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: MAX_LOGO_BYTES
+  }
+});
 
 function requireTeamTag(value) {
   const normalized = requireNonEmptyString(value, "tag").toUpperCase();
@@ -14,18 +23,110 @@ function requireTeamTag(value) {
   return normalized;
 }
 
-function requireTeamLogoUrl(value) {
-  const candidate = requireNonEmptyString(value, "logo_url");
-  let parsed = null;
-  try {
-    parsed = new URL(candidate);
-  } catch {
-    throw badRequest("Expected 'logo_url' to be a valid http(s) URL.");
+function parseRemoveLogo(value, { required = false } = {}) {
+  if (value === undefined || value === null || value === "") {
+    if (required) {
+      throw badRequest("Expected 'remove_logo' to be a boolean.");
+    }
+    return false;
   }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw badRequest("Expected 'logo_url' to be a valid http(s) URL.");
+
+  if (typeof value === "boolean") {
+    return value;
   }
-  return candidate;
+
+  if (typeof value !== "string") {
+    throw badRequest("Expected 'remove_logo' to be a boolean.");
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1") {
+    return true;
+  }
+  if (normalized === "false" || normalized === "0") {
+    return false;
+  }
+  throw badRequest("Expected 'remove_logo' to be a boolean.");
+}
+
+function parseTeamLogo(file) {
+  if (!file) {
+    return {
+      logoBlob: null,
+      logoMimeType: null
+    };
+  }
+
+  if (!ALLOWED_LOGO_MIME_TYPES.has(file.mimetype)) {
+    throw badRequest("Expected 'logo' content-type to be image/png, image/jpeg, or image/webp.");
+  }
+
+  if (!Buffer.isBuffer(file.buffer) || file.buffer.length < 1) {
+    throw badRequest("Expected 'logo' to be a non-empty file.");
+  }
+
+  return {
+    logoBlob: file.buffer,
+    logoMimeType: file.mimetype
+  };
+}
+
+function isMultipartRequest(request) {
+  const contentType = request.headers["content-type"];
+  if (typeof contentType !== "string") {
+    return false;
+  }
+  return contentType.toLowerCase().startsWith("multipart/form-data");
+}
+
+function maybeParseMultipart(request, response, next) {
+  if (!isMultipartRequest(request)) {
+    next();
+    return;
+  }
+
+  upload.single("logo")(request, response, (error) => {
+    if (!error) {
+      next();
+      return;
+    }
+
+    if (error.code === "LIMIT_FILE_SIZE") {
+      next(badRequest("Expected 'logo' to be 512KB or smaller."));
+      return;
+    }
+
+    if (error.code === "LIMIT_UNEXPECTED_FILE") {
+      next(badRequest("Expected multipart field 'logo' for team logo upload."));
+      return;
+    }
+
+    next(badRequest("Invalid multipart payload."));
+  });
+}
+
+function requireTeamMutationInput(request, { allowRemoveLogo }) {
+  const body = requireObject(request.body);
+  const name = requireNonEmptyString(body.name, "name");
+  const tag = requireTeamTag(body.tag);
+  const removeLogo = allowRemoveLogo ? parseRemoveLogo(body.remove_logo) : false;
+  const { logoBlob, logoMimeType } = parseTeamLogo(request.file);
+
+  if (!allowRemoveLogo && body.remove_logo !== undefined) {
+    throw badRequest("Expected 'remove_logo' to be omitted for team creation.");
+  }
+
+  if (removeLogo && logoBlob) {
+    throw badRequest("Expected either a 'logo' upload or 'remove_logo=true', but not both.");
+  }
+
+  return {
+    name,
+    tag,
+    logoBlob,
+    logoMimeType,
+    removeLogo
+  };
 }
 
 function parseMemberRole(rawRole, fieldName = "role", fallback = "member") {
@@ -65,7 +166,7 @@ function serializeTeam(team) {
     id: Number(team.id),
     name: team.name,
     tag: team.tag,
-    logo_url: team.logo_url,
+    logo_data_url: team.logo_data_url ?? null,
     created_by: Number(team.created_by),
     membership_role: team.membership_role,
     membership_team_role: team.membership_team_role,
@@ -142,17 +243,17 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
 
   router.use("/teams", requireAuth);
 
-  router.post("/teams", async (request, response) => {
+  router.post("/teams", maybeParseMultipart, async (request, response) => {
     const userId = request.user.userId;
-    const body = requireObject(request.body);
-    const name = requireNonEmptyString(body.name, "name");
-    const tag = requireTeamTag(body.tag);
-    const logoUrl = requireTeamLogoUrl(body.logo_url);
+    const { name, tag, logoBlob, logoMimeType } = requireTeamMutationInput(request, {
+      allowRemoveLogo: false
+    });
 
     const team = await teamsRepository.createTeam({
       name,
       tag,
-      logoUrl,
+      logoBlob,
+      logoMimeType,
       creatorUserId: userId
     });
 
@@ -171,16 +272,21 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
     });
   });
 
-  router.patch("/teams/:id", async (request, response) => {
+  router.patch("/teams/:id", maybeParseMultipart, async (request, response) => {
     const userId = request.user.userId;
     const teamId = parsePositiveInteger(request.params.id, "id");
-    const body = requireObject(request.body);
-    const name = requireNonEmptyString(body.name, "name");
-    const tag = requireTeamTag(body.tag);
-    const logoUrl = requireTeamLogoUrl(body.logo_url);
+    const { name, tag, logoBlob, logoMimeType, removeLogo } = requireTeamMutationInput(request, {
+      allowRemoveLogo: true
+    });
 
     await requireTeamLead(teamId, userId, teamsRepository);
-    const updated = await teamsRepository.updateTeam(teamId, { name, tag, logoUrl });
+    const updated = await teamsRepository.updateTeam(teamId, {
+      name,
+      tag,
+      logoBlob,
+      logoMimeType,
+      removeLogo
+    });
     if (!updated) {
       throw notFound("Team not found.");
     }

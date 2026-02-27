@@ -71,6 +71,7 @@ export function createApp({
     "/",
     createProfileRouter({
       usersRepository,
+      teamsRepository,
       requireAuth
     })
   );

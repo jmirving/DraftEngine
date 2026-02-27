@@ -329,6 +329,44 @@ h3 {
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
 }
 
+.team-context-stack {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.team-context-panel {
+  animation: fade-in 180ms ease;
+}
+
+.team-admin-workspace {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.team-admin-block {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fffefa;
+  box-shadow: inset 0 3px 0 rgba(204, 91, 52, 0.2);
+  padding: 0.6rem;
+}
+
+.team-admin-block h3 {
+  margin: 0 0 0.4rem 0;
+}
+
+.team-admin-readonly-note {
+  border: 1px solid #e9ccb9;
+  border-left: 4px solid #cf6c45;
+  border-radius: 10px;
+  background: #fff5ef;
+  padding: 0.5rem 0.6rem;
+}
+
+.team-admin-members-list {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
 .player-team-controls {
   grid-template-columns: minmax(220px, 360px);
 }
