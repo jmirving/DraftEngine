@@ -1224,6 +1224,53 @@ describe("auth + pools + team management", () => {
     expect(secondDoc.querySelector("#team-config-active-team").value).toBe("1");
   });
 
+  test("team-context default team persists through API payloads", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const harness = createFetchHarness({
+      pools: [],
+      teams: [
+        {
+          id: 1,
+          name: "Team Alpha",
+          tag: "ALPHA",
+          logo_data_url: "data:image/png;base64,bW9jazE=",
+          created_by: 11,
+          membership_role: "lead",
+          membership_team_role: "primary",
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      membersByTeam: {
+        "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "lead@example.com" }]
+      },
+      teamContext: {
+        defaultTeamId: null,
+        activeTeamId: null
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    await flush();
+    doc.querySelector("#team-config-default-team").value = "1";
+    doc.querySelector("#team-config-default-team").dispatchEvent(
+      new dom.window.Event("change", { bubbles: true })
+    );
+    await flush();
+    await flush();
+
+    const saveCall = harness.calls.find((call) => call.path === "/me/team-context" && call.method === "PUT");
+    expect(saveCall).toBeTruthy();
+    expect(saveCall.body.defaultTeamId).toBe(1);
+    expect(saveCall.body.activeTeamId).toBe(null);
+  });
+
   test("selected team shows signed-in user name on their primary role slot label", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({

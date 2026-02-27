@@ -142,7 +142,7 @@ const UI_COPY = Object.freeze({
     explorerTitle: "Champions",
     explorerMeta: "Filter champions by role, damage profile, scaling, and tags.",
     teamConfigTitle: "Teams",
-    teamConfigMeta: "Set active team context and manage team memberships.",
+    teamConfigMeta: "Set default and active team context, then manage team memberships.",
     playerConfigTitle: "Profile",
     playerConfigMeta: "Manage your roles, champion pools, and teams.",
     comingSoonTitle: "Coming Soon",
@@ -172,6 +172,7 @@ const COMPACT_NAV_MEDIA_QUERY = "(max-width: 1099px)";
 const DEFAULT_TAB_ROUTE = "workflow";
 const TAB_ROUTES = Object.freeze(["workflow", "team-config", "player-config", "explorer", "coming-soon"]);
 const TAB_ROUTE_SET = new Set(TAB_ROUTES);
+const LANE_ORDER = Object.freeze(["Top", "Jungle", "Mid", "ADC", "Support"]);
 
 let runtimeWindow = null;
 let runtimeDocument = null;
@@ -244,6 +245,7 @@ function createInitialState() {
       sortBy: "alpha-asc"
     },
     teamConfig: {
+      defaultTeamId: null,
       activeTeamId: null
     },
     playerConfig: {
@@ -386,6 +388,8 @@ function createElements() {
     treeExpandAll: runtimeDocument.querySelector("#tree-expand-all"),
     treeCollapseAll: runtimeDocument.querySelector("#tree-collapse-all"),
     teamConfigActiveTeam: runtimeDocument.querySelector("#team-config-active-team"),
+    teamConfigDefaultTeam: runtimeDocument.querySelector("#team-config-default-team"),
+    teamConfigDefaultHelp: runtimeDocument.querySelector("#team-config-default-help"),
     teamConfigActiveHelp: runtimeDocument.querySelector("#team-config-active-help"),
     teamConfigPoolSummary: runtimeDocument.querySelector("#team-config-pool-summary"),
     teamConfigPoolGrid: runtimeDocument.querySelector("#team-config-pool-grid"),
@@ -754,6 +758,43 @@ function formatMembershipRole(role) {
 
 function formatRosterRole(teamRole) {
   return teamRole === "substitute" ? "Substitute" : "Primary";
+}
+
+function formatPositionLabel(position) {
+  return SLOTS.includes(position) ? position : "Unassigned";
+}
+
+function resolveMemberDisplayName(member) {
+  if (typeof member?.display_name === "string" && member.display_name.trim() !== "") {
+    return member.display_name.trim();
+  }
+  if (typeof member?.game_name === "string" && member.game_name.trim() !== "") {
+    if (typeof member?.tagline === "string" && member.tagline.trim() !== "") {
+      return `${member.game_name.trim()}#${member.tagline.trim()}`;
+    }
+    return member.game_name.trim();
+  }
+  if (typeof member?.email === "string" && member.email.trim() !== "") {
+    return member.email.trim();
+  }
+  const memberId = Number.parseInt(String(member?.user_id ?? ""), 10);
+  return Number.isInteger(memberId) ? `User ${memberId}` : "Unknown Player";
+}
+
+function resolveMemberLane(member) {
+  const fromPosition = typeof member?.position === "string" ? member.position : null;
+  if (SLOTS.includes(fromPosition)) {
+    return fromPosition;
+  }
+  const fromLane = typeof member?.lane === "string" ? member.lane : null;
+  if (SLOTS.includes(fromLane)) {
+    return fromLane;
+  }
+  const fromPrimaryRole = typeof member?.primary_role === "string" ? member.primary_role : null;
+  if (SLOTS.includes(fromPrimaryRole)) {
+    return fromPrimaryRole;
+  }
+  return null;
 }
 
 function isPlayerPoolDirty(teamId) {
@@ -2380,13 +2421,16 @@ async function loadTeamsFromApi(preferredTeamId = null) {
 
 async function loadTeamContextFromApi() {
   if (!isAuthenticated()) {
+    state.teamConfig.defaultTeamId = NONE_TEAM_ID;
     state.teamConfig.activeTeamId = NONE_TEAM_ID;
     return false;
   }
 
   try {
     const payload = await apiRequest("/me/team-context", { auth: true });
+    const apiDefaultTeamId = normalizeTeamEntityId(payload?.teamContext?.defaultTeamId);
     const apiActiveTeamId = normalizeTeamEntityId(payload?.teamContext?.activeTeamId);
+    state.teamConfig.defaultTeamId = apiDefaultTeamId ?? NONE_TEAM_ID;
     state.teamConfig.activeTeamId = apiActiveTeamId ?? NONE_TEAM_ID;
     return true;
   } catch (error) {
@@ -2401,16 +2445,19 @@ async function saveTeamContextToApi() {
   }
 
   try {
+    const defaultTeamId = toApiTeamContextId(state.teamConfig.defaultTeamId);
     const activeTeamId = toApiTeamContextId(state.teamConfig.activeTeamId);
     const payload = await apiRequest("/me/team-context", {
       method: "PUT",
       auth: true,
       body: {
-        defaultTeamId: null,
+        defaultTeamId,
         activeTeamId
       }
     });
+    const persistedDefaultTeamId = normalizeTeamEntityId(payload?.teamContext?.defaultTeamId);
     const persistedActiveTeamId = normalizeTeamEntityId(payload?.teamContext?.activeTeamId);
+    state.teamConfig.defaultTeamId = persistedDefaultTeamId ?? NONE_TEAM_ID;
     state.teamConfig.activeTeamId = persistedActiveTeamId ?? NONE_TEAM_ID;
     return true;
   } catch (error) {
@@ -2671,6 +2718,7 @@ function resolveConfiguredTeamSelection(teamId) {
 }
 
 function syncConfiguredTeamSelection() {
+  state.teamConfig.defaultTeamId = resolveConfiguredTeamSelection(state.teamConfig.defaultTeamId);
   state.teamConfig.activeTeamId = resolveConfiguredTeamSelection(state.teamConfig.activeTeamId);
   state.builder.teamId = state.teamConfig.activeTeamId;
 }
@@ -2694,8 +2742,10 @@ function getPoolsForTeam(teamId) {
 }
 
 function initializeBuilderControls() {
-  const candidateActiveTeamId = state.teamConfig.activeTeamId ?? state.data.config.teamDefault ?? null;
+  const candidateActiveTeamId =
+    state.teamConfig.activeTeamId ?? state.teamConfig.defaultTeamId ?? state.data.config.teamDefault ?? null;
   state.teamConfig.activeTeamId = resolveConfiguredTeamSelection(candidateActiveTeamId);
+  state.teamConfig.defaultTeamId = resolveConfiguredTeamSelection(state.teamConfig.defaultTeamId);
   state.builder.teamId = state.teamConfig.activeTeamId;
   state.builder.showOptionalChecks = BUILDER_DEFAULTS.showOptionalChecksByDefault;
   state.builder.treeDensity = BUILDER_DEFAULTS.defaultTreeDensity;
@@ -2798,11 +2848,22 @@ function setTeamManageAction(action) {
 
 function renderTeamConfig() {
   syncConfiguredTeamSelection();
+  elements.teamConfigDefaultTeam.value = state.teamConfig.defaultTeamId;
   elements.teamConfigActiveTeam.value = state.teamConfig.activeTeamId;
 
+  elements.teamConfigDefaultHelp.textContent = state.teamConfig.defaultTeamId === NONE_TEAM_ID
+    ? "Default team: None (new sessions start in global context)."
+    : `Default team: ${getTeamDisplayLabel(state.teamConfig.defaultTeamId)}.`;
+
+  const activeTeam = findTeamById(state.teamConfig.activeTeamId);
+  const activeMembershipLane = activeTeam?.membership_lane ?? null;
+  const activeTeamSuffix =
+    activeMembershipLane && SLOTS.includes(activeMembershipLane)
+      ? ` Your position: ${activeMembershipLane}.`
+      : "";
   elements.teamConfigActiveHelp.textContent = state.teamConfig.activeTeamId === NONE_TEAM_ID
     ? "Active team: None (global context)."
-    : `Active team: ${getTeamDisplayLabel(state.teamConfig.activeTeamId)}.`;
+    : `Active team: ${getTeamDisplayLabel(state.teamConfig.activeTeamId)}.${activeTeamSuffix}`;
 
   const pools = getPoolsForTeam(state.teamConfig.activeTeamId);
   const roleCounts = SLOTS.map((slot) => `${slot}: ${(pools[slot] ?? []).length}`);
@@ -2961,21 +3022,63 @@ function renderTeamAdmin() {
     return;
   }
 
+  if (members.length === 0) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "No members on this team yet.";
+    elements.teamAdminMembers.append(empty);
+    return;
+  }
+
+  const groupedMembers = new Map();
   for (const member of members) {
-    const card = runtimeDocument.createElement("article");
-    card.className = "summary-card";
-    const title = runtimeDocument.createElement("strong");
-    title.textContent = member.email ?? `User ${member.user_id}`;
-    const details = runtimeDocument.createElement("p");
-    details.className = "meta";
-    details.textContent = `user_id=${member.user_id} | role=${member.role} | team_role=${member.team_role ?? "primary"}`;
-    card.append(title, details);
-    elements.teamAdminMembers.append(card);
+    const lane = resolveMemberLane(member) ?? "Unassigned";
+    const bucket = groupedMembers.get(lane) ?? [];
+    bucket.push(member);
+    groupedMembers.set(lane, bucket);
+  }
+
+  const laneOrder = [...LANE_ORDER, "Unassigned"];
+  for (const lane of laneOrder) {
+    const laneMembers = groupedMembers.get(lane) ?? [];
+    if (laneMembers.length === 0) {
+      continue;
+    }
+
+    laneMembers.sort((left, right) => {
+      const leftLead = left?.role === "lead" ? 0 : 1;
+      const rightLead = right?.role === "lead" ? 0 : 1;
+      if (leftLead !== rightLead) {
+        return leftLead - rightLead;
+      }
+      return resolveMemberDisplayName(left).localeCompare(resolveMemberDisplayName(right));
+    });
+
+    const laneHeading = runtimeDocument.createElement("p");
+    laneHeading.className = "panel-kicker";
+    laneHeading.textContent = lane;
+    elements.teamAdminMembers.append(laneHeading);
+
+    for (const member of laneMembers) {
+      const card = runtimeDocument.createElement("article");
+      card.className = "summary-card";
+
+      const title = runtimeDocument.createElement("strong");
+      title.textContent = resolveMemberDisplayName(member);
+
+      const details = runtimeDocument.createElement("p");
+      details.className = "meta";
+      details.textContent = `Position: ${formatPositionLabel(resolveMemberLane(member))} | ${formatMembershipRole(member.role)} | ${formatRosterRole(member.team_role ?? "primary")}`;
+
+      card.append(title, details);
+      elements.teamAdminMembers.append(card);
+    }
   }
 }
 
 function initializeTeamConfigControls() {
   const options = getTeamSelectOptions();
+  replaceOptions(elements.teamConfigDefaultTeam, options);
   replaceOptions(elements.teamConfigActiveTeam, options);
   syncConfiguredTeamSelection();
   renderTeamConfig();
@@ -3178,7 +3281,8 @@ function renderSettingsTeamList(target, teams, emptyMessage) {
 
     const details = runtimeDocument.createElement("p");
     details.className = "meta settings-team-card-meta";
-    details.textContent = `Role: ${formatMembershipRole(team.membership_role)} | Roster: ${formatRosterRole(team.membership_team_role)}`;
+    const lane = formatPositionLabel(team.membership_lane);
+    details.textContent = `Role: ${formatMembershipRole(team.membership_role)} | Roster: ${formatRosterRole(team.membership_team_role)} | Position: ${lane}`;
 
     card.append(title, details);
     target.append(card);
@@ -3428,21 +3532,29 @@ function tryWriteJsonStorage(key, value) {
 
 function loadStoredTeamConfig() {
   const stored = tryReadJsonStorage(TEAM_CONFIG_STORAGE_KEY, {});
+  if (stored.defaultTeamId === NONE_TEAM_ID) {
+    state.teamConfig.defaultTeamId = NONE_TEAM_ID;
+  } else {
+    const defaultTeamId = normalizeTeamEntityId(stored.defaultTeamId);
+    state.teamConfig.defaultTeamId = defaultTeamId ?? NONE_TEAM_ID;
+  }
+
   if (stored.activeTeamId === NONE_TEAM_ID) {
     state.teamConfig.activeTeamId = NONE_TEAM_ID;
     return;
   }
+
   const activeTeamId = normalizeTeamEntityId(stored.activeTeamId);
   if (activeTeamId) {
     state.teamConfig.activeTeamId = activeTeamId;
     return;
   }
-  const defaultTeamId = normalizeTeamEntityId(stored.defaultTeamId);
-  state.teamConfig.activeTeamId = defaultTeamId ?? NONE_TEAM_ID;
+  state.teamConfig.activeTeamId = state.teamConfig.defaultTeamId ?? NONE_TEAM_ID;
 }
 
 function saveTeamConfig() {
   tryWriteJsonStorage(TEAM_CONFIG_STORAGE_KEY, {
+    defaultTeamId: state.teamConfig.defaultTeamId,
     activeTeamId: state.teamConfig.activeTeamId
   });
 }
@@ -5257,6 +5369,18 @@ function attachEvents() {
 
   elements.treeCollapseAll.addEventListener("click", () => {
     setAllTreeDetails(false);
+  });
+
+  elements.teamConfigDefaultTeam.addEventListener("change", () => {
+    state.teamConfig.defaultTeamId = resolveConfiguredTeamSelection(elements.teamConfigDefaultTeam.value);
+    saveTeamConfig();
+    renderTeamConfig();
+    if (isAuthenticated()) {
+      void saveTeamContextToApi().then(() => {
+        saveTeamConfig();
+        renderTeamConfig();
+      });
+    }
   });
 
   elements.teamConfigActiveTeam.addEventListener("change", () => {

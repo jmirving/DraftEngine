@@ -363,13 +363,18 @@
               <div class="panel draft-board-panel team-context-panel">
                 <p class="panel-kicker">Draft Context</p>
                 <h2 id="team-config-title">Teams</h2>
-                <p id="team-config-meta" class="meta">Set the active team context for composition workflow.</p>
+                <p id="team-config-meta" class="meta">Set default and active team context for composition workflow.</p>
                 <div class="team-context-controls">
+                  <label>
+                    Default Team
+                    <select id="team-config-default-team"></select>
+                  </label>
                   <label>
                     Active Team
                     <select id="team-config-active-team"></select>
                   </label>
                 </div>
+                <p id="team-config-default-help" class="meta"></p>
                 <p id="team-config-active-help" class="meta"></p>
               </div>
               <div class="panel draft-board-panel team-context-panel">
@@ -654,11 +659,10 @@
             <div class="panel draft-board-panel">
               <h3>Known Issues</h3>
               <ul class="coming-soon-list">
-                <li>Team rosters still show email addresses in some places instead of player names.</li>
-                <li>Team rosters are not consistently grouped by position yet.</li>
                 <li>Champion catalog refresh checks are still manual; automatic release ingestion is not enabled yet.</li>
                 <li>Champion tag edits are not durably isolated from catalog seed refresh yet; restart/seed flows can overwrite editable tags.</li>
                 <li>Required Checks settings (composition tags) do not yet have a dedicated management surface outside Composer.</li>
+                <li>Team join request flows are API-ready, but request/review controls are not exposed in Team Workspace yet.</li>
               </ul>
               <h3>Future Features</h3>
               <ul class="coming-soon-list">
