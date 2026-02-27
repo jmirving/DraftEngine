@@ -1981,7 +1981,16 @@ function getSlotLabel(slot) {
     return slot;
   }
   const selectedTeam = findTeamById(state.builder.teamId);
-  if (!selectedTeam || selectedTeam.membership_team_role !== "primary") {
+  if (!selectedTeam) {
+    return slot;
+  }
+  const userId = Number.parseInt(String(state.auth.user?.id ?? ""), 10);
+  const isPrimaryByTeamSummary = selectedTeam.membership_team_role === "primary";
+  const selectedTeamMembers = state.api.membersByTeamId[String(selectedTeam.id)] ?? [];
+  const isPrimaryByRoster = Number.isInteger(userId) && selectedTeamMembers.some(
+    (member) => Number(member?.user_id) === userId && member?.team_role === "primary"
+  );
+  if (!isPrimaryByTeamSummary && !isPrimaryByRoster) {
     return slot;
   }
   if (slot !== state.profile.primaryRole) {

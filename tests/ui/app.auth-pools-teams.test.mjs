@@ -824,6 +824,51 @@ describe("auth + pools + team management", () => {
     expect(adcSlotLabel.textContent).toContain("ADC");
   });
 
+  test("slot label primary-role name uses roster fallback when team summary omits membership team role", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "adc@example.com", gameName: "ADCMain", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness({
+      profile: {
+        id: 11,
+        email: "adc@example.com",
+        gameName: "ADCMain",
+        tagline: "NA1",
+        primaryRole: "ADC",
+        secondaryRoles: ["Support"]
+      },
+      teams: [
+        {
+          id: 1,
+          name: "Triple Threat",
+          tag: "TTT",
+          logo_data_url: null,
+          created_by: 11,
+          membership_role: "lead",
+          membership_team_role: null,
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      membersByTeam: {
+        "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "adc@example.com" }]
+      },
+      teamContext: {
+        defaultTeamId: null,
+        activeTeamId: 1
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    await flush();
+
+    const adcSlotLabel = doc.querySelector("#slot-label-ADC");
+    expect(adcSlotLabel.textContent).toContain("ADCMain");
+  });
+
   test("profile roles save and champion editing stays scoped to one role", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
