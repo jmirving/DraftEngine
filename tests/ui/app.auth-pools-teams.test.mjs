@@ -79,15 +79,36 @@ function createFetchHarness({
     secondaryRoles: ["Top"]
   };
 
+  function toTeamLogoDataUrl(value) {
+    if (!value) {
+      return null;
+    }
+    if (typeof value === "string") {
+      return value;
+    }
+    const type = typeof value.type === "string" && value.type ? value.type : "image/png";
+    return `data:${type};base64,bW9ja19sb2dv`;
+  }
+
   const impl = async (url, init = {}) => {
     const method = (init.method ?? "GET").toUpperCase();
     const parsedUrl = new URL(url, "http://api.test");
     const path = parsedUrl.pathname;
     const headers = init.headers ?? {};
     const authHeader = headers.Authorization ?? headers.authorization ?? null;
-    const body = typeof init.body === "string" ? JSON.parse(init.body) : undefined;
+    let body = undefined;
+    let isFormData = false;
+    if (typeof init.body === "string") {
+      body = JSON.parse(init.body);
+    } else if (init.body && typeof init.body.entries === "function") {
+      isFormData = true;
+      body = {};
+      for (const [key, value] of init.body.entries()) {
+        body[key] = value;
+      }
+    }
 
-    calls.push({ path, method, headers, body });
+    calls.push({ path, method, headers, body, isFormData });
 
     if (path === "/champions" && method === "GET") {
       const toChampionId = (value) => (championIdsAsStrings ? String(value) : value);
@@ -254,12 +275,12 @@ function createFetchHarness({
     }
 
     if (path === "/teams" && method === "POST") {
-      if (!body.name || !body.tag || !body.logo_url) {
+      if (!body?.name || !body?.tag) {
         return createJsonResponse(
           {
             error: {
               code: "BAD_REQUEST",
-              message: "Expected team name, tag, and logo_url."
+              message: "Expected team name and tag."
             }
           },
           400
@@ -269,7 +290,7 @@ function createFetchHarness({
         id: 99,
         name: body.name,
         tag: body.tag,
-        logo_url: body.logo_url,
+        logo_data_url: toTeamLogoDataUrl(body.logo),
         created_by: 11,
         membership_role: "lead",
         membership_team_role: "primary",
@@ -330,12 +351,14 @@ function createFetchHarness({
     }
 
     if (/^\/teams\/\d+$/.test(path) && method === "PATCH") {
+      const teamId = Number(path.split("/")[2]);
+      const existing = teams.find((team) => team.id === teamId);
       return createJsonResponse({
         team: {
-          id: Number(path.split("/")[2]),
+          id: teamId,
           name: body.name,
           tag: body.tag,
-          logo_url: body.logo_url,
+          logo_data_url: body.remove_logo ? null : (toTeamLogoDataUrl(body.logo) ?? existing?.logo_data_url ?? null),
           membership_role: "lead",
           membership_team_role: "primary"
         }
@@ -554,7 +577,7 @@ describe("auth + pools + team management", () => {
           id: 1,
           name: "Team Alpha",
           tag: "ALPHA",
-          logo_url: "https://example.com/alpha.png",
+          logo_data_url: "data:image/png;base64,bW9jazE=",
           created_by: 11,
           membership_role: "lead",
           membership_team_role: "primary",
@@ -564,7 +587,7 @@ describe("auth + pools + team management", () => {
           id: 2,
           name: "Team Beta",
           tag: "BETA",
-          logo_url: "https://example.com/beta.png",
+          logo_data_url: "data:image/png;base64,bW9jazI=",
           created_by: 33,
           membership_role: "member",
           membership_team_role: "substitute",
@@ -589,7 +612,7 @@ describe("auth + pools + team management", () => {
     expect(memberListText).toContain("Substitute");
   });
 
-  test("creating a team from team context sends name, tag, and logo", async () => {
+  test("creating a team from team context sends name and tag", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -603,7 +626,7 @@ describe("auth + pools + team management", () => {
           id: 1,
           name: "Team Alpha",
           tag: "ALPHA",
-          logo_url: "https://example.com/alpha.png",
+          logo_data_url: "data:image/png;base64,bW9jazE=",
           created_by: 33,
           membership_role: "member",
           membership_team_role: "substitute",
@@ -620,7 +643,6 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
     doc.querySelector("#team-admin-create-name").value = "My New Team";
     doc.querySelector("#team-admin-create-tag").value = "MNT";
-    doc.querySelector("#team-admin-create-logo-url").value = "https://example.com/my-new-team.png";
     doc.querySelector("#team-admin-create").click();
     await flush();
     await flush();
@@ -629,7 +651,7 @@ describe("auth + pools + team management", () => {
     expect(createTeamCall).toBeTruthy();
     expect(createTeamCall.body.name).toBe("My New Team");
     expect(createTeamCall.body.tag).toBe("MNT");
-    expect(createTeamCall.body.logo_url).toBe("https://example.com/my-new-team.png");
+    expect(createTeamCall.body.logo).toBeUndefined();
     expect(doc.querySelector("#team-admin-feedback").textContent).toContain("Created team 'My New Team'.");
   });
 
@@ -805,7 +827,7 @@ describe("auth + pools + team management", () => {
           id: 1,
           name: "Team Alpha",
           tag: "ALPHA",
-          logo_url: "https://example.com/alpha.png",
+          logo_data_url: "data:image/png;base64,bW9jazE=",
           created_by: 11,
           membership_role: "member",
           membership_team_role: "substitute",
@@ -841,7 +863,7 @@ describe("auth + pools + team management", () => {
           id: 1,
           name: "Team Alpha",
           tag: "ALPHA",
-          logo_url: "https://example.com/alpha.png",
+          logo_data_url: "data:image/png;base64,bW9jazE=",
           created_by: 11,
           membership_role: "lead",
           membership_team_role: "primary",

@@ -346,8 +346,8 @@
                       </label>
                     </div>
                     <label>
-                      Team Logo URL
-                      <input id="team-admin-create-logo-url" type="url" placeholder="https://example.com/logo.png" />
+                      Team Logo
+                      <input id="team-admin-create-logo-url" type="file" accept="image/png,image/jpeg,image/webp" />
                     </label>
                     <div class="button-row">
                       <button id="team-admin-create" type="button">Create Team</button>
@@ -375,10 +375,14 @@
                         <input id="team-admin-rename-tag" type="text" maxlength="12" placeholder="TAG" />
                       </label>
                       <label>
-                        Team Logo URL
-                        <input id="team-admin-rename-logo-url" type="url" placeholder="https://example.com/logo.png" />
+                        Team Logo
+                        <input id="team-admin-rename-logo-url" type="file" accept="image/png,image/jpeg,image/webp" />
                       </label>
                     </div>
+                    <label class="inline-checkbox">
+                      <input id="team-admin-rename-remove-logo" type="checkbox" />
+                      Remove existing logo
+                    </label>
                     <div class="button-row">
                       <button id="team-admin-rename" type="button">Update Team</button>
                       <button id="team-admin-delete" class="ghost" type="button">Delete Team</button>

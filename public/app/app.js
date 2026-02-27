@@ -50,6 +50,8 @@ const MEMBER_ROLE_OPTIONS = Object.freeze(["lead", "member"]);
 const DEFAULT_TEAM_MEMBER_TYPE = "substitute";
 const TEAM_MEMBER_TYPE_OPTIONS = Object.freeze(["primary", "substitute"]);
 const DEFAULT_PRIMARY_ROLE = "Mid";
+const ALLOWED_TEAM_LOGO_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+const MAX_TEAM_LOGO_BYTES = 512 * 1024;
 
 const CHAMPION_IMAGE_OVERRIDES = Object.freeze({
   VelKoz: "Velkoz"
@@ -323,6 +325,7 @@ function createElements() {
     teamAdminRenameName: runtimeDocument.querySelector("#team-admin-rename-name"),
     teamAdminRenameTag: runtimeDocument.querySelector("#team-admin-rename-tag"),
     teamAdminRenameLogoUrl: runtimeDocument.querySelector("#team-admin-rename-logo-url"),
+    teamAdminRenameRemoveLogo: runtimeDocument.querySelector("#team-admin-rename-remove-logo"),
     teamAdminRename: runtimeDocument.querySelector("#team-admin-rename"),
     teamAdminDelete: runtimeDocument.querySelector("#team-admin-delete"),
     teamAdminMembers: runtimeDocument.querySelector("#team-admin-members"),
@@ -458,27 +461,97 @@ function normalizeTeamTag(tag) {
   return tag.trim().toUpperCase();
 }
 
-function isHttpUrl(value) {
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
+function readTeamLogoFile(inputElement) {
+  const list = inputElement?.files;
+  if (!list || list.length < 1) {
+    return null;
   }
+  return list[0] ?? null;
+}
+
+function validateTeamLogoFile(file) {
+  if (!file || typeof file !== "object") {
+    return null;
+  }
+  if (!ALLOWED_TEAM_LOGO_MIME_TYPES.has(file.type)) {
+    return "Team logo file must be PNG, JPEG, or WebP.";
+  }
+  if (typeof file.size === "number" && file.size > MAX_TEAM_LOGO_BYTES) {
+    return "Team logo file must be 512KB or smaller.";
+  }
+  return null;
+}
+
+function buildTeamMutationRequest({ name, tag, logoFile, removeLogo = false, allowRemoveLogo = false }) {
+  if (!name) {
+    return {
+      error: "Enter a team name."
+    };
+  }
+
+  if (!tag) {
+    return {
+      error: "Enter a team tag."
+    };
+  }
+
+  if (!allowRemoveLogo && removeLogo) {
+    return {
+      error: "Logo removal is only supported for updates."
+    };
+  }
+
+  if (removeLogo && logoFile) {
+    return {
+      error: "Choose either a new logo file or remove logo, not both."
+    };
+  }
+
+  if (logoFile) {
+    const logoError = validateTeamLogoFile(logoFile);
+    if (logoError) {
+      return {
+        error: logoError
+      };
+    }
+
+    const FormDataCtor = runtimeWindow?.FormData ?? globalThis.FormData;
+    const formData = new FormDataCtor();
+    formData.set("name", name);
+    formData.set("tag", tag);
+    formData.set("logo", logoFile);
+    return {
+      body: formData,
+      isFormData: true
+    };
+  }
+
+  const body = {
+    name,
+    tag
+  };
+  if (allowRemoveLogo && removeLogo) {
+    body.remove_logo = true;
+  }
+  return {
+    body,
+    isFormData: false
+  };
 }
 
 function readTeamCreateFormValues() {
   const name = elements.teamAdminCreateName?.value.trim() ?? "";
   const tag = normalizeTeamTag(elements.teamAdminCreateTag?.value ?? "");
-  const logoUrl = elements.teamAdminCreateLogoUrl?.value.trim() ?? "";
-  return { name, tag, logo_url: logoUrl };
+  const logoFile = readTeamLogoFile(elements.teamAdminCreateLogoUrl);
+  return { name, tag, logoFile };
 }
 
 function readTeamUpdateFormValues() {
   const name = elements.teamAdminRenameName?.value.trim() ?? "";
   const tag = normalizeTeamTag(elements.teamAdminRenameTag?.value ?? "");
-  const logoUrl = elements.teamAdminRenameLogoUrl?.value.trim() ?? "";
-  return { name, tag, logo_url: logoUrl };
+  const logoFile = readTeamLogoFile(elements.teamAdminRenameLogoUrl);
+  const removeLogo = Boolean(elements.teamAdminRenameRemoveLogo?.checked);
+  return { name, tag, logoFile, removeLogo };
 }
 
 function setTeamCreateControlsDisabled(disabled) {
@@ -494,6 +567,9 @@ function setTeamCreateControlsDisabled(disabled) {
   }
   if (elements.teamAdminCreateLogoUrl) {
     elements.teamAdminCreateLogoUrl.disabled = disabled || !isAuthenticated();
+    if (!isAuthenticated() || disabled) {
+      elements.teamAdminCreateLogoUrl.value = "";
+    }
   }
 }
 
@@ -1106,7 +1182,7 @@ async function readApiError(response) {
   }
 }
 
-async function apiRequest(path, { method = "GET", body = undefined, auth = false } = {}) {
+async function apiRequest(path, { method = "GET", body = undefined, auth = false, isFormData = false } = {}) {
   if (!runtimeApiBaseUrl) {
     throw new Error("API base URL is not configured.");
   }
@@ -1114,7 +1190,7 @@ async function apiRequest(path, { method = "GET", body = undefined, auth = false
   const headers = {
     Accept: "application/json"
   };
-  if (body !== undefined) {
+  if (body !== undefined && !isFormData) {
     headers["Content-Type"] = "application/json";
   }
   if (auth && state.auth.token) {
@@ -1124,7 +1200,7 @@ async function apiRequest(path, { method = "GET", body = undefined, auth = false
   const response = await runtimeFetch(resolveApiUrl(path), {
     method,
     headers,
-    body: body === undefined ? undefined : JSON.stringify(body)
+    body: body === undefined ? undefined : (isFormData ? body : JSON.stringify(body))
   });
 
   if (response.status === 204) {
@@ -1612,20 +1688,14 @@ async function createTeamFromTeamAdmin() {
   }
 
   const payload = readTeamCreateFormValues();
-  if (!payload.name) {
-    setTeamAdminFeedback("Enter a team name.");
-    return;
-  }
-  if (!payload.tag) {
-    setTeamAdminFeedback("Enter a team tag.");
-    return;
-  }
-  if (!payload.logo_url) {
-    setTeamAdminFeedback("Enter a team logo URL.");
-    return;
-  }
-  if (!isHttpUrl(payload.logo_url)) {
-    setTeamAdminFeedback("Team logo URL must be a valid http(s) URL.");
+  const requestConfig = buildTeamMutationRequest({
+    name: payload.name,
+    tag: payload.tag,
+    logoFile: payload.logoFile,
+    allowRemoveLogo: false
+  });
+  if (requestConfig.error) {
+    setTeamAdminFeedback(requestConfig.error);
     return;
   }
 
@@ -1634,7 +1704,8 @@ async function createTeamFromTeamAdmin() {
     const response = await apiRequest("/teams", {
       method: "POST",
       auth: true,
-      body: payload
+      body: requestConfig.body,
+      isFormData: requestConfig.isFormData
     });
     const createdTeam = response?.team ?? {};
     if (elements.teamAdminCreateName) {
@@ -1934,11 +2005,17 @@ function renderTeamAdmin() {
   if (selectedTeam) {
     elements.teamAdminRenameName.value = selectedTeam.name;
     elements.teamAdminRenameTag.value = selectedTeam.tag ?? "";
-    elements.teamAdminRenameLogoUrl.value = selectedTeam.logo_url ?? "";
+    elements.teamAdminRenameLogoUrl.value = "";
+    if (elements.teamAdminRenameRemoveLogo) {
+      elements.teamAdminRenameRemoveLogo.checked = false;
+    }
   } else {
     elements.teamAdminRenameName.value = "";
     elements.teamAdminRenameTag.value = "";
     elements.teamAdminRenameLogoUrl.value = "";
+    if (elements.teamAdminRenameRemoveLogo) {
+      elements.teamAdminRenameRemoveLogo.checked = false;
+    }
   }
 
   const members = selectedTeam ? state.api.membersByTeamId[String(selectedTeam.id)] ?? [] : [];
@@ -1974,6 +2051,9 @@ function renderTeamAdmin() {
   elements.teamAdminRemoveUserId.disabled = !adminEnabled;
   elements.teamAdminRenameTag.disabled = !adminEnabled;
   elements.teamAdminRenameLogoUrl.disabled = !adminEnabled;
+  if (elements.teamAdminRenameRemoveLogo) {
+    elements.teamAdminRenameRemoveLogo.disabled = !adminEnabled;
+  }
   if (elements.teamAdminRefresh) {
     elements.teamAdminRefresh.disabled = !isAuthenticated();
   }
@@ -2098,10 +2178,10 @@ function renderSettingsTeamList(target, teams, emptyMessage) {
     const card = runtimeDocument.createElement("article");
     card.className = "summary-card";
 
-    if (typeof team.logo_url === "string" && team.logo_url.trim() !== "") {
+    if (typeof team.logo_data_url === "string" && team.logo_data_url.trim() !== "") {
       const logo = runtimeDocument.createElement("img");
       logo.className = "summary-card-logo";
-      logo.src = team.logo_url;
+      logo.src = team.logo_data_url;
       logo.alt = `${team.name} logo`;
       card.append(logo);
     }
@@ -4175,6 +4255,24 @@ function attachEvents() {
     });
   }
 
+  if (elements.teamAdminRenameLogoUrl && elements.teamAdminRenameRemoveLogo) {
+    elements.teamAdminRenameLogoUrl.addEventListener("change", () => {
+      const hasLogoFile = Boolean(readTeamLogoFile(elements.teamAdminRenameLogoUrl));
+      if (hasLogoFile) {
+        elements.teamAdminRenameRemoveLogo.checked = false;
+      }
+    });
+
+    elements.teamAdminRenameRemoveLogo.addEventListener("change", () => {
+      if (!elements.teamAdminRenameRemoveLogo.checked) {
+        return;
+      }
+      if (elements.teamAdminRenameLogoUrl) {
+        elements.teamAdminRenameLogoUrl.value = "";
+      }
+    });
+  }
+
   elements.teamAdminRename.addEventListener("click", () => {
     const selectedTeam = getSelectedAdminTeam();
     if (!selectedTeam) {
@@ -4182,30 +4280,32 @@ function attachEvents() {
       return;
     }
     const payload = readTeamUpdateFormValues();
-    if (!payload.name) {
-      setTeamAdminFeedback("Enter a team name.");
-      return;
-    }
-    if (!payload.tag) {
-      setTeamAdminFeedback("Enter a team tag.");
-      return;
-    }
-    if (!payload.logo_url) {
-      setTeamAdminFeedback("Enter a team logo URL.");
-      return;
-    }
-    if (!isHttpUrl(payload.logo_url)) {
-      setTeamAdminFeedback("Team logo URL must be a valid http(s) URL.");
+    const requestConfig = buildTeamMutationRequest({
+      name: payload.name,
+      tag: payload.tag,
+      logoFile: payload.logoFile,
+      removeLogo: payload.removeLogo,
+      allowRemoveLogo: true
+    });
+    if (requestConfig.error) {
+      setTeamAdminFeedback(requestConfig.error);
       return;
     }
 
     void apiRequest(`/teams/${selectedTeam.id}`, {
       method: "PATCH",
       auth: true,
-      body: payload
+      body: requestConfig.body,
+      isFormData: requestConfig.isFormData
     })
       .then(async () => {
         setTeamAdminFeedback(`Updated team '${payload.name}'.`);
+        if (elements.teamAdminRenameLogoUrl) {
+          elements.teamAdminRenameLogoUrl.value = "";
+        }
+        if (elements.teamAdminRenameRemoveLogo) {
+          elements.teamAdminRenameRemoveLogo.checked = false;
+        }
         await hydrateAuthenticatedViews(state.playerConfig.teamId, selectedTeam.id);
       })
       .catch((error) => {
