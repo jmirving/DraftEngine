@@ -141,8 +141,8 @@ const UI_COPY = Object.freeze({
   panels: {
     explorerTitle: "Champions",
     explorerMeta: "Filter champions by role, damage profile, scaling, and tags.",
-    teamConfigTitle: "Teams",
-    teamConfigMeta: "Set default and active team context, then manage team memberships.",
+    teamConfigTitle: "Team Workspace",
+    teamConfigMeta: "Lead-only controls are grouped by Create and Manage modes.",
     playerConfigTitle: "Profile",
     playerConfigMeta: "Manage your roles, champion pools, and teams.",
     comingSoonTitle: "Coming Soon",
@@ -1132,8 +1132,12 @@ function applyUiCopy() {
   elements.navMeta.textContent = UI_COPY.nav.meta;
   elements.explorerTitle.textContent = UI_COPY.panels.explorerTitle;
   elements.explorerMeta.textContent = UI_COPY.panels.explorerMeta;
-  elements.teamConfigTitle.textContent = UI_COPY.panels.teamConfigTitle;
-  elements.teamConfigMeta.textContent = UI_COPY.panels.teamConfigMeta;
+  if (elements.teamConfigTitle) {
+    elements.teamConfigTitle.textContent = UI_COPY.panels.teamConfigTitle;
+  }
+  if (elements.teamConfigMeta) {
+    elements.teamConfigMeta.textContent = UI_COPY.panels.teamConfigMeta;
+  }
   elements.playerConfigTitle.textContent = UI_COPY.panels.playerConfigTitle;
   elements.playerConfigMeta.textContent = UI_COPY.panels.playerConfigMeta;
   if (elements.comingSoonTitle) {
@@ -2846,16 +2850,18 @@ function setTeamManageAction(action) {
 
 function renderTeamConfig() {
   syncConfiguredTeamSelection();
-  elements.teamConfigDefaultTeam.value = state.teamConfig.defaultTeamId;
-  elements.teamConfigActiveTeam.value = state.teamConfig.activeTeamId;
-  if (elements.teamConfigContextHelp) {
-    elements.teamConfigContextHelp.textContent =
-      "Default Team sets your starting draft context. Active Team drives the current Composer/team-scoped context. Team Workspace's Team selector only chooses which roster/admin forms are being edited.";
+  if (elements.teamConfigDefaultTeam) {
+    elements.teamConfigDefaultTeam.value = state.teamConfig.defaultTeamId;
+  }
+  if (elements.teamConfigActiveTeam) {
+    elements.teamConfigActiveTeam.value = state.teamConfig.activeTeamId;
   }
 
-  elements.teamConfigDefaultHelp.textContent = state.teamConfig.defaultTeamId === NONE_TEAM_ID
-    ? "Default team: None (new sessions start in global context)."
-    : `Default team: ${getTeamDisplayLabel(state.teamConfig.defaultTeamId)}.`;
+  if (elements.teamConfigDefaultHelp) {
+    elements.teamConfigDefaultHelp.textContent = state.teamConfig.defaultTeamId === NONE_TEAM_ID
+      ? "Default team: None (new sessions start in global context)."
+      : `Default team: ${getTeamDisplayLabel(state.teamConfig.defaultTeamId)}.`;
+  }
 
   const activeTeam = findTeamById(state.teamConfig.activeTeamId);
   const activeMembershipLane = activeTeam?.membership_lane ?? null;
@@ -2863,16 +2869,23 @@ function renderTeamConfig() {
     activeMembershipLane && SLOTS.includes(activeMembershipLane)
       ? ` Your position: ${activeMembershipLane}.`
       : "";
-  elements.teamConfigActiveHelp.textContent = state.teamConfig.activeTeamId === NONE_TEAM_ID
-    ? "Active team: None (global context)."
-    : `Active team: ${getTeamDisplayLabel(state.teamConfig.activeTeamId)}.${activeTeamSuffix}`;
+  if (elements.teamConfigActiveHelp) {
+    elements.teamConfigActiveHelp.textContent = state.teamConfig.activeTeamId === NONE_TEAM_ID
+      ? "Active team: None (global context)."
+      : `Active team: ${getTeamDisplayLabel(state.teamConfig.activeTeamId)}.${activeTeamSuffix}`;
+  }
 
   const pools = getPoolsForTeam(state.teamConfig.activeTeamId);
   const roleCounts = SLOTS.map((slot) => `${slot}: ${(pools[slot] ?? []).length}`);
-  elements.teamConfigPoolSummary.textContent = state.teamConfig.activeTeamId === NONE_TEAM_ID
-    ? `Global candidate pools -> ${roleCounts.join(" | ")}`
-    : `Profile pool snapshot (${getTeamDisplayLabel(state.teamConfig.activeTeamId)} context) -> ${roleCounts.join(" | ")}`;
+  if (elements.teamConfigPoolSummary) {
+    elements.teamConfigPoolSummary.textContent = state.teamConfig.activeTeamId === NONE_TEAM_ID
+      ? `Global candidate pools -> ${roleCounts.join(" | ")}`
+      : `Profile pool snapshot (${getTeamDisplayLabel(state.teamConfig.activeTeamId)} context) -> ${roleCounts.join(" | ")}`;
+  }
 
+  if (!elements.teamConfigPoolGrid) {
+    return;
+  }
   elements.teamConfigPoolGrid.innerHTML = "";
   for (const slot of SLOTS) {
     const card = runtimeDocument.createElement("article");
@@ -3115,8 +3128,12 @@ function renderTeamAdmin() {
 
 function initializeTeamConfigControls() {
   const options = getTeamSelectOptions();
-  replaceOptions(elements.teamConfigDefaultTeam, options);
-  replaceOptions(elements.teamConfigActiveTeam, options);
+  if (elements.teamConfigDefaultTeam) {
+    replaceOptions(elements.teamConfigDefaultTeam, options);
+  }
+  if (elements.teamConfigActiveTeam) {
+    replaceOptions(elements.teamConfigActiveTeam, options);
+  }
   syncConfiguredTeamSelection();
   renderTeamConfig();
   renderTeamWorkspaceTabs();
@@ -5408,36 +5425,40 @@ function attachEvents() {
     setAllTreeDetails(false);
   });
 
-  elements.teamConfigDefaultTeam.addEventListener("change", () => {
-    state.teamConfig.defaultTeamId = resolveConfiguredTeamSelection(elements.teamConfigDefaultTeam.value);
-    saveTeamConfig();
-    renderTeamConfig();
-    if (isAuthenticated()) {
-      void saveTeamContextToApi().then(() => {
-        saveTeamConfig();
-        renderTeamConfig();
-      });
-    }
-  });
+  if (elements.teamConfigDefaultTeam) {
+    elements.teamConfigDefaultTeam.addEventListener("change", () => {
+      state.teamConfig.defaultTeamId = resolveConfiguredTeamSelection(elements.teamConfigDefaultTeam.value);
+      saveTeamConfig();
+      renderTeamConfig();
+      if (isAuthenticated()) {
+        void saveTeamContextToApi().then(() => {
+          saveTeamConfig();
+          renderTeamConfig();
+        });
+      }
+    });
+  }
 
-  elements.teamConfigActiveTeam.addEventListener("change", () => {
-    state.teamConfig.activeTeamId = resolveConfiguredTeamSelection(elements.teamConfigActiveTeam.value);
-    state.builder.teamId = state.teamConfig.activeTeamId;
-    setBuilderStage("setup");
-    resetBuilderTreeState();
-    syncSlotSelectOptions();
-    saveTeamConfig();
-    renderTeamConfig();
-    renderBuilder();
-    clearBuilderFeedback();
-    if (isAuthenticated()) {
-      void saveTeamContextToApi().then(() => {
-        saveTeamConfig();
-        renderTeamConfig();
-        renderBuilder();
-      });
-    }
-  });
+  if (elements.teamConfigActiveTeam) {
+    elements.teamConfigActiveTeam.addEventListener("change", () => {
+      state.teamConfig.activeTeamId = resolveConfiguredTeamSelection(elements.teamConfigActiveTeam.value);
+      state.builder.teamId = state.teamConfig.activeTeamId;
+      setBuilderStage("setup");
+      resetBuilderTreeState();
+      syncSlotSelectOptions();
+      saveTeamConfig();
+      renderTeamConfig();
+      renderBuilder();
+      clearBuilderFeedback();
+      if (isAuthenticated()) {
+        void saveTeamContextToApi().then(() => {
+          saveTeamConfig();
+          renderTeamConfig();
+          renderBuilder();
+        });
+      }
+    });
+  }
 
   for (const button of elements.teamWorkspaceTabButtons) {
     button.addEventListener("click", () => {

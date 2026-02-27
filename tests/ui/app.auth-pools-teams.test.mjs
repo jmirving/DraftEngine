@@ -1003,9 +1003,8 @@ describe("auth + pools + team management", () => {
     const createPanel = doc.querySelector("#team-workspace-create");
     const manageTab = doc.querySelector("#team-workspace-tab-manage");
     const createTab = doc.querySelector("#team-workspace-tab-create");
-    const activeTeamSelect = doc.querySelector("#team-config-active-team");
-    const contextHelp = doc.querySelector("#team-config-context-help");
-    const activeTeamOptions = Array.from(activeTeamSelect.options, (option) => option.textContent);
+    const composerActiveTeamSelect = doc.querySelector("#builder-active-team");
+    const activeTeamOptions = Array.from(composerActiveTeamSelect.options, (option) => option.textContent);
     const editAction = doc.querySelector("button[data-team-manage-action='team-settings']");
     const addAction = doc.querySelector("button[data-team-manage-action='add-member']");
     const editPanel = doc.querySelector("[data-team-manage-panel='team-settings']");
@@ -1021,7 +1020,6 @@ describe("auth + pools + team management", () => {
     expect(createTab.getAttribute("aria-selected")).toBe("false");
     expect(activeTeamOptions.some((option) => option.includes("Team Alpha"))).toBe(true);
     expect(activeTeamOptions.some((option) => option === "Mid")).toBe(false);
-    expect(contextHelp.textContent).toContain("Team Workspace's Team selector only chooses");
     expect(teamWorkspaceHelp.textContent).toContain("Draft context is controlled from Composer Active Team");
     expect(editPanel.hidden).toBe(true);
     expect(addPanel.hidden).toBe(true);
@@ -1040,8 +1038,8 @@ describe("auth + pools + team management", () => {
     doc.querySelector("#logo-lightbox-close").click();
     expect(doc.querySelector("#logo-lightbox").hidden).toBe(true);
 
-    activeTeamSelect.value = "1";
-    activeTeamSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    composerActiveTeamSelect.value = "1";
+    composerActiveTeamSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
     await flush();
     const saveTeamContextCall = harness.calls.find(
       (call) => call.path === "/me/team-context" && call.method === "PUT"
@@ -1220,8 +1218,8 @@ describe("auth + pools + team management", () => {
     const firstDoc = firstBoot.dom.window.document;
     firstDoc.querySelector(".side-menu-link[data-tab='team-config']").click();
     await flush();
-    firstDoc.querySelector("#team-config-active-team").value = "1";
-    firstDoc.querySelector("#team-config-active-team").dispatchEvent(
+    firstDoc.querySelector("#builder-active-team").value = "1";
+    firstDoc.querySelector("#builder-active-team").dispatchEvent(
       new firstBoot.dom.window.Event("change", { bubbles: true })
     );
     await flush();
@@ -1241,54 +1239,7 @@ describe("auth + pools + team management", () => {
     const secondDoc = secondBoot.dom.window.document;
     await flush();
 
-    expect(secondDoc.querySelector("#team-config-active-team").value).toBe("1");
-  });
-
-  test("team-context default team persists through API payloads", async () => {
-    const storage = createStorageStub({
-      "draftflow.authSession.v1": JSON.stringify({
-        token: "token-123",
-        user: { id: 11, email: "lead@example.com" }
-      })
-    });
-    const harness = createFetchHarness({
-      pools: [],
-      teams: [
-        {
-          id: 1,
-          name: "Team Alpha",
-          tag: "ALPHA",
-          logo_data_url: "data:image/png;base64,bW9jazE=",
-          created_by: 11,
-          membership_role: "lead",
-          membership_team_role: "primary",
-          created_at: "2026-01-01T00:00:00.000Z"
-        }
-      ],
-      membersByTeam: {
-        "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "lead@example.com" }]
-      },
-      teamContext: {
-        defaultTeamId: null,
-        activeTeamId: null
-      }
-    });
-
-    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
-    const doc = dom.window.document;
-    doc.querySelector(".side-menu-link[data-tab='team-config']").click();
-    await flush();
-    doc.querySelector("#team-config-default-team").value = "1";
-    doc.querySelector("#team-config-default-team").dispatchEvent(
-      new dom.window.Event("change", { bubbles: true })
-    );
-    await flush();
-    await flush();
-
-    const saveCall = harness.calls.find((call) => call.path === "/me/team-context" && call.method === "PUT");
-    expect(saveCall).toBeTruthy();
-    expect(saveCall.body.defaultTeamId).toBe(1);
-    expect(saveCall.body.activeTeamId).toBe(null);
+    expect(secondDoc.querySelector("#builder-active-team").value).toBe("1");
   });
 
   test("selected team shows signed-in user name on their primary role slot label", async () => {
