@@ -29,4 +29,17 @@ describe("full champion catalog artifact", () => {
       }
     }
   });
+
+  it("keeps the visible public champion dataset aligned with the full catalog", () => {
+    const manifestPath = resolve("docs/champion-catalog/manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+
+    const fullCatalog = parseChampionsCsv(readFileSync(resolve(manifest.outputPath), "utf8"));
+    const publicCatalog = parseChampionsCsv(readFileSync(resolve("public/data/champions.csv"), "utf8"));
+
+    expect(publicCatalog.champions.length).toBe(manifest.expectedChampionCount);
+    expect(publicCatalog.champions.map((champion) => champion.name)).toEqual(
+      fullCatalog.champions.map((champion) => champion.name)
+    );
+  });
 });
