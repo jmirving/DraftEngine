@@ -376,6 +376,54 @@ h3 {
   display: none;
 }
 
+.team-inline-actions {
+  align-items: end;
+}
+
+.team-inline-actions button {
+  width: auto;
+}
+
+.team-manage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.team-manage-action {
+  width: auto;
+  margin-top: 0;
+  border-radius: 999px;
+  border: 1px solid var(--accent-soft);
+  background: transparent;
+  color: var(--accent);
+  font-weight: 700;
+  padding: 0.32rem 0.74rem;
+}
+
+.team-manage-action.is-active {
+  background: var(--accent);
+  color: #fff7f2;
+  border-color: transparent;
+}
+
+.team-manage-action-help[hidden] {
+  display: none;
+}
+
+.team-manage-panel {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.team-manage-panel[hidden] {
+  display: none;
+}
+
+.team-manage-submit-row button {
+  width: auto;
+}
+
 .team-admin-block {
   border: 1px solid var(--border);
   border-radius: 10px;

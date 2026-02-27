@@ -656,7 +656,7 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#team-admin-feedback").textContent).toContain("Created team 'My New Team'.");
   });
 
-  test("team workspace uses create and manage sub-tabs", async () => {
+  test("team workspace uses create/manage tabs and action-driven manage forms", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -691,11 +691,33 @@ describe("auth + pools + team management", () => {
     const createPanel = doc.querySelector("#team-workspace-create");
     const manageTab = doc.querySelector("#team-workspace-tab-manage");
     const createTab = doc.querySelector("#team-workspace-tab-create");
+    const editAction = doc.querySelector("button[data-team-manage-action='team-settings']");
+    const addAction = doc.querySelector("button[data-team-manage-action='add-member']");
+    const editPanel = doc.querySelector("[data-team-manage-panel='team-settings']");
+    const addPanel = doc.querySelector("[data-team-manage-panel='add-member']");
+    const actionHelp = doc.querySelector("#team-manage-action-help");
 
     expect(managePanel.hidden).toBe(false);
     expect(createPanel.hidden).toBe(true);
     expect(manageTab.getAttribute("aria-selected")).toBe("true");
     expect(createTab.getAttribute("aria-selected")).toBe("false");
+    expect(editPanel.hidden).toBe(true);
+    expect(addPanel.hidden).toBe(true);
+    expect(actionHelp.hidden).toBe(false);
+
+    editAction.click();
+    expect(editAction.getAttribute("aria-pressed")).toBe("true");
+    expect(editPanel.hidden).toBe(false);
+    expect(addPanel.hidden).toBe(true);
+    expect(actionHelp.hidden).toBe(true);
+
+    addAction.click();
+    expect(editPanel.hidden).toBe(true);
+    expect(addPanel.hidden).toBe(false);
+
+    addAction.click();
+    expect(addPanel.hidden).toBe(true);
+    expect(actionHelp.hidden).toBe(false);
 
     createTab.click();
     expect(managePanel.hidden).toBe(true);

@@ -48,6 +48,18 @@ const AUTH_SESSION_STORAGE_KEY = "draftflow.authSession.v1";
 const TEAM_WORKSPACE_TAB_MANAGE = "manage";
 const TEAM_WORKSPACE_TAB_CREATE = "create";
 const TEAM_WORKSPACE_TAB_SET = new Set([TEAM_WORKSPACE_TAB_MANAGE, TEAM_WORKSPACE_TAB_CREATE]);
+const TEAM_MANAGE_ACTION_TEAM_SETTINGS = "team-settings";
+const TEAM_MANAGE_ACTION_ADD_MEMBER = "add-member";
+const TEAM_MANAGE_ACTION_UPDATE_MEMBER_ROLE = "update-member-role";
+const TEAM_MANAGE_ACTION_UPDATE_TEAM_ROLE = "update-team-role";
+const TEAM_MANAGE_ACTION_REMOVE_MEMBER = "remove-member";
+const TEAM_MANAGE_ACTION_SET = new Set([
+  TEAM_MANAGE_ACTION_TEAM_SETTINGS,
+  TEAM_MANAGE_ACTION_ADD_MEMBER,
+  TEAM_MANAGE_ACTION_UPDATE_MEMBER_ROLE,
+  TEAM_MANAGE_ACTION_UPDATE_TEAM_ROLE,
+  TEAM_MANAGE_ACTION_REMOVE_MEMBER
+]);
 const DEFAULT_MEMBER_ROLE = "member";
 const MEMBER_ROLE_OPTIONS = Object.freeze(["lead", "member"]);
 const DEFAULT_TEAM_MEMBER_TYPE = "substitute";
@@ -157,7 +169,8 @@ function createInitialState() {
     activeTab: DEFAULT_TAB_ROUTE,
     ui: {
       isNavOpen: false,
-      teamWorkspaceTab: TEAM_WORKSPACE_TAB_MANAGE
+      teamWorkspaceTab: TEAM_WORKSPACE_TAB_MANAGE,
+      teamManageAction: null
     },
     auth: {
       token: null,
@@ -320,6 +333,9 @@ function createElements() {
     teamWorkspaceTabButtons: Array.from(runtimeDocument.querySelectorAll("button[data-team-workspace-tab]")),
     teamWorkspaceManagePanel: runtimeDocument.querySelector("#team-workspace-manage"),
     teamWorkspaceCreatePanel: runtimeDocument.querySelector("#team-workspace-create"),
+    teamManageActionButtons: Array.from(runtimeDocument.querySelectorAll("button[data-team-manage-action]")),
+    teamManageActionPanels: Array.from(runtimeDocument.querySelectorAll("[data-team-manage-panel]")),
+    teamManageActionHelp: runtimeDocument.querySelector("#team-manage-action-help"),
     teamAdminCreateName: runtimeDocument.querySelector("#team-admin-create-name"),
     teamAdminCreateTag: runtimeDocument.querySelector("#team-admin-create-tag"),
     teamAdminCreateLogoUrl: runtimeDocument.querySelector("#team-admin-create-logo-url"),
@@ -1992,6 +2008,38 @@ function setTeamWorkspaceTab(tab) {
   renderTeamWorkspaceTabs();
 }
 
+function renderTeamManageActions() {
+  const activeAction = TEAM_MANAGE_ACTION_SET.has(state.ui.teamManageAction)
+    ? state.ui.teamManageAction
+    : null;
+  state.ui.teamManageAction = activeAction;
+
+  for (const button of elements.teamManageActionButtons) {
+    const action = button.dataset.teamManageAction;
+    const selected = action === activeAction;
+    button.classList.toggle("is-active", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  }
+
+  for (const panel of elements.teamManageActionPanels) {
+    const panelAction = panel.dataset.teamManagePanel;
+    panel.hidden = panelAction !== activeAction;
+  }
+
+  if (elements.teamManageActionHelp) {
+    elements.teamManageActionHelp.hidden = Boolean(activeAction);
+  }
+}
+
+function setTeamManageAction(action) {
+  if (!TEAM_MANAGE_ACTION_SET.has(action)) {
+    state.ui.teamManageAction = null;
+  } else {
+    state.ui.teamManageAction = state.ui.teamManageAction === action ? null : action;
+  }
+  renderTeamManageActions();
+}
+
 function renderTeamConfig() {
   syncConfiguredTeamSelection();
   elements.teamConfigActiveTeam.value = state.teamConfig.activeTeamId;
@@ -2131,6 +2179,7 @@ function initializeTeamConfigControls() {
   syncConfiguredTeamSelection();
   renderTeamConfig();
   renderTeamWorkspaceTabs();
+  renderTeamManageActions();
   renderTeamAdmin();
 }
 
@@ -4195,6 +4244,12 @@ function attachEvents() {
   for (const button of elements.teamWorkspaceTabButtons) {
     button.addEventListener("click", () => {
       setTeamWorkspaceTab(button.dataset.teamWorkspaceTab);
+    });
+  }
+
+  for (const button of elements.teamManageActionButtons) {
+    button.addEventListener("click", () => {
+      setTeamManageAction(button.dataset.teamManageAction);
     });
   }
 
