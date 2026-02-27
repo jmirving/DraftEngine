@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../../server/app.js";
 import { signAccessToken } from "../../server/auth/tokens.js";
+import { DEFAULT_REQUIREMENT_TOGGLES } from "../../src/domain/model.js";
 
 function createMockContext({ riotChampionStatsService = null } = {}) {
   function makeLogoDataUrl(logoBlob, logoMimeType) {
@@ -18,6 +19,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       {
         id: 1,
         email: "lead@example.com",
+        role: "admin",
         password_hash: "seeded",
         game_name: "LeadPlayer",
         tagline: "NA1",
@@ -30,6 +32,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       {
         id: 2,
         email: "member@example.com",
+        role: "member",
         password_hash: "seeded",
         game_name: "MemberPlayer",
         tagline: "NA1",
@@ -42,6 +45,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       {
         id: 3,
         email: "outsider@example.com",
+        role: "member",
         password_hash: "seeded",
         game_name: "Outsider",
         tagline: "NA1",
@@ -90,6 +94,12 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
     teamChampionTagIds: new Map([
       ["1:1", new Set([1])]
     ]),
+    userCheckSettings: new Map(),
+    teamCheckSettings: new Map([
+      [1, { ...DEFAULT_REQUIREMENT_TOGGLES, requireDisengage: true }]
+    ]),
+    globalCheckSettings: { ...DEFAULT_REQUIREMENT_TOGGLES, requireFrontline: false },
+    promotionRequests: [],
     pools: [
       { id: 1, user_id: 1, name: "Main", created_at: "2026-01-01T00:00:00.000Z" },
       { id: 2, user_id: 2, name: "Alt", created_at: "2026-01-01T00:00:00.000Z" }
@@ -136,6 +146,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       const user = {
         id: nextUserId,
         email,
+        role: "member",
         password_hash: passwordHash,
         game_name: gameName,
         tagline,
@@ -152,6 +163,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         email: user.email,
         game_name: user.game_name,
         tagline: user.tagline,
+        role: user.role,
         primary_role: user.primary_role,
         secondary_roles: user.secondary_roles,
         created_at: user.created_at
@@ -276,6 +288,70 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         tagIds,
         scope: "all"
       });
+    }
+  };
+
+  const checksRepository = {
+    async listRequirementSettingsForScope({ scope, userId, teamId }) {
+      if (scope === "all") {
+        return state.globalCheckSettings ? { ...state.globalCheckSettings } : null;
+      }
+      if (scope === "self") {
+        const settings = state.userCheckSettings.get(userId);
+        return settings ? { ...settings } : null;
+      }
+      if (scope === "team") {
+        const settings = state.teamCheckSettings.get(teamId);
+        return settings ? { ...settings } : null;
+      }
+      return null;
+    },
+    async replaceRequirementSettingsForScope({ scope, userId, teamId, toggles }) {
+      const next = { ...toggles };
+      if (scope === "all") {
+        state.globalCheckSettings = next;
+        return next;
+      }
+      if (scope === "self") {
+        state.userCheckSettings.set(userId, next);
+        return next;
+      }
+      if (scope === "team") {
+        state.teamCheckSettings.set(teamId, next);
+        return next;
+      }
+      return next;
+    }
+  };
+
+  const promotionRequestsRepository = {
+    async createPromotionRequest({
+      entityType,
+      resourceId,
+      sourceScope,
+      sourceUserId,
+      sourceTeamId,
+      targetScope,
+      targetTeamId,
+      requestedBy,
+      payload
+    }) {
+      const requestRecord = {
+        id: state.promotionRequests.length + 1,
+        entity_type: entityType,
+        resource_id: resourceId ?? null,
+        source_scope: sourceScope,
+        source_user_id: sourceUserId ?? null,
+        source_team_id: sourceTeamId ?? null,
+        target_scope: targetScope,
+        target_team_id: targetTeamId ?? null,
+        requested_by: requestedBy,
+        status: "pending",
+        payload_json: payload ?? {},
+        created_at: "2026-01-01T00:00:00.000Z"
+      };
+      state.promotionRequests.push(requestRecord);
+      return requestRecord;
     }
   };
 
@@ -669,6 +745,8 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
     usersRepository,
     championsRepository,
     tagsRepository,
+    checksRepository,
+    promotionRequestsRepository,
     poolsRepository,
     teamsRepository,
     riotChampionStatsService
@@ -708,6 +786,7 @@ describe("API routes", () => {
     expect(registerResponse.body.user.email).toBe("test@example.com");
     expect(registerResponse.body.user.gameName).toBe("TestPlayer");
     expect(registerResponse.body.user.tagline).toBe("NA1");
+    expect(registerResponse.body.user.role).toBe("member");
     expect(registerResponse.body.user.primaryRole).toBe("Mid");
     expect(registerResponse.body.user.secondaryRoles).toEqual([]);
     expect(registerResponse.body.token).toBeTypeOf("string");
@@ -722,6 +801,7 @@ describe("API routes", () => {
     expect(loginResponse.body.user.id).toBe(5);
     expect(loginResponse.body.user.gameName).toBe("TestPlayer");
     expect(loginResponse.body.user.tagline).toBe("NA1");
+    expect(loginResponse.body.user.role).toBe("member");
     expect(loginResponse.body.user.primaryRole).toBe("Mid");
     expect(loginResponse.body.user.secondaryRoles).toEqual([]);
 
@@ -915,8 +995,8 @@ describe("API routes", () => {
     expect(preflightResponse.headers["access-control-allow-methods"]).toContain("GET");
   });
 
-  it("serves champion tags and enforces scoped tag edit authorization", async () => {
-    const { app, config } = createMockContext();
+  it("serves champion tags and enforces scoped tag auth + promotion requests", async () => {
+    const { app, config, state } = createMockContext();
 
     const listResponse = await request(app).get("/champions");
     expect(listResponse.status).toBe(200);
@@ -969,12 +1049,18 @@ describe("API routes", () => {
       .send({ scope: "team", team_id: 1, tag_ids: [2] });
     expect(outsiderCannotWriteTeam.status).toBe(403);
 
-    const memberCanWriteTeam = await request(app)
+    const memberCannotWriteTeam = await request(app)
       .put("/champions/1/tags")
       .set("Authorization", buildAuthHeader(2, config))
       .send({ scope: "team", team_id: 1, tag_ids: [2] });
-    expect(memberCanWriteTeam.status).toBe(200);
-    expect(memberCanWriteTeam.body.team_id).toBe(1);
+    expect(memberCannotWriteTeam.status).toBe(403);
+
+    const leadCanWriteTeam = await request(app)
+      .put("/champions/1/tags")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({ scope: "team", team_id: 1, tag_ids: [2] });
+    expect(leadCanWriteTeam.status).toBe(200);
+    expect(leadCanWriteTeam.body.team_id).toBe(1);
 
     const teamRead = await request(app)
       .get("/champions/1/tags?scope=team&team_id=1")
@@ -982,18 +1068,194 @@ describe("API routes", () => {
     expect(teamRead.status).toBe(200);
     expect(teamRead.body.tag_ids).toEqual([2]);
 
-    const leadCanWriteGlobal = await request(app)
+    const adminCanWriteGlobal = await request(app)
       .put("/champions/1/tags")
       .set("Authorization", buildAuthHeader(1, config))
       .send({ scope: "all", tag_ids: [2] });
-    expect(leadCanWriteGlobal.status).toBe(200);
-    expect(leadCanWriteGlobal.body.champion.tagIds).toEqual([2]);
+    expect(adminCanWriteGlobal.status).toBe(200);
+    expect(adminCanWriteGlobal.body.champion.tagIds).toEqual([2]);
 
     const globalRead = await request(app)
       .get("/champions/1/tags?scope=all")
       .set("Authorization", buildAuthHeader(2, config));
     expect(globalRead.status).toBe(200);
     expect(globalRead.body.tag_ids).toEqual([2]);
+
+    const selfToTeamPromotion = await request(app)
+      .post("/champions/1/tags/promotion-requests")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        source_scope: "self",
+        target_scope: "team",
+        target_team_id: 1
+      });
+    expect(selfToTeamPromotion.status).toBe(201);
+    expect(selfToTeamPromotion.body.promotion_request.entity_type).toBe("champion_tags");
+    expect(selfToTeamPromotion.body.promotion_request.source_scope).toBe("self");
+    expect(selfToTeamPromotion.body.promotion_request.target_scope).toBe("team");
+
+    const outsiderSelfToTeamPromotionDenied = await request(app)
+      .post("/champions/1/tags/promotion-requests")
+      .set("Authorization", buildAuthHeader(3, config))
+      .send({
+        source_scope: "self",
+        target_scope: "team",
+        target_team_id: 1
+      });
+    expect(outsiderSelfToTeamPromotionDenied.status).toBe(403);
+
+    const memberTeamToGlobalPromotionDenied = await request(app)
+      .post("/champions/1/tags/promotion-requests")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        source_scope: "team",
+        team_id: 1,
+        target_scope: "all"
+      });
+    expect(memberTeamToGlobalPromotionDenied.status).toBe(403);
+
+    const leadTeamToGlobalPromotion = await request(app)
+      .post("/champions/1/tags/promotion-requests")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({
+        source_scope: "team",
+        team_id: 1,
+        target_scope: "all"
+      });
+    expect(leadTeamToGlobalPromotion.status).toBe(201);
+    expect(leadTeamToGlobalPromotion.body.promotion_request.target_scope).toBe("all");
+
+    expect(state.promotionRequests).toHaveLength(2);
+  });
+
+  it("enforces scoped required-check settings auth and promotion requests", async () => {
+    const { app, config, state } = createMockContext();
+
+    const readGlobalDefault = await request(app)
+      .get("/checks/settings?scope=all")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(readGlobalDefault.status).toBe(200);
+    expect(readGlobalDefault.body.toggles.requireFrontline).toBe(false);
+
+    const readTeamAsMember = await request(app)
+      .get("/checks/settings?scope=team&team_id=1")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(readTeamAsMember.status).toBe(200);
+    expect(readTeamAsMember.body.toggles.requireDisengage).toBe(true);
+
+    const outsiderCannotReadTeam = await request(app)
+      .get("/checks/settings?scope=team&team_id=1")
+      .set("Authorization", buildAuthHeader(3, config));
+    expect(outsiderCannotReadTeam.status).toBe(403);
+
+    const memberCanWriteSelf = await request(app)
+      .put("/checks/settings")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        scope: "self",
+        toggles: {
+          requireFrontline: true,
+          requireAntiTank: true
+        }
+      });
+    expect(memberCanWriteSelf.status).toBe(200);
+    expect(memberCanWriteSelf.body.toggles.requireAntiTank).toBe(true);
+
+    const memberCannotWriteTeam = await request(app)
+      .put("/checks/settings")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        scope: "team",
+        team_id: 1,
+        toggles: {
+          requireFrontline: true
+        }
+      });
+    expect(memberCannotWriteTeam.status).toBe(403);
+
+    const leadCanWriteTeam = await request(app)
+      .put("/checks/settings")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({
+        scope: "team",
+        team_id: 1,
+        toggles: {
+          requireFrontline: true,
+          requireDisengage: false
+        }
+      });
+    expect(leadCanWriteTeam.status).toBe(200);
+    expect(leadCanWriteTeam.body.toggles.requireFrontline).toBe(true);
+    expect(leadCanWriteTeam.body.toggles.requireDisengage).toBe(false);
+
+    const memberCannotWriteGlobal = await request(app)
+      .put("/checks/settings")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        scope: "all",
+        toggles: {
+          requireFrontline: true
+        }
+      });
+    expect(memberCannotWriteGlobal.status).toBe(403);
+
+    const adminCanWriteGlobal = await request(app)
+      .put("/checks/settings")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({
+        scope: "all",
+        toggles: {
+          requireFrontline: true,
+          topMustBeThreat: false
+        }
+      });
+    expect(adminCanWriteGlobal.status).toBe(200);
+    expect(adminCanWriteGlobal.body.toggles.topMustBeThreat).toBe(false);
+
+    const selfToTeamPromotion = await request(app)
+      .post("/checks/promotion-requests")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        source_scope: "self",
+        target_scope: "team",
+        target_team_id: 1
+      });
+    expect(selfToTeamPromotion.status).toBe(201);
+    expect(selfToTeamPromotion.body.promotion_request.entity_type).toBe("checks");
+    expect(selfToTeamPromotion.body.promotion_request.target_scope).toBe("team");
+
+    const outsiderSelfToTeamDenied = await request(app)
+      .post("/checks/promotion-requests")
+      .set("Authorization", buildAuthHeader(3, config))
+      .send({
+        source_scope: "self",
+        target_scope: "team",
+        target_team_id: 1
+      });
+    expect(outsiderSelfToTeamDenied.status).toBe(403);
+
+    const memberTeamToGlobalDenied = await request(app)
+      .post("/checks/promotion-requests")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        source_scope: "team",
+        team_id: 1,
+        target_scope: "all"
+      });
+    expect(memberTeamToGlobalDenied.status).toBe(403);
+
+    const leadTeamToGlobal = await request(app)
+      .post("/checks/promotion-requests")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({
+        source_scope: "team",
+        team_id: 1,
+        target_scope: "all"
+      });
+    expect(leadTeamToGlobal.status).toBe(201);
+    expect(leadTeamToGlobal.body.promotion_request.target_scope).toBe("all");
+
+    expect(state.promotionRequests).toHaveLength(2);
   });
 
   it("enforces per-user pool isolation and idempotent membership updates", async () => {

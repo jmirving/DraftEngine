@@ -6,6 +6,7 @@ import { createRequireAuth } from "./auth/middleware.js";
 import { ApiError, badRequest, formatErrorResponse } from "./errors.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createChampionsRouter } from "./routes/champions.js";
+import { createChecksRouter } from "./routes/checks.js";
 import { createProfileRouter } from "./routes/profile.js";
 import { createPoolsRouter } from "./routes/pools.js";
 import { createTeamsRouter } from "./routes/teams.js";
@@ -26,6 +27,8 @@ export function createApp({
   usersRepository,
   championsRepository,
   tagsRepository,
+  checksRepository,
+  promotionRequestsRepository,
   poolsRepository,
   teamsRepository,
   riotChampionStatsService = null
@@ -34,6 +37,8 @@ export function createApp({
   requireDependency(usersRepository, "usersRepository");
   requireDependency(championsRepository, "championsRepository");
   requireDependency(tagsRepository, "tagsRepository");
+  requireDependency(checksRepository, "checksRepository");
+  requireDependency(promotionRequestsRepository, "promotionRequestsRepository");
   requireDependency(poolsRepository, "poolsRepository");
   requireDependency(teamsRepository, "teamsRepository");
 
@@ -82,6 +87,17 @@ export function createApp({
     createChampionsRouter({
       championsRepository,
       tagsRepository,
+      promotionRequestsRepository,
+      usersRepository,
+      teamsRepository,
+      requireAuth
+    })
+  );
+  app.use(
+    "/",
+    createChecksRouter({
+      checksRepository,
+      promotionRequestsRepository,
       usersRepository,
       teamsRepository,
       requireAuth

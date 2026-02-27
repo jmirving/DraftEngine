@@ -1,11 +1,9 @@
 import { Router } from "express";
 
-import { badRequest, notFound } from "../errors.js";
-import {
-  parsePositiveInteger,
-  requireArrayOfPositiveIntegers,
-  requireObject
-} from "../http/validation.js";
+import { DEFAULT_REQUIREMENT_TOGGLES } from "../../src/domain/model.js";
+import { badRequest } from "../errors.js";
+import { parsePositiveInteger, requireObject } from "../http/validation.js";
+import { REQUIREMENT_TOGGLE_KEYS } from "../repositories/checks.js";
 import {
   SOURCE_PROMOTION_SCOPE_SET,
   TARGET_PROMOTION_SCOPE_SET,
@@ -16,15 +14,32 @@ import {
   resolveScopedTeamId
 } from "../scope-authorization.js";
 
-const CHAMPION_TAG_SCOPE_SET = new Set(["self", "team", "all"]);
-const MAX_CHAMPION_TAGS_PER_SCOPE = 64;
+const REQUIREMENT_TOGGLE_KEY_SET = new Set(REQUIREMENT_TOGGLE_KEYS);
 
-function normalizeTagIds(tagIds) {
-  const deduplicated = Array.from(new Set(tagIds));
-  if (deduplicated.length > MAX_CHAMPION_TAGS_PER_SCOPE) {
-    throw badRequest(`Expected 'tag_ids' to contain at most ${MAX_CHAMPION_TAGS_PER_SCOPE} entries.`);
+function normalizeRequirementToggles(rawToggles) {
+  const source = requireObject(rawToggles, "'toggles'");
+  const normalized = {
+    ...DEFAULT_REQUIREMENT_TOGGLES
+  };
+
+  for (const [key, value] of Object.entries(source)) {
+    if (!REQUIREMENT_TOGGLE_KEY_SET.has(key)) {
+      throw badRequest(`Unknown check toggle '${key}'.`);
+    }
+    if (typeof value !== "boolean") {
+      throw badRequest(`Expected 'toggles.${key}' to be a boolean.`);
+    }
+    normalized[key] = value;
   }
-  return deduplicated.sort((left, right) => left - right);
+
+  return normalized;
+}
+
+function mergeRequirementToggles(storedToggles) {
+  return {
+    ...DEFAULT_REQUIREMENT_TOGGLES,
+    ...(storedToggles && typeof storedToggles === "object" && !Array.isArray(storedToggles) ? storedToggles : {})
+  };
 }
 
 function parsePromotionTargetTeamId(rawTeamId) {
@@ -53,9 +68,8 @@ function serializePromotionRequest(request) {
   };
 }
 
-export function createChampionsRouter({
-  championsRepository,
-  tagsRepository,
+export function createChecksRouter({
+  checksRepository,
   promotionRequestsRepository,
   usersRepository,
   teamsRepository,
@@ -63,32 +77,10 @@ export function createChampionsRouter({
 }) {
   const router = Router();
 
-  router.get("/champions", async (_request, response) => {
-    const champions = await championsRepository.listChampions();
-    response.json({ champions });
-  });
+  router.use("/checks", requireAuth);
 
-  router.get("/champions/:id", async (request, response) => {
-    const championId = parsePositiveInteger(request.params.id, "id");
-    const champion = await championsRepository.getChampionById(championId);
-    if (!champion) {
-      throw notFound("Champion not found.");
-    }
-    response.json({ champion });
-  });
-
-  router.get("/tags", async (_request, response) => {
-    const tags = await tagsRepository.listTags();
-    response.json({ tags });
-  });
-
-  router.get("/champions/:id/tags", requireAuth, async (request, response) => {
-    const championId = parsePositiveInteger(request.params.id, "id");
-    const scope = parseScope(request.query.scope, {
-      defaultScope: "self",
-      fieldName: "scope",
-      allowedScopes: CHAMPION_TAG_SCOPE_SET
-    });
+  router.get("/checks/settings", async (request, response) => {
+    const scope = parseScope(request.query.scope, { defaultScope: "all", fieldName: "scope" });
     const userId = request.user.userId;
     const teamId = await resolveScopedTeamId({
       scope,
@@ -97,41 +89,37 @@ export function createChampionsRouter({
       usersRepository
     });
 
-    const championExists = await championsRepository.championExists(championId);
-    if (!championExists) {
-      throw notFound("Champion not found.");
-    }
-
     await assertScopeReadAuthorization({
       scope,
       userId,
       teamId,
       teamsRepository,
-      teamReadMessage: "You must be on the selected team to read team tag edits."
+      teamReadMessage: "You must be on the selected team to read team check settings."
     });
 
-    const tagIds = await tagsRepository.listChampionTagIdsForScope({
-      championId,
+    const scoped = await checksRepository.listRequirementSettingsForScope({
       scope,
       userId,
       teamId
     });
 
+    const fallbackToGlobal =
+      scope !== "all"
+        ? await checksRepository.listRequirementSettingsForScope({
+            scope: "all"
+          })
+        : null;
+
     response.json({
       scope,
       team_id: teamId,
-      tag_ids: tagIds
+      toggles: mergeRequirementToggles(scope === "all" ? scoped : scoped ?? fallbackToGlobal)
     });
   });
 
-  router.put("/champions/:id/tags", requireAuth, async (request, response) => {
-    const championId = parsePositiveInteger(request.params.id, "id");
+  router.put("/checks/settings", async (request, response) => {
     const body = requireObject(request.body);
-    const scope = parseScope(body.scope, {
-      defaultScope: "self",
-      fieldName: "scope",
-      allowedScopes: CHAMPION_TAG_SCOPE_SET
-    });
+    const scope = parseScope(body.scope, { defaultScope: "all", fieldName: "scope" });
     const userId = request.user.userId;
     const teamId = await resolveScopedTeamId({
       scope,
@@ -139,12 +127,6 @@ export function createChampionsRouter({
       userId,
       usersRepository
     });
-    const tagIds = normalizeTagIds(requireArrayOfPositiveIntegers(body.tag_ids, "tag_ids"));
-
-    const championExists = await championsRepository.championExists(championId);
-    if (!championExists) {
-      throw notFound("Champion not found.");
-    }
 
     await assertScopeWriteAuthorization({
       scope,
@@ -152,34 +134,27 @@ export function createChampionsRouter({
       teamId,
       teamsRepository,
       usersRepository,
-      teamWriteMessage: "You must be on the selected team to edit team tags.",
-      teamLeadMessage: "Only team leads can edit team tags.",
-      globalWriteMessage: "Only admins can edit global champion tags."
+      teamWriteMessage: "You must be on the selected team to edit team check settings.",
+      teamLeadMessage: "Only team leads can edit team check settings.",
+      globalWriteMessage: "Only admins can edit global check settings."
     });
 
-    const allTagsExist = await tagsRepository.allTagIdsExist(tagIds);
-    if (!allTagsExist) {
-      throw badRequest("One or more tag IDs do not exist.");
-    }
-
-    await tagsRepository.replaceChampionTagsForScope({
-      championId,
-      tagIds,
+    const toggles = normalizeRequirementToggles(body.toggles);
+    await checksRepository.replaceRequirementSettingsForScope({
       scope,
       userId,
-      teamId
+      teamId,
+      toggles
     });
-    const champion = await championsRepository.getChampionById(championId);
+
     response.json({
-      champion,
       scope,
       team_id: teamId,
-      tag_ids: tagIds
+      toggles
     });
   });
 
-  router.post("/champions/:id/tags/promotion-requests", requireAuth, async (request, response) => {
-    const championId = parsePositiveInteger(request.params.id, "id");
+  router.post("/checks/promotion-requests", async (request, response) => {
     const body = requireObject(request.body);
     const sourceScope = parseScope(body.source_scope, {
       defaultScope: "self",
@@ -200,11 +175,6 @@ export function createChampionsRouter({
     });
     const targetTeamId = targetScope === "team" ? parsePromotionTargetTeamId(body.target_team_id) : null;
 
-    const championExists = await championsRepository.championExists(championId);
-    if (!championExists) {
-      throw notFound("Champion not found.");
-    }
-
     await assertPromotionAuthorization({
       sourceScope,
       targetScope,
@@ -214,16 +184,14 @@ export function createChampionsRouter({
       teamsRepository
     });
 
-    const sourceTagIds = await tagsRepository.listChampionTagIdsForScope({
-      championId,
+    const scopedToggles = await checksRepository.listRequirementSettingsForScope({
       scope: sourceScope,
       userId,
       teamId: sourceTeamId
     });
 
     const promotionRequest = await promotionRequestsRepository.createPromotionRequest({
-      entityType: "champion_tags",
-      resourceId: championId,
+      entityType: "checks",
       sourceScope,
       sourceUserId: sourceScope === "self" ? userId : null,
       sourceTeamId: sourceScope === "team" ? sourceTeamId : null,
@@ -231,7 +199,7 @@ export function createChampionsRouter({
       targetTeamId,
       requestedBy: userId,
       payload: {
-        tag_ids: sourceTagIds
+        toggles: mergeRequirementToggles(scopedToggles)
       }
     });
 

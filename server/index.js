@@ -36,6 +36,8 @@ export function startServer(env = process.env) {
     usersRepository: repositories.users,
     championsRepository: repositories.champions,
     tagsRepository: repositories.tags,
+    checksRepository: repositories.checks,
+    promotionRequestsRepository: repositories.promotionRequests,
     poolsRepository: repositories.pools,
     teamsRepository: repositories.teams,
     riotChampionStatsService

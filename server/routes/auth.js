@@ -9,6 +9,7 @@ function serializeAuthUser(user) {
   return {
     id: Number(user.id),
     email: user.email,
+    role: typeof user.role === "string" ? user.role : "member",
     gameName: user.game_name ?? "",
     tagline: user.tagline ?? "",
     primaryRole: user.primary_role ?? "Mid",
