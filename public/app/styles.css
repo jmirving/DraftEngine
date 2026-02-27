@@ -1372,8 +1372,10 @@ button.ghost {
 
 .profile-section {
   border-top: 1px solid var(--border);
-  margin-top: 0.8rem;
-  padding-top: 0.8rem;
+  margin-top: 1.05rem;
+  padding-top: 1rem;
+  display: grid;
+  gap: 0.55rem;
 }
 
 #profile-secondary-roles {
@@ -1399,8 +1401,14 @@ button.ghost {
 
 .settings-team-section {
   border-top: 1px solid var(--border);
-  margin-top: 0.8rem;
-  padding-top: 0.8rem;
+  margin-top: 1.05rem;
+  padding-top: 1rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+#tab-player-config .profile-section > label {
+  max-width: 360px;
 }
 
 .settings-team-column h3 {
@@ -1440,18 +1448,23 @@ button.ghost {
 .settings-team-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
+  align-items: flex-start;
+  text-align: left;
   gap: 0.35rem;
 }
 
 .settings-team-card-title {
   width: 100%;
-  text-align: center;
+  text-align: left;
 }
 
 .settings-team-card-meta {
   margin: 0;
+}
+
+#settings-teams-member-list {
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 280px));
+  justify-content: start;
 }
 
 .logo-lightbox {

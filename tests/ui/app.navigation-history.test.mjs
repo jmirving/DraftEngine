@@ -367,6 +367,24 @@ describe("hash navigation routing", () => {
     expect(doc.querySelector("#hero-title").textContent).toBe("Profile");
   });
 
+  test("coming soon categories follow stable page order", async () => {
+    const harness = createFetchHarness();
+    const { dom } = await bootApp({
+      url: "http://localhost/public/index.html#workflow",
+      storageInitial: createAuthStorage(),
+      fetchHarness: harness
+    });
+    const doc = dom.window.document;
+
+    doc.querySelector(".side-menu-link[data-tab='coming-soon']").click();
+
+    const headings = Array.from(
+      doc.querySelectorAll("#tab-coming-soon .panel.draft-board-panel h3"),
+      (node) => node.textContent.trim()
+    );
+    expect(headings).toEqual(["General", "Profile", "Composer", "Teams", "Champions"]);
+  });
+
   test("mobile nav toggle still controls drawer open state", async () => {
     const harness = createFetchHarness();
     const matchMediaImpl = createMatchMedia(true);

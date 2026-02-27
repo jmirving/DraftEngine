@@ -936,6 +936,33 @@ describe("auth + pools + team management", () => {
     expect(riotStatsText).toContain("Champion #266");
   });
 
+  test("profile page shows not-implemented placeholder when Riot stats are idle", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const harness = createFetchHarness({
+      profile: {
+        id: 11,
+        email: "lead@example.com",
+        gameName: "LeadPlayer",
+        tagline: "NA1",
+        primaryRole: "Mid",
+        secondaryRoles: ["Top"]
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='player-config']").click();
+    await flush();
+
+    expect(doc.querySelector("#profile-riot-stats-summary").textContent).toContain("not implemented yet");
+    expect(doc.querySelector("#profile-riot-stats-list").textContent.trim()).toBe("");
+  });
+
   test("creating a team from team context sends name and tag", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({

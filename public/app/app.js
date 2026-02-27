@@ -3558,7 +3558,7 @@ function formatProfileChampionStatsSummary(championStats, authenticated) {
     return championStats.message || "Riot champion stats are temporarily unavailable.";
   }
 
-  return "Riot champion stats are loading.";
+  return "Riot champion stats are not implemented yet in this workspace.";
 }
 
 function formatLastPlayedText(lastPlayedAt) {
