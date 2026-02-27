@@ -106,7 +106,7 @@ Primary surfaces:
 - `Build a Composition` (single mode)
 - `Team Context` (server-backed active team context + lead-gated team workspace + role-pool preview)
 - `Player Pools` (API-backed pool editing)
-- `Champion Tags` (filter + inspect + scoped tag editing: self/team/all)
+- `Champion Tags` (filter + inspect + global tag editing for MVP)
 
 ## Testing
 

@@ -143,19 +143,13 @@
               <div id="champion-tag-editor" class="champion-tag-editor" hidden>
                 <p class="panel-kicker">Tag Editor</p>
                 <h3 id="champion-tag-editor-title">Edit Champion Tags</h3>
-                <p id="champion-tag-editor-meta" class="meta">Select a champion card to edit scoped tags.</p>
+                <p id="champion-tag-editor-meta" class="meta">Select a champion card to edit global tags.</p>
                 <div class="explorer-filters-grid">
                   <label>
                     Scope
                     <select id="champion-tag-editor-scope">
-                      <option value="self">Myself</option>
-                      <option value="team">My Teammates</option>
-                      <option value="all">All Users</option>
+                      <option value="all">All Users (MVP)</option>
                     </select>
-                  </label>
-                  <label id="champion-tag-editor-team-group" hidden>
-                    Team
-                    <select id="champion-tag-editor-team"></select>
                   </label>
                 </div>
                 <div id="champion-tag-editor-tags" class="excluded-options"></div>
@@ -621,7 +615,6 @@
               <h3>General</h3>
               <ul class="coming-soon-list">
                 <li>Champion catalog refresh checks are still manual; automatic release ingestion is not enabled yet.</li>
-                <li>Champion tag edits are not durably isolated from catalog seed refresh yet; restart/seed flows can overwrite editable tags.</li>
                 <li>Stronger admin safeguards are still needed to prevent misuse of champion tags and draft checks.</li>
               </ul>
               <h3>Profile</h3>
@@ -645,8 +638,9 @@
               </ul>
               <h3>Champions</h3>
               <ul class="coming-soon-list">
-                <li>Dedicated Champion Tags management page with full catalog controls and scoped flows (self/team/global + promotion requests).</li>
-                <li>Ship champion auto-ingest and durable champion-tag persistence together so release refreshes never overwrite edits.</li>
+                <li>MVP supports global champion tag editing in Explorer; self/team scoped tag workflows and promotions are deferred.</li>
+                <li>Dedicated Champion Tags management page with full catalog controls remains deferred beyond MVP.</li>
+                <li>Ship champion auto-ingest now that global champion-tag persistence is in place.</li>
               </ul>
             </div>
           </section>

@@ -733,7 +733,7 @@ describe("auth + pools + team management", () => {
     expect(registerCall.body.tagline).toBe("NA1");
   });
 
-  test("champion explorer loads tag catalog and saves scoped tag edits", async () => {
+  test("champion explorer loads tag catalog and saves global tag edits", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -767,7 +767,7 @@ describe("auth + pools + team management", () => {
       (call) => /^\/champions\/\d+\/tags$/.test(call.path) && call.method === "PUT"
     );
     expect(saveCall).toBeTruthy();
-    expect(saveCall.body.scope).toBe("self");
+    expect(saveCall.body.scope).toBe("all");
     expect(Array.isArray(saveCall.body.tag_ids)).toBe(true);
     expect(doc.querySelector("#champion-tag-editor-feedback").textContent).toContain("saved");
   });

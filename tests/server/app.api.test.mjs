@@ -1005,7 +1005,7 @@ describe("API routes", () => {
     expect(preflightResponse.headers["access-control-allow-methods"]).toContain("GET");
   });
 
-  it("serves champion tags and enforces scoped tag auth + promotion requests", async () => {
+  it("serves champion tags and enforces global-only MVP tag auth", async () => {
     const { app, config, state } = createMockContext();
 
     const listResponse = await request(app).get("/champions");
@@ -1037,105 +1037,51 @@ describe("API routes", () => {
     const memberCannotWriteGlobal = await request(app)
       .put("/champions/1/tags")
       .set("Authorization", buildAuthHeader(2, config))
-      .send({ scope: "all", tag_ids: [2] });
+      .send({ tag_ids: [2] });
     expect(memberCannotWriteGlobal.status).toBe(403);
 
-    const memberCanWriteSelf = await request(app)
+    const invalidScopeResponse = await request(app)
       .put("/champions/1/tags")
       .set("Authorization", buildAuthHeader(2, config))
-      .send({ scope: "self", tag_ids: [2, 1, 2] });
-    expect(memberCanWriteSelf.status).toBe(200);
-    expect(memberCanWriteSelf.body.tag_ids).toEqual([1, 2]);
+      .send({ scope: "self", tag_ids: [2] });
+    expect(invalidScopeResponse.status).toBe(400);
 
-    const selfRead = await request(app)
-      .get("/champions/1/tags?scope=self")
+    const globalReadDefaultScope = await request(app)
+      .get("/champions/1/tags")
       .set("Authorization", buildAuthHeader(2, config));
-    expect(selfRead.status).toBe(200);
-    expect(selfRead.body.tag_ids).toEqual([1, 2]);
-
-    const outsiderCannotWriteTeam = await request(app)
-      .put("/champions/1/tags")
-      .set("Authorization", buildAuthHeader(3, config))
-      .send({ scope: "team", team_id: 1, tag_ids: [2] });
-    expect(outsiderCannotWriteTeam.status).toBe(403);
-
-    const memberCannotWriteTeam = await request(app)
-      .put("/champions/1/tags")
-      .set("Authorization", buildAuthHeader(2, config))
-      .send({ scope: "team", team_id: 1, tag_ids: [2] });
-    expect(memberCannotWriteTeam.status).toBe(403);
-
-    const leadCanWriteTeam = await request(app)
-      .put("/champions/1/tags")
-      .set("Authorization", buildAuthHeader(1, config))
-      .send({ scope: "team", team_id: 1, tag_ids: [2] });
-    expect(leadCanWriteTeam.status).toBe(200);
-    expect(leadCanWriteTeam.body.team_id).toBe(1);
-
-    const teamRead = await request(app)
-      .get("/champions/1/tags?scope=team&team_id=1")
-      .set("Authorization", buildAuthHeader(2, config));
-    expect(teamRead.status).toBe(200);
-    expect(teamRead.body.tag_ids).toEqual([2]);
+    expect(globalReadDefaultScope.status).toBe(200);
+    expect(globalReadDefaultScope.body.scope).toBe("all");
+    expect(globalReadDefaultScope.body.team_id).toBeNull();
+    expect(globalReadDefaultScope.body.tag_ids).toEqual([1]);
 
     const adminCanWriteGlobal = await request(app)
       .put("/champions/1/tags")
       .set("Authorization", buildAuthHeader(1, config))
-      .send({ scope: "all", tag_ids: [2] });
+      .send({ tag_ids: [2, 1, 2] });
     expect(adminCanWriteGlobal.status).toBe(200);
-    expect(adminCanWriteGlobal.body.champion.tagIds).toEqual([2]);
+    expect(adminCanWriteGlobal.body.champion.tagIds).toEqual([1, 2]);
 
     const globalRead = await request(app)
       .get("/champions/1/tags?scope=all")
       .set("Authorization", buildAuthHeader(2, config));
     expect(globalRead.status).toBe(200);
-    expect(globalRead.body.tag_ids).toEqual([2]);
+    expect(globalRead.body.tag_ids).toEqual([1, 2]);
 
-    const selfToTeamPromotion = await request(app)
-      .post("/champions/1/tags/promotion-requests")
-      .set("Authorization", buildAuthHeader(2, config))
-      .send({
-        source_scope: "self",
-        target_scope: "team",
-        target_team_id: 1
-      });
-    expect(selfToTeamPromotion.status).toBe(201);
-    expect(selfToTeamPromotion.body.promotion_request.entity_type).toBe("champion_tags");
-    expect(selfToTeamPromotion.body.promotion_request.source_scope).toBe("self");
-    expect(selfToTeamPromotion.body.promotion_request.target_scope).toBe("team");
+    const listAfterGlobalSave = await request(app).get("/champions");
+    expect(listAfterGlobalSave.status).toBe(200);
+    const savedChampion = listAfterGlobalSave.body.champions.find((champion) => champion.id === 1);
+    expect(savedChampion.tagIds).toEqual([1, 2]);
 
-    const outsiderSelfToTeamPromotionDenied = await request(app)
-      .post("/champions/1/tags/promotion-requests")
-      .set("Authorization", buildAuthHeader(3, config))
-      .send({
-        source_scope: "self",
-        target_scope: "team",
-        target_team_id: 1
-      });
-    expect(outsiderSelfToTeamPromotionDenied.status).toBe(403);
-
-    const memberTeamToGlobalPromotionDenied = await request(app)
-      .post("/champions/1/tags/promotion-requests")
-      .set("Authorization", buildAuthHeader(2, config))
-      .send({
-        source_scope: "team",
-        team_id: 1,
-        target_scope: "all"
-      });
-    expect(memberTeamToGlobalPromotionDenied.status).toBe(403);
-
-    const leadTeamToGlobalPromotion = await request(app)
+    const promotionNotSupported = await request(app)
       .post("/champions/1/tags/promotion-requests")
       .set("Authorization", buildAuthHeader(1, config))
       .send({
-        source_scope: "team",
-        team_id: 1,
-        target_scope: "all"
+        source_scope: "self",
+        target_scope: "team",
+        target_team_id: 1
       });
-    expect(leadTeamToGlobalPromotion.status).toBe(201);
-    expect(leadTeamToGlobalPromotion.body.promotion_request.target_scope).toBe("all");
-
-    expect(state.promotionRequests).toHaveLength(2);
+    expect(promotionNotSupported.status).toBe(400);
+    expect(state.promotionRequests).toHaveLength(0);
   });
 
   it("enforces scoped required-check settings auth and promotion requests", async () => {

@@ -67,7 +67,7 @@ const DEFAULT_MEMBER_ROLE = "member";
 const MEMBER_ROLE_OPTIONS = Object.freeze(["lead", "member"]);
 const DEFAULT_TEAM_MEMBER_TYPE = "substitute";
 const TEAM_MEMBER_TYPE_OPTIONS = Object.freeze(["primary", "substitute"]);
-const CHAMPION_TAG_SCOPES = Object.freeze(["self", "team", "all"]);
+const CHAMPION_TAG_SCOPES = Object.freeze(["all"]);
 const DEFAULT_PRIMARY_ROLE = "Mid";
 const DEFAULT_FAMILIARITY_LEVEL = 3;
 const ALLOWED_TEAM_LOGO_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -133,7 +133,7 @@ const UI_COPY = Object.freeze({
       },
       explorer: {
         title: "Champions",
-        subtitle: "Browse champion cards, filter by tags, and edit scoped champion metadata."
+        subtitle: "Browse champion cards, filter by tags, and edit global champion metadata."
       },
       "coming-soon": {
         title: "Coming Soon",
@@ -252,7 +252,7 @@ function createInitialState() {
       tagById: {},
       selectedChampionTagEditorId: null,
       selectedChampionTagIds: [],
-      championTagScope: "self",
+      championTagScope: "all",
       championTagTeamId: "",
       isSavingChampionTags: false
     },
@@ -574,13 +574,13 @@ function setChampionTagEditorFeedback(message) {
 }
 
 function normalizeChampionTagScope(scope) {
-  return CHAMPION_TAG_SCOPES.includes(scope) ? scope : "self";
+  return CHAMPION_TAG_SCOPES.includes(scope) ? scope : "all";
 }
 
 function clearChampionTagEditorState() {
   state.api.selectedChampionTagEditorId = null;
   state.api.selectedChampionTagIds = [];
-  state.api.championTagScope = "self";
+  state.api.championTagScope = "all";
   state.api.championTagTeamId = "";
   state.api.isSavingChampionTags = false;
   setChampionTagEditorFeedback("");
@@ -1938,34 +1938,6 @@ async function loadTagCatalogFromApi() {
   }
 }
 
-function getChampionTagEditorTeamOptions() {
-  return [...state.api.teams]
-    .map((team) => ({ value: String(team.id), label: formatTeamCardTitle(team) }))
-    .sort((left, right) => left.label.localeCompare(right.label));
-}
-
-function ensureChampionTagEditorTeamSelection() {
-  if (state.api.championTagScope !== "team") {
-    state.api.championTagTeamId = "";
-    return;
-  }
-
-  const teamOptions = getChampionTagEditorTeamOptions();
-  const activeTeamId = normalizeTeamEntityId(state.teamConfig.activeTeamId);
-  const selected = normalizeTeamEntityId(state.api.championTagTeamId);
-  if (selected && teamOptions.some((option) => option.value === selected)) {
-    state.api.championTagTeamId = selected;
-    return;
-  }
-
-  if (activeTeamId && teamOptions.some((option) => option.value === activeTeamId)) {
-    state.api.championTagTeamId = activeTeamId;
-    return;
-  }
-
-  state.api.championTagTeamId = teamOptions[0]?.value ?? "";
-}
-
 function renderChampionTagCatalog() {
   if (!elements.championTagCatalogList || !elements.championTagCatalogMeta) {
     return;
@@ -2060,33 +2032,28 @@ function renderChampionTagEditor() {
   }
 
   state.api.championTagScope = normalizeChampionTagScope(state.api.championTagScope);
-  ensureChampionTagEditorTeamSelection();
 
   if (elements.championTagEditorTitle) {
     elements.championTagEditorTitle.textContent = `Edit ${champion.name} Tags`;
   }
   if (elements.championTagEditorMeta) {
-    elements.championTagEditorMeta.textContent = "Scope controls where tags are applied: yourself, your selected team, or all users.";
+    elements.championTagEditorMeta.textContent = "MVP supports global champion tag edits only.";
   }
   if (elements.championTagEditorScope) {
     elements.championTagEditorScope.value = state.api.championTagScope;
-    elements.championTagEditorScope.disabled = state.api.isSavingChampionTags;
+    elements.championTagEditorScope.disabled = true;
   }
-
-  const showTeamSelect = state.api.championTagScope === "team";
   if (elements.championTagEditorTeamGroup) {
-    elements.championTagEditorTeamGroup.hidden = !showTeamSelect;
+    elements.championTagEditorTeamGroup.hidden = true;
   }
   if (elements.championTagEditorTeam) {
-    const teamOptions = getChampionTagEditorTeamOptions();
-    replaceOptions(elements.championTagEditorTeam, teamOptions);
-    elements.championTagEditorTeam.value = state.api.championTagTeamId;
-    elements.championTagEditorTeam.disabled = state.api.isSavingChampionTags;
+    replaceOptions(elements.championTagEditorTeam, []);
+    elements.championTagEditorTeam.disabled = true;
   }
 
   renderChampionTagEditorTagOptions();
   if (elements.championTagEditorSave) {
-    elements.championTagEditorSave.disabled = state.api.isSavingChampionTags || (showTeamSelect && !state.api.championTagTeamId);
+    elements.championTagEditorSave.disabled = state.api.isSavingChampionTags;
   }
   if (elements.championTagEditorClear) {
     elements.championTagEditorClear.disabled = state.api.isSavingChampionTags;
@@ -2098,24 +2065,15 @@ async function loadChampionScopedTags(championId) {
     return false;
   }
 
-  const query = new URLSearchParams({ scope: state.api.championTagScope });
-  if (state.api.championTagScope === "team" && state.api.championTagTeamId) {
-    query.set("team_id", state.api.championTagTeamId);
-  }
+  const query = new URLSearchParams({ scope: "all" });
 
   try {
     const payload = await apiRequest(`/champions/${championId}/tags?${query.toString()}`, { auth: true });
     state.api.selectedChampionTagIds = normalizeApiTagIdArray(payload?.tag_ids);
-    if (state.api.championTagScope === "team") {
-      const teamId = normalizeTeamEntityId(payload?.team_id);
-      if (teamId) {
-        state.api.championTagTeamId = teamId;
-      }
-    }
     setChampionTagEditorFeedback("");
     return true;
   } catch (error) {
-    setChampionTagEditorFeedback(normalizeApiErrorMessage(error, "Failed to load scoped champion tags."));
+    setChampionTagEditorFeedback(normalizeApiErrorMessage(error, "Failed to load champion tags."));
     state.api.selectedChampionTagIds = [];
     return false;
   }
@@ -2127,9 +2085,8 @@ async function openChampionTagEditor(championId) {
   }
 
   state.api.selectedChampionTagEditorId = championId;
-  state.api.championTagScope = "self";
-  ensureChampionTagEditorTeamSelection();
-  setChampionTagEditorFeedback("Loading scoped tags...");
+  state.api.championTagScope = "all";
+  setChampionTagEditorFeedback("Loading champion tags...");
   renderChampionTagEditor();
   await loadChampionScopedTags(championId);
   renderChampionTagEditor();
@@ -2142,18 +2099,9 @@ async function saveChampionTagEditor() {
   }
 
   const payload = {
-    scope: state.api.championTagScope,
+    scope: "all",
     tag_ids: [...state.api.selectedChampionTagIds].sort((left, right) => left - right)
   };
-  if (state.api.championTagScope === "team") {
-    const teamId = normalizeTeamEntityId(state.api.championTagTeamId);
-    if (!teamId) {
-      setChampionTagEditorFeedback("Select a team before saving team-scoped tags.");
-      renderChampionTagEditor();
-      return;
-    }
-    payload.team_id = Number(teamId);
-  }
 
   state.api.isSavingChampionTags = true;
   setChampionTagEditorFeedback("Saving champion tags...");
@@ -2166,11 +2114,9 @@ async function saveChampionTagEditor() {
       body: payload
     });
     state.api.selectedChampionTagIds = normalizeApiTagIdArray(response?.tag_ids);
-    if (payload.scope === "all") {
-      const champion = getChampionById(championId);
-      if (champion) {
-        champion.tagIds = [...state.api.selectedChampionTagIds];
-      }
+    const champion = getChampionById(championId);
+    if (champion) {
+      champion.tagIds = [...state.api.selectedChampionTagIds];
     }
     setChampionTagEditorFeedback("Champion tags saved.");
     renderExplorer();
@@ -5552,10 +5498,9 @@ function attachEvents() {
   if (elements.championTagEditorScope) {
     elements.championTagEditorScope.addEventListener("change", () => {
       state.api.championTagScope = normalizeChampionTagScope(elements.championTagEditorScope.value);
-      ensureChampionTagEditorTeamSelection();
       renderChampionTagEditor();
       if (state.api.selectedChampionTagEditorId) {
-        setChampionTagEditorFeedback("Loading scoped tags...");
+        setChampionTagEditorFeedback("Loading champion tags...");
         void loadChampionScopedTags(state.api.selectedChampionTagEditorId).then(() => {
           renderChampionTagEditor();
         });
@@ -5567,8 +5512,8 @@ function attachEvents() {
     elements.championTagEditorTeam.addEventListener("change", () => {
       state.api.championTagTeamId = normalizeTeamEntityId(elements.championTagEditorTeam.value) ?? "";
       renderChampionTagEditor();
-      if (state.api.selectedChampionTagEditorId && state.api.championTagScope === "team") {
-        setChampionTagEditorFeedback("Loading team scoped tags...");
+      if (state.api.selectedChampionTagEditorId) {
+        setChampionTagEditorFeedback("Loading champion tags...");
         void loadChampionScopedTags(state.api.selectedChampionTagEditorId).then(() => {
           renderChampionTagEditor();
         });
