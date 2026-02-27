@@ -1004,6 +1004,7 @@ describe("auth + pools + team management", () => {
     const manageTab = doc.querySelector("#team-workspace-tab-manage");
     const createTab = doc.querySelector("#team-workspace-tab-create");
     const activeTeamSelect = doc.querySelector("#team-config-active-team");
+    const contextHelp = doc.querySelector("#team-config-context-help");
     const activeTeamOptions = Array.from(activeTeamSelect.options, (option) => option.textContent);
     const editAction = doc.querySelector("button[data-team-manage-action='team-settings']");
     const addAction = doc.querySelector("button[data-team-manage-action='add-member']");
@@ -1019,6 +1020,7 @@ describe("auth + pools + team management", () => {
     expect(createTab.getAttribute("aria-selected")).toBe("false");
     expect(activeTeamOptions.some((option) => option.includes("Team Alpha"))).toBe(true);
     expect(activeTeamOptions.some((option) => option === "Mid")).toBe(false);
+    expect(contextHelp.textContent).toContain("Team Workspace's Team selector only chooses");
     expect(editPanel.hidden).toBe(true);
     expect(addPanel.hidden).toBe(true);
     expect(actionHelp.hidden).toBe(false);
@@ -1083,8 +1085,24 @@ describe("auth + pools + team management", () => {
       ],
       membersByTeam: {
         "1": [
-          { team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "lead@example.com" },
-          { team_id: 1, user_id: 22, role: "member", team_role: "substitute", email: "member@example.com" }
+          {
+            team_id: 1,
+            user_id: 11,
+            role: "lead",
+            team_role: "primary",
+            email: "lead@example.com",
+            display_name: "Lead#NA1",
+            lane: "Top"
+          },
+          {
+            team_id: 1,
+            user_id: 22,
+            role: "member",
+            team_role: "substitute",
+            email: "member@example.com",
+            display_name: "Member#NA1",
+            lane: "ADC"
+          }
         ]
       }
     });
@@ -1543,8 +1561,24 @@ describe("auth + pools + team management", () => {
       ],
       membersByTeam: {
         "1": [
-          { team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "lead@example.com" },
-          { team_id: 1, user_id: 22, role: "member", team_role: "substitute", email: "member@example.com" }
+          {
+            team_id: 1,
+            user_id: 11,
+            role: "lead",
+            team_role: "primary",
+            email: "lead@example.com",
+            display_name: "Lead#NA1",
+            lane: "Top"
+          },
+          {
+            team_id: 1,
+            user_id: 22,
+            role: "member",
+            team_role: "substitute",
+            email: "member@example.com",
+            display_name: "Member#NA1",
+            lane: "ADC"
+          }
         ]
       }
     });
@@ -1557,8 +1591,16 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#team-admin-readonly-note").textContent).toContain("Read-only mode");
     expect(doc.querySelector("#team-admin-rename").disabled).toBe(true);
     expect(doc.querySelector("#team-admin-add-member").disabled).toBe(true);
-    expect(doc.querySelector("#team-admin-members").textContent).toContain("member@example.com");
-    expect(doc.querySelector("#team-admin-members").textContent).toContain("lead@example.com");
+    expect(doc.querySelector("#team-admin-members").textContent).toContain("Lead#NA1");
+    expect(doc.querySelector("#team-admin-members").textContent).toContain("Member#NA1");
+    expect(doc.querySelector("#team-admin-members").textContent).not.toContain("member@example.com");
+    expect(doc.querySelector("#team-admin-members").textContent).not.toContain("lead@example.com");
+    expect(doc.querySelector("#team-admin-members").textContent).toContain("Top");
+    expect(doc.querySelector("#team-admin-members").textContent).toContain("Jungle");
+    expect(doc.querySelector("#team-admin-members").textContent).toContain("Mid");
+    expect(doc.querySelector("#team-admin-members").textContent).toContain("ADC");
+    expect(doc.querySelector("#team-admin-members").textContent).toContain("Support");
+    expect(doc.querySelectorAll("#team-admin-members .roster-slot-empty")).toHaveLength(3);
 
     const leadStorage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
@@ -1582,8 +1624,24 @@ describe("auth + pools + team management", () => {
       ],
       membersByTeam: {
         "1": [
-          { team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "lead@example.com" },
-          { team_id: 1, user_id: 22, role: "member", team_role: "substitute", email: "member@example.com" }
+          {
+            team_id: 1,
+            user_id: 11,
+            role: "lead",
+            team_role: "primary",
+            email: "lead@example.com",
+            display_name: "Lead#NA1",
+            lane: "Top"
+          },
+          {
+            team_id: 1,
+            user_id: 22,
+            role: "member",
+            team_role: "substitute",
+            email: "member@example.com",
+            display_name: "Member#NA1",
+            lane: "ADC"
+          }
         ]
       }
     });

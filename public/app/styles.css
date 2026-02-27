@@ -548,6 +548,37 @@ h3 {
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
 }
 
+.roster-slot-card {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+}
+
+.roster-slot-title {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.roster-slot-empty {
+  margin: 0;
+}
+
+.roster-slot-list {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.roster-slot-row {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fffefa;
+  padding: 0.35rem 0.42rem;
+}
+
+.roster-slot-row .meta {
+  margin: 0.15rem 0 0;
+}
+
 .player-team-controls {
   grid-template-columns: minmax(220px, 360px);
 }

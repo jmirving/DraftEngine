@@ -389,6 +389,7 @@ function createElements() {
     treeCollapseAll: runtimeDocument.querySelector("#tree-collapse-all"),
     teamConfigActiveTeam: runtimeDocument.querySelector("#team-config-active-team"),
     teamConfigDefaultTeam: runtimeDocument.querySelector("#team-config-default-team"),
+    teamConfigContextHelp: runtimeDocument.querySelector("#team-config-context-help"),
     teamConfigDefaultHelp: runtimeDocument.querySelector("#team-config-default-help"),
     teamConfigActiveHelp: runtimeDocument.querySelector("#team-config-active-help"),
     teamConfigPoolSummary: runtimeDocument.querySelector("#team-config-pool-summary"),
@@ -773,9 +774,6 @@ function resolveMemberDisplayName(member) {
       return `${member.game_name.trim()}#${member.tagline.trim()}`;
     }
     return member.game_name.trim();
-  }
-  if (typeof member?.email === "string" && member.email.trim() !== "") {
-    return member.email.trim();
   }
   const memberId = Number.parseInt(String(member?.user_id ?? ""), 10);
   return Number.isInteger(memberId) ? `User ${memberId}` : "Unknown Player";
@@ -2850,6 +2848,10 @@ function renderTeamConfig() {
   syncConfiguredTeamSelection();
   elements.teamConfigDefaultTeam.value = state.teamConfig.defaultTeamId;
   elements.teamConfigActiveTeam.value = state.teamConfig.activeTeamId;
+  if (elements.teamConfigContextHelp) {
+    elements.teamConfigContextHelp.textContent =
+      "Default Team sets your starting draft context. Active Team drives the current Composer/team-scoped context. Team Workspace's Team selector only chooses which roster/admin forms are being edited.";
+  }
 
   elements.teamConfigDefaultHelp.textContent = state.teamConfig.defaultTeamId === NONE_TEAM_ID
     ? "Default team: None (new sessions start in global context)."
@@ -3022,14 +3024,6 @@ function renderTeamAdmin() {
     return;
   }
 
-  if (members.length === 0) {
-    const empty = runtimeDocument.createElement("p");
-    empty.className = "meta";
-    empty.textContent = "No members on this team yet.";
-    elements.teamAdminMembers.append(empty);
-    return;
-  }
-
   const groupedMembers = new Map();
   for (const member of members) {
     const lane = resolveMemberLane(member) ?? "Unassigned";
@@ -3038,12 +3032,8 @@ function renderTeamAdmin() {
     groupedMembers.set(lane, bucket);
   }
 
-  const laneOrder = [...LANE_ORDER, "Unassigned"];
-  for (const lane of laneOrder) {
+  for (const lane of LANE_ORDER) {
     const laneMembers = groupedMembers.get(lane) ?? [];
-    if (laneMembers.length === 0) {
-      continue;
-    }
 
     laneMembers.sort((left, right) => {
       const leftLead = left?.role === "lead" ? 0 : 1;
@@ -3054,25 +3044,72 @@ function renderTeamAdmin() {
       return resolveMemberDisplayName(left).localeCompare(resolveMemberDisplayName(right));
     });
 
-    const laneHeading = runtimeDocument.createElement("p");
-    laneHeading.className = "panel-kicker";
-    laneHeading.textContent = lane;
-    elements.teamAdminMembers.append(laneHeading);
+    const slotCard = runtimeDocument.createElement("article");
+    slotCard.className = "summary-card roster-slot-card";
+    slotCard.dataset.lane = lane;
 
+    const slotTitle = runtimeDocument.createElement("h4");
+    slotTitle.className = "roster-slot-title";
+    slotTitle.textContent = lane;
+    slotCard.append(slotTitle);
+
+    if (laneMembers.length === 0) {
+      const empty = runtimeDocument.createElement("p");
+      empty.className = "meta roster-slot-empty";
+      empty.textContent = "Open slot";
+      slotCard.append(empty);
+      elements.teamAdminMembers.append(slotCard);
+      continue;
+    }
+
+    const slotList = runtimeDocument.createElement("div");
+    slotList.className = "roster-slot-list";
     for (const member of laneMembers) {
-      const card = runtimeDocument.createElement("article");
-      card.className = "summary-card";
+      const row = runtimeDocument.createElement("div");
+      row.className = "roster-slot-row";
 
       const title = runtimeDocument.createElement("strong");
       title.textContent = resolveMemberDisplayName(member);
 
       const details = runtimeDocument.createElement("p");
       details.className = "meta";
-      details.textContent = `Position: ${formatPositionLabel(resolveMemberLane(member))} | ${formatMembershipRole(member.role)} | ${formatRosterRole(member.team_role ?? "primary")}`;
-
-      card.append(title, details);
-      elements.teamAdminMembers.append(card);
+      details.textContent = `${formatMembershipRole(member.role)} | ${formatRosterRole(member.team_role ?? "primary")}`;
+      row.append(title, details);
+      slotList.append(row);
     }
+
+    slotCard.append(slotList);
+    elements.teamAdminMembers.append(slotCard);
+  }
+
+  const unassignedMembers = groupedMembers.get("Unassigned") ?? [];
+  if (unassignedMembers.length > 0) {
+    const slotCard = runtimeDocument.createElement("article");
+    slotCard.className = "summary-card roster-slot-card";
+    slotCard.dataset.lane = "Unassigned";
+
+    const slotTitle = runtimeDocument.createElement("h4");
+    slotTitle.className = "roster-slot-title";
+    slotTitle.textContent = "Unassigned";
+    slotCard.append(slotTitle);
+
+    const slotList = runtimeDocument.createElement("div");
+    slotList.className = "roster-slot-list";
+    for (const member of unassignedMembers) {
+      const row = runtimeDocument.createElement("div");
+      row.className = "roster-slot-row";
+
+      const title = runtimeDocument.createElement("strong");
+      title.textContent = resolveMemberDisplayName(member);
+
+      const details = runtimeDocument.createElement("p");
+      details.className = "meta";
+      details.textContent = `${formatMembershipRole(member.role)} | ${formatRosterRole(member.team_role ?? "primary")}`;
+      row.append(title, details);
+      slotList.append(row);
+    }
+    slotCard.append(slotList);
+    elements.teamAdminMembers.append(slotCard);
   }
 }
 
