@@ -424,6 +424,23 @@ h3 {
   width: auto;
 }
 
+.team-current-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.team-current-logo[hidden] {
+  display: none;
+}
+
+.team-logo-preview-button {
+  width: auto;
+  margin-top: 0;
+  padding: 0.22rem;
+  border-radius: 10px;
+}
+
 .team-admin-block {
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -1266,6 +1283,66 @@ button.ghost {
   object-fit: cover;
   border: 1px solid var(--border);
   background: #fff;
+}
+
+.summary-card-logo-button {
+  width: auto;
+  margin-top: 0;
+  padding: 0.22rem;
+  border-radius: 10px;
+}
+
+.settings-team-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.35rem;
+}
+
+.settings-team-card-title {
+  width: 100%;
+  text-align: center;
+}
+
+.settings-team-card-meta {
+  margin: 0;
+}
+
+.logo-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(17, 24, 31, 0.86);
+  display: grid;
+  place-items: center;
+  gap: 0.6rem;
+  padding: 1rem;
+}
+
+.logo-lightbox[hidden] {
+  display: none;
+}
+
+.logo-lightbox-close {
+  width: auto;
+  margin-top: 0;
+  justify-self: end;
+}
+
+.logo-lightbox-image {
+  max-width: min(86vw, 560px);
+  max-height: min(72vh, 560px);
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: #fff;
+  object-fit: contain;
+}
+
+.logo-lightbox-caption {
+  margin: 0;
+  color: #fff7f2;
+  text-align: center;
 }
 
 @media (max-width: 980px) {

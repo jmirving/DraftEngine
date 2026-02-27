@@ -58,10 +58,16 @@ function createFetchHarness({
   failCreatePoolWith401 = false,
   championIdsAsStrings = false,
   loginUser = null,
-  profile = null
+  profile = null,
+  teamContext = null
 } = {}) {
   const calls = [];
   let nextPoolId = pools.length + 1;
+  let persistedTeamContext = {
+    defaultTeamId: null,
+    activeTeamId: null,
+    ...(teamContext && typeof teamContext === "object" ? teamContext : {})
+  };
   const resolvedLoginUser = loginUser ?? {
     id: 11,
     email: "user@example.com",
@@ -202,6 +208,22 @@ function createFetchHarness({
           primaryRole: body.primaryRole,
           secondaryRoles: Array.isArray(body.secondaryRoles) ? body.secondaryRoles : []
         }
+      });
+    }
+
+    if (path === "/me/team-context" && method === "GET") {
+      return createJsonResponse({
+        teamContext: persistedTeamContext
+      });
+    }
+
+    if (path === "/me/team-context" && method === "PUT") {
+      persistedTeamContext = {
+        defaultTeamId: body.defaultTeamId ?? null,
+        activeTeamId: body.activeTeamId ?? null
+      };
+      return createJsonResponse({
+        teamContext: persistedTeamContext
       });
     }
 
@@ -610,6 +632,14 @@ describe("auth + pools + team management", () => {
     expect(memberListText).toContain("Team Beta");
     expect(memberListText).toContain("Team Lead");
     expect(memberListText).toContain("Substitute");
+
+    const firstLogoButton = doc.querySelector("#settings-teams-member-list .summary-card-logo-button");
+    expect(firstLogoButton).toBeTruthy();
+    firstLogoButton.click();
+    expect(doc.querySelector("#logo-lightbox").hidden).toBe(false);
+    expect(doc.querySelector("#logo-lightbox-caption").textContent).toContain("Team");
+    doc.querySelector("#logo-lightbox-close").click();
+    expect(doc.querySelector("#logo-lightbox").hidden).toBe(true);
   });
 
   test("creating a team from team context sends name and tag", async () => {
@@ -656,7 +686,7 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#team-admin-feedback").textContent).toContain("Created team 'My New Team'.");
   });
 
-  test("team workspace uses create/manage tabs and action-driven manage forms", async () => {
+  test("team context uses real teams and manage forms are action-driven", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -691,16 +721,22 @@ describe("auth + pools + team management", () => {
     const createPanel = doc.querySelector("#team-workspace-create");
     const manageTab = doc.querySelector("#team-workspace-tab-manage");
     const createTab = doc.querySelector("#team-workspace-tab-create");
+    const activeTeamSelect = doc.querySelector("#team-config-active-team");
+    const activeTeamOptions = Array.from(activeTeamSelect.options, (option) => option.textContent);
     const editAction = doc.querySelector("button[data-team-manage-action='team-settings']");
     const addAction = doc.querySelector("button[data-team-manage-action='add-member']");
     const editPanel = doc.querySelector("[data-team-manage-panel='team-settings']");
     const addPanel = doc.querySelector("[data-team-manage-panel='add-member']");
     const actionHelp = doc.querySelector("#team-manage-action-help");
+    const currentLogoHelp = doc.querySelector("#team-admin-current-logo-help");
+    const currentLogoOpen = doc.querySelector("#team-admin-current-logo-open");
 
     expect(managePanel.hidden).toBe(false);
     expect(createPanel.hidden).toBe(true);
     expect(manageTab.getAttribute("aria-selected")).toBe("true");
     expect(createTab.getAttribute("aria-selected")).toBe("false");
+    expect(activeTeamOptions.some((option) => option.includes("Team Alpha"))).toBe(true);
+    expect(activeTeamOptions.some((option) => option === "Mid")).toBe(false);
     expect(editPanel.hidden).toBe(true);
     expect(addPanel.hidden).toBe(true);
     expect(actionHelp.hidden).toBe(false);
@@ -710,6 +746,22 @@ describe("auth + pools + team management", () => {
     expect(editPanel.hidden).toBe(false);
     expect(addPanel.hidden).toBe(true);
     expect(actionHelp.hidden).toBe(true);
+    expect(currentLogoHelp.textContent).toContain("Current logo shown");
+    expect(currentLogoOpen.hidden).toBe(false);
+
+    currentLogoOpen.click();
+    expect(doc.querySelector("#logo-lightbox").hidden).toBe(false);
+    doc.querySelector("#logo-lightbox-close").click();
+    expect(doc.querySelector("#logo-lightbox").hidden).toBe(true);
+
+    activeTeamSelect.value = "1";
+    activeTeamSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await flush();
+    const saveTeamContextCall = harness.calls.find(
+      (call) => call.path === "/me/team-context" && call.method === "PUT"
+    );
+    expect(saveTeamContextCall).toBeTruthy();
+    expect(saveTeamContextCall.body.activeTeamId).toBe(1);
 
     addAction.click();
     expect(editPanel.hidden).toBe(true);

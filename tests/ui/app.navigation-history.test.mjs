@@ -53,6 +53,10 @@ function createFetchHarness({
   profile = null
 } = {}) {
   const calls = [];
+  let teamContext = {
+    defaultTeamId: null,
+    activeTeamId: null
+  };
   const resolvedLoginUser = loginUser ?? {
     id: 11,
     email: "user@example.com",
@@ -120,6 +124,20 @@ function createFetchHarness({
 
     if (path === "/me/profile" && method === "GET") {
       return createJsonResponse({ profile: resolvedProfile });
+    }
+
+    if (path === "/me/team-context" && method === "GET") {
+      return createJsonResponse({
+        teamContext
+      });
+    }
+
+    if (path === "/me/team-context" && method === "PUT") {
+      teamContext = {
+        defaultTeamId: body?.defaultTeamId ?? null,
+        activeTeamId: body?.activeTeamId ?? null
+      };
+      return createJsonResponse({ teamContext });
     }
 
     if (path === "/me/pools" && method === "GET") {

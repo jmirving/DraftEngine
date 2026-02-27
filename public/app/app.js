@@ -21,6 +21,7 @@ import {
   buildPlayerPoolsByTeam,
   buildTeamPlayersByRoleFromPlayerPools,
   buildTeamPoolsFromPlayerPools,
+  createEmptyRolePools,
   clonePlayerPoolsByTeam,
   compareSlots,
   normalizePoolPlayerName
@@ -48,6 +49,7 @@ const AUTH_SESSION_STORAGE_KEY = "draftflow.authSession.v1";
 const TEAM_WORKSPACE_TAB_MANAGE = "manage";
 const TEAM_WORKSPACE_TAB_CREATE = "create";
 const TEAM_WORKSPACE_TAB_SET = new Set([TEAM_WORKSPACE_TAB_MANAGE, TEAM_WORKSPACE_TAB_CREATE]);
+const BUILDER_PROFILE_POOL_CONTEXT_ID = "__PROFILE_POOL_CONTEXT__";
 const TEAM_MANAGE_ACTION_TEAM_SETTINGS = "team-settings";
 const TEAM_MANAGE_ACTION_ADD_MEMBER = "add-member";
 const TEAM_MANAGE_ACTION_UPDATE_MEMBER_ROLE = "update-member-role";
@@ -346,6 +348,10 @@ function createElements() {
     teamAdminRenameTag: runtimeDocument.querySelector("#team-admin-rename-tag"),
     teamAdminRenameLogoUrl: runtimeDocument.querySelector("#team-admin-rename-logo-url"),
     teamAdminRenameRemoveLogo: runtimeDocument.querySelector("#team-admin-rename-remove-logo"),
+    teamAdminCurrentLogo: runtimeDocument.querySelector("#team-admin-current-logo"),
+    teamAdminCurrentLogoOpen: runtimeDocument.querySelector("#team-admin-current-logo-open"),
+    teamAdminCurrentLogoImage: runtimeDocument.querySelector("#team-admin-current-logo-image"),
+    teamAdminCurrentLogoHelp: runtimeDocument.querySelector("#team-admin-current-logo-help"),
     teamAdminRename: runtimeDocument.querySelector("#team-admin-rename"),
     teamAdminDelete: runtimeDocument.querySelector("#team-admin-delete"),
     teamAdminMembers: runtimeDocument.querySelector("#team-admin-members"),
@@ -375,6 +381,10 @@ function createElements() {
     playerConfigGrid: runtimeDocument.querySelector("#player-config-grid"),
     settingsTeamsMemberSummary: runtimeDocument.querySelector("#settings-teams-member-summary"),
     settingsTeamsMemberList: runtimeDocument.querySelector("#settings-teams-member-list"),
+    logoLightbox: runtimeDocument.querySelector("#logo-lightbox"),
+    logoLightboxClose: runtimeDocument.querySelector("#logo-lightbox-close"),
+    logoLightboxImage: runtimeDocument.querySelector("#logo-lightbox-image"),
+    logoLightboxCaption: runtimeDocument.querySelector("#logo-lightbox-caption"),
     slotSelects: Object.fromEntries(
       SLOTS.map((slot) => [slot, runtimeDocument.querySelector(`#slot-${slot}`)])
     ),
@@ -472,6 +482,60 @@ function formatTeamCardTitle(team) {
   const name = typeof team?.name === "string" ? team.name : "Unnamed Team";
   const tag = typeof team?.tag === "string" ? team.tag.trim() : "";
   return tag ? `${name} (${tag})` : name;
+}
+
+function normalizeTeamEntityId(rawValue) {
+  if (typeof rawValue === "string" && rawValue.trim() !== "") {
+    const parsed = Number.parseInt(rawValue, 10);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return String(parsed);
+    }
+  }
+  if (Number.isInteger(rawValue) && rawValue > 0) {
+    return String(rawValue);
+  }
+  return null;
+}
+
+function toApiTeamContextId(teamId) {
+  if (teamId === NONE_TEAM_ID) {
+    return null;
+  }
+  const normalizedId = normalizeTeamEntityId(teamId);
+  if (!normalizedId) {
+    return null;
+  }
+  return Number.parseInt(normalizedId, 10);
+}
+
+function findTeamById(teamId) {
+  const normalizedId = normalizeTeamEntityId(teamId);
+  if (!normalizedId) {
+    return null;
+  }
+  return state.api.teams.find((team) => String(team.id) === normalizedId) ?? null;
+}
+
+function closeLogoLightbox() {
+  if (!elements.logoLightbox) {
+    return;
+  }
+  elements.logoLightbox.hidden = true;
+  if (elements.logoLightboxImage) {
+    elements.logoLightboxImage.removeAttribute("src");
+  }
+  if (elements.logoLightboxCaption) {
+    elements.logoLightboxCaption.textContent = "";
+  }
+}
+
+function openLogoLightbox(imageUrl, caption = "") {
+  if (!elements.logoLightbox || !elements.logoLightboxImage || !imageUrl) {
+    return;
+  }
+  elements.logoLightboxImage.src = imageUrl;
+  elements.logoLightboxCaption.textContent = caption;
+  elements.logoLightbox.hidden = false;
 }
 
 function normalizeTeamTag(tag) {
@@ -1461,9 +1525,13 @@ function parseRolePoolTeamId(teamId) {
 
 function getTeamDisplayLabel(teamId) {
   if (teamId === NONE_TEAM_ID) {
-    return "None (global role pools)";
+    return "None (global context)";
   }
-  return state.data.teamLabels?.[teamId] ?? teamId;
+  const team = findTeamById(teamId);
+  if (team) {
+    return formatTeamCardTitle(team);
+  }
+  return state.data.teamLabels?.[teamId] ?? String(teamId);
 }
 
 function buildRolePlayerFromChampionNames(role, championNames) {
@@ -1695,6 +1763,47 @@ async function loadTeamsFromApi(preferredTeamId = null) {
   }
 }
 
+async function loadTeamContextFromApi() {
+  if (!isAuthenticated()) {
+    state.teamConfig.activeTeamId = NONE_TEAM_ID;
+    return false;
+  }
+
+  try {
+    const payload = await apiRequest("/me/team-context", { auth: true });
+    const apiActiveTeamId = normalizeTeamEntityId(payload?.teamContext?.activeTeamId);
+    state.teamConfig.activeTeamId = apiActiveTeamId ?? NONE_TEAM_ID;
+    return true;
+  } catch (error) {
+    setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to load team context."));
+    return false;
+  }
+}
+
+async function saveTeamContextToApi() {
+  if (!isAuthenticated()) {
+    return false;
+  }
+
+  try {
+    const activeTeamId = toApiTeamContextId(state.teamConfig.activeTeamId);
+    const payload = await apiRequest("/me/team-context", {
+      method: "PUT",
+      auth: true,
+      body: {
+        defaultTeamId: null,
+        activeTeamId
+      }
+    });
+    const persistedActiveTeamId = normalizeTeamEntityId(payload?.teamContext?.activeTeamId);
+    state.teamConfig.activeTeamId = persistedActiveTeamId ?? NONE_TEAM_ID;
+    return true;
+  } catch (error) {
+    setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to save team context."));
+    return false;
+  }
+}
+
 async function createTeamFromTeamAdmin() {
   if (!isAuthenticated()) {
     setTeamAdminFeedback("Sign in to create teams.");
@@ -1868,11 +1977,7 @@ function clearExplorerFilters() {
 }
 
 function getSlotLabel(slot) {
-  if (state.builder.teamId === NONE_TEAM_ID) {
-    return slot;
-  }
-  const playerName = state.data.teamPlayersByRole[state.builder.teamId]?.[slot];
-  return playerName ? `${slot} (${playerName})` : slot;
+  return slot;
 }
 
 function updateTeamHelpAndSlotLabels() {
@@ -1881,7 +1986,7 @@ function updateTeamHelpAndSlotLabels() {
       "Role candidates use global champion eligibility.";
   } else {
     elements.builderTeamHelp.textContent =
-      "Role candidates are limited to this team's configured pools.";
+      "Team context is set. Candidate pools use your configured role pools.";
   }
 
   for (const slot of SLOTS) {
@@ -1890,11 +1995,11 @@ function updateTeamHelpAndSlotLabels() {
 }
 
 function getTeamSelectOptions() {
-  const teamOptions = Object.keys(state.data.teamPools)
-    .sort((left, right) => getTeamDisplayLabel(left).localeCompare(getTeamDisplayLabel(right)))
-    .map((teamId) => ({ value: teamId, label: getTeamDisplayLabel(teamId) }));
+  const teamOptions = [...state.api.teams]
+    .sort((left, right) => formatTeamCardTitle(left).localeCompare(formatTeamCardTitle(right)))
+    .map((team) => ({ value: String(team.id), label: formatTeamCardTitle(team) }));
   return [
-    { value: NONE_TEAM_ID, label: "None (global role pools)" },
+    { value: NONE_TEAM_ID, label: "None (global context)" },
     ...teamOptions
   ];
 }
@@ -1903,15 +2008,18 @@ function normalizeConfiguredTeamId(teamId) {
   if (teamId === NONE_TEAM_ID) {
     return NONE_TEAM_ID;
   }
-  if (typeof teamId === "string" && state.data.teamPools[teamId]) {
-    return teamId;
+  const normalizedId = normalizeTeamEntityId(teamId);
+  if (!normalizedId) {
+    return NONE_TEAM_ID;
+  }
+  if (findTeamById(normalizedId)) {
+    return normalizedId;
   }
   return NONE_TEAM_ID;
 }
 
 function getOnlyConfiguredTeamId() {
-  const teamIds = Object.keys(state.data.teamPools);
-  return teamIds.length === 1 ? teamIds[0] : null;
+  return state.api.teams.length === 1 ? String(state.api.teams[0].id) : null;
 }
 
 function resolveConfiguredTeamSelection(teamId) {
@@ -1930,11 +2038,22 @@ function syncConfiguredTeamSelection() {
   state.builder.teamId = state.teamConfig.activeTeamId;
 }
 
+function getProfileRolePools() {
+  const pools = createEmptyRolePools();
+  for (const slot of SLOTS) {
+    const roleTeamId = buildRolePoolTeamId(slot);
+    const rolePools = state.data.teamPools[roleTeamId];
+    const champions = Array.isArray(rolePools?.[slot]) ? rolePools[slot] : [];
+    pools[slot] = [...champions];
+  }
+  return pools;
+}
+
 function getPoolsForTeam(teamId) {
   if (teamId === NONE_TEAM_ID) {
     return state.data.noneTeamPools;
   }
-  return state.data.teamPools[teamId] ?? state.data.noneTeamPools;
+  return getProfileRolePools();
 }
 
 function initializeBuilderControls() {
@@ -2045,7 +2164,7 @@ function renderTeamConfig() {
   elements.teamConfigActiveTeam.value = state.teamConfig.activeTeamId;
 
   elements.teamConfigActiveHelp.textContent = state.teamConfig.activeTeamId === NONE_TEAM_ID
-    ? "Active team: None (global role pools)."
+    ? "Active team: None (global context)."
     : `Active team: ${getTeamDisplayLabel(state.teamConfig.activeTeamId)}.`;
 
   const pools = getPoolsForTeam(state.teamConfig.activeTeamId);
@@ -2082,6 +2201,47 @@ function getSelectedAdminTeam() {
   return state.api.teams[0] ?? null;
 }
 
+function renderTeamAdminCurrentLogo(selectedTeam) {
+  if (!elements.teamAdminCurrentLogo) {
+    return;
+  }
+  if (!selectedTeam) {
+    elements.teamAdminCurrentLogo.hidden = true;
+    if (elements.teamAdminCurrentLogoImage) {
+      elements.teamAdminCurrentLogoImage.removeAttribute("src");
+    }
+    if (elements.teamAdminCurrentLogoHelp) {
+      elements.teamAdminCurrentLogoHelp.textContent = "";
+    }
+    return;
+  }
+
+  const hasLogo = typeof selectedTeam.logo_data_url === "string" && selectedTeam.logo_data_url.trim() !== "";
+  elements.teamAdminCurrentLogo.hidden = false;
+  if (elements.teamAdminCurrentLogoOpen) {
+    elements.teamAdminCurrentLogoOpen.hidden = !hasLogo;
+    elements.teamAdminCurrentLogoOpen.disabled = !hasLogo;
+    elements.teamAdminCurrentLogoOpen.dataset.logoUrl = hasLogo ? selectedTeam.logo_data_url : "";
+    elements.teamAdminCurrentLogoOpen.dataset.logoCaption = hasLogo
+      ? `${formatTeamCardTitle(selectedTeam)} logo`
+      : "";
+  }
+  if (elements.teamAdminCurrentLogoImage) {
+    if (hasLogo) {
+      elements.teamAdminCurrentLogoImage.src = selectedTeam.logo_data_url;
+      elements.teamAdminCurrentLogoImage.alt = `${formatTeamCardTitle(selectedTeam)} logo`;
+    } else {
+      elements.teamAdminCurrentLogoImage.removeAttribute("src");
+      elements.teamAdminCurrentLogoImage.alt = "No current team logo";
+    }
+  }
+  if (elements.teamAdminCurrentLogoHelp) {
+    elements.teamAdminCurrentLogoHelp.textContent = hasLogo
+      ? "Current logo shown. Upload a file only if you want to replace it."
+      : "No current logo is set. Upload a file to add one.";
+  }
+}
+
 function renderTeamAdmin() {
   const teamOptions = state.api.teams
     .map((team) => ({ value: String(team.id), label: formatTeamCardTitle(team) }))
@@ -2107,6 +2267,7 @@ function renderTeamAdmin() {
       elements.teamAdminRenameRemoveLogo.checked = false;
     }
   }
+  renderTeamAdminCurrentLogo(selectedTeam);
 
   const members = selectedTeam ? state.api.membersByTeamId[String(selectedTeam.id)] ?? [] : [];
   const isLead = selectedTeam?.membership_role === "lead";
@@ -2268,21 +2429,31 @@ function renderSettingsTeamList(target, teams, emptyMessage) {
 
   for (const team of teams) {
     const card = runtimeDocument.createElement("article");
-    card.className = "summary-card";
+    card.className = "summary-card settings-team-card";
 
     if (typeof team.logo_data_url === "string" && team.logo_data_url.trim() !== "") {
+      const logoButton = runtimeDocument.createElement("button");
+      logoButton.type = "button";
+      logoButton.className = "summary-card-logo-button ghost";
+      logoButton.setAttribute("aria-label", `Expand ${formatTeamCardTitle(team)} logo`);
+      logoButton.addEventListener("click", () => {
+        openLogoLightbox(team.logo_data_url, `${formatTeamCardTitle(team)} logo`);
+      });
+
       const logo = runtimeDocument.createElement("img");
       logo.className = "summary-card-logo";
       logo.src = team.logo_data_url;
       logo.alt = `${team.name} logo`;
-      card.append(logo);
+      logoButton.append(logo);
+      card.append(logoButton);
     }
 
     const title = runtimeDocument.createElement("strong");
+    title.className = "settings-team-card-title";
     title.textContent = formatTeamCardTitle(team);
 
     const details = runtimeDocument.createElement("p");
-    details.className = "meta";
+    details.className = "meta settings-team-card-meta";
     details.textContent = `Role: ${formatMembershipRole(team.membership_role)} | Roster: ${formatRosterRole(team.membership_team_role)}`;
 
     card.append(title, details);
@@ -2532,11 +2703,17 @@ function tryWriteJsonStorage(key, value) {
 
 function loadStoredTeamConfig() {
   const stored = tryReadJsonStorage(TEAM_CONFIG_STORAGE_KEY, {});
-  if (typeof stored.activeTeamId === "string") {
-    state.teamConfig.activeTeamId = stored.activeTeamId;
+  if (stored.activeTeamId === NONE_TEAM_ID) {
+    state.teamConfig.activeTeamId = NONE_TEAM_ID;
     return;
   }
-  state.teamConfig.activeTeamId = typeof stored.defaultTeamId === "string" ? stored.defaultTeamId : null;
+  const activeTeamId = normalizeTeamEntityId(stored.activeTeamId);
+  if (activeTeamId) {
+    state.teamConfig.activeTeamId = activeTeamId;
+    return;
+  }
+  const defaultTeamId = normalizeTeamEntityId(stored.defaultTeamId);
+  state.teamConfig.activeTeamId = defaultTeamId ?? NONE_TEAM_ID;
 }
 
 function saveTeamConfig() {
@@ -2677,7 +2854,7 @@ function getEffectiveRolePools() {
   if (state.builder.teamId === NONE_TEAM_ID) {
     return state.data.noneTeamPools;
   }
-  return state.data.teamPools[state.builder.teamId];
+  return getProfileRolePools();
 }
 
 function getEnginePoolContext() {
@@ -2690,9 +2867,12 @@ function getEnginePoolContext() {
     };
   }
 
+  const profileRolePools = getProfileRolePools();
   return {
-    teamId: state.builder.teamId,
-    teamPools: state.data.teamPools
+    teamId: BUILDER_PROFILE_POOL_CONTEXT_ID,
+    teamPools: {
+      [BUILDER_PROFILE_POOL_CONTEXT_ID]: profileRolePools
+    }
   };
 }
 
@@ -3852,6 +4032,7 @@ function renderTreeMap() {
 function renderBuilder() {
   state.builder.maxDepth = getAutoMaxDepth();
   renderBuilderStageGuide();
+  replaceOptions(elements.builderActiveTeam, getTeamSelectOptions());
   elements.builderActiveTeam.value = state.builder.teamId;
   elements.builderMaxDepth.value = String(state.builder.maxDepth);
   elements.builderMaxDepth.disabled = true;
@@ -3924,6 +4105,7 @@ async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAd
   await loadProfileFromApi();
   await loadPoolsFromApi(preferredPoolTeamId);
   await loadTeamsFromApi(preferredAdminTeamId);
+  await loadTeamContextFromApi();
   initializeTeamConfigControls();
   renderTeamAdmin();
   renderPlayerConfig();
@@ -4044,8 +4226,23 @@ function attachEvents() {
   elements.navOverlay.addEventListener("click", () => {
     setNavOpen(false);
   });
+  if (elements.logoLightboxClose) {
+    elements.logoLightboxClose.addEventListener("click", () => {
+      closeLogoLightbox();
+    });
+  }
+  if (elements.logoLightbox) {
+    elements.logoLightbox.addEventListener("click", (event) => {
+      if (event.target === elements.logoLightbox) {
+        closeLogoLightbox();
+      }
+    });
+  }
   runtimeWindow.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      if (elements.logoLightbox && !elements.logoLightbox.hidden) {
+        closeLogoLightbox();
+      }
       setNavOpen(false);
     }
   });
@@ -4113,6 +4310,13 @@ function attachEvents() {
     clearBuilderFeedback();
     renderTeamConfig();
     renderBuilder();
+    if (isAuthenticated()) {
+      void saveTeamContextToApi().then(() => {
+        saveTeamConfig();
+        renderTeamConfig();
+        renderBuilder();
+      });
+    }
   });
 
   elements.builderToggleOptionalChecks.addEventListener("click", () => {
@@ -4239,6 +4443,13 @@ function attachEvents() {
     renderTeamConfig();
     renderBuilder();
     clearBuilderFeedback();
+    if (isAuthenticated()) {
+      void saveTeamContextToApi().then(() => {
+        saveTeamConfig();
+        renderTeamConfig();
+        renderBuilder();
+      });
+    }
   });
 
   for (const button of elements.teamWorkspaceTabButtons) {
@@ -4344,6 +4555,14 @@ function attachEvents() {
       void loadTeamsFromApi(state.api.selectedTeamId).then(() => {
         renderTeamAdmin();
       });
+    });
+  }
+
+  if (elements.teamAdminCurrentLogoOpen) {
+    elements.teamAdminCurrentLogoOpen.addEventListener("click", () => {
+      const logoUrl = elements.teamAdminCurrentLogoOpen.dataset.logoUrl;
+      const caption = elements.teamAdminCurrentLogoOpen.dataset.logoCaption ?? "";
+      openLogoLightbox(logoUrl, caption);
     });
   }
 
@@ -4554,23 +4773,25 @@ async function init() {
     loadStoredAuthSession();
     const initialRoute = parseTabRouteHash(runtimeWindow.location.hash);
     await loadMvpData();
+    let loadedTeamContextFromApi = false;
     if (isAuthenticated()) {
       await loadProfileFromApi();
       await loadPoolsFromApi();
+      await loadTeamsFromApi();
+      loadedTeamContextFromApi = await loadTeamContextFromApi();
     } else {
       loadStoredPlayerConfig();
       setPoolApiFeedback("Sign in to manage API-backed pools.");
       setTeamAdminFeedback("Sign in to manage teams.");
       setProfileRolesFeedback("Sign in to manage profile roles.");
     }
-    loadStoredTeamConfig();
+    if (!loadedTeamContextFromApi) {
+      loadStoredTeamConfig();
+    }
     initializeExplorerControls();
     initializeBuilderControls();
     initializeTeamConfigControls();
     initializePlayerConfigControls();
-    if (isAuthenticated()) {
-      await loadTeamsFromApi();
-    }
     resetBuilderToDefaults();
 
     attachEvents();

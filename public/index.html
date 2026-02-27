@@ -398,9 +398,20 @@
                             <input id="team-admin-rename-tag" type="text" maxlength="12" placeholder="TAG" />
                           </label>
                           <label>
-                            Team Logo
+                            Replace Team Logo (optional)
                             <input id="team-admin-rename-logo-url" type="file" accept="image/png,image/jpeg,image/webp" />
                           </label>
+                        </div>
+                        <div id="team-admin-current-logo" class="team-current-logo" hidden>
+                          <button
+                            id="team-admin-current-logo-open"
+                            class="team-logo-preview-button ghost"
+                            type="button"
+                            aria-label="Expand current team logo"
+                          >
+                            <img id="team-admin-current-logo-image" class="summary-card-logo" alt="Current team logo" />
+                          </button>
+                          <p id="team-admin-current-logo-help" class="meta"></p>
                         </div>
                         <label class="inline-checkbox">
                           <input id="team-admin-rename-remove-logo" type="checkbox" />
@@ -586,6 +597,12 @@
         </div>
       </div>
     </main>
+
+    <div id="logo-lightbox" class="logo-lightbox" role="dialog" aria-modal="true" aria-label="Team logo preview" hidden>
+      <button id="logo-lightbox-close" class="ghost logo-lightbox-close" type="button">Close</button>
+      <img id="logo-lightbox-image" class="logo-lightbox-image" alt="Expanded team logo" />
+      <p id="logo-lightbox-caption" class="meta logo-lightbox-caption"></p>
+    </div>
 
     <script>
       window.DRAFTENGINE_API_BASE_URL =

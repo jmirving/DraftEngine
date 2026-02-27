@@ -22,9 +22,15 @@ function createFetchImpl() {
     },
     tagIds: []
   }));
+  let teamContext = {
+    defaultTeamId: null,
+    activeTeamId: null
+  };
 
-  return async (url) => {
+  return async (url, init = {}) => {
     const path = new URL(url, "http://api.test").pathname;
+    const method = (init.method ?? "GET").toUpperCase();
+    const body = typeof init.body === "string" ? JSON.parse(init.body) : undefined;
     if (path === "/champions") {
       return {
         ok: true,
@@ -40,6 +46,28 @@ function createFetchImpl() {
         status: 200,
         async json() {
           return { pools: [] };
+        }
+      };
+    }
+    if (path === "/me/team-context" && method === "GET") {
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return { teamContext };
+        }
+      };
+    }
+    if (path === "/me/team-context" && method === "PUT") {
+      teamContext = {
+        defaultTeamId: body?.defaultTeamId ?? null,
+        activeTeamId: body?.activeTeamId ?? null
+      };
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return { teamContext };
         }
       };
     }
