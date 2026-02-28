@@ -1,9 +1,10 @@
 import { Router } from "express";
 
-import { badRequest, notFound } from "../errors.js";
+import { badRequest, conflict, notFound } from "../errors.js";
 import {
   parsePositiveInteger,
   requireArrayOfPositiveIntegers,
+  requireNonEmptyString,
   requireObject
 } from "../http/validation.js";
 import {
@@ -17,6 +18,8 @@ const MAX_CHAMPION_TAGS_PER_SCOPE = 64;
 const SLOT_SET = new Set(SLOTS);
 const DAMAGE_TYPE_SET = new Set(DAMAGE_TYPES);
 const SCALING_SET = new Set(SCALING_VALUES);
+const MAX_TAG_NAME_LENGTH = 64;
+const MAX_TAG_CATEGORY_LENGTH = 48;
 
 function normalizeTagIds(tagIds) {
   const deduplicated = Array.from(new Set(tagIds));
@@ -59,6 +62,26 @@ function normalizeMetadataScaling(rawValue) {
   return normalized;
 }
 
+function normalizeTagName(rawValue) {
+  const normalized = requireNonEmptyString(rawValue, "name");
+  if (normalized.length > MAX_TAG_NAME_LENGTH) {
+    throw badRequest(`Expected 'name' to be ${MAX_TAG_NAME_LENGTH} characters or fewer.`);
+  }
+  return normalized;
+}
+
+function normalizeTagCategory(rawValue) {
+  const normalized = requireNonEmptyString(rawValue, "category").toLowerCase();
+  if (normalized.length > MAX_TAG_CATEGORY_LENGTH) {
+    throw badRequest(`Expected 'category' to be ${MAX_TAG_CATEGORY_LENGTH} characters or fewer.`);
+  }
+  return normalized;
+}
+
+function isUniqueViolation(error) {
+  return Boolean(error && typeof error === "object" && error.code === "23505");
+}
+
 export function createChampionsRouter({
   championsRepository,
   tagsRepository,
@@ -85,6 +108,93 @@ export function createChampionsRouter({
   router.get("/tags", async (_request, response) => {
     const tags = await tagsRepository.listTags();
     response.json({ tags });
+  });
+
+  router.post("/tags", requireAuth, async (request, response) => {
+    const body = requireObject(request.body);
+    const userId = request.user.userId;
+    const name = normalizeTagName(body.name);
+    const category = normalizeTagCategory(body.category);
+
+    await assertScopeWriteAuthorization({
+      scope: "all",
+      userId,
+      teamId: null,
+      teamsRepository,
+      usersRepository,
+      teamWriteMessage: "You must be on the selected team to manage tags.",
+      teamLeadMessage: "Only team leads can manage tags.",
+      globalWriteMessage: "Only admins can manage tag catalog."
+    });
+
+    try {
+      const tag = await tagsRepository.createTag({ name, category });
+      response.status(201).json({ tag });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw conflict("Tag name already exists.");
+      }
+      throw error;
+    }
+  });
+
+  router.put("/tags/:id", requireAuth, async (request, response) => {
+    const tagId = parsePositiveInteger(request.params.id, "id");
+    const body = requireObject(request.body);
+    const userId = request.user.userId;
+    const name = normalizeTagName(body.name);
+    const category = normalizeTagCategory(body.category);
+
+    await assertScopeWriteAuthorization({
+      scope: "all",
+      userId,
+      teamId: null,
+      teamsRepository,
+      usersRepository,
+      teamWriteMessage: "You must be on the selected team to manage tags.",
+      teamLeadMessage: "Only team leads can manage tags.",
+      globalWriteMessage: "Only admins can manage tag catalog."
+    });
+
+    try {
+      const tag = await tagsRepository.updateTag(tagId, { name, category });
+      if (!tag) {
+        throw notFound("Tag not found.");
+      }
+      response.json({ tag });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw conflict("Tag name already exists.");
+      }
+      throw error;
+    }
+  });
+
+  router.delete("/tags/:id", requireAuth, async (request, response) => {
+    const tagId = parsePositiveInteger(request.params.id, "id");
+    const userId = request.user.userId;
+
+    await assertScopeWriteAuthorization({
+      scope: "all",
+      userId,
+      teamId: null,
+      teamsRepository,
+      usersRepository,
+      teamWriteMessage: "You must be on the selected team to manage tags.",
+      teamLeadMessage: "Only team leads can manage tags.",
+      globalWriteMessage: "Only admins can manage tag catalog."
+    });
+
+    const assignmentCount = await tagsRepository.countTagAssignments(tagId);
+    if (assignmentCount > 0) {
+      throw conflict("Cannot delete a tag that is assigned to champions.");
+    }
+
+    const deletedTag = await tagsRepository.deleteTag(tagId);
+    if (!deletedTag) {
+      throw notFound("Tag not found.");
+    }
+    response.status(204).end();
   });
 
   router.get("/champions/:id/tags", requireAuth, async (request, response) => {

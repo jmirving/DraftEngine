@@ -85,6 +85,16 @@ export function createTagsRepository(pool) {
     if (DEFAULT_TAG_NAMES.length === 0) {
       return;
     }
+    const countResult = await pool.query(
+      `
+        SELECT COUNT(*) AS tag_count
+        FROM tags
+      `
+    );
+    const tagCount = Number.parseInt(String(countResult.rows[0]?.tag_count ?? "0"), 10);
+    if (Number.isInteger(tagCount) && tagCount > 0) {
+      return;
+    }
     const defaultCategories = DEFAULT_TAG_NAMES.map(() => DEFAULT_TAG_CATEGORY);
     await pool.query(
       `
@@ -180,6 +190,58 @@ export function createTagsRepository(pool) {
         tagIds,
         scope: "all"
       });
+    },
+
+    async createTag({ name, category }) {
+      const result = await pool.query(
+        `
+          INSERT INTO tags (name, category)
+          VALUES ($1, $2)
+          RETURNING id, name, category
+        `,
+        [name, category]
+      );
+      return result.rows[0] ?? null;
+    },
+
+    async updateTag(tagId, { name, category }) {
+      const result = await pool.query(
+        `
+          UPDATE tags
+          SET name = $2,
+              category = $3
+          WHERE id = $1
+          RETURNING id, name, category
+        `,
+        [tagId, name, category]
+      );
+      return result.rows[0] ?? null;
+    },
+
+    async countTagAssignments(tagId) {
+      const result = await pool.query(
+        `
+          SELECT (
+            (SELECT COUNT(*) FROM champion_tags WHERE tag_id = $1) +
+            (SELECT COUNT(*) FROM user_champion_tags WHERE tag_id = $1) +
+            (SELECT COUNT(*) FROM team_champion_tags WHERE tag_id = $1)
+          )::bigint AS assignment_count
+        `,
+        [tagId]
+      );
+      return Number.parseInt(String(result.rows[0]?.assignment_count ?? "0"), 10) || 0;
+    },
+
+    async deleteTag(tagId) {
+      const result = await pool.query(
+        `
+          DELETE FROM tags
+          WHERE id = $1
+          RETURNING id, name, category
+        `,
+        [tagId]
+      );
+      return result.rows[0] ?? null;
     }
   };
 }

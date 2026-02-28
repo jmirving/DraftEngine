@@ -282,7 +282,9 @@ function createInitialState() {
       championTagTeamId: "",
       championEditorTab: CHAMPION_EDITOR_TAB_COMPOSITION,
       championMetadataDraft: createEmptyChampionMetadataDraft(),
-      isSavingChampionTags: false
+      isSavingChampionTags: false,
+      selectedTagManagerId: null,
+      isSavingTagCatalog: false
     },
     explorer: {
       search: "",
@@ -366,6 +368,12 @@ function createElements() {
     playerConfigMeta: runtimeDocument.querySelector("#player-config-meta"),
     tagsTitle: runtimeDocument.querySelector("#tags-title"),
     tagsMeta: runtimeDocument.querySelector("#tags-meta"),
+    tagsManageAccess: runtimeDocument.querySelector("#tags-manage-access"),
+    tagsManageName: runtimeDocument.querySelector("#tags-manage-name"),
+    tagsManageCategory: runtimeDocument.querySelector("#tags-manage-category"),
+    tagsManageSave: runtimeDocument.querySelector("#tags-manage-save"),
+    tagsManageCancel: runtimeDocument.querySelector("#tags-manage-cancel"),
+    tagsManageFeedback: runtimeDocument.querySelector("#tags-manage-feedback"),
     comingSoonTitle: runtimeDocument.querySelector("#coming-soon-title"),
     comingSoonMeta: runtimeDocument.querySelector("#coming-soon-meta"),
     tabExplorer: runtimeDocument.querySelector("#tab-explorer"),
@@ -614,6 +622,16 @@ function setChampionTagEditorFeedback(message) {
   }
 }
 
+function setTagsManageFeedback(message) {
+  if (elements.tagsManageFeedback) {
+    elements.tagsManageFeedback.textContent = message;
+  }
+}
+
+function isAdminUser() {
+  return String(state.auth.user?.role ?? "").trim().toLowerCase() === "admin";
+}
+
 function normalizeChampionTagScope(scope) {
   return CHAMPION_TAG_SCOPES.includes(scope) ? scope : "all";
 }
@@ -679,6 +697,20 @@ function clearChampionTagEditorState() {
   state.api.championMetadataDraft = createEmptyChampionMetadataDraft();
   state.api.isSavingChampionTags = false;
   setChampionTagEditorFeedback("");
+}
+
+function clearTagsManagerState({ clearInputs = true } = {}) {
+  state.api.selectedTagManagerId = null;
+  state.api.isSavingTagCatalog = false;
+  setTagsManageFeedback("");
+  if (clearInputs) {
+    if (elements.tagsManageName) {
+      elements.tagsManageName.value = "";
+    }
+    if (elements.tagsManageCategory) {
+      elements.tagsManageCategory.value = "";
+    }
+  }
 }
 
 function formatTeamCardTitle(team) {
@@ -1149,6 +1181,7 @@ function clearAuthSession(feedback = "") {
   state.playerConfig.dirtyPoolByTeamId = {};
   state.playerConfig.isSavingPool = false;
   clearChampionTagEditorState();
+  clearTagsManagerState();
   saveAuthSession();
   setAuthFeedback(feedback);
 }
@@ -2078,6 +2111,188 @@ function normalizeTagCategoryLabel(value) {
   return value.trim();
 }
 
+function normalizeManagedTagName(value) {
+  if (typeof value !== "string" || value.trim() === "") {
+    return "";
+  }
+  return value.trim();
+}
+
+function normalizeManagedTagCategory(value) {
+  if (typeof value !== "string" || value.trim() === "") {
+    return "";
+  }
+  return value.trim().toLowerCase();
+}
+
+function getManagedTagById(tagId) {
+  if (!Number.isInteger(tagId) || tagId <= 0) {
+    return null;
+  }
+  return state.api.tags.find((tag) => tag.id === tagId) ?? null;
+}
+
+function readManagedTagDraftFromInputs() {
+  const name = normalizeManagedTagName(elements.tagsManageName?.value ?? "");
+  const category = normalizeManagedTagCategory(elements.tagsManageCategory?.value ?? "");
+  if (!name) {
+    throw new Error("Tag name is required.");
+  }
+  if (!category) {
+    throw new Error("Tag category is required.");
+  }
+  return { name, category };
+}
+
+function beginManagedTagEdit(tagId) {
+  const tag = getManagedTagById(tagId);
+  if (!tag) {
+    setTagsManageFeedback("Selected tag no longer exists.");
+    return;
+  }
+  state.api.selectedTagManagerId = tag.id;
+  if (elements.tagsManageName) {
+    elements.tagsManageName.value = tag.name;
+  }
+  if (elements.tagsManageCategory) {
+    elements.tagsManageCategory.value = normalizeTagCategoryLabel(tag.category).toLowerCase();
+  }
+  setTagsManageFeedback(`Editing '${tag.name}'.`);
+  renderTagsWorkspace();
+}
+
+function renderTagsManagerControls() {
+  const canManageTags = isAuthenticated() && runtimeApiBaseUrl && isAdminUser();
+  if (
+    Number.isInteger(state.api.selectedTagManagerId) &&
+    state.api.selectedTagManagerId > 0 &&
+    !getManagedTagById(state.api.selectedTagManagerId)
+  ) {
+    state.api.selectedTagManagerId = null;
+  }
+  const isEditing = Number.isInteger(state.api.selectedTagManagerId) && state.api.selectedTagManagerId > 0;
+  const controlsDisabled = !canManageTags || state.api.isSavingTagCatalog;
+
+  if (elements.tagsManageAccess) {
+    if (!runtimeApiBaseUrl) {
+      elements.tagsManageAccess.textContent = "Tag management requires API mode.";
+    } else if (!isAuthenticated()) {
+      elements.tagsManageAccess.textContent = "Sign in to manage tags.";
+    } else if (!isAdminUser()) {
+      elements.tagsManageAccess.textContent = "Only admins can create, update, and delete tags.";
+    } else {
+      elements.tagsManageAccess.textContent = "Admin mode enabled: create, update, and delete tags.";
+    }
+  }
+
+  if (elements.tagsManageName) {
+    elements.tagsManageName.disabled = controlsDisabled;
+  }
+  if (elements.tagsManageCategory) {
+    elements.tagsManageCategory.disabled = controlsDisabled;
+  }
+  if (elements.tagsManageSave) {
+    elements.tagsManageSave.disabled = controlsDisabled;
+    elements.tagsManageSave.textContent = isEditing ? "Update Tag" : "Create Tag";
+  }
+  if (elements.tagsManageCancel) {
+    elements.tagsManageCancel.disabled = controlsDisabled;
+    elements.tagsManageCancel.textContent = isEditing ? "Cancel Edit" : "Clear";
+  }
+}
+
+async function refreshTagCatalogViews() {
+  await loadTagCatalogFromApi();
+  renderChampionTagCatalog();
+  renderTagsWorkspace();
+  renderChampionTagEditor();
+  if (state.activeTab === "explorer") {
+    renderExplorer();
+  }
+}
+
+async function saveManagedTag() {
+  if (!isAuthenticated() || !runtimeApiBaseUrl || !isAdminUser() || state.api.isSavingTagCatalog) {
+    return;
+  }
+
+  let draft = null;
+  try {
+    draft = readManagedTagDraftFromInputs();
+  } catch (error) {
+    setTagsManageFeedback(error.message || "Tag draft is invalid.");
+    return;
+  }
+
+  const tagId = state.api.selectedTagManagerId;
+  const isEditing = Number.isInteger(tagId) && tagId > 0;
+  state.api.isSavingTagCatalog = true;
+  setTagsManageFeedback(isEditing ? "Saving tag updates..." : "Creating tag...");
+  renderTagsWorkspace();
+
+  try {
+    const payload = await apiRequest(isEditing ? `/tags/${tagId}` : "/tags", {
+      method: isEditing ? "PUT" : "POST",
+      auth: true,
+      body: draft
+    });
+
+    await refreshTagCatalogViews();
+    if (isEditing) {
+      const savedTagId = normalizeApiEntityId(payload?.tag?.id) ?? tagId;
+      state.api.selectedTagManagerId = savedTagId;
+      const savedTag = getManagedTagById(savedTagId);
+      if (savedTag) {
+        if (elements.tagsManageName) {
+          elements.tagsManageName.value = savedTag.name;
+        }
+        if (elements.tagsManageCategory) {
+          elements.tagsManageCategory.value = normalizeTagCategoryLabel(savedTag.category).toLowerCase();
+        }
+      }
+      setTagsManageFeedback("Tag updated.");
+    } else {
+      clearTagsManagerState();
+      setTagsManageFeedback("Tag created.");
+    }
+  } catch (error) {
+    setTagsManageFeedback(normalizeApiErrorMessage(error, "Failed to save tag."));
+  } finally {
+    state.api.isSavingTagCatalog = false;
+    renderTagsWorkspace();
+  }
+}
+
+async function deleteManagedTag(tagId) {
+  if (!isAuthenticated() || !runtimeApiBaseUrl || !isAdminUser() || state.api.isSavingTagCatalog) {
+    return;
+  }
+  if (!Number.isInteger(tagId) || tagId <= 0) {
+    return;
+  }
+
+  state.api.isSavingTagCatalog = true;
+  setTagsManageFeedback("Deleting tag...");
+  renderTagsWorkspace();
+
+  try {
+    await apiRequest(`/tags/${tagId}`, {
+      method: "DELETE",
+      auth: true
+    });
+    if (state.api.selectedTagManagerId === tagId) {
+      clearTagsManagerState();
+    }
+    await refreshTagCatalogViews();
+    setTagsManageFeedback("Tag deleted.");
+  } catch (error) {
+    setTagsManageFeedback(normalizeApiErrorMessage(error, "Failed to delete tag."));
+  } finally {
+    state.api.isSavingTagCatalog = false;
+    renderTagsWorkspace();
+  }
+}
+
 function buildChampionUsageByTagId() {
   const usageByTagId = new Map();
   if (!state.data || !Array.isArray(state.data.champions)) {
@@ -2108,6 +2323,7 @@ function renderTagsWorkspace() {
     return;
   }
 
+  renderTagsManagerControls();
   const tags = Array.isArray(state.api.tags) ? state.api.tags : [];
   const usageByTagId = buildChampionUsageByTagId();
   elements.tagsWorkspaceCategories.innerHTML = "";
@@ -2161,8 +2377,33 @@ function renderTagsWorkspace() {
       const usage = runtimeDocument.createElement("span");
       usage.className = "meta";
       usage.textContent = usageCount === 1 ? "Used by 1 champion" : `Used by ${usageCount} champions`;
-
       item.append(chip, usage);
+
+      if (isAuthenticated() && runtimeApiBaseUrl && isAdminUser()) {
+        const actions = runtimeDocument.createElement("div");
+        actions.className = "tags-workspace-actions";
+
+        const editButton = runtimeDocument.createElement("button");
+        editButton.className = "ghost";
+        editButton.type = "button";
+        editButton.textContent = "Edit";
+        editButton.disabled = state.api.isSavingTagCatalog;
+        editButton.addEventListener("click", () => {
+          beginManagedTagEdit(tag.id);
+        });
+
+        const deleteButton = runtimeDocument.createElement("button");
+        deleteButton.className = "ghost";
+        deleteButton.type = "button";
+        deleteButton.textContent = "Delete";
+        deleteButton.disabled = state.api.isSavingTagCatalog;
+        deleteButton.addEventListener("click", () => {
+          void deleteManagedTag(tag.id);
+        });
+
+        actions.append(editButton, deleteButton);
+        item.append(actions);
+      }
       list.append(item);
     }
 
@@ -5843,6 +6084,19 @@ function attachEvents() {
     clearExplorerFilters();
     renderExplorer();
   });
+
+  if (elements.tagsManageSave) {
+    elements.tagsManageSave.addEventListener("click", () => {
+      void saveManagedTag();
+    });
+  }
+
+  if (elements.tagsManageCancel) {
+    elements.tagsManageCancel.addEventListener("click", () => {
+      clearTagsManagerState();
+      renderTagsWorkspace();
+    });
+  }
 
   if (elements.championTagEditorScope) {
     elements.championTagEditorScope.addEventListener("change", () => {

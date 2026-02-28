@@ -133,6 +133,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
   let nextPoolId = 3;
   let nextTeamId = 2;
   let nextJoinRequestId = 1;
+  let nextTagId = 3;
 
   const usersRepository = {
     async createUser({ email, passwordHash, gameName, tagline }) {
@@ -262,6 +263,66 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
 
     async listTags() {
       return [...state.tags];
+    },
+
+    async createTag({ name, category }) {
+      const duplicate = state.tags.some((tag) => tag.name === name);
+      if (duplicate) {
+        const error = new Error("duplicate");
+        error.code = "23505";
+        throw error;
+      }
+      const created = {
+        id: nextTagId,
+        name,
+        category
+      };
+      nextTagId += 1;
+      state.tags.push(created);
+      return created;
+    },
+
+    async updateTag(tagId, { name, category }) {
+      const existing = state.tags.find((tag) => tag.id === tagId) ?? null;
+      if (!existing) {
+        return null;
+      }
+      const duplicate = state.tags.some((tag) => tag.id !== tagId && tag.name === name);
+      if (duplicate) {
+        const error = new Error("duplicate");
+        error.code = "23505";
+        throw error;
+      }
+      existing.name = name;
+      existing.category = category;
+      return existing;
+    },
+
+    async countTagAssignments(tagId) {
+      let assignments = 0;
+      for (const champion of state.champions) {
+        assignments += champion.tagIds.filter((candidate) => candidate === tagId).length;
+      }
+      for (const scopedTags of state.userChampionTagIds.values()) {
+        if (scopedTags.has(tagId)) {
+          assignments += 1;
+        }
+      }
+      for (const scopedTags of state.teamChampionTagIds.values()) {
+        if (scopedTags.has(tagId)) {
+          assignments += 1;
+        }
+      }
+      return assignments;
+    },
+
+    async deleteTag(tagId) {
+      const index = state.tags.findIndex((tag) => tag.id === tagId);
+      if (index < 0) {
+        return null;
+      }
+      const [deleted] = state.tags.splice(index, 1);
+      return deleted;
     },
 
     async listChampionTagIdsForScope({ championId, scope, userId, teamId }) {
@@ -1141,6 +1202,69 @@ describe("API routes", () => {
     expect(adminWrite.body.champion.metadata.roles).toEqual(["Top", "Jungle"]);
     expect(adminWrite.body.champion.metadata.damageType).toBe("AD");
     expect(adminWrite.body.champion.metadata.scaling).toBe("Late");
+  });
+
+  it("supports admin-only tag catalog CRUD", async () => {
+    const { app, config } = createMockContext();
+
+    const unauthorizedCreate = await request(app)
+      .post("/tags")
+      .send({ name: "pick", category: "tempo" });
+    expect(unauthorizedCreate.status).toBe(401);
+
+    const memberForbiddenCreate = await request(app)
+      .post("/tags")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({ name: "pick", category: "tempo" });
+    expect(memberForbiddenCreate.status).toBe(403);
+
+    const adminCreate = await request(app)
+      .post("/tags")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({ name: "pick", category: "Tempo" });
+    expect(adminCreate.status).toBe(201);
+    expect(adminCreate.body.tag.name).toBe("pick");
+    expect(adminCreate.body.tag.category).toBe("tempo");
+
+    const duplicateCreate = await request(app)
+      .post("/tags")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({ name: "pick", category: "tempo" });
+    expect(duplicateCreate.status).toBe(409);
+
+    const memberForbiddenUpdate = await request(app)
+      .put(`/tags/${adminCreate.body.tag.id}`)
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({ name: "pick-priority", category: "tempo" });
+    expect(memberForbiddenUpdate.status).toBe(403);
+
+    const duplicateUpdate = await request(app)
+      .put(`/tags/${adminCreate.body.tag.id}`)
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({ name: "engage", category: "utility" });
+    expect(duplicateUpdate.status).toBe(409);
+
+    const adminUpdate = await request(app)
+      .put(`/tags/${adminCreate.body.tag.id}`)
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({ name: "pick-priority", category: "macro" });
+    expect(adminUpdate.status).toBe(200);
+    expect(adminUpdate.body.tag.name).toBe("pick-priority");
+    expect(adminUpdate.body.tag.category).toBe("macro");
+
+    const inUseDeleteConflict = await request(app)
+      .delete("/tags/1")
+      .set("Authorization", buildAuthHeader(1, config));
+    expect(inUseDeleteConflict.status).toBe(409);
+
+    const adminDelete = await request(app)
+      .delete(`/tags/${adminCreate.body.tag.id}`)
+      .set("Authorization", buildAuthHeader(1, config));
+    expect(adminDelete.status).toBe(204);
+
+    const listAfterDelete = await request(app).get("/tags");
+    expect(listAfterDelete.status).toBe(200);
+    expect(listAfterDelete.body.tags.some((tag) => tag.name === "pick-priority")).toBe(false);
   });
 
   it("enforces scoped required-check settings auth and promotion requests", async () => {

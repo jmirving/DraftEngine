@@ -423,8 +423,27 @@
             <div class="panel draft-board-panel">
               <h2 id="tags-title">Tags</h2>
               <p id="tags-meta" class="meta">Review tag categories and current champion coverage.</p>
-              <p class="meta">MVP editing remains in Champions; this page is a catalog and governance foundation.</p>
+              <p class="meta">MVP editing remains in Champions; this page adds catalog governance and CRUD foundations.</p>
               <p id="tags-workspace-summary" class="meta"></p>
+            </div>
+            <div class="panel draft-board-panel">
+              <p class="panel-kicker">Manage Tags</p>
+              <p id="tags-manage-access" class="meta"></p>
+              <div class="grid grid-2">
+                <label>
+                  Name
+                  <input id="tags-manage-name" type="text" placeholder="e.g. splitpush" />
+                </label>
+                <label>
+                  Category
+                  <input id="tags-manage-category" type="text" placeholder="e.g. macro" />
+                </label>
+              </div>
+              <div class="button-row">
+                <button id="tags-manage-save" type="button">Create Tag</button>
+                <button id="tags-manage-cancel" class="ghost" type="button">Clear</button>
+              </div>
+              <p id="tags-manage-feedback" class="meta"></p>
             </div>
             <div class="panel draft-board-panel">
               <div id="tags-workspace-categories" class="tags-workspace-categories"></div>
@@ -735,7 +754,7 @@
               </ul>
               <h3>Tags</h3>
               <ul class="coming-soon-list">
-                <li>Tag lifecycle operations (create, rename, merge, deprecate) are not implemented yet.</li>
+                <li>Advanced lifecycle operations (merge, deprecate, restore) are not implemented yet.</li>
                 <li>Bulk operations for assigning tags across champions are not implemented yet.</li>
                 <li>Audit history and approval workflows for high-impact tag changes are not implemented yet.</li>
               </ul>

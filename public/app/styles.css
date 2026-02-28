@@ -1414,14 +1414,28 @@ button.ghost {
 }
 
 .tags-workspace-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
   gap: 0.4rem;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: #fffcf5;
   padding: 0.3rem 0.36rem;
+}
+
+.tags-workspace-item .meta {
+  margin: 0;
+}
+
+.tags-workspace-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.tags-workspace-actions button {
+  width: auto;
+  margin-top: 0;
 }
 
 .player-config-card {

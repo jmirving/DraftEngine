@@ -70,6 +70,12 @@ function createFetchHarness({
 } = {}) {
   const calls = [];
   let nextPoolId = pools.length + 1;
+  const tags = [
+    { id: 1, name: "engage", category: "utility" },
+    { id: 2, name: "frontline", category: "utility" },
+    { id: 3, name: "burst", category: "damage" }
+  ];
+  let nextTagId = 4;
   const championMetadataById = new Map([
     [1, { roles: ["Mid"], damageType: "AP", scaling: "Mid", tags: tagsFalse() }],
     [2, { roles: ["ADC", "Support"], damageType: "AD", scaling: "Late", tags: tagsFalse() }],
@@ -234,12 +240,60 @@ function createFetchHarness({
 
     if (path === "/tags" && method === "GET") {
       return createJsonResponse({
-        tags: [
-          { id: 1, name: "engage", category: "utility" },
-          { id: 2, name: "frontline", category: "utility" },
-          { id: 3, name: "burst", category: "damage" }
-        ]
+        tags: [...tags]
       });
+    }
+
+    if (path === "/tags" && method === "POST") {
+      const name = typeof body?.name === "string" ? body.name.trim() : "";
+      const category = typeof body?.category === "string" ? body.category.trim().toLowerCase() : "";
+      if (!name || !category) {
+        return createJsonResponse({ error: { code: "BAD_REQUEST", message: "Expected name/category." } }, 400);
+      }
+      const duplicate = tags.some((tag) => tag.name === name);
+      if (duplicate) {
+        return createJsonResponse({ error: { code: "CONFLICT", message: "Tag name already exists." } }, 409);
+      }
+      const created = { id: nextTagId, name, category };
+      nextTagId += 1;
+      tags.push(created);
+      return createJsonResponse({ tag: created }, 201);
+    }
+
+    const tagMutationMatch = path.match(/^\/tags\/(\d+)$/);
+    if (tagMutationMatch && method === "PUT") {
+      const tagId = Number(tagMutationMatch[1]);
+      const name = typeof body?.name === "string" ? body.name.trim() : "";
+      const category = typeof body?.category === "string" ? body.category.trim().toLowerCase() : "";
+      const existing = tags.find((tag) => tag.id === tagId) ?? null;
+      if (!existing) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "Tag not found." } }, 404);
+      }
+      const duplicate = tags.some((tag) => tag.id !== tagId && tag.name === name);
+      if (duplicate) {
+        return createJsonResponse({ error: { code: "CONFLICT", message: "Tag name already exists." } }, 409);
+      }
+      existing.name = name;
+      existing.category = category;
+      return createJsonResponse({ tag: existing });
+    }
+
+    if (tagMutationMatch && method === "DELETE") {
+      const tagId = Number(tagMutationMatch[1]);
+      for (const scopedTagIds of globalChampionTagIds.values()) {
+        if (scopedTagIds.has(tagId)) {
+          return createJsonResponse(
+            { error: { code: "CONFLICT", message: "Cannot delete a tag that is assigned to champions." } },
+            409
+          );
+        }
+      }
+      const index = tags.findIndex((tag) => tag.id === tagId);
+      if (index < 0) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "Tag not found." } }, 404);
+      }
+      tags.splice(index, 1);
+      return createJsonResponse({}, 204);
     }
 
     const championTagsMatch = path.match(/^\/champions\/(\d+)\/tags$/);
@@ -817,6 +871,62 @@ describe("auth + pools + team management", () => {
       (node) => node.textContent.trim()
     );
     expect(headings).toEqual(["damage", "utility"]);
+  });
+
+  test("tags workspace supports admin CRUD operations", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", role: "admin", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness();
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector(".side-menu-link[data-tab='tags']").click();
+    await flush();
+
+    doc.querySelector("#tags-manage-name").value = "splitpush";
+    doc.querySelector("#tags-manage-category").value = "Macro";
+    doc.querySelector("#tags-manage-save").click();
+    await flush();
+    await flush();
+
+    const createCall = harness.calls.find((call) => call.path === "/tags" && call.method === "POST");
+    expect(createCall).toBeTruthy();
+    expect(createCall.body.name).toBe("splitpush");
+    expect(createCall.body.category).toBe("macro");
+    expect(doc.querySelector("#tags-workspace-summary").textContent).toContain("4 tags");
+
+    const createdRow = Array.from(doc.querySelectorAll(".tags-workspace-item")).find((node) =>
+      node.textContent.includes("splitpush")
+    );
+    expect(createdRow).toBeTruthy();
+    createdRow.querySelector("button").click();
+    await flush();
+
+    doc.querySelector("#tags-manage-name").value = "splitpush-priority";
+    doc.querySelector("#tags-manage-category").value = "macro";
+    doc.querySelector("#tags-manage-save").click();
+    await flush();
+    await flush();
+
+    const updateCall = harness.calls.find((call) => /^\/tags\/\d+$/.test(call.path) && call.method === "PUT");
+    expect(updateCall).toBeTruthy();
+    expect(updateCall.body.name).toBe("splitpush-priority");
+
+    const updatedRow = Array.from(doc.querySelectorAll(".tags-workspace-item")).find((node) =>
+      node.textContent.includes("splitpush-priority")
+    );
+    expect(updatedRow).toBeTruthy();
+    updatedRow.querySelectorAll("button")[1].click();
+    await flush();
+    await flush();
+
+    const deleteCall = harness.calls.find((call) => /^\/tags\/\d+$/.test(call.path) && call.method === "DELETE");
+    expect(deleteCall).toBeTruthy();
+    expect(doc.querySelector("#tags-workspace-summary").textContent).toContain("3 tags");
   });
 
   test("login routes users without defined roles to My Profile tab", async () => {
