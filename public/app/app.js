@@ -2625,9 +2625,6 @@ function renderChampionTagEditor() {
   if (elements.championTagEditorTitle) {
     elements.championTagEditorTitle.textContent = `Edit ${champion.name} Tags`;
   }
-  if (elements.championTagEditorMeta) {
-    elements.championTagEditorMeta.textContent = "Edit global champion data by tab.";
-  }
   if (elements.championTagEditorScope) {
     elements.championTagEditorScope.value = state.api.championTagScope;
     elements.championTagEditorScope.disabled = true;
