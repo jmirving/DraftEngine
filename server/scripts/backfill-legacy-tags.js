@@ -1,11 +1,21 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import dotenv from "dotenv";
 import { BOOLEAN_TAGS } from "../../src/domain/model.js";
-import { loadConfig } from "../config.js";
 import { createDbPool } from "../db/pool.js";
 
 const DEFAULT_TAG_CATEGORY = "composition";
+
+dotenv.config({ quiet: true });
+
+function readDatabaseUrl(env = process.env) {
+  const value = env.DATABASE_URL;
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error("Missing required environment variable: DATABASE_URL");
+  }
+  return value.trim();
+}
 
 export function normalizeTagNameKey(value) {
   if (typeof value !== "string") {
@@ -148,8 +158,9 @@ async function insertChampionTagAssignments(client, championId, tagIds) {
 }
 
 export async function runLegacyTagBackfill({ dryRun = false } = {}) {
-  const config = loadConfig();
-  const pool = createDbPool(config);
+  const pool = createDbPool({
+    databaseUrl: readDatabaseUrl()
+  });
 
   try {
     const client = await pool.connect();
