@@ -74,7 +74,8 @@ export async function assertScopeWriteAuthorization({
   usersRepository,
   teamWriteMessage,
   teamLeadMessage,
-  globalWriteMessage
+  globalWriteMessage,
+  allowGlobalWriteWhenNoAdmins = false
 }) {
   if (scope === "self") {
     return;
@@ -89,7 +90,16 @@ export async function assertScopeWriteAuthorization({
   }
 
   const user = await usersRepository.findById(userId);
-  if (normalizeUserRole(user?.role) !== "admin") {
+  if (normalizeUserRole(user?.role) === "admin") {
+    return;
+  }
+
+  if (!allowGlobalWriteWhenNoAdmins || typeof usersRepository.countAdmins !== "function") {
+    throw forbidden(globalWriteMessage);
+  }
+
+  const adminCount = Number(await usersRepository.countAdmins());
+  if (!Number.isFinite(adminCount) || adminCount > 0) {
     throw forbidden(globalWriteMessage);
   }
 }

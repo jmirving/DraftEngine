@@ -124,7 +124,8 @@ export function createChampionsRouter({
       usersRepository,
       teamWriteMessage: "You must be on the selected team to manage tags.",
       teamLeadMessage: "Only team leads can manage tags.",
-      globalWriteMessage: "Only admins can manage tag catalog."
+      globalWriteMessage: "Only admins can manage tag catalog.",
+      allowGlobalWriteWhenNoAdmins: true
     });
 
     try {
@@ -153,7 +154,8 @@ export function createChampionsRouter({
       usersRepository,
       teamWriteMessage: "You must be on the selected team to manage tags.",
       teamLeadMessage: "Only team leads can manage tags.",
-      globalWriteMessage: "Only admins can manage tag catalog."
+      globalWriteMessage: "Only admins can manage tag catalog.",
+      allowGlobalWriteWhenNoAdmins: true
     });
 
     try {
@@ -182,7 +184,8 @@ export function createChampionsRouter({
       usersRepository,
       teamWriteMessage: "You must be on the selected team to manage tags.",
       teamLeadMessage: "Only team leads can manage tags.",
-      globalWriteMessage: "Only admins can manage tag catalog."
+      globalWriteMessage: "Only admins can manage tag catalog.",
+      allowGlobalWriteWhenNoAdmins: true
     });
 
     const assignmentCount = await tagsRepository.countTagAssignments(tagId);
@@ -252,7 +255,8 @@ export function createChampionsRouter({
       usersRepository,
       teamWriteMessage: "You must be on the selected team to edit team tags.",
       teamLeadMessage: "Only team leads can edit team tags.",
-      globalWriteMessage: "Only admins can edit global champion tags."
+      globalWriteMessage: "Only admins can edit global champion tags.",
+      allowGlobalWriteWhenNoAdmins: true
     });
 
     const allTagsExist = await tagsRepository.allTagIdsExist(tagIds);

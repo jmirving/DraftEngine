@@ -2162,7 +2162,7 @@ function beginManagedTagEdit(tagId) {
 }
 
 function renderTagsManagerControls() {
-  const canManageTags = isAuthenticated() && runtimeApiBaseUrl && isAdminUser();
+  const canManageTags = isAuthenticated() && runtimeApiBaseUrl;
   if (
     Number.isInteger(state.api.selectedTagManagerId) &&
     state.api.selectedTagManagerId > 0 &&
@@ -2179,7 +2179,8 @@ function renderTagsManagerControls() {
     } else if (!isAuthenticated()) {
       elements.tagsManageAccess.textContent = "Sign in to manage tags.";
     } else if (!isAdminUser()) {
-      elements.tagsManageAccess.textContent = "Only admins can create, update, and delete tags.";
+      elements.tagsManageAccess.textContent =
+        "Tag catalog writes are admin-only unless no admin users exist (bootstrap fallback).";
     } else {
       elements.tagsManageAccess.textContent = "Admin mode enabled: create, update, and delete tags.";
     }
@@ -2212,7 +2213,7 @@ async function refreshTagCatalogViews() {
 }
 
 async function saveManagedTag() {
-  if (!isAuthenticated() || !runtimeApiBaseUrl || !isAdminUser() || state.api.isSavingTagCatalog) {
+  if (!isAuthenticated() || !runtimeApiBaseUrl || state.api.isSavingTagCatalog) {
     return;
   }
 
@@ -2264,7 +2265,7 @@ async function saveManagedTag() {
 }
 
 async function deleteManagedTag(tagId) {
-  if (!isAuthenticated() || !runtimeApiBaseUrl || !isAdminUser() || state.api.isSavingTagCatalog) {
+  if (!isAuthenticated() || !runtimeApiBaseUrl || state.api.isSavingTagCatalog) {
     return;
   }
   if (!Number.isInteger(tagId) || tagId <= 0) {
@@ -2379,7 +2380,7 @@ function renderTagsWorkspace() {
       usage.textContent = usageCount === 1 ? "Used by 1 champion" : `Used by ${usageCount} champions`;
       item.append(chip, usage);
 
-      if (isAuthenticated() && runtimeApiBaseUrl && isAdminUser()) {
+      if (isAuthenticated() && runtimeApiBaseUrl) {
         const actions = runtimeDocument.createElement("div");
         actions.className = "tags-workspace-actions";
 

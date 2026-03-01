@@ -179,6 +179,10 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       return state.users.find((candidate) => candidate.id === userId) ?? null;
     },
 
+    async countAdmins() {
+      return state.users.filter((candidate) => String(candidate.role ?? "").trim().toLowerCase() === "admin").length;
+    },
+
     async findByRiotId(gameName, tagline) {
       const normalizedGameName = String(gameName ?? "").trim().toLowerCase();
       const normalizedTagline = String(tagline ?? "").trim().toLowerCase();
@@ -1159,6 +1163,24 @@ describe("API routes", () => {
     expect(state.promotionRequests).toHaveLength(0);
   });
 
+  it("allows member global champion tag edits when no admins exist", async () => {
+    const { app, config, state } = createMockContext();
+    state.users[0].role = "member";
+
+    const memberCanWriteGlobal = await request(app)
+      .put("/champions/1/tags")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({ tag_ids: [2] });
+    expect(memberCanWriteGlobal.status).toBe(200);
+    expect(memberCanWriteGlobal.body.tag_ids).toEqual([2]);
+
+    const globalRead = await request(app)
+      .get("/champions/1/tags")
+      .set("Authorization", buildAuthHeader(3, config));
+    expect(globalRead.status).toBe(200);
+    expect(globalRead.body.tag_ids).toEqual([2]);
+  });
+
   it("updates champion metadata with admin-only global permissions", async () => {
     const { app, config } = createMockContext();
 
@@ -1265,6 +1287,31 @@ describe("API routes", () => {
     const listAfterDelete = await request(app).get("/tags");
     expect(listAfterDelete.status).toBe(200);
     expect(listAfterDelete.body.tags.some((tag) => tag.name === "pick-priority")).toBe(false);
+  });
+
+  it("allows member tag catalog CRUD when no admins exist", async () => {
+    const { app, config, state } = createMockContext();
+    state.users[0].role = "member";
+
+    const memberCreate = await request(app)
+      .post("/tags")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({ name: "pick", category: "Tempo" });
+    expect(memberCreate.status).toBe(201);
+    expect(memberCreate.body.tag.name).toBe("pick");
+    expect(memberCreate.body.tag.category).toBe("tempo");
+
+    const memberUpdate = await request(app)
+      .put(`/tags/${memberCreate.body.tag.id}`)
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({ name: "pick-priority", category: "macro" });
+    expect(memberUpdate.status).toBe(200);
+    expect(memberUpdate.body.tag.name).toBe("pick-priority");
+
+    const memberDelete = await request(app)
+      .delete(`/tags/${memberCreate.body.tag.id}`)
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(memberDelete.status).toBe(204);
   });
 
   it("enforces scoped required-check settings auth and promotion requests", async () => {

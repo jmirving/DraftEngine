@@ -51,6 +51,17 @@ export function createUsersRepository(pool) {
       return result.rows[0] ?? null;
     },
 
+    async countAdmins() {
+      const result = await pool.query(
+        `
+          SELECT COUNT(*)::int AS admin_count
+          FROM users
+          WHERE lower(role) = 'admin'
+        `
+      );
+      return result.rows[0]?.admin_count ?? 0;
+    },
+
     async findProfileById(userId) {
       const result = await pool.query(
         `
