@@ -2431,6 +2431,8 @@ function renderChampionTagEditorTagOptions() {
   }
 
   elements.championTagEditorTags.innerHTML = "";
+  const selectedTagIds = normalizeApiTagIdArray(state.api.selectedChampionTagIds);
+  const selectedTagIdSet = new Set(selectedTagIds);
   const allTags = Array.isArray(state.api.tags)
     ? state.api.tags
         .map((tag) => {
@@ -2445,10 +2447,37 @@ function renderChampionTagEditorTagOptions() {
         })
         .filter(Boolean)
     : [];
+  const allTagsById = new Map(allTags.map((tag) => [tag.id, tag]));
   const compositionTags = allTags.filter(
     (tag) => typeof tag.category === "string" && tag.category.trim().toLowerCase() === "composition"
   );
-  const tags = compositionTags.length > 0 ? compositionTags : allTags;
+  const tags = compositionTags.length > 0 ? [...compositionTags] : [...allTags];
+  const renderedTagIds = new Set(tags.map((tag) => tag.id));
+
+  for (const selectedTagId of selectedTagIds) {
+    if (renderedTagIds.has(selectedTagId)) {
+      continue;
+    }
+    const assignedTag = allTagsById.get(selectedTagId);
+    tags.push(
+      assignedTag ?? {
+        id: selectedTagId,
+        name: `Tag ${selectedTagId}`,
+        category: "assigned"
+      }
+    );
+    renderedTagIds.add(selectedTagId);
+  }
+
+  tags.sort((left, right) => {
+    const leftSelected = selectedTagIdSet.has(left.id);
+    const rightSelected = selectedTagIdSet.has(right.id);
+    if (leftSelected !== rightSelected) {
+      return leftSelected ? -1 : 1;
+    }
+    return String(left.name ?? "").localeCompare(String(right.name ?? ""));
+  });
+
   if (tags.length === 0) {
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
@@ -2457,7 +2486,7 @@ function renderChampionTagEditorTagOptions() {
     return;
   }
 
-  const selected = new Set(state.api.selectedChampionTagIds);
+  const selected = selectedTagIdSet;
   for (const tag of tags) {
     const label = runtimeDocument.createElement("label");
     label.className = "champion-tag-checkbox selection-option";

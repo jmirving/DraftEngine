@@ -909,6 +909,45 @@ describe("auth + pools + team management", () => {
     expect(saveCall.body.tag_ids).toEqual([1]);
   });
 
+  test("champion editor shows assigned non-composition tags when composition category exists", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness();
+    const compositionFilterFetchImpl = async (url, init = {}) => {
+      const method = (init.method ?? "GET").toUpperCase();
+      const parsedUrl = new URL(url, "http://api.test");
+      if (method === "GET" && parsedUrl.pathname === "/tags") {
+        await harness.impl(url, init);
+        return createJsonResponse({
+          tags: [
+            { id: 1, name: "engage", category: "utility" },
+            { id: 2, name: "frontline", category: "utility" },
+            { id: 10, name: "teamfight", category: "composition" }
+          ]
+        });
+      }
+      return harness.impl(url, init);
+    };
+    const { dom } = await bootApp({ fetchImpl: compositionFilterFetchImpl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    await flush();
+
+    const editButton = doc.querySelector("#explorer-results .champ-card-actions button");
+    expect(editButton).toBeTruthy();
+    editButton.click();
+    await flush();
+
+    const engageCheckbox = doc.querySelector("#champion-tag-editor-tags input[type='checkbox'][value='1']");
+    expect(engageCheckbox).toBeTruthy();
+    expect(engageCheckbox.checked).toBe(true);
+  });
+
   test("champion explorer metadata tabs save global metadata edits", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
