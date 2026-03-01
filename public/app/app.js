@@ -2557,14 +2557,7 @@ function renderChampionTagEditorTagOptions() {
     renderedTagIds.add(selectedTagId);
   }
 
-  tags.sort((left, right) => {
-    const leftSelected = selectedTagIdSet.has(left.id);
-    const rightSelected = selectedTagIdSet.has(right.id);
-    if (leftSelected !== rightSelected) {
-      return leftSelected ? -1 : 1;
-    }
-    return String(left.name ?? "").localeCompare(String(right.name ?? ""));
-  });
+  tags.sort((left, right) => String(left.name ?? "").localeCompare(String(right.name ?? "")));
 
   if (tags.length === 0) {
     const empty = runtimeDocument.createElement("p");

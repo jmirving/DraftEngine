@@ -1226,6 +1226,25 @@ describe("API routes", () => {
     expect(adminWrite.body.champion.metadata.scaling).toBe("Late");
   });
 
+  it("allows member global metadata edits when no admins exist", async () => {
+    const { app, config, state } = createMockContext();
+    state.users[0].role = "member";
+
+    const memberWrite = await request(app)
+      .put("/champions/1/metadata")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        roles: ["Top", "Jungle"],
+        damage_type: "AD",
+        scaling: "Late"
+      });
+    expect(memberWrite.status).toBe(200);
+    expect(memberWrite.body.champion.role).toBe("Top");
+    expect(memberWrite.body.champion.metadata.roles).toEqual(["Top", "Jungle"]);
+    expect(memberWrite.body.champion.metadata.damageType).toBe("AD");
+    expect(memberWrite.body.champion.metadata.scaling).toBe("Late");
+  });
+
   it("supports admin-only tag catalog CRUD", async () => {
     const { app, config } = createMockContext();
 

@@ -781,11 +781,11 @@ describe("auth + pools + team management", () => {
     await flush();
 
     expect(doc.querySelector("#champion-tag-editor").hidden).toBe(false);
-    const firstTagCheckbox = doc.querySelector("#champion-tag-editor-tags input[type='checkbox']");
-    expect(firstTagCheckbox).toBeTruthy();
-    expect(firstTagCheckbox.checked).toBe(true);
-    firstTagCheckbox.checked = true;
-    firstTagCheckbox.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    const engageCheckbox = doc.querySelector("#champion-tag-editor-tags input[type='checkbox'][value='1']");
+    expect(engageCheckbox).toBeTruthy();
+    expect(engageCheckbox.checked).toBe(true);
+    engageCheckbox.checked = true;
+    engageCheckbox.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
 
     doc.querySelector("#champion-tag-editor-save").click();
     await flush();
@@ -946,6 +946,34 @@ describe("auth + pools + team management", () => {
     const engageCheckbox = doc.querySelector("#champion-tag-editor-tags input[type='checkbox'][value='1']");
     expect(engageCheckbox).toBeTruthy();
     expect(engageCheckbox.checked).toBe(true);
+  });
+
+  test("champion editor tag list stays alphabetical regardless of checked state", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness();
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    await flush();
+
+    const editButton = doc.querySelector("#explorer-results .champ-card-actions button");
+    expect(editButton).toBeTruthy();
+    editButton.click();
+    await flush();
+
+    const labels = [...doc.querySelectorAll("#champion-tag-editor-tags .selection-option span")]
+      .map((node) => node.textContent.trim());
+    expect(labels).toEqual([
+      "burst (damage)",
+      "engage (utility)",
+      "frontline (utility)"
+    ]);
   });
 
   test("champion editor prefills from legacy indicators when global tags are empty", async () => {
