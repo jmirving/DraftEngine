@@ -725,45 +725,43 @@
             <div class="panel draft-board-panel">
               <h3>What's New in Version 0.2.0</h3>
               <ul class="coming-soon-list">
-                <li>Added no-admin bootstrap editing for champion tags and champion metadata (Roles, Damage Type, Scaling).</li>
-                <li>Champion tag editor now preselects existing assignments more reliably and lists tags alphabetically.</li>
-                <li>Added one-time legacy-to-modern tag migration scripts and legacy metadata cleanup tooling.</li>
-                <li>API-mode champion cards now prioritize modern global tags to avoid legacy/global duplicate tag display.</li>
+                <li>Added no-admin bootstrap editing for champion tags and champion metadata (Roles, Damage Type, Scaling) (draftflow-148, draftflow-149)</li>
+                <li>Champion tag editor now preselects existing assignments more reliably and lists tags alphabetically (draftflow-151)</li>
+                <li>Added one-time legacy-to-modern tag migration scripts and legacy metadata cleanup tooling (draftflow-13.3)</li>
+                <li>API-mode champion cards now prioritize modern global tags to avoid legacy/global duplicate tag display (draftflow-13.3)</li>
               </ul>
               <h3>General</h3>
               <ul class="coming-soon-list">
-                <li>Champion catalog refresh checks are still manual; automatic release ingestion is not enabled yet.</li>
-                <li>Dedicated admin-seeding and approval workflows are still needed after no-admin bootstrap editing for tags and champion metadata.</li>
+                <li>Champion catalog refresh checks are still manual; automatic release ingestion is not enabled yet (draftflow-129)</li>
+                <li>Admin safeguards and governance guardrails for Champion Tags and Composition Checks still need hardening after bootstrap editing paths (draftflow-147)</li>
               </ul>
               <h3>Profile</h3>
               <ul class="coming-soon-list">
-                <li>Set your champion familiarity level in your personal pool.</li>
-                <li>Get champion pool suggestions based on your real League match history.</li>
-                <li>Live Riot champion stats in Profile remain a placeholder until the full implementation is shipped.</li>
+                <li>Set your champion familiarity level in your personal pool (draftflow-144)</li>
+                <li>Get champion pool suggestions based on your real League match history (draftflow-145)</li>
+                <li>Live Riot champion stats in Profile remain a placeholder until the full implementation is shipped (draftflow-146)</li>
               </ul>
               <h3>Composer</h3>
               <ul class="coming-soon-list">
-                <li>Required Checks settings (composition tags) do not yet have a dedicated management surface outside Composer.</li>
-                <li>Dedicated Composition Checks management page with separate scoped flows (self/team/global + promotion requests).</li>
-                <li>Some legacy helper copy remains in Composer/Explorer and will be trimmed as controls are further consolidated.</li>
+                <li>Dedicated governance surfaces for Champion Tags and Composition Checks are still pending, including scoped flows and promotion workflows (draftflow-131)</li>
+                <li>Some legacy helper copy remains in Composer/Explorer and will be trimmed as controls are further consolidated (draftflow-138)</li>
               </ul>
               <h3>Teams</h3>
               <ul class="coming-soon-list">
-                <li>Team join request flows are API-ready, but request/review controls are not exposed in Teams yet.</li>
-                <li>Teams member actions require exact Riot ID entry (`GameName#Tagline`); search/autocomplete is not implemented yet.</li>
-                <li>Request a position on an existing team.</li>
-                <li>Team leads can accept or decline incoming team requests.</li>
+                <li>Team join request flows are API-ready, but request/review controls are not exposed in Teams yet (draftflow-132)</li>
+                <li>Teams member actions require exact Riot ID entry (`GameName#Tagline`); search/autocomplete is not implemented yet (draftflow-139)</li>
+                <li>Request a position on an existing team from the Teams workspace UI (draftflow-132)</li>
+                <li>Team leads can accept or decline incoming team requests from the Teams workspace UI (draftflow-132)</li>
               </ul>
               <h3>Champions</h3>
               <ul class="coming-soon-list">
-                <li>MVP supports global champion editing tabs in Explorer (Composition, Roles, Damage Type, Scaling); self/team scoped workflows are deferred.</li>
-                <li>Ship champion auto-ingest now that global champion-tag persistence is in place.</li>
+                <li>MVP supports global champion editing tabs in Explorer (Composition, Roles, Damage Type, Scaling); self/team scoped governance workflows are deferred (draftflow-131)</li>
+                <li>Ship champion auto-ingest now that global champion-tag persistence is in place (draftflow-129)</li>
               </ul>
               <h3>Tags</h3>
               <ul class="coming-soon-list">
-                <li>Advanced lifecycle operations (merge, deprecate, restore) are not implemented yet.</li>
-                <li>Bulk operations for assigning tags across champions are not implemented yet.</li>
-                <li>Audit history and approval workflows for high-impact tag changes are not implemented yet.</li>
+                <li>Dedicated tags governance surface with scoped reads/writes and promotion-request flow remains deferred (draftflow-131)</li>
+                <li>High-impact tag/check changes still need stronger authorization and safeguard rules (draftflow-147)</li>
               </ul>
             </div>
           </section>
