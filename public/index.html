@@ -79,7 +79,7 @@
             <button class="side-menu-link" data-tab="team-config" type="button">Teams</button>
             <button class="side-menu-link" data-tab="explorer" type="button">Champions</button>
             <button class="side-menu-link" data-tab="tags" type="button">Tags</button>
-            <button class="side-menu-link" data-tab="coming-soon" type="button">Coming Soon</button>
+            <button class="side-menu-link" data-tab="coming-soon" type="button">Updates</button>
             <button id="auth-logout" class="side-menu-link side-menu-link-logout" type="button">Logout</button>
             <a
               id="report-issue-link"
@@ -719,10 +719,17 @@
 
           <section id="tab-coming-soon" class="tab-panel tab-surface">
             <div class="panel draft-board-panel">
-              <h2 id="coming-soon-title">Coming Soon</h2>
-              <p id="coming-soon-meta" class="meta">Known gaps and planned follow-up grouped by workspace page.</p>
+              <h2 id="coming-soon-title">Updates &amp; Roadmap</h2>
+              <p id="coming-soon-meta" class="meta">Latest shipped changes plus known gaps and planned follow-up grouped by workspace page.</p>
             </div>
             <div class="panel draft-board-panel">
+              <h3>What's New in Version 0.2.0</h3>
+              <ul class="coming-soon-list">
+                <li>Added no-admin bootstrap editing for champion tags and champion metadata (Roles, Damage Type, Scaling).</li>
+                <li>Champion tag editor now preselects existing assignments more reliably and lists tags alphabetically.</li>
+                <li>Added one-time legacy-to-modern tag migration scripts and legacy metadata cleanup tooling.</li>
+                <li>API-mode champion cards now prioritize modern global tags to avoid legacy/global duplicate tag display.</li>
+              </ul>
               <h3>General</h3>
               <ul class="coming-soon-list">
                 <li>Champion catalog refresh checks are still manual; automatic release ingestion is not enabled yet.</li>

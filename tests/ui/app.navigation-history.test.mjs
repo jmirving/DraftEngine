@@ -389,7 +389,15 @@ describe("hash navigation routing", () => {
       doc.querySelectorAll("#tab-coming-soon .panel.draft-board-panel h3"),
       (node) => node.textContent.trim()
     );
-    expect(headings).toEqual(["General", "Profile", "Composer", "Teams", "Champions", "Tags"]);
+    expect(headings).toEqual([
+      "What's New in Version 0.2.0",
+      "General",
+      "Profile",
+      "Composer",
+      "Teams",
+      "Champions",
+      "Tags"
+    ]);
   });
 
   test("mobile nav toggle still controls drawer open state", async () => {

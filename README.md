@@ -2,6 +2,14 @@
 
 DraftEngine is a static-site app for composition checking and next-pick possibility tree generation.
 
+## Versioning
+
+Project version is tracked in:
+- `VERSION`
+- `package.json` (`version`)
+
+Keep both values in sync when publishing a new external release.
+
 ## Run
 
 1. From repo root, start a static server:

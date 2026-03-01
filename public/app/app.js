@@ -151,14 +151,14 @@ const UI_COPY = Object.freeze({
         subtitle: "Review tag categories and current champion coverage."
       },
       "coming-soon": {
-        title: "Coming Soon",
-        subtitle: "Track known gaps and upcoming work grouped by workspace page."
+        title: "Updates & Roadmap",
+        subtitle: "Review latest shipped changes and track known gaps grouped by workspace page."
       }
     }
   },
   nav: {
     title: "Workspace",
-    meta: "Jump between Composer, Teams, Profile, Champions, Tags, and Coming Soon.",
+    meta: "Jump between Composer, Teams, Profile, Champions, Tags, and Updates.",
     toggleClosed: "Menu",
     toggleOpen: "Close Menu",
     desktopCollapseIcon: "◀",
@@ -171,7 +171,7 @@ const UI_COPY = Object.freeze({
       "player-config": "Profile",
       explorer: "Champions",
       tags: "Tags",
-      "coming-soon": "Coming Soon"
+      "coming-soon": "Updates"
     }
   },
   panels: {
@@ -183,8 +183,8 @@ const UI_COPY = Object.freeze({
     teamConfigMeta: "Lead-only controls are grouped by Create and Manage modes.",
     playerConfigTitle: "Profile",
     playerConfigMeta: "Manage your roles, champion pools, and teams.",
-    comingSoonTitle: "Coming Soon",
-    comingSoonMeta: "Known gaps and planned follow-up grouped by workspace page."
+    comingSoonTitle: "Updates & Roadmap",
+    comingSoonMeta: "Latest shipped changes plus known gaps and planned follow-up grouped by workspace page."
   },
   builder: {
     workflowTitle: "Composer",
