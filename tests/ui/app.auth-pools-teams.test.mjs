@@ -862,6 +862,53 @@ describe("auth + pools + team management", () => {
     expect(saveCall.body.tag_ids).toEqual([1]);
   });
 
+  test("champion editor accepts camelCase tagIds payload and keeps selections", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness();
+    const camelCaseFetchImpl = async (url, init = {}) => {
+      const method = (init.method ?? "GET").toUpperCase();
+      const parsedUrl = new URL(url, "http://api.test");
+      if (method === "GET" && /^\/champions\/\d+\/tags$/.test(parsedUrl.pathname)) {
+        await harness.impl(url, init);
+        const championId = Number(parsedUrl.pathname.split("/")[2]);
+        return createJsonResponse({
+          scope: "all",
+          team_id: null,
+          tagIds: championId === 1 ? [1] : []
+        });
+      }
+      return harness.impl(url, init);
+    };
+    const { dom } = await bootApp({ fetchImpl: camelCaseFetchImpl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    await flush();
+
+    const editButton = doc.querySelector("#explorer-results .champ-card-actions button");
+    expect(editButton).toBeTruthy();
+    editButton.click();
+    await flush();
+
+    const engageCheckbox = doc.querySelector("#champion-tag-editor-tags input[type='checkbox'][value='1']");
+    expect(engageCheckbox).toBeTruthy();
+    expect(engageCheckbox.checked).toBe(true);
+
+    doc.querySelector("#champion-tag-editor-save").click();
+    await flush();
+
+    const saveCall = harness.calls.find(
+      (call) => /^\/champions\/\d+\/tags$/.test(call.path) && call.method === "PUT"
+    );
+    expect(saveCall).toBeTruthy();
+    expect(saveCall.body.tag_ids).toEqual([1]);
+  });
+
   test("champion explorer metadata tabs save global metadata edits", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({

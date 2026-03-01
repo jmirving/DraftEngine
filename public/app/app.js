@@ -2431,9 +2431,22 @@ function renderChampionTagEditorTagOptions() {
   }
 
   elements.championTagEditorTags.innerHTML = "";
-  const allTags = Array.isArray(state.api.tags) ? state.api.tags : [];
+  const allTags = Array.isArray(state.api.tags)
+    ? state.api.tags
+        .map((tag) => {
+          const tagId = normalizeApiEntityId(tag?.id);
+          if (tagId === null) {
+            return null;
+          }
+          return {
+            ...tag,
+            id: tagId
+          };
+        })
+        .filter(Boolean)
+    : [];
   const compositionTags = allTags.filter(
-    (tag) => typeof tag?.category === "string" && tag.category.trim().toLowerCase() === "composition"
+    (tag) => typeof tag.category === "string" && tag.category.trim().toLowerCase() === "composition"
   );
   const tags = compositionTags.length > 0 ? compositionTags : allTags;
   if (tags.length === 0) {
@@ -2621,7 +2634,10 @@ async function loadChampionScopedTags(championId) {
 
   try {
     const payload = await apiRequest(`/champions/${championId}/tags?${query.toString()}`, { auth: true });
-    state.api.selectedChampionTagIds = normalizeApiTagIdArray(payload?.tag_ids);
+    const payloadTagIds = payload?.tag_ids ?? payload?.tagIds;
+    if (payloadTagIds !== undefined) {
+      state.api.selectedChampionTagIds = normalizeApiTagIdArray(payloadTagIds);
+    }
     setChampionTagEditorFeedback("");
     return true;
   } catch (error) {
