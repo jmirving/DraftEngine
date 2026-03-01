@@ -976,7 +976,7 @@ describe("auth + pools + team management", () => {
     ]);
   });
 
-  test("champion editor prefills from legacy indicators when global tags are empty", async () => {
+  test("champion editor does not prefill from legacy metadata tags when global tags are empty", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -1047,9 +1047,9 @@ describe("auth + pools + team management", () => {
     const frontlineCheckbox = doc.querySelector("#champion-tag-editor-tags input[type='checkbox'][value='12']");
     expect(hardEngageCheckbox).toBeTruthy();
     expect(frontlineCheckbox).toBeTruthy();
-    expect(hardEngageCheckbox.checked).toBe(true);
-    expect(frontlineCheckbox.checked).toBe(true);
-    expect(doc.querySelector("#champion-tag-editor-feedback").textContent).toContain("prefilled");
+    expect(hardEngageCheckbox.checked).toBe(false);
+    expect(frontlineCheckbox.checked).toBe(false);
+    expect(doc.querySelector("#champion-tag-editor-feedback").textContent).not.toContain("prefilled");
 
     doc.querySelector("#champion-tag-editor-save").click();
     await flush();
@@ -1058,7 +1058,7 @@ describe("auth + pools + team management", () => {
       (call) => /^\/champions\/\d+\/tags$/.test(call.path) && call.method === "PUT"
     );
     expect(saveCall).toBeTruthy();
-    expect(saveCall.body.tag_ids).toEqual([11, 12]);
+    expect(saveCall.body.tag_ids).toEqual([]);
   });
 
   test("explorer cards hide legacy indicator chips in API mode", async () => {

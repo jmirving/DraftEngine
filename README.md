@@ -109,8 +109,9 @@ Troubleshooting:
 - If no hash is present, the app sets a hash to the resolved initial tab.
 
 Frontend API integration:
-- `public/index.html` sets `window.DRAFTENGINE_API_BASE_URL` (default points to Render API URL).
+- `public/index.html` sets `window.DRAFTENGINE_API_BASE_URL` (defaults to same-origin `window.location.origin`).
 - Override `window.DRAFTENGINE_API_BASE_URL` before `public/app/main.js` loads when using a different API host.
+- Frontend runtime no longer falls back to `public/data/champions.csv`; champion/tag data is API-backed.
 
 Primary surfaces:
 - `Build a Composition` (single mode)

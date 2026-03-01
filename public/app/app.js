@@ -10,7 +10,6 @@ import {
   isDamageType,
   isScaling,
   isSlot,
-  parseChampionsCsv,
   evaluateCompositionChecks,
   generatePossibilityTree,
   scoreNodeFromChecks,
@@ -1146,7 +1145,7 @@ function hasAuthSession() {
 }
 
 function isAuthenticated() {
-  return hasAuthSession() && Boolean(runtimeApiBaseUrl);
+  return hasAuthSession();
 }
 
 function readStoredAuthSession() {
@@ -1736,14 +1735,6 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
   }
 }
 
-async function fetchText(path) {
-  const response = await runtimeFetch(path);
-  if (!response.ok) {
-    throw new Error(`Failed to load ${path} (${response.status})`);
-  }
-  return response.text();
-}
-
 function normalizeApiBaseUrl(value) {
   if (typeof value !== "string") {
     return "";
@@ -1910,7 +1901,7 @@ function deriveApiTagsFromTagIds(tagIds) {
 }
 
 function synchronizeChampionTagsFromCatalog() {
-  if (!runtimeApiBaseUrl || !state.data || !Array.isArray(state.data.champions)) {
+  if (!state.data || !Array.isArray(state.data.champions)) {
     return;
   }
   if (!Array.isArray(state.api.tags) || state.api.tags.length === 0) {
@@ -1974,7 +1965,7 @@ function buildChampionFromApiRecord(rawChampion, index) {
     throw new DataValidationError(`Champion '${name}' is missing a valid scaling value in metadata.`);
   }
 
-  const legacyTags = normalizeApiTags(metadata.tags);
+  const tagIds = normalizeChampionTagIdArray(rawChampion.tagIds ?? rawChampion.tag_ids);
 
   return {
     id: normalizeApiEntityId(rawChampion.id),
@@ -1982,9 +1973,8 @@ function buildChampionFromApiRecord(rawChampion, index) {
     roles: normalizedRoles,
     damageType,
     scaling,
-    tags: legacyTags,
-    legacyTags,
-    tagIds: normalizeChampionTagIdArray(rawChampion.tagIds ?? rawChampion.tag_ids)
+    tags: deriveApiTagsFromTagIds(tagIds),
+    tagIds
   };
 }
 
@@ -1997,16 +1987,6 @@ async function fetchJson(path) {
 }
 
 async function loadChampionsData() {
-  if (!runtimeApiBaseUrl) {
-    const championsCsvText = await fetchText("/public/data/champions.csv");
-    const parsed = parseChampionsCsv(championsCsvText);
-    return {
-      ...parsed,
-      championIdsByName: {},
-      championNamesById: {}
-    };
-  }
-
   const payload = await fetchJson(resolveApiUrl("/champions"));
   if (!payload || typeof payload !== "object" || !Array.isArray(payload.champions)) {
     throw new DataValidationError("Champions API response is missing the champions array.");
@@ -2101,12 +2081,6 @@ function normalizeTagCatalogEntry(rawTag) {
 }
 
 async function loadTagCatalogFromApi() {
-  if (!runtimeApiBaseUrl) {
-    state.api.tags = [];
-    state.api.tagById = {};
-    return false;
-  }
-
   try {
     const payload = await fetchJson(resolveApiUrl("/tags"));
     const source = Array.isArray(payload?.tags) ? payload.tags : [];
@@ -2131,9 +2105,7 @@ function renderChampionTagCatalog() {
   elements.championTagCatalogList.innerHTML = "";
 
   if (tags.length === 0) {
-    elements.championTagCatalogMeta.textContent = runtimeApiBaseUrl
-      ? "No API tag catalog entries returned."
-      : "Tag catalog is available when API mode is enabled.";
+    elements.championTagCatalogMeta.textContent = "No API tag catalog entries returned.";
     const empty = runtimeDocument.createElement("span");
     empty.className = "meta";
     empty.textContent = "No tags available.";
@@ -2208,7 +2180,7 @@ function beginManagedTagEdit(tagId) {
 }
 
 function renderTagsManagerControls() {
-  const canManageTags = isAuthenticated() && runtimeApiBaseUrl;
+  const canManageTags = isAuthenticated();
   if (
     Number.isInteger(state.api.selectedTagManagerId) &&
     state.api.selectedTagManagerId > 0 &&
@@ -2220,9 +2192,7 @@ function renderTagsManagerControls() {
   const controlsDisabled = !canManageTags || state.api.isSavingTagCatalog;
 
   if (elements.tagsManageAccess) {
-    if (!runtimeApiBaseUrl) {
-      elements.tagsManageAccess.textContent = "Tag management requires API mode.";
-    } else if (!isAuthenticated()) {
+    if (!isAuthenticated()) {
       elements.tagsManageAccess.textContent = "Sign in to manage tags.";
     } else if (!isAdminUser()) {
       elements.tagsManageAccess.textContent =
@@ -2259,7 +2229,7 @@ async function refreshTagCatalogViews() {
 }
 
 async function saveManagedTag() {
-  if (!isAuthenticated() || !runtimeApiBaseUrl || state.api.isSavingTagCatalog) {
+  if (!isAuthenticated() || state.api.isSavingTagCatalog) {
     return;
   }
 
@@ -2311,7 +2281,7 @@ async function saveManagedTag() {
 }
 
 async function deleteManagedTag(tagId) {
-  if (!isAuthenticated() || !runtimeApiBaseUrl || state.api.isSavingTagCatalog) {
+  if (!isAuthenticated() || state.api.isSavingTagCatalog) {
     return;
   }
   if (!Number.isInteger(tagId) || tagId <= 0) {
@@ -2376,9 +2346,7 @@ function renderTagsWorkspace() {
   elements.tagsWorkspaceCategories.innerHTML = "";
 
   if (tags.length === 0) {
-    elements.tagsWorkspaceSummary.textContent = runtimeApiBaseUrl
-      ? "No tags were returned by the API."
-      : "Tag workspace is available when API mode is enabled.";
+    elements.tagsWorkspaceSummary.textContent = "No tags were returned by the API.";
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
     empty.textContent = "No tags to display.";
@@ -2426,7 +2394,7 @@ function renderTagsWorkspace() {
       usage.textContent = usageCount === 1 ? "Used by 1 champion" : `Used by ${usageCount} champions`;
       item.append(chip, usage);
 
-      if (isAuthenticated() && runtimeApiBaseUrl) {
+      if (isAuthenticated()) {
         const actions = runtimeDocument.createElement("div");
         actions.className = "tags-workspace-actions";
 
@@ -2474,43 +2442,6 @@ function normalizeTagNameForMatching(value) {
     return "";
   }
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
-}
-
-function resolveLegacyChampionFallbackTagIds(champion) {
-  const legacySource = champion?.legacyTags ?? champion?.tags;
-  if (!legacySource || typeof legacySource !== "object" || Array.isArray(legacySource)) {
-    return [];
-  }
-
-  const availableTags = Array.isArray(state.api.tags) ? state.api.tags : [];
-  if (availableTags.length === 0) {
-    return [];
-  }
-
-  const tagIdByName = new Map();
-  for (const tag of availableTags) {
-    const tagId = normalizeApiEntityId(tag?.id);
-    const normalizedName = normalizeTagNameForMatching(tag?.name);
-    if (tagId === null || normalizedName === "") {
-      continue;
-    }
-    if (!tagIdByName.has(normalizedName)) {
-      tagIdByName.set(normalizedName, tagId);
-    }
-  }
-
-  const fallbackTagIds = [];
-  for (const legacyTagName of BOOLEAN_TAGS) {
-    if (legacySource[legacyTagName] !== true) {
-      continue;
-    }
-    const match = tagIdByName.get(normalizeTagNameForMatching(legacyTagName));
-    if (Number.isInteger(match) && match > 0) {
-      fallbackTagIds.push(match);
-    }
-  }
-
-  return normalizeChampionTagIdArray(fallbackTagIds);
 }
 
 function renderChampionTagEditorTagOptions() {
@@ -2683,7 +2614,7 @@ function renderChampionTagEditor() {
 
   const championId = state.api.selectedChampionTagEditorId;
   const champion = Number.isInteger(championId) ? getChampionById(championId) : null;
-  const canRenderEditor = Boolean(champion && isAuthenticated() && runtimeApiBaseUrl);
+  const canRenderEditor = Boolean(champion && isAuthenticated());
   elements.championTagEditor.hidden = !canRenderEditor;
   if (!canRenderEditor) {
     return;
@@ -2747,21 +2678,8 @@ async function loadChampionScopedTags(championId) {
     const payloadTagIds = payload?.tag_ids ?? payload?.tagIds;
     if (payloadTagIds !== undefined) {
       const scopedTagIds = normalizeApiTagIdArray(payloadTagIds);
-      if (scopedTagIds.length > 0) {
-        state.api.selectedChampionTagIds = scopedTagIds;
-        setChampionTagEditorFeedback("");
-      } else {
-        const champion = getChampionById(championId);
-        const fallbackTagIds = resolveLegacyChampionFallbackTagIds(champion);
-        state.api.selectedChampionTagIds = fallbackTagIds;
-        if (fallbackTagIds.length > 0) {
-          setChampionTagEditorFeedback(
-            "No global tag assignments found; prefilled from current champion indicators. Save to persist."
-          );
-        } else {
-          setChampionTagEditorFeedback("");
-        }
-      }
+      state.api.selectedChampionTagIds = scopedTagIds;
+      setChampionTagEditorFeedback("");
     } else {
       setChampionTagEditorFeedback("");
     }
@@ -2782,8 +2700,7 @@ async function openChampionTagEditor(championId) {
   const champion = getChampionById(championId);
   state.api.selectedChampionTagEditorId = championId;
   const scopedTagIds = normalizeChampionTagIdArray(champion?.tagIds);
-  const fallbackTagIds = resolveLegacyChampionFallbackTagIds(champion);
-  state.api.selectedChampionTagIds = scopedTagIds.length > 0 ? scopedTagIds : fallbackTagIds;
+  state.api.selectedChampionTagIds = scopedTagIds;
   state.api.championTagScope = "all";
   state.api.championEditorTab = CHAMPION_EDITOR_TAB_COMPOSITION;
   initializeChampionMetadataDraft(champion);
@@ -5002,7 +4919,7 @@ function renderExplorer() {
     const editButton = runtimeDocument.createElement("button");
     editButton.type = "button";
     editButton.textContent = "Edit Tags";
-    const canEdit = isAuthenticated() && Number.isInteger(champion.id) && champion.id > 0 && runtimeApiBaseUrl;
+    const canEdit = isAuthenticated() && Number.isInteger(champion.id) && champion.id > 0;
     editButton.disabled = !canEdit;
     editButton.addEventListener("click", () => {
       if (!canEdit) {
@@ -5012,20 +4929,7 @@ function renderExplorer() {
     });
     actions.append(editButton);
 
-    if (!runtimeApiBaseUrl) {
-      const chips = runtimeDocument.createElement("div");
-      chips.className = "chip-row";
-      const activeTags = BOOLEAN_TAGS.filter((tag) => champion.tags[tag]);
-      for (const tag of activeTags) {
-        const chip = runtimeDocument.createElement("span");
-        chip.className = "chip";
-        chip.textContent = tag;
-        chips.append(chip);
-      }
-      card.append(header, chips, scopedTags, actions);
-    } else {
-      card.append(header, scopedTags, actions);
-    }
+    card.append(header, scopedTags, actions);
     elements.explorerResults.append(card);
   }
 }
@@ -6999,6 +6903,9 @@ export async function initApp(deps = {}) {
   }
   if (!runtimeFetch) {
     throw new Error("initApp requires a fetch implementation.");
+  }
+  if (!runtimeApiBaseUrl) {
+    throw new Error("initApp requires a configured API base URL.");
   }
 
   state = createInitialState();

@@ -724,6 +724,7 @@
             <div class="panel draft-board-panel">
               <h3>What's New in Version 0.2.0</h3>
               <ul class="coming-soon-list">
+                <li>Removed frontend CSV fallback and legacy tag-prefill paths; Composer and Champions now use API-backed champion/tag data only (draftflow-13.3)</li>
                 <li>Added no-admin bootstrap editing for champion tags and champion metadata (Roles, Damage Type, Scaling) (draftflow-148, draftflow-149)</li>
                 <li>Champion tag editor now preselects existing assignments more reliably and lists tags alphabetically (draftflow-151)</li>
                 <li>Added one-time legacy-to-modern tag migration scripts and legacy metadata cleanup tooling (draftflow-13.3)</li>
@@ -778,7 +779,7 @@
       window.DRAFTENGINE_API_BASE_URL =
         typeof window.DRAFTENGINE_API_BASE_URL === "string" && window.DRAFTENGINE_API_BASE_URL.trim() !== ""
           ? window.DRAFTENGINE_API_BASE_URL.trim()
-          : "https://draftengine-0ee8.onrender.com";
+          : window.location.origin;
     </script>
     <script type="module" src="./app/main.js"></script>
   </body>
