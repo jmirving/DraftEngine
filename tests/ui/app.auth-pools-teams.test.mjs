@@ -783,6 +783,7 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#champion-tag-editor").hidden).toBe(false);
     const firstTagCheckbox = doc.querySelector("#champion-tag-editor-tags input[type='checkbox']");
     expect(firstTagCheckbox).toBeTruthy();
+    expect(firstTagCheckbox.checked).toBe(true);
     firstTagCheckbox.checked = true;
     firstTagCheckbox.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
 
@@ -796,6 +797,69 @@ describe("auth + pools + team management", () => {
     expect(saveCall.body.scope).toBe("all");
     expect(Array.isArray(saveCall.body.tag_ids)).toBe(true);
     expect(doc.querySelector("#champion-tag-editor-feedback").textContent).toContain("saved");
+  });
+
+  test("champion editor preserves existing tags and blocks save while tag load is pending", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness();
+    let releaseChampionTagRead = null;
+    const championTagReadGate = new Promise((resolvePromise) => {
+      releaseChampionTagRead = resolvePromise;
+    });
+    let holdChampionTagRead = true;
+    const delayedFetchImpl = async (url, init = {}) => {
+      const method = (init.method ?? "GET").toUpperCase();
+      const parsedUrl = new URL(url, "http://api.test");
+      if (holdChampionTagRead && method === "GET" && /^\/champions\/\d+\/tags$/.test(parsedUrl.pathname)) {
+        await championTagReadGate;
+        holdChampionTagRead = false;
+      }
+      return harness.impl(url, init);
+    };
+    const { dom } = await bootApp({ fetchImpl: delayedFetchImpl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    await flush();
+
+    const editButton = doc.querySelector("#explorer-results .champ-card-actions button");
+    expect(editButton).toBeTruthy();
+    editButton.click();
+    await flush();
+
+    const saveButton = doc.querySelector("#champion-tag-editor-save");
+    expect(saveButton).toBeTruthy();
+    expect(saveButton.disabled).toBe(true);
+
+    saveButton.click();
+    await flush();
+    const prematureSaveCall = harness.calls.find(
+      (call) => /^\/champions\/\d+\/tags$/.test(call.path) && call.method === "PUT"
+    );
+    expect(prematureSaveCall).toBeUndefined();
+
+    releaseChampionTagRead();
+    await flush();
+    await flush();
+
+    const engageCheckbox = doc.querySelector("#champion-tag-editor-tags input[type='checkbox'][value='1']");
+    expect(engageCheckbox).toBeTruthy();
+    expect(engageCheckbox.checked).toBe(true);
+    expect(saveButton.disabled).toBe(false);
+
+    saveButton.click();
+    await flush();
+
+    const saveCall = harness.calls.find(
+      (call) => /^\/champions\/\d+\/tags$/.test(call.path) && call.method === "PUT"
+    );
+    expect(saveCall).toBeTruthy();
+    expect(saveCall.body.tag_ids).toEqual([1]);
   });
 
   test("champion explorer metadata tabs save global metadata edits", async () => {

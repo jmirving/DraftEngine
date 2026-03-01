@@ -282,6 +282,7 @@ function createInitialState() {
       championTagTeamId: "",
       championEditorTab: CHAMPION_EDITOR_TAB_COMPOSITION,
       championMetadataDraft: createEmptyChampionMetadataDraft(),
+      isLoadingChampionTags: false,
       isSavingChampionTags: false,
       selectedTagManagerId: null,
       isSavingTagCatalog: false
@@ -695,6 +696,7 @@ function clearChampionTagEditorState() {
   state.api.championTagTeamId = "";
   state.api.championEditorTab = CHAMPION_EDITOR_TAB_COMPOSITION;
   state.api.championMetadataDraft = createEmptyChampionMetadataDraft();
+  state.api.isLoadingChampionTags = false;
   state.api.isSavingChampionTags = false;
   setChampionTagEditorFeedback("");
 }
@@ -2451,7 +2453,7 @@ function renderChampionTagEditorTagOptions() {
     checkbox.type = "checkbox";
     checkbox.value = String(tag.id);
     checkbox.checked = selected.has(tag.id);
-    checkbox.disabled = state.api.isSavingChampionTags;
+    checkbox.disabled = state.api.isSavingChampionTags || state.api.isLoadingChampionTags;
     checkbox.addEventListener("change", () => {
       const next = new Set(state.api.selectedChampionTagIds);
       if (checkbox.checked) {
@@ -2597,8 +2599,10 @@ function renderChampionTagEditor() {
   if (elements.championTagEditorSave) {
     elements.championTagEditorSave.textContent =
       activeTab === CHAMPION_EDITOR_TAB_COMPOSITION ? "Save Composition" : "Save Metadata";
+    const compositionSaveBlocked = activeTab === CHAMPION_EDITOR_TAB_COMPOSITION && state.api.isLoadingChampionTags;
     elements.championTagEditorSave.disabled =
       state.api.isSavingChampionTags ||
+      compositionSaveBlocked ||
       (activeTab !== CHAMPION_EDITOR_TAB_COMPOSITION && !metadataDraftComplete);
   }
   if (elements.championTagEditorClear) {
@@ -2612,6 +2616,8 @@ async function loadChampionScopedTags(championId) {
   }
 
   const query = new URLSearchParams({ scope: "all" });
+  state.api.isLoadingChampionTags = true;
+  renderChampionTagEditor();
 
   try {
     const payload = await apiRequest(`/champions/${championId}/tags?${query.toString()}`, { auth: true });
@@ -2620,8 +2626,9 @@ async function loadChampionScopedTags(championId) {
     return true;
   } catch (error) {
     setChampionTagEditorFeedback(normalizeApiErrorMessage(error, "Failed to load champion tags."));
-    state.api.selectedChampionTagIds = [];
     return false;
+  } finally {
+    state.api.isLoadingChampionTags = false;
   }
 }
 
@@ -2632,6 +2639,7 @@ async function openChampionTagEditor(championId) {
 
   const champion = getChampionById(championId);
   state.api.selectedChampionTagEditorId = championId;
+  state.api.selectedChampionTagIds = normalizeChampionTagIdArray(champion?.tagIds);
   state.api.championTagScope = "all";
   state.api.championEditorTab = CHAMPION_EDITOR_TAB_COMPOSITION;
   initializeChampionMetadataDraft(champion);
@@ -2685,6 +2693,11 @@ async function saveChampionTagEditor() {
     return;
   }
   const activeTab = normalizeChampionEditorTab(state.api.championEditorTab);
+  if (activeTab === CHAMPION_EDITOR_TAB_COMPOSITION && state.api.isLoadingChampionTags) {
+    setChampionTagEditorFeedback("Wait for champion tags to finish loading before saving.");
+    renderChampionTagEditor();
+    return;
+  }
 
   state.api.isSavingChampionTags = true;
   setChampionTagEditorFeedback(
