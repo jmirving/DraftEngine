@@ -1885,6 +1885,46 @@ function normalizeApiTags(rawTags) {
   return tags;
 }
 
+const BOOLEAN_TAG_BY_NORMALIZED_NAME = new Map(
+  BOOLEAN_TAGS.map((tagName) => [normalizeTagNameForMatching(tagName), tagName])
+);
+
+function deriveApiTagsFromTagIds(tagIds) {
+  const derived = normalizeApiTags({});
+  const normalizedTagIds = normalizeChampionTagIdArray(tagIds);
+  if (normalizedTagIds.length === 0) {
+    return derived;
+  }
+
+  for (const tagId of normalizedTagIds) {
+    const catalogTag = state.api.tagById?.[String(tagId)];
+    if (!catalogTag || typeof catalogTag.name !== "string") {
+      continue;
+    }
+    const mappedBooleanTag = BOOLEAN_TAG_BY_NORMALIZED_NAME.get(normalizeTagNameForMatching(catalogTag.name));
+    if (mappedBooleanTag) {
+      derived[mappedBooleanTag] = true;
+    }
+  }
+  return derived;
+}
+
+function synchronizeChampionTagsFromCatalog() {
+  if (!runtimeApiBaseUrl || !state.data || !Array.isArray(state.data.champions)) {
+    return;
+  }
+  if (!Array.isArray(state.api.tags) || state.api.tags.length === 0) {
+    return;
+  }
+
+  for (const champion of state.data.champions) {
+    if (!champion || typeof champion !== "object") {
+      continue;
+    }
+    champion.tags = deriveApiTagsFromTagIds(champion.tagIds);
+  }
+}
+
 function normalizeChampionTagIdArray(rawValue) {
   if (!Array.isArray(rawValue)) {
     return [];
@@ -1934,13 +1974,16 @@ function buildChampionFromApiRecord(rawChampion, index) {
     throw new DataValidationError(`Champion '${name}' is missing a valid scaling value in metadata.`);
   }
 
+  const legacyTags = normalizeApiTags(metadata.tags);
+
   return {
     id: normalizeApiEntityId(rawChampion.id),
     name,
     roles: normalizedRoles,
     damageType,
     scaling,
-    tags: normalizeApiTags(metadata.tags),
+    tags: legacyTags,
+    legacyTags,
     tagIds: normalizeChampionTagIdArray(rawChampion.tagIds ?? rawChampion.tag_ids)
   };
 }
@@ -2070,6 +2113,7 @@ async function loadTagCatalogFromApi() {
     const tags = source.map(normalizeTagCatalogEntry).filter(Boolean);
     state.api.tags = tags;
     state.api.tagById = Object.fromEntries(tags.map((tag) => [String(tag.id), tag]));
+    synchronizeChampionTagsFromCatalog();
     return true;
   } catch (_error) {
     state.api.tags = [];
@@ -2433,7 +2477,8 @@ function normalizeTagNameForMatching(value) {
 }
 
 function resolveLegacyChampionFallbackTagIds(champion) {
-  if (!champion || !champion.tags || typeof champion.tags !== "object" || Array.isArray(champion.tags)) {
+  const legacySource = champion?.legacyTags ?? champion?.tags;
+  if (!legacySource || typeof legacySource !== "object" || Array.isArray(legacySource)) {
     return [];
   }
 
@@ -2456,7 +2501,7 @@ function resolveLegacyChampionFallbackTagIds(champion) {
 
   const fallbackTagIds = [];
   for (const legacyTagName of BOOLEAN_TAGS) {
-    if (champion.tags[legacyTagName] !== true) {
+    if (legacySource[legacyTagName] !== true) {
       continue;
     }
     const match = tagIdByName.get(normalizeTagNameForMatching(legacyTagName));
@@ -2775,6 +2820,7 @@ async function saveChampionCompositionTab(championId) {
   const champion = getChampionById(championId);
   if (champion) {
     champion.tagIds = [...state.api.selectedChampionTagIds];
+    champion.tags = deriveApiTagsFromTagIds(champion.tagIds);
   }
 }
 
@@ -4939,16 +4985,6 @@ function renderExplorer() {
     heading.append(name, summary);
     header.append(image, heading);
 
-    const chips = runtimeDocument.createElement("div");
-    chips.className = "chip-row";
-    const activeTags = BOOLEAN_TAGS.filter((tag) => champion.tags[tag]);
-    for (const tag of activeTags) {
-      const chip = runtimeDocument.createElement("span");
-      chip.className = "chip";
-      chip.textContent = tag;
-      chips.append(chip);
-    }
-
     const scopedTags = runtimeDocument.createElement("div");
     scopedTags.className = "chip-row champ-card-scope-tags";
     const scopedTagNames = Array.isArray(champion.tagIds)
@@ -4983,7 +5019,20 @@ function renderExplorer() {
     });
     actions.append(editButton);
 
-    card.append(header, chips, scopedTags, actions);
+    if (!runtimeApiBaseUrl) {
+      const chips = runtimeDocument.createElement("div");
+      chips.className = "chip-row";
+      const activeTags = BOOLEAN_TAGS.filter((tag) => champion.tags[tag]);
+      for (const tag of activeTags) {
+        const chip = runtimeDocument.createElement("span");
+        chip.className = "chip";
+        chip.textContent = tag;
+        chips.append(chip);
+      }
+      card.append(header, chips, scopedTags, actions);
+    } else {
+      card.append(header, scopedTags, actions);
+    }
     elements.explorerResults.append(card);
   }
 }

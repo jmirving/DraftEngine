@@ -39,6 +39,7 @@ npm run migrate:up
 npm run migrate:down
 npm run seed:champions
 npm run tags:backfill-legacy
+npm run tags:clear-legacy-metadata
 ```
 
 MVP API routes:

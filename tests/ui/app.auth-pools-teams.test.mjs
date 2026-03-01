@@ -1033,6 +1033,56 @@ describe("auth + pools + team management", () => {
     expect(saveCall.body.tag_ids).toEqual([11, 12]);
   });
 
+  test("explorer cards hide legacy indicator chips in API mode", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness();
+    const legacyTags = tagsFalse();
+    legacyTags.HardEngage = true;
+    legacyTags.Frontline = true;
+
+    const apiModeFetchImpl = async (url, init = {}) => {
+      const method = (init.method ?? "GET").toUpperCase();
+      const parsedUrl = new URL(url, "http://api.test");
+
+      if (method === "GET" && parsedUrl.pathname === "/champions") {
+        return createJsonResponse({
+          champions: [
+            {
+              id: 1,
+              name: "Aatrox",
+              role: "Top",
+              metadata: {
+                roles: ["Top"],
+                damageType: "AD",
+                scaling: "Mid",
+                tags: legacyTags
+              },
+              tagIds: [1]
+            }
+          ]
+        });
+      }
+
+      return harness.impl(url, init);
+    };
+
+    const { dom } = await bootApp({ fetchImpl: apiModeFetchImpl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    await flush();
+
+    const card = doc.querySelector("#explorer-results .champ-card");
+    expect(card).toBeTruthy();
+    expect(card.textContent).not.toContain("HardEngage");
+    expect(card.textContent).not.toContain("Frontline");
+    expect(card.textContent).toContain("engage");
+  });
+
   test("champion explorer metadata tabs save global metadata edits", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
