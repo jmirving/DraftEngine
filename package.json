@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "db:check": "node server/scripts/check-db.js",
+    "tags:backfill-legacy": "node server/scripts/backfill-legacy-tags.js",
     "catalog:refresh": "node server/scripts/generate-full-champions-csv.js",
     "migrate:down": "node-pg-migrate down --migrations-dir server/migrations",
     "migrate:up": "node-pg-migrate up --migrations-dir server/migrations",

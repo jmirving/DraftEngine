@@ -38,6 +38,7 @@ npm run db:check
 npm run migrate:up
 npm run migrate:down
 npm run seed:champions
+npm run tags:backfill-legacy
 ```
 
 MVP API routes:
