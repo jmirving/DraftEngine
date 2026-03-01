@@ -132,7 +132,7 @@ const UI_COPY = Object.freeze({
     tabs: {
       workflow: {
         title: "Composer",
-        subtitle: "Configure team context, scout candidates, and run deterministic next-pick simulations."
+        subtitle: "Plan picks, run checks, and inspect deterministic next-pick trees."
       },
       "team-config": {
         title: "Teams",
@@ -144,7 +144,7 @@ const UI_COPY = Object.freeze({
       },
       explorer: {
         title: "Champions",
-        subtitle: "Browse champion cards, filter by tags, and edit global champion metadata."
+        subtitle: "Search champions and edit global champion metadata."
       },
       tags: {
         title: "Tags",
@@ -176,7 +176,7 @@ const UI_COPY = Object.freeze({
   },
   panels: {
     explorerTitle: "Champions",
-    explorerMeta: "Filter champions by role, damage profile, scaling, and tags.",
+    explorerMeta: "Filter and sort champion cards.",
     tagsTitle: "Tags",
     tagsMeta: "Review tag categories and current champion coverage.",
     teamConfigTitle: "Teams",
@@ -192,12 +192,12 @@ const UI_COPY = Object.freeze({
       {
         key: "setup",
         panelTitle: "Setup",
-        panelMeta: "Set team context, lock known picks, and adjust generation constraints."
+        panelMeta: "Choose team context and lock known picks."
       },
       {
         key: "inspect",
         panelTitle: "Review",
-        panelMeta: "Review checks, generate options, and inspect slot-level node impact."
+        panelMeta: "Run checks and inspect generated branches."
       }
     ],
     continueLabel: "Review Composition",
@@ -1436,11 +1436,11 @@ function renderBuilderStageGuide() {
   elements.builderContinueValidate.textContent = UI_COPY.builder.continueLabel;
   elements.builderGenerate.textContent = UI_COPY.builder.generateLabel;
   if (completion.completionState === "empty") {
-    elements.builderStageGuideMeta.textContent = "Select at least one champion to unlock Review. Partial picks help finish a draft; all five picks evaluate a completed composition.";
+    elements.builderStageGuideMeta.textContent = "Pick at least one champion to unlock Review.";
   } else if (completion.completionState === "partial") {
-    elements.builderStageGuideMeta.textContent = "Review is ready. Partial picks can generate finish-out draft options; fill all five slots for full composition evaluation.";
+    elements.builderStageGuideMeta.textContent = "Review is ready. Generate finish-out options from partial picks.";
   } else {
-    elements.builderStageGuideMeta.textContent = "Review is ready. All five slots are filled, so checks evaluate your full composition.";
+    elements.builderStageGuideMeta.textContent = "Review is ready. Checks now evaluate a full composition.";
   }
 
   elements.builderStageSetup.classList.toggle("is-current-stage", state.builder.stage === "setup");
