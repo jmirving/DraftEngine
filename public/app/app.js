@@ -2425,6 +2425,49 @@ function normalizeApiTagIdArray(values) {
   return Array.from(new Set(normalized)).sort((left, right) => left - right);
 }
 
+function normalizeTagNameForMatching(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function resolveLegacyChampionFallbackTagIds(champion) {
+  if (!champion || !champion.tags || typeof champion.tags !== "object" || Array.isArray(champion.tags)) {
+    return [];
+  }
+
+  const availableTags = Array.isArray(state.api.tags) ? state.api.tags : [];
+  if (availableTags.length === 0) {
+    return [];
+  }
+
+  const tagIdByName = new Map();
+  for (const tag of availableTags) {
+    const tagId = normalizeApiEntityId(tag?.id);
+    const normalizedName = normalizeTagNameForMatching(tag?.name);
+    if (tagId === null || normalizedName === "") {
+      continue;
+    }
+    if (!tagIdByName.has(normalizedName)) {
+      tagIdByName.set(normalizedName, tagId);
+    }
+  }
+
+  const fallbackTagIds = [];
+  for (const legacyTagName of BOOLEAN_TAGS) {
+    if (champion.tags[legacyTagName] !== true) {
+      continue;
+    }
+    const match = tagIdByName.get(normalizeTagNameForMatching(legacyTagName));
+    if (Number.isInteger(match) && match > 0) {
+      fallbackTagIds.push(match);
+    }
+  }
+
+  return normalizeChampionTagIdArray(fallbackTagIds);
+}
+
 function renderChampionTagEditorTagOptions() {
   if (!elements.championTagEditorTags) {
     return;
@@ -2665,9 +2708,25 @@ async function loadChampionScopedTags(championId) {
     const payload = await apiRequest(`/champions/${championId}/tags?${query.toString()}`, { auth: true });
     const payloadTagIds = payload?.tag_ids ?? payload?.tagIds;
     if (payloadTagIds !== undefined) {
-      state.api.selectedChampionTagIds = normalizeApiTagIdArray(payloadTagIds);
+      const scopedTagIds = normalizeApiTagIdArray(payloadTagIds);
+      if (scopedTagIds.length > 0) {
+        state.api.selectedChampionTagIds = scopedTagIds;
+        setChampionTagEditorFeedback("");
+      } else {
+        const champion = getChampionById(championId);
+        const fallbackTagIds = resolveLegacyChampionFallbackTagIds(champion);
+        state.api.selectedChampionTagIds = fallbackTagIds;
+        if (fallbackTagIds.length > 0) {
+          setChampionTagEditorFeedback(
+            "No global tag assignments found; prefilled from current champion indicators. Save to persist."
+          );
+        } else {
+          setChampionTagEditorFeedback("");
+        }
+      }
+    } else {
+      setChampionTagEditorFeedback("");
     }
-    setChampionTagEditorFeedback("");
     return true;
   } catch (error) {
     setChampionTagEditorFeedback(normalizeApiErrorMessage(error, "Failed to load champion tags."));
@@ -2684,7 +2743,9 @@ async function openChampionTagEditor(championId) {
 
   const champion = getChampionById(championId);
   state.api.selectedChampionTagEditorId = championId;
-  state.api.selectedChampionTagIds = normalizeChampionTagIdArray(champion?.tagIds);
+  const scopedTagIds = normalizeChampionTagIdArray(champion?.tagIds);
+  const fallbackTagIds = resolveLegacyChampionFallbackTagIds(champion);
+  state.api.selectedChampionTagIds = scopedTagIds.length > 0 ? scopedTagIds : fallbackTagIds;
   state.api.championTagScope = "all";
   state.api.championEditorTab = CHAMPION_EDITOR_TAB_COMPOSITION;
   initializeChampionMetadataDraft(champion);
