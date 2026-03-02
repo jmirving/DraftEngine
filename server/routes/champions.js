@@ -8,12 +8,14 @@ import {
   requireObject
 } from "../http/validation.js";
 import {
+  assertScopeReadAuthorization,
   assertScopeWriteAuthorization,
-  parseScope
+  parseScope,
+  resolveScopedTeamId
 } from "../scope-authorization.js";
 import { DAMAGE_TYPES, SCALING_VALUES, SLOTS } from "../../src/domain/model.js";
 
-const CHAMPION_TAG_SCOPE_SET = new Set(["all"]);
+const CHAMPION_TAG_SCOPE_SET = new Set(["all", "team"]);
 const MAX_CHAMPION_TAGS_PER_SCOPE = 64;
 const SLOT_SET = new Set(SLOTS);
 const DAMAGE_TYPE_SET = new Set(DAMAGE_TYPES);
@@ -215,12 +217,22 @@ export function createChampionsRouter({
 
   router.get("/champions/:id/tags", requireAuth, async (request, response) => {
     const championId = parsePositiveInteger(request.params.id, "id");
+    const userId = request.user.userId;
     const scope = parseScope(request.query.scope, {
       defaultScope: "all",
       fieldName: "scope",
       allowedScopes: CHAMPION_TAG_SCOPE_SET
     });
-    if (request.query.team_id !== undefined) {
+
+    let teamId = null;
+    if (scope === "team") {
+      teamId = await resolveScopedTeamId({
+        scope,
+        rawTeamId: request.query.team_id,
+        userId,
+        usersRepository
+      });
+    } else if (request.query.team_id !== undefined) {
       throw badRequest("Expected 'team_id' to be omitted for global champion tag reads.");
     }
 
@@ -229,14 +241,23 @@ export function createChampionsRouter({
       throw notFound("Champion not found.");
     }
 
+    await assertScopeReadAuthorization({
+      scope,
+      userId,
+      teamId,
+      teamsRepository,
+      teamReadMessage: "You must be on the selected team to read team tags."
+    });
+
     const tagIds = await tagsRepository.listChampionTagIdsForScope({
       championId,
-      scope: "all"
+      scope,
+      teamId
     });
 
     response.json({
-      scope: "all",
-      team_id: null,
+      scope,
+      team_id: teamId,
       tag_ids: tagIds,
       reviewed: champion.reviewed === true
     });
@@ -245,15 +266,25 @@ export function createChampionsRouter({
   router.put("/champions/:id/tags", requireAuth, async (request, response) => {
     const championId = parsePositiveInteger(request.params.id, "id");
     const body = requireObject(request.body);
+    const userId = request.user.userId;
     const scope = parseScope(body.scope, {
       defaultScope: "all",
       fieldName: "scope",
       allowedScopes: CHAMPION_TAG_SCOPE_SET
     });
-    if (body.team_id !== undefined) {
+
+    let teamId = null;
+    if (scope === "team") {
+      teamId = await resolveScopedTeamId({
+        scope,
+        rawTeamId: body.team_id,
+        userId,
+        usersRepository
+      });
+    } else if (body.team_id !== undefined) {
       throw badRequest("Expected 'team_id' to be omitted for global champion tag edits.");
     }
-    const userId = request.user.userId;
+
     const tagIds = normalizeTagIds(requireArrayOfPositiveIntegers(body.tag_ids, "tag_ids"));
     const reviewed = normalizeReviewedFlag(body.reviewed);
 
@@ -265,7 +296,7 @@ export function createChampionsRouter({
     await assertScopeWriteAuthorization({
       scope,
       userId,
-      teamId: null,
+      teamId,
       teamsRepository,
       usersRepository,
       teamWriteMessage: "You must be on the selected team to edit team tags.",
@@ -283,7 +314,8 @@ export function createChampionsRouter({
     await tagsRepository.replaceChampionTagsForScope({
       championId,
       tagIds,
-      scope: "all"
+      scope,
+      teamId
     });
     if (reviewed !== undefined) {
       await championsRepository.updateChampionReviewState(championId, {
@@ -294,8 +326,8 @@ export function createChampionsRouter({
     const champion = await championsRepository.getChampionById(championId);
     response.json({
       champion,
-      scope: "all",
-      team_id: null,
+      scope,
+      team_id: teamId,
       tag_ids: tagIds,
       reviewed: champion?.reviewed === true
     });

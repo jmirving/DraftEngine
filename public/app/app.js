@@ -66,7 +66,7 @@ const DEFAULT_MEMBER_ROLE = "member";
 const MEMBER_ROLE_OPTIONS = Object.freeze(["lead", "member"]);
 const DEFAULT_TEAM_MEMBER_TYPE = "substitute";
 const TEAM_MEMBER_TYPE_OPTIONS = Object.freeze(["primary", "substitute"]);
-const CHAMPION_TAG_SCOPES = Object.freeze(["all"]);
+const CHAMPION_TAG_SCOPES = Object.freeze(["all", "team"]);
 const CHAMPION_EDITOR_TAB_COMPOSITION = "composition";
 const CHAMPION_EDITOR_TAB_ROLES = "roles";
 const CHAMPION_EDITOR_TAB_DAMAGE = "damage";
@@ -307,6 +307,10 @@ function createInitialState() {
       discoverTeams: [],
       membersByTeamId: {},
       joinRequestsByTeamId: {},
+      invitationsByTeamId: {},
+      userInvitations: [],
+      isLoadingTeamInvitations: false,
+      isLoadingUserInvitations: false,
       selectedTeamId: "",
       selectedDiscoverTeamId: "",
       isCreatingTeam: false,
@@ -553,6 +557,20 @@ function createElements() {
     teamJoinLoadReview: runtimeDocument.querySelector("#team-join-load-review"),
     teamJoinReviewList: runtimeDocument.querySelector("#team-join-review-list"),
     teamJoinFeedback: runtimeDocument.querySelector("#team-join-feedback"),
+    teamInviteRiotId: runtimeDocument.querySelector("#team-invite-riot-id"),
+    teamInviteLane: runtimeDocument.querySelector("#team-invite-lane"),
+    teamInviteNote: runtimeDocument.querySelector("#team-invite-note"),
+    teamInviteRole: runtimeDocument.querySelector("#team-invite-role"),
+    teamInviteTeamRole: runtimeDocument.querySelector("#team-invite-team-role"),
+    teamInviteSend: runtimeDocument.querySelector("#team-invite-send"),
+    teamInviteClear: runtimeDocument.querySelector("#team-invite-clear"),
+    teamInviteFeedback: runtimeDocument.querySelector("#team-invite-feedback"),
+    teamInviteLoad: runtimeDocument.querySelector("#team-invite-load"),
+    teamInviteList: runtimeDocument.querySelector("#team-invite-list"),
+    teamInviteListMeta: runtimeDocument.querySelector("#team-invite-list-meta"),
+    teamInviteUserLoad: runtimeDocument.querySelector("#team-invite-user-load"),
+    teamInviteUserList: runtimeDocument.querySelector("#team-invite-user-list"),
+    teamInviteUserFeedback: runtimeDocument.querySelector("#team-invite-user-feedback"),
     teamAdminRenameName: runtimeDocument.querySelector("#team-admin-rename-name"),
     teamAdminRenameTag: runtimeDocument.querySelector("#team-admin-rename-tag"),
     teamAdminRenameLogoUrl: runtimeDocument.querySelector("#team-admin-rename-logo-url"),
@@ -698,6 +716,18 @@ function setTeamJoinFeedback(message) {
   }
 }
 
+function setTeamInviteFeedback(message) {
+  if (elements.teamInviteFeedback) {
+    elements.teamInviteFeedback.textContent = message;
+  }
+}
+
+function setTeamInviteUserFeedback(message) {
+  if (elements.teamInviteUserFeedback) {
+    elements.teamInviteUserFeedback.textContent = message;
+  }
+}
+
 function setChampionTagEditorFeedback(message) {
   if (elements.championTagEditorFeedback) {
     elements.championTagEditorFeedback.textContent = message;
@@ -737,6 +767,19 @@ function isGlobalTagEditorUser() {
 
 function normalizeChampionTagScope(scope) {
   return CHAMPION_TAG_SCOPES.includes(scope) ? scope : "all";
+}
+
+function getChampionTagLeadTeams() {
+  return Array.isArray(state.api.teams)
+    ? state.api.teams.filter((team) => String(team.membership_role ?? "").toLowerCase() === "lead")
+    : [];
+}
+
+function getChampionTagLeadTeamOptions() {
+  return getChampionTagLeadTeams().map((team) => ({
+    value: String(team.id),
+    label: formatTeamCardTitle(team)
+  }));
 }
 
 function normalizeChampionEditorTab(tab) {
@@ -3387,27 +3430,60 @@ function renderChampionTagEditor() {
 
   const championId = state.api.selectedChampionTagEditorId;
   const champion = Number.isInteger(championId) ? getChampionById(championId) : null;
-  const canRenderEditor = Boolean(champion && isAuthenticated() && isGlobalTagEditorUser());
+  const canEditGlobal = isGlobalTagEditorUser();
+  const leadTeamOptions = getChampionTagLeadTeamOptions();
+  const canEditTeam = leadTeamOptions.length > 0;
+  const canRenderEditor = Boolean(champion && isAuthenticated() && (canEditGlobal || canEditTeam));
   elements.championTagEditor.hidden = !canRenderEditor;
   if (!canRenderEditor) {
     return;
   }
 
   state.api.championTagScope = normalizeChampionTagScope(state.api.championTagScope);
+  const scopeOptions = [];
+  if (canEditGlobal) {
+    scopeOptions.push({ value: "all", label: "Global" });
+  }
+  if (canEditTeam) {
+    scopeOptions.push({ value: "team", label: "Team" });
+  }
+  if (scopeOptions.length === 0) {
+    elements.championTagEditor.hidden = true;
+    return;
+  }
+
+  if (!scopeOptions.some((option) => option.value === state.api.championTagScope)) {
+    state.api.championTagScope = scopeOptions[0].value;
+  }
 
   if (elements.championTagEditorTitle) {
     elements.championTagEditorTitle.textContent = `Edit ${champion.name} Tags`;
   }
+
   if (elements.championTagEditorScope) {
+    replaceOptions(elements.championTagEditorScope, scopeOptions);
     elements.championTagEditorScope.value = state.api.championTagScope;
-    elements.championTagEditorScope.disabled = true;
+    elements.championTagEditorScope.disabled = scopeOptions.length <= 1;
   }
+
+  if (state.api.championTagScope === "team") {
+    if (!leadTeamOptions.some((option) => option.value === state.api.championTagTeamId)) {
+      state.api.championTagTeamId = leadTeamOptions[0]?.value ?? "";
+    }
+  } else {
+    state.api.championTagTeamId = "";
+  }
+
   if (elements.championTagEditorTeamGroup) {
-    elements.championTagEditorTeamGroup.hidden = true;
+    elements.championTagEditorTeamGroup.hidden = state.api.championTagScope !== "team";
   }
+
   if (elements.championTagEditorTeam) {
-    replaceOptions(elements.championTagEditorTeam, []);
-    elements.championTagEditorTeam.disabled = true;
+    replaceOptions(elements.championTagEditorTeam, leadTeamOptions);
+    if (state.api.championTagTeamId) {
+      elements.championTagEditorTeam.value = state.api.championTagTeamId;
+    }
+    elements.championTagEditorTeam.disabled = state.api.championTagScope !== "team" || leadTeamOptions.length === 0;
   }
 
   renderChampionEditorTabs();
@@ -3443,7 +3519,17 @@ async function loadChampionScopedTags(championId) {
     return false;
   }
 
-  const query = new URLSearchParams({ scope: "all" });
+  const scope = normalizeChampionTagScope(state.api.championTagScope);
+  const query = new URLSearchParams({ scope });
+  if (scope === "team") {
+    const teamId = normalizeTeamEntityId(state.api.championTagTeamId);
+    if (!teamId) {
+      setChampionTagEditorFeedback("Select a team to load team tags.");
+      return false;
+    }
+    query.set("team_id", teamId);
+  }
+
   state.api.isLoadingChampionTags = true;
   renderChampionTagEditor();
 
@@ -3460,6 +3546,9 @@ async function loadChampionScopedTags(championId) {
     } else {
       setChampionTagEditorFeedback("");
     }
+    if (payload?.team_id !== undefined && payload?.team_id !== null) {
+      state.api.championTagTeamId = String(payload.team_id);
+    }
     return true;
   } catch (error) {
     setChampionTagEditorFeedback(normalizeApiErrorMessage(error, "Failed to load champion tags."));
@@ -3470,7 +3559,10 @@ async function loadChampionScopedTags(championId) {
 }
 
 async function openChampionTagEditor(championId) {
-  if (!isAuthenticated() || !isGlobalTagEditorUser() || !Number.isInteger(championId) || championId <= 0) {
+  const canEditGlobal = isGlobalTagEditorUser();
+  const leadTeamOptions = getChampionTagLeadTeamOptions();
+  const canEditTeam = leadTeamOptions.length > 0;
+  if (!isAuthenticated() || (!canEditGlobal && !canEditTeam) || !Number.isInteger(championId) || championId <= 0) {
     return;
   }
 
@@ -3478,7 +3570,15 @@ async function openChampionTagEditor(championId) {
   state.api.selectedChampionTagEditorId = championId;
   const scopedTagIds = normalizeChampionTagIdArray(champion?.tagIds);
   state.api.selectedChampionTagIds = scopedTagIds;
-  state.api.championTagScope = "all";
+  state.api.championTagScope = isGlobalTagEditorUser() ? "all" : "team";
+  if (state.api.championTagScope === "team") {
+    const selectedTeam = getSelectedAdminTeam();
+    const hasSelectedLeadTeam = selectedTeam?.membership_role === "lead" ? String(selectedTeam.id) : "";
+    const firstLeadTeamValue = leadTeamOptions[0]?.value ?? "";
+    state.api.championTagTeamId = hasSelectedLeadTeam || firstLeadTeamValue;
+  } else {
+    state.api.championTagTeamId = "";
+  }
   state.api.championEditorTab = CHAMPION_EDITOR_TAB_COMPOSITION;
   initializeChampionMetadataDraft(champion);
   setChampionTagEditorFeedback("Loading champion tags...");
@@ -3493,11 +3593,20 @@ function setChampionEditorTab(tab) {
 }
 
 async function saveChampionCompositionTab(championId) {
+  const scope = normalizeChampionTagScope(state.api.championTagScope);
+  const tagIds = [...state.api.selectedChampionTagIds].sort((left, right) => left - right);
   const payload = {
-    scope: "all",
-    tag_ids: [...state.api.selectedChampionTagIds].sort((left, right) => left - right),
+    scope,
+    tag_ids: tagIds,
     reviewed: state.api.championReviewedDraft === true
   };
+  if (scope === "team") {
+    const teamId = normalizeTeamEntityId(state.api.championTagTeamId);
+    if (!teamId) {
+      throw new Error("Select a team before saving team-scoped tags.");
+    }
+    payload.team_id = Number.parseInt(teamId, 10);
+  }
 
   const response = await apiRequest(`/champions/${championId}/tags`, {
     method: "PUT",
@@ -4640,6 +4749,326 @@ function renderTeamJoinWorkspace(selectedTeam) {
   }
 }
 
+function getTeamInviteList(selectedTeam) {
+  if (!selectedTeam) {
+    return [];
+  }
+  return state.api.invitationsByTeamId[String(selectedTeam.id)] ?? [];
+}
+
+function renderTeamInviteList(selectedTeam) {
+  if (!elements.teamInviteList) {
+    return;
+  }
+  elements.teamInviteList.innerHTML = "";
+
+  const isAuth = isAuthenticated();
+  if (elements.teamInviteListMeta) {
+    elements.teamInviteListMeta.textContent = !isAuth
+      ? "Sign in to view team invitations."
+      : selectedTeam
+        ? `Pending invitations for ${formatTeamCardTitle(selectedTeam)}.`
+        : "Select a team to view invitations.";
+  }
+
+  if (!isAuth) {
+    const message = runtimeDocument.createElement("p");
+    message.className = "meta";
+    message.textContent = "Sign in to view team invitations.";
+    elements.teamInviteList.append(message);
+    return;
+  }
+
+  if (!selectedTeam) {
+    const message = runtimeDocument.createElement("p");
+    message.className = "meta";
+    message.textContent = "Select a team to view pending invitations.";
+    elements.teamInviteList.append(message);
+    return;
+  }
+
+  if (state.api.isLoadingTeamInvitations) {
+    const loading = runtimeDocument.createElement("p");
+    loading.className = "meta";
+    loading.textContent = "Loading team invitations...";
+    elements.teamInviteList.append(loading);
+    return;
+  }
+
+  const invitations = getTeamInviteList(selectedTeam);
+  if (invitations.length === 0) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "No pending invitations. Send a new invite to get started.";
+    elements.teamInviteList.append(empty);
+    return;
+  }
+
+  for (const invitation of invitations) {
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card";
+
+    const title = runtimeDocument.createElement("strong");
+    title.textContent = invitation?.target?.display_name ?? `User ${invitation?.target_user_id ?? "?"}`;
+
+    const lane = runtimeDocument.createElement("p");
+    lane.className = "meta";
+    const laneLabel = invitation?.requested_lane ? `Lane: ${invitation.requested_lane}` : "Lane: (auto)";
+    lane.textContent = laneLabel;
+
+    const note = runtimeDocument.createElement("p");
+    note.className = "meta";
+    const trimmedNote = typeof invitation?.note === "string" ? invitation.note.trim() : "";
+    note.textContent = trimmedNote ? `Note: ${trimmedNote}` : "Note: (none)";
+
+    const status = runtimeDocument.createElement("p");
+    status.className = "meta";
+    status.textContent = `Status: ${invitation.status}`;
+
+    card.append(title, lane, note, status);
+
+    if (invitation.status === "pending") {
+      const actions = runtimeDocument.createElement("div");
+      actions.className = "button-row";
+      const cancelButton = runtimeDocument.createElement("button");
+      cancelButton.type = "button";
+      cancelButton.className = "ghost";
+      cancelButton.textContent = "Cancel";
+      cancelButton.dataset.teamInviteAction = "cancel";
+      cancelButton.dataset.teamInviteId = String(invitation.id);
+      actions.append(cancelButton);
+      card.append(actions);
+    }
+
+    elements.teamInviteList.append(card);
+  }
+}
+
+function renderTeamInviteUserList() {
+  if (!elements.teamInviteUserList) {
+    return;
+  }
+  elements.teamInviteUserList.innerHTML = "";
+
+  if (elements.teamInviteUserFeedback && !isAuthenticated()) {
+    elements.teamInviteUserFeedback.textContent = "";
+  }
+
+  if (!isAuthenticated()) {
+    const message = runtimeDocument.createElement("p");
+    message.className = "meta";
+    message.textContent = "Sign in to review incoming invitations.";
+    elements.teamInviteUserList.append(message);
+    return;
+  }
+
+  if (state.api.isLoadingUserInvitations) {
+    const loading = runtimeDocument.createElement("p");
+    loading.className = "meta";
+    loading.textContent = "Loading invitations...";
+    elements.teamInviteUserList.append(loading);
+    return;
+  }
+
+  const invitations = Array.isArray(state.api.userInvitations) ? state.api.userInvitations : [];
+  if (invitations.length === 0) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "No invitations at this time.";
+    elements.teamInviteUserList.append(empty);
+    return;
+  }
+
+  for (const invitation of invitations) {
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card";
+
+    const title = runtimeDocument.createElement("strong");
+    title.textContent = invitation?.team?.name
+      ? `${invitation.team.name} (${invitation.team.tag ?? "TBD"})`
+      : `Team ${invitation.team_id ?? "?"}`;
+
+    const lane = runtimeDocument.createElement("p");
+    lane.className = "meta";
+    lane.textContent = invitation?.requested_lane
+      ? `Lane: ${invitation.requested_lane}`
+      : "Lane: (auto)";
+
+    const note = runtimeDocument.createElement("p");
+    note.className = "meta";
+    const trimmedNote = typeof invitation?.note === "string" ? invitation.note.trim() : "";
+    note.textContent = trimmedNote ? `Note: ${trimmedNote}` : "Note: (none)";
+
+    const status = runtimeDocument.createElement("p");
+    status.className = "meta";
+    status.textContent = `Status: ${invitation.status}`;
+
+    card.append(title, lane, note, status);
+
+    if (invitation.status === "pending") {
+      const actions = runtimeDocument.createElement("div");
+      actions.className = "button-row";
+
+      const accept = runtimeDocument.createElement("button");
+      accept.type = "button";
+      accept.textContent = "Accept";
+      accept.dataset.teamInviteUserAction = "accept";
+      accept.dataset.teamInviteId = String(invitation.id);
+      accept.dataset.teamId = String(invitation.team_id);
+
+      const reject = runtimeDocument.createElement("button");
+      reject.type = "button";
+      reject.className = "ghost";
+      reject.textContent = "Reject";
+      reject.dataset.teamInviteUserAction = "reject";
+      reject.dataset.teamInviteId = String(invitation.id);
+      reject.dataset.teamId = String(invitation.team_id);
+
+      actions.append(accept, reject);
+      card.append(actions);
+    }
+
+    elements.teamInviteUserList.append(card);
+  }
+}
+
+async function loadMemberInvitationsForSelectedTeam({ status = "pending" } = {}) {
+  const selectedTeam = getSelectedAdminTeam();
+  if (!selectedTeam || !isAuthenticated()) {
+    return false;
+  }
+
+  const teamId = selectedTeam.id;
+  state.api.isLoadingTeamInvitations = true;
+  renderTeamInviteList(selectedTeam);
+
+  try {
+    const payload = await apiRequest(`/teams/${teamId}/member-invitations?status=${status}`, { auth: true });
+    const invitations = Array.isArray(payload?.invitations) ? payload.invitations : [];
+    state.api.invitationsByTeamId[String(teamId)] = invitations;
+    setTeamInviteFeedback("Team invitations loaded.");
+    return true;
+  } catch (error) {
+    state.api.invitationsByTeamId[String(teamId)] = [];
+    setTeamInviteFeedback(normalizeApiErrorMessage(error, "Failed to load team invitations."));
+    return false;
+  } finally {
+    state.api.isLoadingTeamInvitations = false;
+    renderTeamInviteList(selectedTeam);
+  }
+}
+
+async function loadInvitationsForUser({ status = "pending" } = {}) {
+  if (!isAuthenticated()) {
+    state.api.userInvitations = [];
+    return false;
+  }
+
+  state.api.isLoadingUserInvitations = true;
+  renderTeamInviteUserList();
+
+  try {
+    const payload = await apiRequest(`/me/member-invitations?status=${status}`, { auth: true });
+    state.api.userInvitations = Array.isArray(payload?.invitations) ? payload.invitations : [];
+    setTeamInviteUserFeedback("");
+    return true;
+  } catch (error) {
+    state.api.userInvitations = [];
+    setTeamInviteUserFeedback(normalizeApiErrorMessage(error, "Failed to load your invitations."));
+    return false;
+  } finally {
+    state.api.isLoadingUserInvitations = false;
+    renderTeamInviteUserList();
+  }
+}
+
+function clearTeamInviteForm() {
+  if (elements.teamInviteRiotId) {
+    elements.teamInviteRiotId.value = "";
+  }
+  if (elements.teamInviteLane) {
+    elements.teamInviteLane.value = "";
+  }
+  if (elements.teamInviteNote) {
+    elements.teamInviteNote.value = "";
+  }
+  if (elements.teamInviteRole) {
+    elements.teamInviteRole.value = DEFAULT_MEMBER_ROLE;
+  }
+  if (elements.teamInviteTeamRole) {
+    elements.teamInviteTeamRole.value = "primary";
+  }
+}
+
+function readTeamInviteForm() {
+  return {
+    riotId: elements.teamInviteRiotId ? elements.teamInviteRiotId.value.trim() : "",
+    note: elements.teamInviteNote ? elements.teamInviteNote.value.trim() : "",
+    lane: elements.teamInviteLane ? elements.teamInviteLane.value : "",
+    role: elements.teamInviteRole ? elements.teamInviteRole.value : DEFAULT_MEMBER_ROLE,
+    teamRole: elements.teamInviteTeamRole ? elements.teamInviteTeamRole.value : "primary"
+  };
+}
+
+async function sendTeamInvitation() {
+  const selectedTeam = getSelectedAdminTeam();
+  if (!selectedTeam) {
+    setTeamInviteFeedback("Select a team first.");
+    return;
+  }
+
+  const form = readTeamInviteForm();
+  if (!form.riotId) {
+    setTeamInviteFeedback("Enter a Riot ID (GameName#NA1).");
+    return;
+  }
+
+  const payload = {
+    riot_id: form.riotId,
+    role: form.role || DEFAULT_MEMBER_ROLE,
+    team_role: form.teamRole || "primary"
+  };
+  if (form.note) {
+    payload.note = form.note;
+  }
+  if (form.lane) {
+    payload.requested_lane = form.lane;
+  }
+
+  setTeamInviteFeedback("Sending invitation...");
+
+  try {
+    const response = await apiRequest(`/teams/${selectedTeam.id}/member-invitations`, {
+      method: "POST",
+      auth: true,
+      body: payload
+    });
+    const display = response?.invitation?.target?.display_name ?? form.riotId;
+    setTeamInviteFeedback(`Invitation sent to ${display}.`);
+    clearTeamInviteForm();
+    await loadMemberInvitationsForSelectedTeam();
+  } catch (error) {
+    setTeamInviteFeedback(normalizeApiErrorMessage(error, "Failed to send invitation."));
+  }
+}
+
+async function updateTeamInvitationStatus(teamId, invitationId, status, feedbackMessage, { suppressTeamFeedback = false } = {}) {
+  try {
+    await apiRequest(`/teams/${teamId}/member-invitations/${invitationId}`, {
+      method: "PUT",
+      auth: true,
+      body: { status }
+    });
+    if (!suppressTeamFeedback) {
+      setTeamInviteFeedback(feedbackMessage);
+    }
+    await loadMemberInvitationsForSelectedTeam();
+    await loadInvitationsForUser();
+  } catch (error) {
+    setTeamInviteFeedback(normalizeApiErrorMessage(error, "Failed to update invitation."));
+  }
+}
+
 function sortRosterMembers(members) {
   return [...members].sort((left, right) => {
     const leftLead = left?.role === "lead" ? 0 : 1;
@@ -4960,6 +5389,8 @@ function renderTeamAdmin() {
 
   elements.teamAdminMembers.innerHTML = "";
   renderChampionTagEditor();
+  renderTeamInviteList(selectedTeam);
+  renderTeamInviteUserList();
   if (!selectedTeam) {
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
@@ -6942,6 +7373,7 @@ async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAd
   await loadTagCatalogFromApi();
   await loadCompositionRequirementsFromApi();
   await loadActiveCompositionRequirementFromApi();
+  await loadInvitationsForUser();
   if (isAdminUser()) {
     await loadUsersFromApi();
   } else {
@@ -7200,7 +7632,17 @@ function attachEvents() {
 
   if (elements.championTagEditorScope) {
     elements.championTagEditorScope.addEventListener("change", () => {
-      state.api.championTagScope = normalizeChampionTagScope(elements.championTagEditorScope.value);
+      const selectedScope = normalizeChampionTagScope(elements.championTagEditorScope.value);
+      state.api.championTagScope = selectedScope;
+      if (selectedScope !== "team") {
+        state.api.championTagTeamId = "";
+      } else {
+        const leadTeamOptions = getChampionTagLeadTeamOptions();
+        const firstLeadTeamValue = leadTeamOptions[0]?.value ?? "";
+        if (!state.api.championTagTeamId || !leadTeamOptions.some((option) => option.value === state.api.championTagTeamId)) {
+          state.api.championTagTeamId = firstLeadTeamValue;
+        }
+      }
       renderChampionTagEditor();
       if (state.api.selectedChampionTagEditorId) {
         setChampionTagEditorFeedback("Loading champion tags...");
@@ -7661,6 +8103,79 @@ function attachEvents() {
         .catch((error) => {
           setTeamJoinFeedback(normalizeApiErrorMessage(error, "Failed to update join request."));
         });
+    });
+  }
+
+  if (elements.teamInviteLoad) {
+    elements.teamInviteLoad.addEventListener("click", () => {
+      void loadMemberInvitationsForSelectedTeam().then(() => {
+        renderTeamInviteList(getSelectedAdminTeam());
+      });
+    });
+  }
+
+  if (elements.teamInviteSend) {
+    elements.teamInviteSend.addEventListener("click", () => {
+      void sendTeamInvitation().then(() => {
+        renderTeamInviteList(getSelectedAdminTeam());
+      });
+    });
+  }
+
+  if (elements.teamInviteClear) {
+    elements.teamInviteClear.addEventListener("click", () => {
+      clearTeamInviteForm();
+      setTeamInviteFeedback("");
+    });
+  }
+
+  if (elements.teamInviteList) {
+    elements.teamInviteList.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("button[data-team-invite-action]");
+      if (!actionButton || actionButton.disabled) {
+        return;
+      }
+      const invitationId = Number.parseInt(actionButton.dataset.teamInviteId ?? "", 10);
+      const selectedTeam = getSelectedAdminTeam();
+      if (!selectedTeam || !Number.isFinite(invitationId) || invitationId <= 0) {
+        setTeamInviteFeedback("Could not resolve the selected invitation.");
+        return;
+      }
+      const action = actionButton.dataset.teamInviteAction;
+      if (action === "cancel") {
+        void updateTeamInvitationStatus(selectedTeam.id, invitationId, "canceled", "Invitation canceled.");
+      }
+    });
+  }
+
+  if (elements.teamInviteUserLoad) {
+    elements.teamInviteUserLoad.addEventListener("click", () => {
+      void loadInvitationsForUser().then(() => {
+        renderTeamInviteUserList();
+      });
+    });
+  }
+
+  if (elements.teamInviteUserList) {
+    elements.teamInviteUserList.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("button[data-team-invite-user-action]");
+      if (!actionButton || actionButton.disabled) {
+        return;
+      }
+      const invitationId = Number.parseInt(actionButton.dataset.teamInviteId ?? "", 10);
+      const teamId = Number.parseInt(actionButton.dataset.teamId ?? "", 10);
+      if (!Number.isFinite(invitationId) || invitationId <= 0 || !Number.isFinite(teamId) || teamId <= 0) {
+        setTeamInviteUserFeedback("Could not resolve the selected invitation.");
+        return;
+      }
+      const action = actionButton.dataset.teamInviteUserAction;
+      if (action === "accept" || action === "reject") {
+        const status = action === "accept" ? "accepted" : "rejected";
+        const feedbackMsg = action === "accept" ? "Invitation accepted." : "Invitation rejected.";
+        void updateTeamInvitationStatus(teamId, invitationId, status, feedbackMsg, { suppressTeamFeedback: true }).then(() => {
+          setTeamInviteUserFeedback(feedbackMsg);
+        });
+      }
     });
   }
 
