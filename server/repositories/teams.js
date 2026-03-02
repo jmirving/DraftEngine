@@ -622,7 +622,7 @@ export function createTeamsRepository(pool) {
         `,
         [teamId, requesterUserId]
       );
-    }
+    },
 
     async createMemberInvitation({
       teamId,
