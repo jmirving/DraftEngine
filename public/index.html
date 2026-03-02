@@ -504,6 +504,33 @@
                   <div class="team-admin-group">
                     <p class="panel-kicker">View My Team Activity</p>
                     <div class="team-admin-block">
+                      <h3>Current Teams</h3>
+                      <p id="team-activity-teams-summary" class="meta"></p>
+                      <div id="team-activity-teams-list" class="summary-card-list"></div>
+                    </div>
+
+                    <div class="team-admin-block">
+                      <h3>Team Invitations</h3>
+                      <p class="meta">Pending invites are your outgoing offers; My Invitations are response requests for you.</p>
+                      <div class="button-row">
+                        <button id="team-invite-load" class="ghost" type="button">Load Pending Invites</button>
+                        <button id="team-invite-user-load" class="ghost" type="button">Load My Invitations</button>
+                      </div>
+                      <div class="team-invite-section">
+                        <p class="panel-kicker">Pending Invites</p>
+                        <p class="meta">Leads can view and cancel invites they have sent to players.</p>
+                        <div id="team-invite-list" class="summary-card-list"></div>
+                        <p id="team-invite-list-meta" class="meta"></p>
+                      </div>
+                      <div class="team-invite-section">
+                        <p class="panel-kicker">My Invitations</p>
+                        <p class="meta">These are the invitations you have received from team leads.</p>
+                        <div id="team-invite-user-list" class="summary-card-list"></div>
+                        <p id="team-invite-user-feedback" class="meta"></p>
+                      </div>
+                    </div>
+
+                    <div class="team-admin-block">
                       <h3>Request to Join Existing Team</h3>
                       <div class="grid grid-2">
                         <label>
@@ -521,24 +548,6 @@
                         <button id="team-join-cancel" class="ghost" type="button">Cancel Pending Request</button>
                       </div>
                       <p id="team-join-discover-meta" class="meta"></p>
-                    </div>
-
-                    <div class="team-admin-block">
-                      <h3>Team Invitations</h3>
-                      <div class="button-row">
-                        <button id="team-invite-load" class="ghost" type="button">Load Pending Invites</button>
-                        <button id="team-invite-user-load" class="ghost" type="button">Load My Invitations</button>
-                      </div>
-                      <div id="team-invite-list" class="summary-card-list"></div>
-                      <p id="team-invite-list-meta" class="meta"></p>
-                      <div id="team-invite-user-list" class="summary-card-list"></div>
-                      <p id="team-invite-user-feedback" class="meta"></p>
-                    </div>
-
-                    <div class="team-admin-block">
-                      <h3>Current Teams</h3>
-                      <p id="team-activity-teams-summary" class="meta"></p>
-                      <div id="team-activity-teams-list" class="summary-card-list"></div>
                     </div>
                   </div>
                 </div>
