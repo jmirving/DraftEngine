@@ -13,7 +13,7 @@ describe("v0.4.0 team uniqueness migration", () => {
 
     up(pgm);
 
-    expect(sqlCalls).toHaveLength(2);
+    expect(sqlCalls).toHaveLength(4);
     expect(sqlCalls.some((statement) => statement.includes("teams_name_lower_unique_idx"))).toBe(true);
     expect(sqlCalls.some((statement) => statement.includes("teams_tag_lower_unique_idx"))).toBe(true);
     expect(sqlCalls.some((statement) => statement.includes("lower(name)"))).toBe(true);
