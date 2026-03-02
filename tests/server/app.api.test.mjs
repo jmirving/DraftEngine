@@ -1859,7 +1859,7 @@ describe("API routes", () => {
     expect(conflictUpdate.body.error.code).toBe("BAD_REQUEST");
   });
 
-  it("enforces team lead authorization and lead invariants", async () => {
+  it("enforces team authorization with owner-admin overrides and lead invariants", async () => {
     const { app, config } = createMockContext();
     const leadAuth = buildAuthHeader(1, config);
     const memberAuth = buildAuthHeader(2, config);
@@ -1937,6 +1937,12 @@ describe("API routes", () => {
       .send({ role: "member" });
     expect(demoteOriginalLead.status).toBe(200);
     expect(demoteOriginalLead.body.member.role).toBe("member");
+
+    const adminCanRemoveMember = await request(app)
+      .delete("/teams/1/members/3")
+      .set("Authorization", leadAuth);
+    expect(adminCanRemoveMember.status).toBe(200);
+    expect(adminCanRemoveMember.body.ok).toBe(true);
 
     const lastLeadDemotionBlocked = await request(app)
       .put("/teams/1/members/2/role")

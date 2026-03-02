@@ -2359,7 +2359,7 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#player-config-feedback").textContent).toContain("Saved pool updates for Mid");
   });
 
-  test("team admin controls are disabled for non-leads and enabled for leads", async () => {
+  test("team admin controls are disabled for non-lead members and enabled for leads or admins", async () => {
     const memberStorage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "member-token",
@@ -2368,6 +2368,24 @@ describe("auth + pools + team management", () => {
     });
     const memberHarness = createFetchHarness({
       pools: [],
+      profile: {
+        id: 22,
+        email: "member@example.com",
+        role: "member",
+        gameName: "Member",
+        tagline: "NA1",
+        primaryRole: "ADC",
+        secondaryRoles: ["Support"]
+      },
+      loginUser: {
+        id: 22,
+        email: "member@example.com",
+        role: "member",
+        gameName: "Member",
+        tagline: "NA1",
+        primaryRole: "ADC",
+        secondaryRoles: ["Support"]
+      },
       teams: [
         {
           id: 1,
@@ -2431,6 +2449,24 @@ describe("auth + pools + team management", () => {
     });
     const leadHarness = createFetchHarness({
       pools: [],
+      profile: {
+        id: 11,
+        email: "lead@example.com",
+        role: "member",
+        gameName: "Lead",
+        tagline: "NA1",
+        primaryRole: "Top",
+        secondaryRoles: ["Mid"]
+      },
+      loginUser: {
+        id: 11,
+        email: "lead@example.com",
+        role: "member",
+        gameName: "Lead",
+        tagline: "NA1",
+        primaryRole: "Top",
+        secondaryRoles: ["Mid"]
+      },
       teams: [
         {
           id: 1,
@@ -2468,6 +2504,77 @@ describe("auth + pools + team management", () => {
     });
 
     app = await bootApp({ fetchImpl: leadHarness.impl, storage: leadStorage });
+    doc = app.dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    await flush();
+
+    expect(doc.querySelector("#team-admin-open-edit").hidden).toBe(false);
+    expect(doc.querySelector("#team-admin-rename").disabled).toBe(false);
+    expect(doc.querySelector("#team-admin-add-member").disabled).toBe(false);
+
+    const adminStorage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "admin-token",
+        user: { id: 11, email: "jirving0311@gmail.com", role: "admin" }
+      })
+    });
+    const adminHarness = createFetchHarness({
+      pools: [],
+      profile: {
+        id: 11,
+        email: "jirving0311@gmail.com",
+        role: "admin",
+        gameName: "OwnerAdmin",
+        tagline: "NA1",
+        primaryRole: "Mid",
+        secondaryRoles: ["Top"]
+      },
+      loginUser: {
+        id: 11,
+        email: "jirving0311@gmail.com",
+        role: "admin",
+        gameName: "OwnerAdmin",
+        tagline: "NA1",
+        primaryRole: "Mid",
+        secondaryRoles: ["Top"]
+      },
+      teams: [
+        {
+          id: 1,
+          name: "Team Alpha",
+          tag: "ALPHA",
+          logo_data_url: "data:image/png;base64,bW9jazE=",
+          created_by: 11,
+          membership_role: "member",
+          membership_team_role: "primary",
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      membersByTeam: {
+        "1": [
+          {
+            team_id: 1,
+            user_id: 11,
+            role: "member",
+            team_role: "primary",
+            email: "jirving0311@gmail.com",
+            display_name: "OwnerAdmin#NA1",
+            lane: "Mid"
+          },
+          {
+            team_id: 1,
+            user_id: 22,
+            role: "lead",
+            team_role: "substitute",
+            email: "lead@example.com",
+            display_name: "Lead#NA1",
+            lane: "Top"
+          }
+        ]
+      }
+    });
+
+    app = await bootApp({ fetchImpl: adminHarness.impl, storage: adminStorage });
     doc = app.dom.window.document;
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
     await flush();

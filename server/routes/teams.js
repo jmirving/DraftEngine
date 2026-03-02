@@ -3,6 +3,7 @@ import multer from "multer";
 
 import { badRequest, conflict, forbidden, notFound } from "../errors.js";
 import { parsePositiveInteger, requireNonEmptyString, requireObject } from "../http/validation.js";
+import { resolveAuthorizationRole, USER_ROLE_ADMIN } from "../user-roles.js";
 
 const ALLOWED_MEMBER_ROLES = new Set(["lead", "member"]);
 const ALLOWED_TEAM_ROLES = new Set(["primary", "substitute"]);
@@ -384,12 +385,18 @@ async function requireTeamMembership(teamId, userId, teamsRepository) {
   return membership;
 }
 
-async function requireTeamLead(teamId, userId, teamsRepository) {
+async function requireTeamLeadOrAdmin(teamId, userId, teamsRepository, usersRepository) {
   const membership = await requireTeamMembership(teamId, userId, teamsRepository);
-  if (membership.role !== "lead") {
-    throw forbidden("Only team leads can perform this action.");
+  if (membership.role === "lead") {
+    return membership;
   }
-  return membership;
+
+  const actor = await usersRepository.findById(userId);
+  if (resolveAuthorizationRole(actor) === USER_ROLE_ADMIN) {
+    return membership;
+  }
+
+  throw forbidden("Only team leads can perform this action.");
 }
 
 async function assertLeadInvariantBeforeLeadRemoval(teamId, teamsRepository) {
@@ -451,7 +458,7 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
       allowRemoveLogo: true
     });
 
-    const leadMembership = await requireTeamLead(teamId, userId, teamsRepository);
+    const leadMembership = await requireTeamLeadOrAdmin(teamId, userId, teamsRepository, usersRepository);
     const updated = await teamsRepository.updateTeam(teamId, {
       name,
       tag,
@@ -477,7 +484,7 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
     const userId = request.user.userId;
     const teamId = parsePositiveInteger(request.params.id, "id");
 
-    await requireTeamLead(teamId, userId, teamsRepository);
+    await requireTeamLeadOrAdmin(teamId, userId, teamsRepository, usersRepository);
     await teamsRepository.deleteTeam(teamId);
     response.status(204).send();
   });
@@ -502,7 +509,7 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
     const role = parseMemberRole(body.role, "role", "member");
     const teamRole = parseTeamRole(body.team_role, "team_role", "substitute");
 
-    await requireTeamLead(teamId, userId, teamsRepository);
+    await requireTeamLeadOrAdmin(teamId, userId, teamsRepository, usersRepository);
 
     const targetUser = memberInput.user ?? await usersRepository.findById(memberUserId);
     if (!targetUser) {
@@ -528,7 +535,7 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
     const teamId = parsePositiveInteger(request.params.id, "id");
     const memberUserId = parsePositiveInteger(request.params.user_id, "user_id");
 
-    await requireTeamLead(teamId, userId, teamsRepository);
+    await requireTeamLeadOrAdmin(teamId, userId, teamsRepository, usersRepository);
 
     const existingMembership = await teamsRepository.getMembership(teamId, memberUserId);
     if (!existingMembership) {
@@ -555,7 +562,7 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
     const body = requireObject(request.body);
     const nextRole = parseMemberRole(body.role, "role");
 
-    await requireTeamLead(teamId, userId, teamsRepository);
+    await requireTeamLeadOrAdmin(teamId, userId, teamsRepository, usersRepository);
 
     const existingMembership = await teamsRepository.getMembership(teamId, memberUserId);
     if (!existingMembership) {
@@ -581,7 +588,7 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
     const body = requireObject(request.body);
     const nextTeamRole = parseTeamRole(body.team_role, "team_role");
 
-    await requireTeamLead(teamId, userId, teamsRepository);
+    await requireTeamLeadOrAdmin(teamId, userId, teamsRepository, usersRepository);
 
     const existingMembership = await teamsRepository.getMembership(teamId, memberUserId);
     if (!existingMembership) {
@@ -670,7 +677,7 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
     const teamId = parsePositiveInteger(request.params.id, "id");
     const status = parseJoinRequestListStatus(request.query.status);
 
-    await requireTeamLead(teamId, userId, teamsRepository);
+    await requireTeamLeadOrAdmin(teamId, userId, teamsRepository, usersRepository);
     const requests = await teamsRepository.listJoinRequests(teamId, { status });
 
     response.json({
@@ -685,7 +692,7 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
     const body = requireObject(request.body);
     const decision = parseJoinRequestDecision(body.status);
 
-    await requireTeamLead(teamId, userId, teamsRepository);
+    await requireTeamLeadOrAdmin(teamId, userId, teamsRepository, usersRepository);
 
     const existingRequest = await teamsRepository.getJoinRequestById(teamId, requestId);
     if (!existingRequest) {

@@ -4554,7 +4554,7 @@ function renderTeamAdmin() {
   const members = selectedTeam ? state.api.membersByTeamId[String(selectedTeam.id)] ?? [] : [];
   const teamMemberCount = members.length;
   const isLead = selectedTeam?.membership_role === "lead";
-  const adminEnabled = Boolean(selectedTeam) && isLead;
+  const adminEnabled = Boolean(selectedTeam) && (isLead || isAdminUser());
 
   if (!adminEnabled && state.ui.teamManageAction !== null) {
     state.ui.teamManageAction = null;
