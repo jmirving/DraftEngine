@@ -7,22 +7,22 @@ export function up(pgm) {
       WHERE name IS NOT NULL
     )
     UPDATE teams
-    SET name = CONCAT(name, ' (dup ', id, ')')
+    SET name = CONCAT(teams.name, ' (dup ', duplicates.id, ')')
     FROM duplicates
     WHERE teams.id = duplicates.id AND duplicates.rn > 1
   `);
 
   pgm.sql(`
     WITH duplicates AS (
-      SELECT id, tag,
-        ROW_NUMBER() OVER (PARTITION BY lower(tag) ORDER BY id) AS rn
-      FROM teams
-      WHERE tag IS NOT NULL
-    )
-    UPDATE teams
-    SET tag = CONCAT(tag, '_', id)
-    FROM duplicates
-    WHERE teams.id = duplicates.id AND duplicates.rn > 1
+    SELECT id, tag,
+      ROW_NUMBER() OVER (PARTITION BY lower(tag) ORDER BY id) AS rn
+    FROM teams
+    WHERE tag IS NOT NULL
+  )
+  UPDATE teams
+  SET tag = CONCAT(teams.tag, '_', duplicates.id)
+  FROM duplicates
+  WHERE teams.id = duplicates.id AND duplicates.rn > 1
   `);
 
   pgm.sql(`
