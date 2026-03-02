@@ -46,9 +46,15 @@ const TEAM_CONFIG_STORAGE_KEY = "draftflow.teamConfig.v1";
 const PLAYER_CONFIG_STORAGE_KEY = "draftflow.playerConfig.v1";
 const AUTH_SESSION_STORAGE_KEY = "draftflow.authSession.v1";
 const UI_STATE_STORAGE_KEY = "draftflow.ui.v1";
+const TEAM_WORKSPACE_TAB_MEMBER = "member";
 const TEAM_WORKSPACE_TAB_MANAGE = "manage";
 const TEAM_WORKSPACE_TAB_CREATE = "create";
-const TEAM_WORKSPACE_TAB_SET = new Set([TEAM_WORKSPACE_TAB_MANAGE, TEAM_WORKSPACE_TAB_CREATE]);
+const TEAM_WORKSPACE_TAB_SET = new Set([
+  TEAM_WORKSPACE_TAB_MEMBER,
+  TEAM_WORKSPACE_TAB_MANAGE,
+  TEAM_WORKSPACE_TAB_CREATE
+]);
+const TEAM_WORKSPACE_TAB_DEFAULT = TEAM_WORKSPACE_TAB_MEMBER;
 const BUILDER_PROFILE_POOL_CONTEXT_ID = "__PROFILE_POOL_CONTEXT__";
 const TEAM_MANAGE_ACTION_TEAM_SETTINGS = "team-settings";
 const TEAM_MANAGE_ACTION_ADD_MEMBER = "add-member";
@@ -284,7 +290,7 @@ function createInitialState() {
     ui: {
       isNavOpen: false,
       isNavCollapsed: false,
-      teamWorkspaceTab: TEAM_WORKSPACE_TAB_MANAGE,
+      teamWorkspaceTab: TEAM_WORKSPACE_TAB_DEFAULT,
       teamManageAction: null,
       teamManageActionContext: null
     },
@@ -539,6 +545,7 @@ function createElements() {
     teamConfigPoolSummary: runtimeDocument.querySelector("#team-config-pool-summary"),
     teamConfigPoolGrid: runtimeDocument.querySelector("#team-config-pool-grid"),
     teamWorkspaceTabButtons: Array.from(runtimeDocument.querySelectorAll("button[data-team-workspace-tab]")),
+    teamWorkspaceMemberPanel: runtimeDocument.querySelector("#team-workspace-member"),
     teamWorkspaceManagePanel: runtimeDocument.querySelector("#team-workspace-manage"),
     teamWorkspaceCreatePanel: runtimeDocument.querySelector("#team-workspace-create"),
     teamManageActionButtons: Array.from(runtimeDocument.querySelectorAll("button[data-team-manage-action]")),
@@ -4632,7 +4639,7 @@ function syncBuilderToggleInputs() {
 function renderTeamWorkspaceTabs() {
   const activeTab = TEAM_WORKSPACE_TAB_SET.has(state.ui.teamWorkspaceTab)
     ? state.ui.teamWorkspaceTab
-    : TEAM_WORKSPACE_TAB_MANAGE;
+    : TEAM_WORKSPACE_TAB_DEFAULT;
   state.ui.teamWorkspaceTab = activeTab;
 
   for (const button of elements.teamWorkspaceTabButtons) {
@@ -4643,6 +4650,9 @@ function renderTeamWorkspaceTabs() {
     button.setAttribute("tabindex", selected ? "0" : "-1");
   }
 
+  if (elements.teamWorkspaceMemberPanel) {
+    elements.teamWorkspaceMemberPanel.hidden = activeTab !== TEAM_WORKSPACE_TAB_MEMBER;
+  }
   if (elements.teamWorkspaceManagePanel) {
     elements.teamWorkspaceManagePanel.hidden = activeTab !== TEAM_WORKSPACE_TAB_MANAGE;
   }
@@ -4652,7 +4662,7 @@ function renderTeamWorkspaceTabs() {
 }
 
 function setTeamWorkspaceTab(tab) {
-  state.ui.teamWorkspaceTab = TEAM_WORKSPACE_TAB_SET.has(tab) ? tab : TEAM_WORKSPACE_TAB_MANAGE;
+  state.ui.teamWorkspaceTab = TEAM_WORKSPACE_TAB_SET.has(tab) ? tab : TEAM_WORKSPACE_TAB_DEFAULT;
   renderTeamWorkspaceTabs();
 }
 

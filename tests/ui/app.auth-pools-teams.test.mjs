@@ -2155,8 +2155,10 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
     await flush();
 
+    const memberPanel = doc.querySelector("#team-workspace-member");
     const managePanel = doc.querySelector("#team-workspace-manage");
     const createPanel = doc.querySelector("#team-workspace-create");
+    const memberTab = doc.querySelector("#team-workspace-tab-member");
     const manageTab = doc.querySelector("#team-workspace-tab-manage");
     const createTab = doc.querySelector("#team-workspace-tab-create");
     const composerActiveTeamSelect = doc.querySelector("#builder-active-team");
@@ -2168,10 +2170,18 @@ describe("auth + pools + team management", () => {
     const currentLogoHelp = doc.querySelector("#team-admin-current-logo-help");
     const currentLogoOpen = doc.querySelector("#team-admin-current-logo-open");
 
-    expect(managePanel.hidden).toBe(false);
+    expect(memberPanel.hidden).toBe(false);
+    expect(managePanel.hidden).toBe(true);
     expect(createPanel.hidden).toBe(true);
-    expect(manageTab.getAttribute("aria-selected")).toBe("true");
+    expect(memberTab.getAttribute("aria-selected")).toBe("true");
+    expect(manageTab.getAttribute("aria-selected")).toBe("false");
     expect(createTab.getAttribute("aria-selected")).toBe("false");
+
+    manageTab.click();
+    await flush();
+    expect(memberPanel.hidden).toBe(true);
+    expect(managePanel.hidden).toBe(false);
+    expect(manageTab.getAttribute("aria-selected")).toBe("true");
     expect(activeTeamOptions.some((option) => option.includes("Team Alpha"))).toBe(true);
     expect(activeTeamOptions.some((option) => option === "Mid")).toBe(false);
     expect(editAction).toBeTruthy();
