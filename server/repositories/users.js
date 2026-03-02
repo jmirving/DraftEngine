@@ -1,13 +1,15 @@
+import { OWNER_ADMIN_EMAIL } from "../user-roles.js";
+
 export function createUsersRepository(pool) {
   return {
-    async createUser({ email, passwordHash, gameName, tagline }) {
+    async createUser({ email, passwordHash, gameName, tagline, role = "member" }) {
       const result = await pool.query(
         `
-          INSERT INTO users (email, password_hash, game_name, tagline)
-          VALUES ($1, $2, $3, $4)
+          INSERT INTO users (email, password_hash, game_name, tagline, role)
+          VALUES ($1, $2, $3, $4, $5)
           RETURNING id, email, game_name, tagline, role, primary_role, secondary_roles, created_at
         `,
-        [email, passwordHash, gameName, tagline]
+        [email, passwordHash, gameName, tagline, role]
       );
       return result.rows[0] ?? null;
     },
@@ -57,9 +59,35 @@ export function createUsersRepository(pool) {
           SELECT COUNT(*)::int AS admin_count
           FROM users
           WHERE lower(role) = 'admin'
-        `
+            AND lower(email) = lower($1)
+        `,
+        [OWNER_ADMIN_EMAIL]
       );
       return result.rows[0]?.admin_count ?? 0;
+    },
+
+    async listUsersForAdmin() {
+      const result = await pool.query(
+        `
+          SELECT id, email, game_name, tagline, role, primary_role, secondary_roles, created_at
+          FROM users
+          ORDER BY lower(email) ASC, id ASC
+        `
+      );
+      return result.rows;
+    },
+
+    async updateUserRole(userId, role) {
+      const result = await pool.query(
+        `
+          UPDATE users
+          SET role = $2
+          WHERE id = $1
+          RETURNING id, email, game_name, tagline, role, primary_role, secondary_roles, created_at
+        `,
+        [userId, role]
+      );
+      return result.rows[0] ?? null;
     },
 
     async findProfileById(userId) {

@@ -79,6 +79,8 @@
             <button class="side-menu-link" data-tab="team-config" type="button">Teams</button>
             <button class="side-menu-link" data-tab="explorer" type="button">Champions</button>
             <button class="side-menu-link" data-tab="tags" type="button">Tags</button>
+            <button class="side-menu-link" data-tab="users" type="button">Users</button>
+            <button class="side-menu-link" data-tab="composition-requirements" type="button">Requirements</button>
             <button class="side-menu-link" data-tab="coming-soon" type="button">Updates</button>
             <button id="auth-logout" class="side-menu-link side-menu-link-logout" type="button">Logout</button>
             <a
@@ -197,6 +199,11 @@
                   role="tabpanel"
                   aria-labelledby="champion-editor-tab-composition"
                 >
+                  <label class="inline-checkbox champion-review-toggle">
+                    <input id="champion-tag-editor-reviewed" type="checkbox" />
+                    Human reviewed
+                  </label>
+                  <p class="meta">Mark this when a human has reviewed and approved the current global composition tags.</p>
                   <div id="champion-tag-editor-tags" class="excluded-options"></div>
                 </div>
                 <div
@@ -716,24 +723,68 @@
             </div>
           </section>
 
+          <section id="tab-users" class="tab-panel tab-surface">
+            <div class="panel draft-board-panel">
+              <h2 id="users-title">Users</h2>
+              <p id="users-meta" class="meta">Admin-only user directory and permission management.</p>
+            </div>
+            <div class="panel draft-board-panel">
+              <p id="users-access" class="meta"></p>
+              <div id="users-list" class="summary-card-list"></div>
+              <p id="users-feedback" class="meta"></p>
+            </div>
+          </section>
+
+          <section id="tab-composition-requirements" class="tab-panel tab-surface">
+            <div class="panel draft-board-panel">
+              <h2 id="composition-requirements-title">Composition Requirements</h2>
+              <p id="composition-requirements-meta" class="meta">
+                Create and maintain named requirement profiles. Mark one as active to seed Composer checks.
+              </p>
+              <p id="composition-requirements-summary" class="meta"></p>
+            </div>
+            <div class="panel draft-board-panel">
+              <p class="panel-kicker">Requirement Editor</p>
+              <div class="grid grid-2">
+                <label>
+                  Name
+                  <input id="composition-requirements-name" type="text" placeholder="e.g. Standard 5v5" />
+                </label>
+                <label class="inline-checkbox">
+                  <input id="composition-requirements-is-active" type="checkbox" />
+                  Set as active profile
+                </label>
+              </div>
+              <div id="composition-requirements-toggles" class="excluded-options"></div>
+              <div class="button-row">
+                <button id="composition-requirements-save" type="button">Create Requirement</button>
+                <button id="composition-requirements-cancel" class="ghost" type="button">Clear</button>
+                <button id="composition-requirements-delete" class="ghost" type="button">Delete</button>
+              </div>
+              <p id="composition-requirements-feedback" class="meta"></p>
+            </div>
+            <div class="panel draft-board-panel">
+              <div id="composition-requirements-list" class="summary-card-list"></div>
+            </div>
+          </section>
+
           <section id="tab-coming-soon" class="tab-panel tab-surface">
             <div class="panel draft-board-panel">
               <h2 id="coming-soon-title">Updates &amp; Roadmap</h2>
               <p id="coming-soon-meta" class="meta">Latest shipped changes plus known gaps and planned follow-up grouped by workspace page.</p>
             </div>
             <div class="panel draft-board-panel">
-              <h3>What's New in Version 0.2.0</h3>
+              <h3>What's New in Version 0.3.0</h3>
               <ul class="coming-soon-list">
-                <li>Removed frontend CSV fallback and legacy tag-prefill paths; Composer and Champions now use API-backed champion/tag data only (draftflow-13.3)</li>
-                <li>Added no-admin bootstrap editing for champion tags and champion metadata (Roles, Damage Type, Scaling) (draftflow-148, draftflow-149)</li>
-                <li>Champion tag editor now preselects existing assignments more reliably and lists tags alphabetically (draftflow-151)</li>
-                <li>Added one-time legacy-to-modern tag migration scripts and legacy metadata cleanup tooling (draftflow-13.3)</li>
-                <li>API-mode champion cards now prioritize modern global tags to avoid legacy/global duplicate tag display (draftflow-13.3)</li>
+                <li>Added admin-only Users workspace to view all accounts and manage `member` / `global` permissions (draftflow-153)</li>
+                <li>Added Composition Requirements workspace with CRUD profiles and active-profile selection for Composer defaults (draftflow-155, draftflow-156)</li>
+                <li>Added champion composition-tag review flag support in the editor and champion cards (draftflow-154)</li>
+                <li>Global editor role now supports global champion-tag and tag-catalog writes without full admin access (draftflow-153)</li>
               </ul>
               <h3>General</h3>
               <ul class="coming-soon-list">
                 <li>Champion catalog refresh checks are still manual; automatic release ingestion is not enabled yet (draftflow-129)</li>
-                <li>Admin safeguards and governance guardrails for Champion Tags and Composition Checks still need hardening after bootstrap editing paths (draftflow-147)</li>
+                <li>Admin safeguards and governance guardrails still need hardening for high-impact global edits (draftflow-147)</li>
               </ul>
               <h3>Profile</h3>
               <ul class="coming-soon-list">
@@ -743,7 +794,7 @@
               </ul>
               <h3>Composer</h3>
               <ul class="coming-soon-list">
-                <li>Dedicated governance surfaces for Champion Tags and Composition Checks are still pending, including scoped flows and promotion workflows (draftflow-131)</li>
+                <li>Composer currently starts from the active Composition Requirement profile, but per-team and per-user profile overlays are still deferred (draftflow-160)</li>
               </ul>
               <h3>Teams</h3>
               <ul class="coming-soon-list">
@@ -754,13 +805,20 @@
               </ul>
               <h3>Champions</h3>
               <ul class="coming-soon-list">
-                <li>MVP supports global champion editing tabs in Explorer (Composition, Roles, Damage Type, Scaling); self/team scoped governance workflows are deferred (draftflow-131)</li>
+                <li>Champion review state currently tracks boolean + reviewer metadata only; audit history and review notes are deferred (draftflow-159)</li>
                 <li>Ship champion auto-ingest now that global champion-tag persistence is in place (draftflow-129)</li>
               </ul>
               <h3>Tags</h3>
               <ul class="coming-soon-list">
-                <li>Dedicated tags governance surface with scoped reads/writes and promotion-request flow remains deferred (draftflow-131)</li>
-                <li>High-impact tag/check changes still need stronger authorization and safeguard rules (draftflow-147)</li>
+                <li>Global editor permissions currently target tag-catalog and champion-tag writes only; finer-grained policy controls are deferred (draftflow-161)</li>
+              </ul>
+              <h3>Users</h3>
+              <ul class="coming-soon-list">
+                <li>User search, filtering, and bulk permission updates are not implemented yet (draftflow-157)</li>
+              </ul>
+              <h3>Composition Requirements</h3>
+              <ul class="coming-soon-list">
+                <li>Requirement profiles support toggle-based rules today; custom rule definitions and version history are deferred (draftflow-158)</li>
               </ul>
             </div>
           </section>

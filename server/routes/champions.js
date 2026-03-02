@@ -29,6 +29,16 @@ function normalizeTagIds(tagIds) {
   return deduplicated.sort((left, right) => left - right);
 }
 
+function normalizeReviewedFlag(rawValue) {
+  if (rawValue === undefined) {
+    return undefined;
+  }
+  if (typeof rawValue !== "boolean") {
+    throw badRequest("Expected 'reviewed' to be a boolean.");
+  }
+  return rawValue;
+}
+
 function normalizeMetadataRoles(rawRoles) {
   if (!Array.isArray(rawRoles) || rawRoles.length === 0) {
     throw badRequest("Expected 'roles' to be a non-empty array.");
@@ -124,7 +134,8 @@ export function createChampionsRouter({
       usersRepository,
       teamWriteMessage: "You must be on the selected team to manage tags.",
       teamLeadMessage: "Only team leads can manage tags.",
-      globalWriteMessage: "Only admins can manage tag catalog.",
+      globalWriteMessage: "Only admins or global editors can manage tag catalog.",
+      allowGlobalRoleWrite: true,
       allowGlobalWriteWhenNoAdmins: true
     });
 
@@ -154,7 +165,8 @@ export function createChampionsRouter({
       usersRepository,
       teamWriteMessage: "You must be on the selected team to manage tags.",
       teamLeadMessage: "Only team leads can manage tags.",
-      globalWriteMessage: "Only admins can manage tag catalog.",
+      globalWriteMessage: "Only admins or global editors can manage tag catalog.",
+      allowGlobalRoleWrite: true,
       allowGlobalWriteWhenNoAdmins: true
     });
 
@@ -184,7 +196,8 @@ export function createChampionsRouter({
       usersRepository,
       teamWriteMessage: "You must be on the selected team to manage tags.",
       teamLeadMessage: "Only team leads can manage tags.",
-      globalWriteMessage: "Only admins can manage tag catalog.",
+      globalWriteMessage: "Only admins or global editors can manage tag catalog.",
+      allowGlobalRoleWrite: true,
       allowGlobalWriteWhenNoAdmins: true
     });
 
@@ -211,8 +224,8 @@ export function createChampionsRouter({
       throw badRequest("Expected 'team_id' to be omitted for global champion tag reads.");
     }
 
-    const championExists = await championsRepository.championExists(championId);
-    if (!championExists) {
+    const champion = await championsRepository.getChampionById(championId);
+    if (!champion) {
       throw notFound("Champion not found.");
     }
 
@@ -224,7 +237,8 @@ export function createChampionsRouter({
     response.json({
       scope: "all",
       team_id: null,
-      tag_ids: tagIds
+      tag_ids: tagIds,
+      reviewed: champion.reviewed === true
     });
   });
 
@@ -241,6 +255,7 @@ export function createChampionsRouter({
     }
     const userId = request.user.userId;
     const tagIds = normalizeTagIds(requireArrayOfPositiveIntegers(body.tag_ids, "tag_ids"));
+    const reviewed = normalizeReviewedFlag(body.reviewed);
 
     const championExists = await championsRepository.championExists(championId);
     if (!championExists) {
@@ -255,7 +270,8 @@ export function createChampionsRouter({
       usersRepository,
       teamWriteMessage: "You must be on the selected team to edit team tags.",
       teamLeadMessage: "Only team leads can edit team tags.",
-      globalWriteMessage: "Only admins can edit global champion tags.",
+      globalWriteMessage: "Only admins or global editors can edit global champion tags.",
+      allowGlobalRoleWrite: true,
       allowGlobalWriteWhenNoAdmins: true
     });
 
@@ -269,12 +285,19 @@ export function createChampionsRouter({
       tagIds,
       scope: "all"
     });
+    if (reviewed !== undefined) {
+      await championsRepository.updateChampionReviewState(championId, {
+        reviewed,
+        reviewedByUserId: userId
+      });
+    }
     const champion = await championsRepository.getChampionById(championId);
     response.json({
       champion,
       scope: "all",
       team_id: null,
-      tag_ids: tagIds
+      tag_ids: tagIds,
+      reviewed: champion?.reviewed === true
     });
   });
 

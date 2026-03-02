@@ -37,6 +37,7 @@ export function startServer(env = process.env) {
     championsRepository: repositories.champions,
     tagsRepository: repositories.tags,
     checksRepository: repositories.checks,
+    compositionRequirementsRepository: repositories.compositionRequirements,
     promotionRequestsRepository: repositories.promotionRequests,
     poolsRepository: repositories.pools,
     teamsRepository: repositories.teams,

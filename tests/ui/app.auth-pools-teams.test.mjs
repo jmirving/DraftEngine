@@ -81,6 +81,11 @@ function createFetchHarness({
     [2, { roles: ["ADC", "Support"], damageType: "AD", scaling: "Late", tags: tagsFalse() }],
     [3, { roles: ["Support"], damageType: "AD", scaling: "Mid", tags: tagsFalse() }]
   ]);
+  const championReviewedById = new Map([
+    [1, false],
+    [2, false],
+    [3, false]
+  ]);
   const globalChampionTagIds = new Map([
     [1, new Set([1])],
     [2, new Set([])],
@@ -91,9 +96,28 @@ function createFetchHarness({
     activeTeamId: null,
     ...(teamContext && typeof teamContext === "object" ? teamContext : {})
   };
+  let compositionRequirements = [
+    {
+      id: 1,
+      name: "Standard 5v5",
+      toggles: {
+        requireHardEngage: true,
+        requireFrontline: true,
+        requireWaveclear: true,
+        requireDamageMix: true,
+        requireAntiTank: false,
+        requireDisengage: false,
+        requirePrimaryCarry: true,
+        topMustBeThreat: true
+      },
+      is_active: true
+    }
+  ];
+  let nextCompositionRequirementId = 2;
   const resolvedLoginUser = loginUser ?? {
     id: 11,
     email: "user@example.com",
+    role: "admin",
     gameName: "LoginUser",
     tagline: "NA1",
     primaryRole: "Mid",
@@ -102,11 +126,26 @@ function createFetchHarness({
   const resolvedProfile = profile ?? {
     id: 11,
     email: "user@example.com",
+    role: "admin",
     gameName: "LoginUser",
     tagline: "NA1",
     primaryRole: "Mid",
     secondaryRoles: ["Top"]
   };
+  const adminUsers = [
+    {
+      id: 11,
+      email: resolvedLoginUser.email,
+      role: typeof resolvedLoginUser.role === "string" ? resolvedLoginUser.role : "admin",
+      riot_id: `${resolvedLoginUser.gameName}#${resolvedLoginUser.tagline}`
+    },
+    {
+      id: 22,
+      email: "member@example.com",
+      role: "member",
+      riot_id: "Member#NA1"
+    }
+  ];
 
   function parseRiotId(rawValue) {
     const normalizedValue = typeof rawValue === "string" ? rawValue.trim() : "";
@@ -218,6 +257,7 @@ function createFetchHarness({
             name: "Ahri",
             role: "Mid",
             tagIds: [...(globalChampionTagIds.get(1) ?? [])],
+            reviewed: championReviewedById.get(1) === true,
             metadata: championMetadataById.get(1)
           },
           {
@@ -225,6 +265,7 @@ function createFetchHarness({
             name: "Ashe",
             role: "ADC",
             tagIds: [...(globalChampionTagIds.get(2) ?? [])],
+            reviewed: championReviewedById.get(2) === true,
             metadata: championMetadataById.get(2)
           },
           {
@@ -232,6 +273,7 @@ function createFetchHarness({
             name: "Braum",
             role: "Support",
             tagIds: [...(globalChampionTagIds.get(3) ?? [])],
+            reviewed: championReviewedById.get(3) === true,
             metadata: championMetadataById.get(3)
           }
         ]
@@ -302,7 +344,8 @@ function createFetchHarness({
       return createJsonResponse({
         scope: "all",
         team_id: null,
-        tag_ids: [...(globalChampionTagIds.get(championId) ?? [])].sort((left, right) => left - right)
+        tag_ids: [...(globalChampionTagIds.get(championId) ?? [])].sort((left, right) => left - right),
+        reviewed: championReviewedById.get(championId) === true
       });
     }
 
@@ -312,11 +355,15 @@ function createFetchHarness({
         ? [...new Set(body.tag_ids.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0))]
             .sort((left, right) => left - right)
         : [];
+      if (typeof body?.reviewed === "boolean") {
+        championReviewedById.set(championId, body.reviewed);
+      }
       globalChampionTagIds.set(championId, new Set(nextTagIds));
       return createJsonResponse({
         scope: "all",
         team_id: null,
-        tag_ids: nextTagIds
+        tag_ids: nextTagIds,
+        reviewed: championReviewedById.get(championId) === true
       });
     }
 
@@ -413,6 +460,120 @@ function createFetchHarness({
       return createJsonResponse({
         teamContext: persistedTeamContext
       });
+    }
+
+    if (path === "/admin/users" && method === "GET") {
+      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
+      if (!isAdmin) {
+        return createJsonResponse({ error: { code: "FORBIDDEN", message: "Only admins can view users." } }, 403);
+      }
+      return createJsonResponse({ users: [...adminUsers] });
+    }
+
+    const adminUserRoleMatch = path.match(/^\/admin\/users\/(\d+)\/role$/);
+    if (adminUserRoleMatch && method === "PUT") {
+      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
+      if (!isAdmin) {
+        return createJsonResponse(
+          { error: { code: "FORBIDDEN", message: "Only admins can update user permissions." } },
+          403
+        );
+      }
+      const targetUserId = Number(adminUserRoleMatch[1]);
+      const user = adminUsers.find((candidate) => candidate.id === targetUserId) ?? null;
+      if (!user) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "User not found." } }, 404);
+      }
+      user.role = typeof body?.role === "string" ? body.role : user.role;
+      return createJsonResponse({ user });
+    }
+
+    if (path === "/composition-requirements" && method === "GET") {
+      const active = compositionRequirements.find((requirement) => requirement.is_active) ?? null;
+      return createJsonResponse({
+        requirements: [...compositionRequirements],
+        active_requirement_id: active ? active.id : null
+      });
+    }
+
+    if (path === "/composition-requirements/active" && method === "GET") {
+      const active = compositionRequirements.find((requirement) => requirement.is_active) ?? null;
+      const fallbackToggles = {
+        requireHardEngage: true,
+        requireFrontline: true,
+        requireWaveclear: true,
+        requireDamageMix: true,
+        requireAntiTank: false,
+        requireDisengage: false,
+        requirePrimaryCarry: true,
+        topMustBeThreat: true
+      };
+      return createJsonResponse({
+        requirement: active,
+        toggles: active?.toggles ?? fallbackToggles
+      });
+    }
+
+    if (path === "/composition-requirements" && method === "POST") {
+      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
+      if (!isAdmin) {
+        return createJsonResponse(
+          { error: { code: "FORBIDDEN", message: "Only admins can create composition requirements." } },
+          403
+        );
+      }
+      if (body?.is_active === true) {
+        compositionRequirements = compositionRequirements.map((requirement) => ({ ...requirement, is_active: false }));
+      }
+      const created = {
+        id: nextCompositionRequirementId,
+        name: body?.name ?? "Untitled",
+        toggles: body?.toggles ?? {},
+        is_active: body?.is_active === true
+      };
+      nextCompositionRequirementId += 1;
+      compositionRequirements.push(created);
+      return createJsonResponse({ requirement: created }, 201);
+    }
+
+    const compositionRequirementMatch = path.match(/^\/composition-requirements\/(\d+)$/);
+    if (compositionRequirementMatch && method === "PUT") {
+      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
+      if (!isAdmin) {
+        return createJsonResponse(
+          { error: { code: "FORBIDDEN", message: "Only admins can update composition requirements." } },
+          403
+        );
+      }
+      const requirementId = Number(compositionRequirementMatch[1]);
+      const requirement = compositionRequirements.find((candidate) => candidate.id === requirementId) ?? null;
+      if (!requirement) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "Not found." } }, 404);
+      }
+      if (body?.is_active === true) {
+        compositionRequirements = compositionRequirements.map((candidate) =>
+          candidate.id === requirementId ? candidate : { ...candidate, is_active: false }
+        );
+      }
+      requirement.name = body?.name ?? requirement.name;
+      requirement.toggles = body?.toggles ?? requirement.toggles;
+      if (typeof body?.is_active === "boolean") {
+        requirement.is_active = body.is_active;
+      }
+      return createJsonResponse({ requirement });
+    }
+
+    if (compositionRequirementMatch && method === "DELETE") {
+      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
+      if (!isAdmin) {
+        return createJsonResponse(
+          { error: { code: "FORBIDDEN", message: "Only admins can delete composition requirements." } },
+          403
+        );
+      }
+      const requirementId = Number(compositionRequirementMatch[1]);
+      compositionRequirements = compositionRequirements.filter((candidate) => candidate.id !== requirementId);
+      return createJsonResponse({}, 204);
     }
 
     if (path === "/me/pools" && method === "GET") {
@@ -797,6 +958,38 @@ describe("auth + pools + team management", () => {
     expect(saveCall.body.scope).toBe("all");
     expect(Array.isArray(saveCall.body.tag_ids)).toBe(true);
     expect(doc.querySelector("#champion-tag-editor-feedback").textContent).toContain("saved");
+  });
+
+  test("champion explorer saves reviewed state from the composition editor", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", role: "admin", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness();
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    await flush();
+
+    doc.querySelector("#explorer-results .champ-card-actions button").click();
+    await flush();
+
+    const reviewedCheckbox = doc.querySelector("#champion-tag-editor-reviewed");
+    expect(reviewedCheckbox).toBeTruthy();
+    reviewedCheckbox.checked = true;
+    reviewedCheckbox.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+    doc.querySelector("#champion-tag-editor-save").click();
+    await flush();
+
+    const reviewedSaveCall = harness.calls.find(
+      (call) => call.path === "/champions/1/tags" && call.method === "PUT" && call.body.reviewed === true
+    );
+    expect(reviewedSaveCall).toBeTruthy();
+    expect(doc.querySelector("#explorer-results .champ-card").textContent).toContain("Review: Human reviewed");
   });
 
   test("champion editor preserves existing tags and blocks save while tag load is pending", async () => {
@@ -1240,6 +1433,76 @@ describe("auth + pools + team management", () => {
     const deleteCall = harness.calls.find((call) => /^\/tags\/\d+$/.test(call.path) && call.method === "DELETE");
     expect(deleteCall).toBeTruthy();
     expect(doc.querySelector("#tags-workspace-summary").textContent).toContain("3 tags");
+  });
+
+  test("users workspace lists users and updates permissions", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", role: "admin", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness({
+      loginUser: { id: 11, email: "lead@example.com", role: "admin", gameName: "LeadPlayer", tagline: "NA1" }
+    });
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector(".side-menu-link[data-tab='users']").click();
+    await flush();
+
+    expect(doc.querySelector("#users-access").textContent).toContain("users loaded");
+    const roleSelects = [...doc.querySelectorAll("#users-list select")];
+    const memberRoleSelect = roleSelects.find((select) => select.value === "member");
+    expect(memberRoleSelect).toBeTruthy();
+
+    memberRoleSelect.value = "global";
+    memberRoleSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await flush();
+
+    const roleUpdateCall = harness.calls.find(
+      (call) => call.path === "/admin/users/22/role" && call.method === "PUT"
+    );
+    expect(roleUpdateCall).toBeTruthy();
+    expect(roleUpdateCall.body.role).toBe("global");
+  });
+
+  test("composition requirements workspace creates requirement profiles", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", role: "admin", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness({
+      loginUser: { id: 11, email: "lead@example.com", role: "admin", gameName: "LeadPlayer", tagline: "NA1" }
+    });
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector(".side-menu-link[data-tab='composition-requirements']").click();
+    await flush();
+
+    doc.querySelector("#composition-requirements-cancel").click();
+    await flush();
+
+    const requirementName = doc.querySelector("#composition-requirements-name");
+    requirementName.value = "Aggressive";
+    requirementName.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+
+    const activeCheckbox = doc.querySelector("#composition-requirements-is-active");
+    activeCheckbox.checked = true;
+    activeCheckbox.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+    doc.querySelector("#composition-requirements-save").click();
+    await flush();
+
+    const createCall = harness.calls.find(
+      (call) => call.path === "/composition-requirements" && call.method === "POST"
+    );
+    expect(createCall).toBeTruthy();
+    expect(createCall.body.name).toBe("Aggressive");
+    expect(createCall.body.is_active).toBe(true);
   });
 
   test("login routes users without defined roles to My Profile tab", async () => {

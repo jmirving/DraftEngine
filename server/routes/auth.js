@@ -4,12 +4,13 @@ import { ApiError, conflict, unauthorized } from "../errors.js";
 import { requireEmail, requireGameName, requireObject, requirePassword, requireTagline } from "../http/validation.js";
 import { hashPassword, verifyPassword } from "../auth/password.js";
 import { signAccessToken } from "../auth/tokens.js";
+import { USER_ROLE_ADMIN, USER_ROLE_MEMBER, isOwnerAdminEmail, resolveAuthorizationRole } from "../user-roles.js";
 
 function serializeAuthUser(user) {
   return {
     id: Number(user.id),
     email: user.email,
-    role: typeof user.role === "string" ? user.role : "member",
+    role: resolveAuthorizationRole(user),
     gameName: user.game_name ?? "",
     tagline: user.tagline ?? "",
     primaryRole: user.primary_role ?? "Mid",
@@ -53,7 +54,8 @@ export function createAuthRouter({ config, usersRepository }) {
         email,
         passwordHash,
         gameName,
-        tagline
+        tagline,
+        role: isOwnerAdminEmail(email) ? USER_ROLE_ADMIN : USER_ROLE_MEMBER
       });
     } catch (error) {
       throw mapUniqueConstraintError(error);

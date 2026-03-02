@@ -5,8 +5,10 @@ import { fileURLToPath } from "node:url";
 import { createRequireAuth } from "./auth/middleware.js";
 import { ApiError, badRequest, formatErrorResponse } from "./errors.js";
 import { createAuthRouter } from "./routes/auth.js";
+import { createAdminUsersRouter } from "./routes/admin-users.js";
 import { createChampionsRouter } from "./routes/champions.js";
 import { createChecksRouter } from "./routes/checks.js";
+import { createCompositionRequirementsRouter } from "./routes/composition-requirements.js";
 import { createProfileRouter } from "./routes/profile.js";
 import { createPoolsRouter } from "./routes/pools.js";
 import { createTeamsRouter } from "./routes/teams.js";
@@ -28,6 +30,7 @@ export function createApp({
   championsRepository,
   tagsRepository,
   checksRepository,
+  compositionRequirementsRepository,
   promotionRequestsRepository,
   poolsRepository,
   teamsRepository,
@@ -38,6 +41,7 @@ export function createApp({
   requireDependency(championsRepository, "championsRepository");
   requireDependency(tagsRepository, "tagsRepository");
   requireDependency(checksRepository, "checksRepository");
+  requireDependency(compositionRequirementsRepository, "compositionRequirementsRepository");
   requireDependency(promotionRequestsRepository, "promotionRequestsRepository");
   requireDependency(poolsRepository, "poolsRepository");
   requireDependency(teamsRepository, "teamsRepository");
@@ -75,6 +79,13 @@ export function createApp({
   app.use("/auth", createAuthRouter({ config, usersRepository }));
   app.use(
     "/",
+    createAdminUsersRouter({
+      usersRepository,
+      requireAuth
+    })
+  );
+  app.use(
+    "/",
     createProfileRouter({
       usersRepository,
       teamsRepository,
@@ -100,6 +111,14 @@ export function createApp({
       promotionRequestsRepository,
       usersRepository,
       teamsRepository,
+      requireAuth
+    })
+  );
+  app.use(
+    "/",
+    createCompositionRequirementsRouter({
+      compositionRequirementsRepository,
+      usersRepository,
       requireAuth
     })
   );

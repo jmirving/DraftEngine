@@ -507,6 +507,21 @@ h3 {
   display: none;
 }
 
+.champion-review-toggle {
+  margin-bottom: 0.5rem;
+}
+
+#users-list select {
+  margin-top: 0.35rem;
+}
+
+#composition-requirements-toggles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.75rem;
+}
+
 .team-logo-preview-button {
   width: auto;
   margin-top: 0;

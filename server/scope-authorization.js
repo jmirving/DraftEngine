@@ -1,5 +1,6 @@
 import { badRequest, forbidden } from "./errors.js";
 import { parsePositiveInteger } from "./http/validation.js";
+import { USER_ROLE_ADMIN, USER_ROLE_GLOBAL, resolveAuthorizationRole } from "./user-roles.js";
 
 export const SCOPE_SET = new Set(["self", "team", "all"]);
 export const SOURCE_PROMOTION_SCOPE_SET = new Set(["self", "team"]);
@@ -43,13 +44,6 @@ export async function resolveScopedTeamId({
   return parsePositiveInteger(activeTeamId, contextFieldName);
 }
 
-function normalizeUserRole(rawRole) {
-  if (typeof rawRole !== "string") {
-    return "member";
-  }
-  return rawRole.trim().toLowerCase() === "admin" ? "admin" : "member";
-}
-
 async function requireTeamMembership(teamId, userId, teamsRepository, message) {
   const membership = await teamsRepository.getMembership(teamId, userId);
   if (!membership) {
@@ -75,6 +69,7 @@ export async function assertScopeWriteAuthorization({
   teamWriteMessage,
   teamLeadMessage,
   globalWriteMessage,
+  allowGlobalRoleWrite = false,
   allowGlobalWriteWhenNoAdmins = false
 }) {
   if (scope === "self") {
@@ -90,7 +85,11 @@ export async function assertScopeWriteAuthorization({
   }
 
   const user = await usersRepository.findById(userId);
-  if (normalizeUserRole(user?.role) === "admin") {
+  const authorizationRole = resolveAuthorizationRole(user);
+  if (authorizationRole === USER_ROLE_ADMIN) {
+    return;
+  }
+  if (allowGlobalRoleWrite && authorizationRole === USER_ROLE_GLOBAL) {
     return;
   }
 
@@ -102,6 +101,18 @@ export async function assertScopeWriteAuthorization({
   if (!Number.isFinite(adminCount) || adminCount > 0) {
     throw forbidden(globalWriteMessage);
   }
+}
+
+export async function assertAdminAuthorization({
+  userId,
+  usersRepository,
+  message = "Only admins can perform this action."
+}) {
+  const user = await usersRepository.findById(userId);
+  if (resolveAuthorizationRole(user) !== USER_ROLE_ADMIN) {
+    throw forbidden(message);
+  }
+  return user;
 }
 
 export async function assertPromotionAuthorization({

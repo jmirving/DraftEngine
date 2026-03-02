@@ -390,13 +390,15 @@ describe("hash navigation routing", () => {
       (node) => node.textContent.trim()
     );
     expect(headings).toEqual([
-      "What's New in Version 0.2.0",
+      "What's New in Version 0.3.0",
       "General",
       "Profile",
       "Composer",
       "Teams",
       "Champions",
-      "Tags"
+      "Tags",
+      "Users",
+      "Composition Requirements"
     ]);
   });
 

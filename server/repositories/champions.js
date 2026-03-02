@@ -1,10 +1,23 @@
 function mapChampionRow(row) {
+  const metadata =
+    row.metadata_json && typeof row.metadata_json === "object" && !Array.isArray(row.metadata_json)
+      ? row.metadata_json
+      : {};
+  const reviewed = metadata.reviewed === true;
+  const reviewedByUserId = Number.isInteger(metadata.reviewedByUserId)
+    ? metadata.reviewedByUserId
+    : (metadata.reviewedByUserId === null ? null : null);
+  const reviewedAt = typeof metadata.reviewedAt === "string" ? metadata.reviewedAt : null;
+
   return {
     id: row.id,
     name: row.name,
     role: row.role,
-    metadata: row.metadata_json ?? null,
-    tagIds: Array.isArray(row.tag_ids) ? row.tag_ids.map((value) => Number(value)) : []
+    metadata: metadata,
+    tagIds: Array.isArray(row.tag_ids) ? row.tag_ids.map((value) => Number(value)) : [],
+    reviewed,
+    reviewed_by_user_id: reviewedByUserId,
+    reviewed_at: reviewedAt
   };
 }
 
@@ -108,6 +121,43 @@ export function createChampionsRepository(pool) {
           WHERE id = $1
         `,
         [championId, roles[0], JSON.stringify(nextMetadata)]
+      );
+
+      return this.getChampionById(championId);
+    },
+
+    async updateChampionReviewState(championId, { reviewed, reviewedByUserId = null }) {
+      const currentResult = await pool.query(
+        `
+          SELECT metadata_json
+          FROM champions
+          WHERE id = $1
+        `,
+        [championId]
+      );
+      if (currentResult.rowCount === 0) {
+        return null;
+      }
+
+      const currentMetadata =
+        currentResult.rows[0]?.metadata_json && typeof currentResult.rows[0].metadata_json === "object"
+          ? currentResult.rows[0].metadata_json
+          : {};
+      const nextReviewed = reviewed === true;
+      const nextMetadata = {
+        ...currentMetadata,
+        reviewed: nextReviewed,
+        reviewedByUserId: nextReviewed && Number.isInteger(reviewedByUserId) ? reviewedByUserId : null,
+        reviewedAt: nextReviewed ? new Date().toISOString() : null
+      };
+
+      await pool.query(
+        `
+          UPDATE champions
+          SET metadata_json = $2::jsonb
+          WHERE id = $1
+        `,
+        [championId, JSON.stringify(nextMetadata)]
       );
 
       return this.getChampionById(championId);

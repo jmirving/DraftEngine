@@ -18,7 +18,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
     users: [
       {
         id: 1,
-        email: "lead@example.com",
+        email: "jirving0311@gmail.com",
         role: "admin",
         password_hash: "seeded",
         game_name: "LeadPlayer",
@@ -58,6 +58,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       {
         id: 4,
         email: "norole@example.com",
+        role: "member",
         password_hash: "seeded",
         game_name: "NoRole",
         tagline: "NA1",
@@ -66,6 +67,31 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         default_team_id: null,
         active_team_id: null,
         created_at: "2026-01-01T00:00:00.000Z"
+      },
+      {
+        id: 5,
+        email: "global@example.com",
+        role: "global",
+        password_hash: "seeded",
+        game_name: "GlobalEditor",
+        tagline: "NA1",
+        primary_role: "Jungle",
+        secondary_roles: ["Top"],
+        default_team_id: null,
+        active_team_id: null,
+        created_at: "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    compositionRequirements: [
+      {
+        id: 1,
+        name: "Standard 5v5",
+        toggles: { ...DEFAULT_REQUIREMENT_TOGGLES, requireDisengage: true },
+        is_active: true,
+        created_by_user_id: 1,
+        updated_by_user_id: 1,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z"
       }
     ],
     champions: [
@@ -129,14 +155,15 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
     joinRequests: []
   };
 
-  let nextUserId = 5;
+  let nextUserId = 6;
   let nextPoolId = 3;
   let nextTeamId = 2;
   let nextJoinRequestId = 1;
   let nextTagId = 3;
+  let nextCompositionRequirementId = 2;
 
   const usersRepository = {
-    async createUser({ email, passwordHash, gameName, tagline }) {
+    async createUser({ email, passwordHash, gameName, tagline, role = "member" }) {
       const existing = state.users.find((candidate) => candidate.email === email);
       if (existing) {
         const error = new Error("duplicate");
@@ -147,7 +174,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       const user = {
         id: nextUserId,
         email,
-        role: "member",
+        role: email.toLowerCase() === "jirving0311@gmail.com" ? "admin" : role,
         password_hash: passwordHash,
         game_name: gameName,
         tagline,
@@ -180,7 +207,11 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
     },
 
     async countAdmins() {
-      return state.users.filter((candidate) => String(candidate.role ?? "").trim().toLowerCase() === "admin").length;
+      return state.users.filter(
+        (candidate) =>
+          String(candidate.role ?? "").trim().toLowerCase() === "admin" &&
+          String(candidate.email ?? "").trim().toLowerCase() === "jirving0311@gmail.com"
+      ).length;
     },
 
     async findByRiotId(gameName, tagline) {
@@ -195,6 +226,19 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
 
     async findProfileById(userId) {
       return state.users.find((candidate) => candidate.id === userId) ?? null;
+    },
+
+    async listUsersForAdmin() {
+      return [...state.users];
+    },
+
+    async updateUserRole(userId, role) {
+      const user = state.users.find((candidate) => candidate.id === userId) ?? null;
+      if (!user) {
+        return null;
+      }
+      user.role = role;
+      return user;
     },
 
     async updateProfileRoles(userId, { primaryRole, secondaryRoles }) {
@@ -256,6 +300,20 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         damageType,
         scaling
       };
+      return champion;
+    },
+    async updateChampionReviewState(championId, { reviewed, reviewedByUserId = null }) {
+      const champion = state.champions.find((item) => item.id === championId);
+      if (!champion) {
+        return null;
+      }
+      champion.metadata = {
+        ...(champion.metadata && typeof champion.metadata === "object" ? champion.metadata : {}),
+        reviewed: reviewed === true,
+        reviewedByUserId: reviewed === true ? reviewedByUserId : null,
+        reviewedAt: reviewed === true ? "2026-01-01T00:00:00.000Z" : null
+      };
+      champion.reviewed = reviewed === true;
       return champion;
     }
   };
@@ -410,6 +468,89 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         return next;
       }
       return next;
+    }
+  };
+
+  const compositionRequirementsRepository = {
+    async listRequirements() {
+      return [...state.compositionRequirements].map((requirement) => ({
+        ...requirement,
+        toggles: { ...requirement.toggles }
+      }));
+    },
+    async getActiveRequirement() {
+      const active = state.compositionRequirements.find((requirement) => requirement.is_active) ?? null;
+      return active
+        ? {
+            ...active,
+            toggles: { ...active.toggles }
+          }
+        : null;
+    },
+    async createRequirement({ name, toggles, isActive, actorUserId }) {
+      if (state.compositionRequirements.some((requirement) => requirement.name.toLowerCase() === name.toLowerCase())) {
+        const error = new Error("duplicate");
+        error.code = "23505";
+        throw error;
+      }
+      if (isActive) {
+        for (const requirement of state.compositionRequirements) {
+          requirement.is_active = false;
+        }
+      }
+      const created = {
+        id: nextCompositionRequirementId,
+        name,
+        toggles: { ...toggles },
+        is_active: isActive === true,
+        created_by_user_id: actorUserId ?? null,
+        updated_by_user_id: actorUserId ?? null,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z"
+      };
+      nextCompositionRequirementId += 1;
+      state.compositionRequirements.push(created);
+      return { ...created, toggles: { ...created.toggles } };
+    },
+    async updateRequirement(requirementId, { name, toggles, isActive, actorUserId }) {
+      const requirement = state.compositionRequirements.find((candidate) => candidate.id === requirementId) ?? null;
+      if (!requirement) {
+        return null;
+      }
+      if (name && state.compositionRequirements.some(
+        (candidate) => candidate.id !== requirementId && candidate.name.toLowerCase() === name.toLowerCase()
+      )) {
+        const error = new Error("duplicate");
+        error.code = "23505";
+        throw error;
+      }
+      if (typeof isActive === "boolean" && isActive) {
+        for (const candidate of state.compositionRequirements) {
+          if (candidate.id !== requirementId) {
+            candidate.is_active = false;
+          }
+        }
+      }
+      if (typeof name === "string" && name.trim() !== "") {
+        requirement.name = name.trim();
+      }
+      if (toggles && typeof toggles === "object") {
+        requirement.toggles = { ...toggles };
+      }
+      if (typeof isActive === "boolean") {
+        requirement.is_active = isActive;
+      }
+      requirement.updated_by_user_id = actorUserId ?? null;
+      requirement.updated_at = "2026-01-01T00:00:00.000Z";
+      return { ...requirement, toggles: { ...requirement.toggles } };
+    },
+    async deleteRequirement(requirementId) {
+      const index = state.compositionRequirements.findIndex((candidate) => candidate.id === requirementId);
+      if (index < 0) {
+        return null;
+      }
+      const [deleted] = state.compositionRequirements.splice(index, 1);
+      return { ...deleted, toggles: { ...deleted.toggles } };
     }
   };
 
@@ -835,6 +976,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
     championsRepository,
     tagsRepository,
     checksRepository,
+    compositionRequirementsRepository,
     promotionRequestsRepository,
     poolsRepository,
     teamsRepository,
@@ -879,15 +1021,15 @@ describe("API routes", () => {
     expect(registerResponse.body.user.primaryRole).toBe("Mid");
     expect(registerResponse.body.user.secondaryRoles).toEqual([]);
     expect(registerResponse.body.token).toBeTypeOf("string");
-    expect(state.users).toHaveLength(5);
-    expect(state.users[4].password_hash).not.toBe("strong-pass-123");
+    expect(state.users).toHaveLength(6);
+    expect(state.users[5].password_hash).not.toBe("strong-pass-123");
 
     const loginResponse = await request(app)
       .post("/auth/login")
       .send({ email: "test@example.com", password: "strong-pass-123" });
 
     expect(loginResponse.status).toBe(200);
-    expect(loginResponse.body.user.id).toBe(5);
+    expect(loginResponse.body.user.id).toBe(6);
     expect(loginResponse.body.user.gameName).toBe("TestPlayer");
     expect(loginResponse.body.user.tagline).toBe("NA1");
     expect(loginResponse.body.user.role).toBe("member");
@@ -1119,6 +1261,13 @@ describe("API routes", () => {
       .send({ tag_ids: [2] });
     expect(memberCannotWriteGlobal.status).toBe(403);
 
+    const globalEditorCanWriteGlobal = await request(app)
+      .put("/champions/1/tags")
+      .set("Authorization", buildAuthHeader(5, config))
+      .send({ tag_ids: [2], reviewed: true });
+    expect(globalEditorCanWriteGlobal.status).toBe(200);
+    expect(globalEditorCanWriteGlobal.body.reviewed).toBe(true);
+
     const invalidScopeResponse = await request(app)
       .put("/champions/1/tags")
       .set("Authorization", buildAuthHeader(2, config))
@@ -1131,7 +1280,7 @@ describe("API routes", () => {
     expect(globalReadDefaultScope.status).toBe(200);
     expect(globalReadDefaultScope.body.scope).toBe("all");
     expect(globalReadDefaultScope.body.team_id).toBeNull();
-    expect(globalReadDefaultScope.body.tag_ids).toEqual([1]);
+    expect(globalReadDefaultScope.body.tag_ids).toEqual([2]);
 
     const adminCanWriteGlobal = await request(app)
       .put("/champions/1/tags")
@@ -1145,6 +1294,7 @@ describe("API routes", () => {
       .set("Authorization", buildAuthHeader(2, config));
     expect(globalRead.status).toBe(200);
     expect(globalRead.body.tag_ids).toEqual([1, 2]);
+    expect(globalRead.body.reviewed).toBe(true);
 
     const listAfterGlobalSave = await request(app).get("/champions");
     expect(listAfterGlobalSave.status).toBe(200);
@@ -1331,6 +1481,122 @@ describe("API routes", () => {
       .delete(`/tags/${memberCreate.body.tag.id}`)
       .set("Authorization", buildAuthHeader(2, config));
     expect(memberDelete.status).toBe(204);
+  });
+
+  it("supports admin users listing and permission updates", async () => {
+    const { app, config } = createMockContext();
+
+    const memberDenied = await request(app)
+      .get("/admin/users")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(memberDenied.status).toBe(403);
+
+    const adminList = await request(app)
+      .get("/admin/users")
+      .set("Authorization", buildAuthHeader(1, config));
+    expect(adminList.status).toBe(200);
+    expect(adminList.body.users).toHaveLength(5);
+
+    const promoteGlobal = await request(app)
+      .put("/admin/users/2/role")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({ role: "global" });
+    expect(promoteGlobal.status).toBe(200);
+    expect(promoteGlobal.body.user.role).toBe("global");
+
+    const globalCanCreateTag = await request(app)
+      .post("/tags")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({ name: "tempo-tag", category: "tempo" });
+    expect(globalCanCreateTag.status).toBe(201);
+
+    const globalCanWriteTags = await request(app)
+      .put("/champions/1/tags")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({ tag_ids: [1, 2], reviewed: false });
+    expect(globalCanWriteTags.status).toBe(200);
+
+    const nonOwnerAdminRejected = await request(app)
+      .put("/admin/users/2/role")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({ role: "admin" });
+    expect(nonOwnerAdminRejected.status).toBe(400);
+
+    const ownerDemotionRejected = await request(app)
+      .put("/admin/users/1/role")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({ role: "member" });
+    expect(ownerDemotionRejected.status).toBe(400);
+  });
+
+  it("supports composition requirements CRUD and active profile reads", async () => {
+    const { app, config } = createMockContext();
+
+    const activeAsMember = await request(app)
+      .get("/composition-requirements/active")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(activeAsMember.status).toBe(200);
+    expect(activeAsMember.body.requirement.name).toBe("Standard 5v5");
+    expect(activeAsMember.body.toggles.requireDisengage).toBe(true);
+
+    const memberCreateDenied = await request(app)
+      .post("/composition-requirements")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        name: "Member Profile",
+        toggles: {
+          requireDisengage: false
+        },
+        is_active: false
+      });
+    expect(memberCreateDenied.status).toBe(403);
+
+    const adminCreate = await request(app)
+      .post("/composition-requirements")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({
+        name: "Aggressive",
+        toggles: {
+          requireFrontline: false,
+          requireDisengage: false
+        },
+        is_active: true
+      });
+    expect(adminCreate.status).toBe(201);
+    expect(adminCreate.body.requirement.name).toBe("Aggressive");
+    expect(adminCreate.body.requirement.is_active).toBe(true);
+
+    const listAfterCreate = await request(app)
+      .get("/composition-requirements")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(listAfterCreate.status).toBe(200);
+    expect(listAfterCreate.body.active_requirement_id).toBe(adminCreate.body.requirement.id);
+
+    const adminUpdate = await request(app)
+      .put(`/composition-requirements/${adminCreate.body.requirement.id}`)
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({
+        name: "Aggressive v2",
+        toggles: {
+          requireFrontline: true
+        },
+        is_active: false
+      });
+    expect(adminUpdate.status).toBe(200);
+    expect(adminUpdate.body.requirement.name).toBe("Aggressive v2");
+    expect(adminUpdate.body.requirement.is_active).toBe(false);
+
+    const activeAfterDeactivate = await request(app)
+      .get("/composition-requirements/active")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(activeAfterDeactivate.status).toBe(200);
+    expect(activeAfterDeactivate.body.requirement).toBeNull();
+    expect(activeAfterDeactivate.body.toggles.requireFrontline).toBe(true);
+
+    const deleteResponse = await request(app)
+      .delete(`/composition-requirements/${adminCreate.body.requirement.id}`)
+      .set("Authorization", buildAuthHeader(1, config));
+    expect(deleteResponse.status).toBe(204);
   });
 
   it("enforces scoped required-check settings auth and promotion requests", async () => {

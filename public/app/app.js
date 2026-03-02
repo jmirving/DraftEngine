@@ -85,6 +85,7 @@ const MAX_TEAM_LOGO_BYTES = 512 * 1024;
 const PREFILLED_RECOMMENDATION_LIMIT = 3;
 const HIGH_SIGNAL_MASTERY_LEVEL = 6;
 const HIGH_SIGNAL_CHAMPION_POINTS = 100000;
+const COMPOSITION_REQUIREMENT_TOGGLE_KEYS = Object.freeze(Object.keys(DEFAULT_REQUIREMENT_TOGGLES));
 
 const FAMILIARITY_LEVEL_LABELS = Object.freeze({
   1: "I know all the intricacies and how to use them",
@@ -149,6 +150,14 @@ const UI_COPY = Object.freeze({
         title: "Tags",
         subtitle: "Review tag categories and current champion coverage."
       },
+      users: {
+        title: "Users",
+        subtitle: "Admin-only user directory and permission controls."
+      },
+      "composition-requirements": {
+        title: "Composition Requirements",
+        subtitle: "Create and maintain named requirement profiles for Composer."
+      },
       "coming-soon": {
         title: "Updates & Roadmap",
         subtitle: "Review latest shipped changes and track known gaps grouped by workspace page."
@@ -157,7 +166,7 @@ const UI_COPY = Object.freeze({
   },
   nav: {
     title: "Workspace",
-    meta: "Jump between Composer, Teams, Profile, Champions, Tags, and Updates.",
+    meta: "Jump between Composer, Teams, Profile, Champions, Tags, Users, Requirements, and Updates.",
     toggleClosed: "Menu",
     toggleOpen: "Close Menu",
     desktopCollapseIcon: "◀",
@@ -170,6 +179,8 @@ const UI_COPY = Object.freeze({
       "player-config": "Profile",
       explorer: "Champions",
       tags: "Tags",
+      users: "Users",
+      "composition-requirements": "Requirements",
       "coming-soon": "Updates"
     }
   },
@@ -178,6 +189,10 @@ const UI_COPY = Object.freeze({
     explorerMeta: "Filter and sort champion cards.",
     tagsTitle: "Tags",
     tagsMeta: "Review tag categories and current champion coverage.",
+    usersTitle: "Users",
+    usersMeta: "Admin-only user directory and permission management.",
+    compositionRequirementsTitle: "Composition Requirements",
+    compositionRequirementsMeta: "Create and maintain named requirement profiles for Composer.",
     teamConfigTitle: "Teams",
     teamConfigMeta: "Lead-only controls are grouped by Create and Manage modes.",
     playerConfigTitle: "Profile",
@@ -207,7 +222,16 @@ const UI_COPY = Object.freeze({
 
 const COMPACT_NAV_MEDIA_QUERY = "(max-width: 1099px)";
 const DEFAULT_TAB_ROUTE = "workflow";
-const TAB_ROUTES = Object.freeze(["workflow", "team-config", "player-config", "explorer", "tags", "coming-soon"]);
+const TAB_ROUTES = Object.freeze([
+  "workflow",
+  "team-config",
+  "player-config",
+  "explorer",
+  "tags",
+  "users",
+  "composition-requirements",
+  "coming-soon"
+]);
 const TAB_ROUTE_SET = new Set(TAB_ROUTES);
 const LANE_ORDER = Object.freeze(["Top", "Jungle", "Mid", "ADC", "Support"]);
 
@@ -240,6 +264,16 @@ function createEmptyChampionMetadataDraft() {
     roles: [],
     damageType: "",
     scaling: ""
+  };
+}
+
+function createEmptyCompositionRequirementDraft() {
+  return {
+    name: "",
+    toggles: {
+      ...DEFAULT_REQUIREMENT_TOGGLES
+    },
+    isActive: false
   };
 }
 
@@ -281,10 +315,19 @@ function createInitialState() {
       championTagTeamId: "",
       championEditorTab: CHAMPION_EDITOR_TAB_COMPOSITION,
       championMetadataDraft: createEmptyChampionMetadataDraft(),
+      championReviewedDraft: false,
       isLoadingChampionTags: false,
       isSavingChampionTags: false,
       selectedTagManagerId: null,
-      isSavingTagCatalog: false
+      isSavingTagCatalog: false,
+      users: [],
+      isLoadingUsers: false,
+      savingUserRoleId: null,
+      compositionRequirements: [],
+      selectedCompositionRequirementId: null,
+      compositionRequirementDraft: createEmptyCompositionRequirementDraft(),
+      isLoadingCompositionRequirements: false,
+      isSavingCompositionRequirement: false
     },
     explorer: {
       search: "",
@@ -374,11 +417,29 @@ function createElements() {
     tagsManageSave: runtimeDocument.querySelector("#tags-manage-save"),
     tagsManageCancel: runtimeDocument.querySelector("#tags-manage-cancel"),
     tagsManageFeedback: runtimeDocument.querySelector("#tags-manage-feedback"),
+    usersTitle: runtimeDocument.querySelector("#users-title"),
+    usersMeta: runtimeDocument.querySelector("#users-meta"),
+    usersAccess: runtimeDocument.querySelector("#users-access"),
+    usersList: runtimeDocument.querySelector("#users-list"),
+    usersFeedback: runtimeDocument.querySelector("#users-feedback"),
+    compositionRequirementsTitle: runtimeDocument.querySelector("#composition-requirements-title"),
+    compositionRequirementsMeta: runtimeDocument.querySelector("#composition-requirements-meta"),
+    compositionRequirementsSummary: runtimeDocument.querySelector("#composition-requirements-summary"),
+    compositionRequirementsName: runtimeDocument.querySelector("#composition-requirements-name"),
+    compositionRequirementsIsActive: runtimeDocument.querySelector("#composition-requirements-is-active"),
+    compositionRequirementsToggles: runtimeDocument.querySelector("#composition-requirements-toggles"),
+    compositionRequirementsSave: runtimeDocument.querySelector("#composition-requirements-save"),
+    compositionRequirementsCancel: runtimeDocument.querySelector("#composition-requirements-cancel"),
+    compositionRequirementsDelete: runtimeDocument.querySelector("#composition-requirements-delete"),
+    compositionRequirementsFeedback: runtimeDocument.querySelector("#composition-requirements-feedback"),
+    compositionRequirementsList: runtimeDocument.querySelector("#composition-requirements-list"),
     comingSoonTitle: runtimeDocument.querySelector("#coming-soon-title"),
     comingSoonMeta: runtimeDocument.querySelector("#coming-soon-meta"),
     tabExplorer: runtimeDocument.querySelector("#tab-explorer"),
     tabWorkflow: runtimeDocument.querySelector("#tab-workflow"),
     tabTags: runtimeDocument.querySelector("#tab-tags"),
+    tabUsers: runtimeDocument.querySelector("#tab-users"),
+    tabCompositionRequirements: runtimeDocument.querySelector("#tab-composition-requirements"),
     tabTeamConfig: runtimeDocument.querySelector("#tab-team-config"),
     tabPlayerConfig: runtimeDocument.querySelector("#tab-player-config"),
     tabComingSoon: runtimeDocument.querySelector("#tab-coming-soon"),
@@ -408,6 +469,7 @@ function createElements() {
     championEditorPanelDamage: runtimeDocument.querySelector("#champion-editor-panel-damage"),
     championEditorPanelScaling: runtimeDocument.querySelector("#champion-editor-panel-scaling"),
     championTagEditorTags: runtimeDocument.querySelector("#champion-tag-editor-tags"),
+    championTagEditorReviewed: runtimeDocument.querySelector("#champion-tag-editor-reviewed"),
     championMetadataEditorRoles: runtimeDocument.querySelector("#champion-metadata-editor-roles"),
     championMetadataEditorDamageType: runtimeDocument.querySelector("#champion-metadata-editor-damage-type"),
     championMetadataEditorScaling: runtimeDocument.querySelector("#champion-metadata-editor-scaling"),
@@ -628,8 +690,29 @@ function setTagsManageFeedback(message) {
   }
 }
 
+function setUsersFeedback(message) {
+  if (elements.usersFeedback) {
+    elements.usersFeedback.textContent = message;
+  }
+}
+
+function setCompositionRequirementsFeedback(message) {
+  if (elements.compositionRequirementsFeedback) {
+    elements.compositionRequirementsFeedback.textContent = message;
+  }
+}
+
 function isAdminUser() {
   return String(state.auth.user?.role ?? "").trim().toLowerCase() === "admin";
+}
+
+function isGlobalTagEditorUser() {
+  const role = String(state.auth.user?.role ?? "").trim().toLowerCase();
+  if (role === "admin" || role === "global") {
+    return true;
+  }
+  // Backward-compatible fallback for legacy stored sessions that predate role persistence.
+  return role === "";
 }
 
 function normalizeChampionTagScope(scope) {
@@ -650,6 +733,7 @@ function normalizeChampionMetadataRoles(roles) {
 function initializeChampionMetadataDraft(champion) {
   if (!champion) {
     state.api.championMetadataDraft = createEmptyChampionMetadataDraft();
+    state.api.championReviewedDraft = false;
     return;
   }
   state.api.championMetadataDraft = {
@@ -657,6 +741,7 @@ function initializeChampionMetadataDraft(champion) {
     damageType: normalizeApiDamageType(champion.damageType) ?? "",
     scaling: normalizeApiScaling(champion.scaling) ?? ""
   };
+  state.api.championReviewedDraft = champion.reviewed === true;
 }
 
 function syncChampionMetadataDraftToState(championId, championPayload) {
@@ -685,6 +770,7 @@ function syncChampionMetadataDraftToState(championId, championPayload) {
     champion.scaling = nextScaling;
   }
   champion.tagIds = normalizeChampionTagIdArray(championPayload.tagIds ?? championPayload.tag_ids);
+  champion.reviewed = championPayload.reviewed === true;
   initializeChampionMetadataDraft(champion);
 }
 
@@ -695,6 +781,7 @@ function clearChampionTagEditorState() {
   state.api.championTagTeamId = "";
   state.api.championEditorTab = CHAMPION_EDITOR_TAB_COMPOSITION;
   state.api.championMetadataDraft = createEmptyChampionMetadataDraft();
+  state.api.championReviewedDraft = false;
   state.api.isLoadingChampionTags = false;
   state.api.isSavingChampionTags = false;
   setChampionTagEditorFeedback("");
@@ -1179,10 +1266,20 @@ function clearAuthSession(feedback = "") {
   state.profile.isSavingRoles = false;
   state.profile.championStats = createEmptyChampionStatsState();
   state.api.isCreatingTeam = false;
+  state.api.users = [];
+  state.api.isLoadingUsers = false;
+  state.api.savingUserRoleId = null;
+  state.api.compositionRequirements = [];
+  state.api.selectedCompositionRequirementId = null;
+  state.api.compositionRequirementDraft = createEmptyCompositionRequirementDraft();
+  state.api.isLoadingCompositionRequirements = false;
+  state.api.isSavingCompositionRequirement = false;
   state.playerConfig.dirtyPoolByTeamId = {};
   state.playerConfig.isSavingPool = false;
   clearChampionTagEditorState();
   clearTagsManagerState();
+  setUsersFeedback("");
+  setCompositionRequirementsFeedback("");
   saveAuthSession();
   setAuthFeedback(feedback);
 }
@@ -1254,10 +1351,14 @@ function renderAuthGate() {
 
 function renderAuth() {
   const signedIn = hasAuthSession();
+  const usersTabButton = elements.tabTriggers.find((button) => button.dataset.tab === "users");
   if (!signedIn) {
     setAuthControlsVisibility(true, state.auth.mode);
     elements.authStatus.textContent = "Signed out.";
     elements.authLogout.disabled = true;
+    if (usersTabButton) {
+      usersTabButton.hidden = true;
+    }
     renderAuthGate();
     return;
   }
@@ -1271,6 +1372,12 @@ function renderAuth() {
     ? `Signed in as ${email} (${riotId}).`
     : `Signed in as ${email}.`;
   elements.authLogout.disabled = false;
+  if (usersTabButton) {
+    usersTabButton.hidden = !isAdminUser();
+  }
+  if (!isAdminUser() && state.activeTab === "users") {
+    setTab(DEFAULT_TAB_ROUTE, { syncRoute: true, replaceRoute: true });
+  }
   renderAuthGate();
 }
 
@@ -1289,6 +1396,18 @@ function applyUiCopy() {
   }
   if (elements.tagsMeta) {
     elements.tagsMeta.textContent = UI_COPY.panels.tagsMeta;
+  }
+  if (elements.usersTitle) {
+    elements.usersTitle.textContent = UI_COPY.panels.usersTitle;
+  }
+  if (elements.usersMeta) {
+    elements.usersMeta.textContent = UI_COPY.panels.usersMeta;
+  }
+  if (elements.compositionRequirementsTitle) {
+    elements.compositionRequirementsTitle.textContent = UI_COPY.panels.compositionRequirementsTitle;
+  }
+  if (elements.compositionRequirementsMeta) {
+    elements.compositionRequirementsMeta.textContent = UI_COPY.panels.compositionRequirementsMeta;
   }
   if (elements.teamConfigTitle) {
     elements.teamConfigTitle.textContent = UI_COPY.panels.teamConfigTitle;
@@ -1711,6 +1830,8 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
   elements.tabExplorer.classList.toggle("is-active", resolvedTab === "explorer");
   elements.tabWorkflow.classList.toggle("is-active", resolvedTab === "workflow");
   elements.tabTags.classList.toggle("is-active", resolvedTab === "tags");
+  elements.tabUsers.classList.toggle("is-active", resolvedTab === "users");
+  elements.tabCompositionRequirements.classList.toggle("is-active", resolvedTab === "composition-requirements");
   elements.tabTeamConfig.classList.toggle("is-active", resolvedTab === "team-config");
   elements.tabPlayerConfig.classList.toggle("is-active", resolvedTab === "player-config");
   elements.tabComingSoon.classList.toggle("is-active", resolvedTab === "coming-soon");
@@ -1728,6 +1849,18 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
   }
   if (resolvedTab === "tags") {
     renderTagsWorkspace();
+  }
+  if (resolvedTab === "users") {
+    if (isAdminUser() && state.api.users.length === 0 && !state.api.isLoadingUsers) {
+      void loadUsersFromApi();
+    }
+    renderUsersWorkspace();
+  }
+  if (resolvedTab === "composition-requirements") {
+    if (isAuthenticated() && state.api.compositionRequirements.length === 0 && !state.api.isLoadingCompositionRequirements) {
+      void loadCompositionRequirementsFromApi();
+    }
+    renderCompositionRequirementsWorkspace();
   }
 
   if ((tabChanged || syncRoute) && isCompactNavViewport()) {
@@ -1966,6 +2099,7 @@ function buildChampionFromApiRecord(rawChampion, index) {
   }
 
   const tagIds = normalizeChampionTagIdArray(rawChampion.tagIds ?? rawChampion.tag_ids);
+  const reviewed = rawChampion.reviewed === true || metadata.reviewed === true;
 
   return {
     id: normalizeApiEntityId(rawChampion.id),
@@ -1974,7 +2108,8 @@ function buildChampionFromApiRecord(rawChampion, index) {
     damageType,
     scaling,
     tags: deriveApiTagsFromTagIds(tagIds),
-    tagIds
+    tagIds,
+    reviewed
   };
 }
 
@@ -2180,7 +2315,7 @@ function beginManagedTagEdit(tagId) {
 }
 
 function renderTagsManagerControls() {
-  const canManageTags = isAuthenticated();
+  const canManageTags = isAuthenticated() && isGlobalTagEditorUser();
   if (
     Number.isInteger(state.api.selectedTagManagerId) &&
     state.api.selectedTagManagerId > 0 &&
@@ -2194,9 +2329,10 @@ function renderTagsManagerControls() {
   if (elements.tagsManageAccess) {
     if (!isAuthenticated()) {
       elements.tagsManageAccess.textContent = "Sign in to manage tags.";
+    } else if (!canManageTags) {
+      elements.tagsManageAccess.textContent = "Your role is read-only for global tags.";
     } else if (!isAdminUser()) {
-      elements.tagsManageAccess.textContent =
-        "Tag catalog writes are admin-only unless no admin users exist (bootstrap fallback).";
+      elements.tagsManageAccess.textContent = "Global editor mode enabled: manage global tags and tag catalog entries.";
     } else {
       elements.tagsManageAccess.textContent = "Admin mode enabled: create, update, and delete tags.";
     }
@@ -2394,7 +2530,7 @@ function renderTagsWorkspace() {
       usage.textContent = usageCount === 1 ? "Used by 1 champion" : `Used by ${usageCount} champions`;
       item.append(chip, usage);
 
-      if (isAuthenticated()) {
+      if (isAuthenticated() && isGlobalTagEditorUser()) {
         const actions = runtimeDocument.createElement("div");
         actions.className = "tags-workspace-actions";
 
@@ -2424,6 +2560,473 @@ function renderTagsWorkspace() {
 
     card.append(heading, meta, list);
     elements.tagsWorkspaceCategories.append(card);
+  }
+}
+
+function normalizeApiUserRole(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (normalized === "admin" || normalized === "global") {
+    return normalized;
+  }
+  return "member";
+}
+
+function normalizeApiAdminUser(rawUser) {
+  if (!rawUser || typeof rawUser !== "object" || Array.isArray(rawUser)) {
+    return null;
+  }
+  const id = normalizeApiEntityId(rawUser.id);
+  if (!id) {
+    return null;
+  }
+  const email = typeof rawUser.email === "string" ? rawUser.email.trim() : "";
+  if (!email) {
+    return null;
+  }
+  const riotId = typeof rawUser.riot_id === "string" ? rawUser.riot_id.trim() : "";
+  return {
+    id,
+    email,
+    role: normalizeApiUserRole(rawUser.role),
+    riot_id: riotId
+  };
+}
+
+async function loadUsersFromApi() {
+  if (!isAuthenticated() || !isAdminUser()) {
+    state.api.users = [];
+    return false;
+  }
+
+  state.api.isLoadingUsers = true;
+  renderUsersWorkspace();
+  try {
+    const payload = await apiRequest("/admin/users", { auth: true });
+    const users = Array.isArray(payload?.users)
+      ? payload.users.map(normalizeApiAdminUser).filter(Boolean)
+      : [];
+    state.api.users = users;
+    setUsersFeedback("");
+    return true;
+  } catch (error) {
+    state.api.users = [];
+    setUsersFeedback(normalizeApiErrorMessage(error, "Failed to load users."));
+    return false;
+  } finally {
+    state.api.isLoadingUsers = false;
+    renderUsersWorkspace();
+  }
+}
+
+async function saveUserRoleFromWorkspace(userId, role) {
+  if (!isAuthenticated() || !isAdminUser()) {
+    return;
+  }
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return;
+  }
+  const normalizedRole = normalizeApiUserRole(role);
+  state.api.savingUserRoleId = userId;
+  setUsersFeedback("Saving user permissions...");
+  renderUsersWorkspace();
+
+  try {
+    const payload = await apiRequest(`/admin/users/${userId}/role`, {
+      method: "PUT",
+      auth: true,
+      body: { role: normalizedRole }
+    });
+    const updated = normalizeApiAdminUser(payload?.user);
+    if (updated) {
+      state.api.users = state.api.users.map((candidate) => (candidate.id === updated.id ? updated : candidate));
+    }
+    setUsersFeedback("User permissions saved.");
+  } catch (error) {
+    setUsersFeedback(normalizeApiErrorMessage(error, "Failed to update user permissions."));
+  } finally {
+    state.api.savingUserRoleId = null;
+    renderUsersWorkspace();
+  }
+}
+
+function renderUsersWorkspace() {
+  if (!elements.usersList || !elements.usersAccess) {
+    return;
+  }
+
+  elements.usersList.innerHTML = "";
+  if (!isAuthenticated()) {
+    elements.usersAccess.textContent = "Sign in to access users.";
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "Users page is available to admins only.";
+    elements.usersList.append(empty);
+    return;
+  }
+  if (!isAdminUser()) {
+    elements.usersAccess.textContent = "Users page is admin-only.";
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "Your account does not have admin access.";
+    elements.usersList.append(empty);
+    return;
+  }
+
+  if (state.api.isLoadingUsers) {
+    elements.usersAccess.textContent = "Loading users...";
+    return;
+  }
+
+  const users = Array.isArray(state.api.users) ? state.api.users : [];
+  elements.usersAccess.textContent = `${users.length} users loaded.`;
+  if (users.length === 0) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "No users found.";
+    elements.usersList.append(empty);
+    return;
+  }
+
+  for (const user of users) {
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card";
+
+    const title = runtimeDocument.createElement("strong");
+    title.textContent = user.email;
+
+    const riot = runtimeDocument.createElement("p");
+    riot.className = "meta";
+    riot.textContent = user.riot_id ? `Riot ID: ${user.riot_id}` : "Riot ID: not set";
+
+    const roleLabel = runtimeDocument.createElement("label");
+    roleLabel.className = "meta";
+    roleLabel.textContent = "Permissions";
+
+    const roleSelect = runtimeDocument.createElement("select");
+    const isOwnerAdmin = user.email.toLowerCase() === "jirving0311@gmail.com";
+    const options = isOwnerAdmin
+      ? [{ value: "admin", label: "admin" }]
+      : [
+          { value: "member", label: "member" },
+          { value: "global", label: "global" }
+        ];
+    replaceOptions(roleSelect, options);
+    roleSelect.value = normalizeApiUserRole(user.role);
+    roleSelect.disabled = state.api.savingUserRoleId === user.id;
+    roleSelect.addEventListener("change", () => {
+      void saveUserRoleFromWorkspace(user.id, roleSelect.value);
+    });
+
+    roleLabel.append(runtimeDocument.createElement("br"), roleSelect);
+    card.append(title, riot, roleLabel);
+    elements.usersList.append(card);
+  }
+}
+
+function normalizeRequirementToggleMap(rawValue) {
+  const source = rawValue && typeof rawValue === "object" && !Array.isArray(rawValue) ? rawValue : {};
+  const normalized = {};
+  for (const key of COMPOSITION_REQUIREMENT_TOGGLE_KEYS) {
+    normalized[key] = typeof source[key] === "boolean" ? source[key] : DEFAULT_REQUIREMENT_TOGGLES[key] === true;
+  }
+  return normalized;
+}
+
+function normalizeCompositionRequirement(rawRequirement) {
+  if (!rawRequirement || typeof rawRequirement !== "object" || Array.isArray(rawRequirement)) {
+    return null;
+  }
+  const id = normalizeApiEntityId(rawRequirement.id);
+  if (!id) {
+    return null;
+  }
+  const name = typeof rawRequirement.name === "string" ? rawRequirement.name.trim() : "";
+  if (!name) {
+    return null;
+  }
+  return {
+    id,
+    name,
+    toggles: normalizeRequirementToggleMap(rawRequirement.toggles),
+    is_active: rawRequirement.is_active === true
+  };
+}
+
+function getSelectedCompositionRequirement() {
+  const selectedId = normalizeApiEntityId(state.api.selectedCompositionRequirementId);
+  if (!selectedId) {
+    return null;
+  }
+  return state.api.compositionRequirements.find((requirement) => requirement.id === selectedId) ?? null;
+}
+
+function setCompositionRequirementDraft(requirement = null) {
+  if (!requirement) {
+    state.api.selectedCompositionRequirementId = null;
+    state.api.compositionRequirementDraft = createEmptyCompositionRequirementDraft();
+    return;
+  }
+  state.api.selectedCompositionRequirementId = requirement.id;
+  state.api.compositionRequirementDraft = {
+    name: requirement.name,
+    toggles: {
+      ...requirement.toggles
+    },
+    isActive: requirement.is_active === true
+  };
+}
+
+function syncCompositionRequirementInputsFromState() {
+  if (elements.compositionRequirementsName) {
+    elements.compositionRequirementsName.value = state.api.compositionRequirementDraft.name;
+  }
+  if (elements.compositionRequirementsIsActive) {
+    elements.compositionRequirementsIsActive.checked = state.api.compositionRequirementDraft.isActive === true;
+  }
+}
+
+async function loadActiveCompositionRequirementFromApi() {
+  if (!isAuthenticated()) {
+    return false;
+  }
+  try {
+    const payload = await apiRequest("/composition-requirements/active", { auth: true });
+    const toggles = normalizeRequirementToggleMap(payload?.toggles);
+    state.builder.toggles = {
+      ...toggles
+    };
+    syncBuilderToggleInputs();
+    return true;
+  } catch (_error) {
+    return false;
+  }
+}
+
+async function loadCompositionRequirementsFromApi() {
+  if (!isAuthenticated()) {
+    state.api.compositionRequirements = [];
+    state.api.selectedCompositionRequirementId = null;
+    state.api.compositionRequirementDraft = createEmptyCompositionRequirementDraft();
+    return false;
+  }
+
+  state.api.isLoadingCompositionRequirements = true;
+  renderCompositionRequirementsWorkspace();
+  try {
+    const payload = await apiRequest("/composition-requirements", { auth: true });
+    const requirements = Array.isArray(payload?.requirements)
+      ? payload.requirements.map(normalizeCompositionRequirement).filter(Boolean)
+      : [];
+    state.api.compositionRequirements = requirements;
+
+    const activeRequirementId = normalizeApiEntityId(payload?.active_requirement_id);
+    const selectedRequirementId = normalizeApiEntityId(state.api.selectedCompositionRequirementId);
+    const nextSelected =
+      requirements.find((requirement) => requirement.id === selectedRequirementId) ??
+      requirements.find((requirement) => requirement.id === activeRequirementId) ??
+      null;
+    setCompositionRequirementDraft(nextSelected);
+    setCompositionRequirementsFeedback("");
+    return true;
+  } catch (error) {
+    state.api.compositionRequirements = [];
+    setCompositionRequirementDraft(null);
+    setCompositionRequirementsFeedback(normalizeApiErrorMessage(error, "Failed to load composition requirements."));
+    return false;
+  } finally {
+    state.api.isLoadingCompositionRequirements = false;
+    renderCompositionRequirementsWorkspace();
+  }
+}
+
+function renderCompositionRequirementToggleEditor() {
+  if (!elements.compositionRequirementsToggles) {
+    return;
+  }
+  elements.compositionRequirementsToggles.innerHTML = "";
+
+  for (const key of COMPOSITION_REQUIREMENT_TOGGLE_KEYS) {
+    const label = runtimeDocument.createElement("label");
+    label.className = "selection-option";
+
+    const checkbox = runtimeDocument.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = state.api.compositionRequirementDraft.toggles[key] === true;
+    checkbox.disabled = state.api.isSavingCompositionRequirement || !isAdminUser();
+    checkbox.addEventListener("change", () => {
+      state.api.compositionRequirementDraft.toggles[key] = checkbox.checked;
+    });
+
+    const text = runtimeDocument.createElement("span");
+    text.textContent = key;
+    label.append(checkbox, text);
+    elements.compositionRequirementsToggles.append(label);
+  }
+}
+
+function renderCompositionRequirementsWorkspace() {
+  if (!elements.compositionRequirementsList) {
+    return;
+  }
+  const requirements = Array.isArray(state.api.compositionRequirements) ? state.api.compositionRequirements : [];
+  const activeRequirement = requirements.find((requirement) => requirement.is_active) ?? null;
+  if (elements.compositionRequirementsSummary) {
+    elements.compositionRequirementsSummary.textContent = activeRequirement
+      ? `Active profile: ${activeRequirement.name}`
+      : "No active profile. Composer uses built-in default toggles.";
+  }
+
+  syncCompositionRequirementInputsFromState();
+  renderCompositionRequirementToggleEditor();
+
+  const isEditing = Number.isInteger(normalizeApiEntityId(state.api.selectedCompositionRequirementId));
+  const controlsDisabled = state.api.isSavingCompositionRequirement || !isAdminUser();
+  if (elements.compositionRequirementsName) {
+    elements.compositionRequirementsName.disabled = controlsDisabled;
+  }
+  if (elements.compositionRequirementsIsActive) {
+    elements.compositionRequirementsIsActive.disabled = controlsDisabled;
+  }
+  if (elements.compositionRequirementsSave) {
+    elements.compositionRequirementsSave.disabled = controlsDisabled;
+    elements.compositionRequirementsSave.textContent = isEditing ? "Update Requirement" : "Create Requirement";
+  }
+  if (elements.compositionRequirementsCancel) {
+    elements.compositionRequirementsCancel.disabled = controlsDisabled;
+  }
+  if (elements.compositionRequirementsDelete) {
+    elements.compositionRequirementsDelete.hidden = !isEditing;
+    elements.compositionRequirementsDelete.disabled = controlsDisabled || !isEditing;
+  }
+
+  elements.compositionRequirementsList.innerHTML = "";
+  if (!isAuthenticated()) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "Sign in to load composition requirements.";
+    elements.compositionRequirementsList.append(empty);
+    return;
+  }
+  if (state.api.isLoadingCompositionRequirements) {
+    const loading = runtimeDocument.createElement("p");
+    loading.className = "meta";
+    loading.textContent = "Loading composition requirements...";
+    elements.compositionRequirementsList.append(loading);
+    return;
+  }
+  if (requirements.length === 0) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "No composition requirements defined yet.";
+    elements.compositionRequirementsList.append(empty);
+    return;
+  }
+
+  for (const requirement of requirements) {
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card";
+
+    const title = runtimeDocument.createElement("strong");
+    title.textContent = requirement.name;
+
+    const meta = runtimeDocument.createElement("p");
+    meta.className = "meta";
+    meta.textContent = requirement.is_active ? "Active profile" : "Inactive profile";
+
+    card.append(title, meta);
+    if (isAdminUser()) {
+      const edit = runtimeDocument.createElement("button");
+      edit.type = "button";
+      edit.className = "ghost";
+      edit.textContent = "Edit";
+      edit.disabled = state.api.isSavingCompositionRequirement;
+      edit.addEventListener("click", () => {
+        setCompositionRequirementDraft(requirement);
+        setCompositionRequirementsFeedback(`Editing '${requirement.name}'.`);
+        renderCompositionRequirementsWorkspace();
+      });
+      card.append(edit);
+    }
+
+    elements.compositionRequirementsList.append(card);
+  }
+}
+
+async function saveCompositionRequirementFromWorkspace() {
+  if (!isAuthenticated() || !isAdminUser() || state.api.isSavingCompositionRequirement) {
+    return;
+  }
+
+  const name = String(state.api.compositionRequirementDraft.name ?? "").trim();
+  if (!name) {
+    setCompositionRequirementsFeedback("Requirement name is required.");
+    return;
+  }
+
+  const selectedRequirement = getSelectedCompositionRequirement();
+  const isEditing = Boolean(selectedRequirement);
+  const payload = {
+    name,
+    toggles: {
+      ...state.api.compositionRequirementDraft.toggles
+    },
+    is_active: state.api.compositionRequirementDraft.isActive === true
+  };
+
+  state.api.isSavingCompositionRequirement = true;
+  setCompositionRequirementsFeedback(isEditing ? "Saving requirement..." : "Creating requirement...");
+  renderCompositionRequirementsWorkspace();
+  try {
+    const response = await apiRequest(
+      isEditing ? `/composition-requirements/${selectedRequirement.id}` : "/composition-requirements",
+      {
+        method: isEditing ? "PUT" : "POST",
+        auth: true,
+        body: payload
+      }
+    );
+    const saved = normalizeCompositionRequirement(response?.requirement);
+    await loadCompositionRequirementsFromApi();
+    if (saved) {
+      setCompositionRequirementDraft(saved);
+    }
+    await loadActiveCompositionRequirementFromApi();
+    setCompositionRequirementsFeedback(isEditing ? "Requirement updated." : "Requirement created.");
+  } catch (error) {
+    setCompositionRequirementsFeedback(normalizeApiErrorMessage(error, "Failed to save composition requirement."));
+  } finally {
+    state.api.isSavingCompositionRequirement = false;
+    renderCompositionRequirementsWorkspace();
+  }
+}
+
+async function deleteSelectedCompositionRequirement() {
+  if (!isAuthenticated() || !isAdminUser() || state.api.isSavingCompositionRequirement) {
+    return;
+  }
+  const selectedRequirement = getSelectedCompositionRequirement();
+  if (!selectedRequirement) {
+    setCompositionRequirementsFeedback("Select a requirement first.");
+    return;
+  }
+
+  state.api.isSavingCompositionRequirement = true;
+  setCompositionRequirementsFeedback("Deleting requirement...");
+  renderCompositionRequirementsWorkspace();
+  try {
+    await apiRequest(`/composition-requirements/${selectedRequirement.id}`, {
+      method: "DELETE",
+      auth: true
+    });
+    setCompositionRequirementDraft(null);
+    await loadCompositionRequirementsFromApi();
+    await loadActiveCompositionRequirementFromApi();
+    setCompositionRequirementsFeedback("Requirement deleted.");
+  } catch (error) {
+    setCompositionRequirementsFeedback(normalizeApiErrorMessage(error, "Failed to delete requirement."));
+  } finally {
+    state.api.isSavingCompositionRequirement = false;
+    renderCompositionRequirementsWorkspace();
   }
 }
 
@@ -2614,7 +3217,7 @@ function renderChampionTagEditor() {
 
   const championId = state.api.selectedChampionTagEditorId;
   const champion = Number.isInteger(championId) ? getChampionById(championId) : null;
-  const canRenderEditor = Boolean(champion && isAuthenticated());
+  const canRenderEditor = Boolean(champion && isAuthenticated() && isGlobalTagEditorUser());
   elements.championTagEditor.hidden = !canRenderEditor;
   if (!canRenderEditor) {
     return;
@@ -2640,6 +3243,10 @@ function renderChampionTagEditor() {
   renderChampionEditorTabs();
   renderChampionTagEditorTagOptions();
   renderChampionMetadataEditors();
+  if (elements.championTagEditorReviewed) {
+    elements.championTagEditorReviewed.checked = state.api.championReviewedDraft === true;
+    elements.championTagEditorReviewed.disabled = state.api.isSavingChampionTags || state.api.isLoadingChampionTags;
+  }
 
   const activeTab = normalizeChampionEditorTab(state.api.championEditorTab);
   const metadataDraftComplete =
@@ -2676,6 +3283,9 @@ async function loadChampionScopedTags(championId) {
     if (payloadTagIds !== undefined) {
       const scopedTagIds = normalizeApiTagIdArray(payloadTagIds);
       state.api.selectedChampionTagIds = scopedTagIds;
+      if (payload?.reviewed !== undefined) {
+        state.api.championReviewedDraft = payload.reviewed === true;
+      }
       setChampionTagEditorFeedback("");
     } else {
       setChampionTagEditorFeedback("");
@@ -2690,7 +3300,7 @@ async function loadChampionScopedTags(championId) {
 }
 
 async function openChampionTagEditor(championId) {
-  if (!isAuthenticated() || !Number.isInteger(championId) || championId <= 0) {
+  if (!isAuthenticated() || !isGlobalTagEditorUser() || !Number.isInteger(championId) || championId <= 0) {
     return;
   }
 
@@ -2715,7 +3325,8 @@ function setChampionEditorTab(tab) {
 async function saveChampionCompositionTab(championId) {
   const payload = {
     scope: "all",
-    tag_ids: [...state.api.selectedChampionTagIds].sort((left, right) => left - right)
+    tag_ids: [...state.api.selectedChampionTagIds].sort((left, right) => left - right),
+    reviewed: state.api.championReviewedDraft === true
   };
 
   const response = await apiRequest(`/champions/${championId}/tags`, {
@@ -2728,6 +3339,7 @@ async function saveChampionCompositionTab(championId) {
   if (champion) {
     champion.tagIds = [...state.api.selectedChampionTagIds];
     champion.tags = deriveApiTagsFromTagIds(champion.tagIds);
+    champion.reviewed = response?.reviewed === true;
   }
 }
 
@@ -2748,7 +3360,13 @@ async function saveChampionMetadataTab(championId) {
 
 async function saveChampionTagEditor() {
   const championId = state.api.selectedChampionTagEditorId;
-  if (!isAuthenticated() || !Number.isInteger(championId) || championId <= 0 || state.api.isSavingChampionTags) {
+  if (
+    !isAuthenticated() ||
+    !isGlobalTagEditorUser() ||
+    !Number.isInteger(championId) ||
+    championId <= 0 ||
+    state.api.isSavingChampionTags
+  ) {
     return;
   }
   const activeTab = normalizeChampionEditorTab(state.api.championEditorTab);
@@ -4911,12 +5529,20 @@ function renderExplorer() {
       scopedTags.append(empty);
     }
 
+    const reviewState = runtimeDocument.createElement("p");
+    reviewState.className = "meta";
+    reviewState.textContent = champion.reviewed === true ? "Review: Human reviewed" : "Review: Not reviewed";
+
     const actions = runtimeDocument.createElement("div");
     actions.className = "button-row champ-card-actions";
     const editButton = runtimeDocument.createElement("button");
     editButton.type = "button";
     editButton.textContent = "Edit Tags";
-    const canEdit = isAuthenticated() && Number.isInteger(champion.id) && champion.id > 0;
+    const canEdit =
+      isAuthenticated() &&
+      isGlobalTagEditorUser() &&
+      Number.isInteger(champion.id) &&
+      champion.id > 0;
     editButton.disabled = !canEdit;
     editButton.addEventListener("click", () => {
       if (!canEdit) {
@@ -4926,7 +5552,7 @@ function renderExplorer() {
     });
     actions.append(editButton);
 
-    card.append(header, scopedTags, actions);
+    card.append(header, scopedTags, reviewState, actions);
     elements.explorerResults.append(card);
   }
 }
@@ -5946,12 +6572,21 @@ async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAd
   await loadTeamsFromApi(preferredAdminTeamId);
   await loadTeamContextFromApi();
   await loadTagCatalogFromApi();
+  await loadCompositionRequirementsFromApi();
+  await loadActiveCompositionRequirementFromApi();
+  if (isAdminUser()) {
+    await loadUsersFromApi();
+  } else {
+    state.api.users = [];
+  }
   initializeTeamConfigControls();
   renderTeamAdmin();
   renderPlayerConfig();
   renderBuilder();
   renderChampionTagCatalog();
   renderTagsWorkspace();
+  renderUsersWorkspace();
+  renderCompositionRequirementsWorkspace();
   renderChampionTagEditor();
   syncSlotSelectOptions();
 }
@@ -6060,6 +6695,8 @@ function attachEvents() {
     renderPlayerConfig();
     setProfileRolesFeedback("");
     renderBuilder();
+    renderUsersWorkspace();
+    renderCompositionRequirementsWorkspace();
     renderAuth();
   });
 
@@ -6161,6 +6798,38 @@ function attachEvents() {
     });
   }
 
+  if (elements.compositionRequirementsName) {
+    elements.compositionRequirementsName.addEventListener("input", () => {
+      state.api.compositionRequirementDraft.name = elements.compositionRequirementsName.value;
+    });
+  }
+
+  if (elements.compositionRequirementsIsActive) {
+    elements.compositionRequirementsIsActive.addEventListener("change", () => {
+      state.api.compositionRequirementDraft.isActive = elements.compositionRequirementsIsActive.checked;
+    });
+  }
+
+  if (elements.compositionRequirementsSave) {
+    elements.compositionRequirementsSave.addEventListener("click", () => {
+      void saveCompositionRequirementFromWorkspace();
+    });
+  }
+
+  if (elements.compositionRequirementsCancel) {
+    elements.compositionRequirementsCancel.addEventListener("click", () => {
+      setCompositionRequirementDraft(null);
+      setCompositionRequirementsFeedback("");
+      renderCompositionRequirementsWorkspace();
+    });
+  }
+
+  if (elements.compositionRequirementsDelete) {
+    elements.compositionRequirementsDelete.addEventListener("click", () => {
+      void deleteSelectedCompositionRequirement();
+    });
+  }
+
   if (elements.championTagEditorScope) {
     elements.championTagEditorScope.addEventListener("change", () => {
       state.api.championTagScope = normalizeChampionTagScope(elements.championTagEditorScope.value);
@@ -6209,6 +6878,13 @@ function attachEvents() {
       if (normalized) {
         state.api.championMetadataDraft.scaling = normalized;
       }
+      renderChampionTagEditor();
+    });
+  }
+
+  if (elements.championTagEditorReviewed) {
+    elements.championTagEditorReviewed.addEventListener("change", () => {
+      state.api.championReviewedDraft = elements.championTagEditorReviewed.checked;
       renderChampionTagEditor();
     });
   }
@@ -6816,11 +7492,18 @@ async function init() {
       await loadPoolsFromApi();
       await loadTeamsFromApi();
       loadedTeamContextFromApi = await loadTeamContextFromApi();
+      await loadCompositionRequirementsFromApi();
+      await loadActiveCompositionRequirementFromApi();
+      if (isAdminUser()) {
+        await loadUsersFromApi();
+      }
     } else {
       loadStoredPlayerConfig();
       setPoolApiFeedback("Sign in to manage API-backed pools.");
       setTeamAdminFeedback("Sign in to manage teams.");
       setProfileRolesFeedback("");
+      setUsersFeedback("Sign in as admin to manage users.");
+      setCompositionRequirementsFeedback("Sign in to load composition requirements.");
     }
     if (!loadedTeamContextFromApi) {
       loadStoredTeamConfig();
@@ -6849,6 +7532,8 @@ async function init() {
     renderBuilder();
     renderChampionTagCatalog();
     renderTagsWorkspace();
+    renderUsersWorkspace();
+    renderCompositionRequirementsWorkspace();
     renderChampionTagEditor();
     renderAuth();
     clearBuilderFeedback();
