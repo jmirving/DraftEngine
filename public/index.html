@@ -501,6 +501,35 @@
                       </div>
                     </div>
 
+                    <div class="team-admin-block">
+                      <h3>Request to Join Existing Team</h3>
+                      <div class="grid grid-2">
+                        <label>
+                          Discoverable Team
+                          <select id="team-join-discover-select"></select>
+                        </label>
+                        <label>
+                          Note (optional)
+                          <input id="team-join-note" type="text" maxlength="280" placeholder="Short note to team lead" />
+                        </label>
+                      </div>
+                      <div class="button-row">
+                        <button id="team-join-load-discover" class="ghost" type="button">Load Discover Teams</button>
+                        <button id="team-join-request" type="button">Request to Join</button>
+                        <button id="team-join-cancel" class="ghost" type="button">Cancel Pending Request</button>
+                      </div>
+                      <p id="team-join-discover-meta" class="meta"></p>
+                    </div>
+
+                    <div class="team-admin-block">
+                      <h3>Review Incoming Join Requests</h3>
+                      <div class="button-row">
+                        <button id="team-join-load-review" class="ghost" type="button">Load Pending Requests</button>
+                      </div>
+                      <div id="team-join-review-list" class="summary-card-list"></div>
+                      <p id="team-join-feedback" class="meta"></p>
+                    </div>
+
                     <div class="team-manage-panel" data-team-manage-panel="team-settings" hidden>
                       <div class="team-admin-block">
                         <h3>Edit Team</h3>
@@ -776,6 +805,12 @@
             <div class="panel draft-board-panel">
               <h3>What's New</h3>
               <p class="meta">Shipped updates that are available now.</p>
+              <h4>Version 0.4.0 (In Progress)</h4>
+              <ul class="coming-soon-list">
+                <li>Teams workspace now supports discover-team request-to-join actions (submit + cancel) from the UI</li>
+                <li>Team leads can now load and approve/reject incoming join requests from the Teams workspace UI</li>
+                <li>Team create/update now rejects duplicate team names and duplicate team tags with clear conflict messaging</li>
+              </ul>
               <h4>Version 0.3.1 (March 2, 2026)</h4>
               <ul class="coming-soon-list">
                 <li>Aligned the champion tag editor "Human reviewed" checkbox control for consistent label/checkbox layout</li>
@@ -812,10 +847,8 @@
               </ul>
               <h4>Teams</h4>
               <ul class="coming-soon-list">
-                <li>Team join request flows are API-ready, but request/review controls are not exposed in Teams yet (draftflow-132)</li>
                 <li>Teams member actions require exact Riot ID entry (`GameName#Tagline`); search/autocomplete is not implemented yet (draftflow-139)</li>
-                <li>Request a position on an existing team from the Teams workspace UI (draftflow-132)</li>
-                <li>Team leads can accept or decline incoming team requests from the Teams workspace UI (draftflow-132)</li>
+                <li>Join request controls currently require manual refresh actions for discover/review lists; live auto-refresh is deferred</li>
               </ul>
               <h4>Champions</h4>
               <ul class="coming-soon-list">

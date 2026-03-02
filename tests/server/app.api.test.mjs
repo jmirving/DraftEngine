@@ -701,6 +701,25 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       return state.teams.some((team) => team.id === teamId);
     },
     async createTeam({ name, tag, logoBlob, logoMimeType, creatorUserId }) {
+      const duplicateName = state.teams.find(
+        (candidate) => candidate.name.trim().toLowerCase() === String(name).trim().toLowerCase()
+      );
+      if (duplicateName) {
+        const error = new Error("duplicate");
+        error.code = "23505";
+        error.constraint = "teams_name_lower_unique_idx";
+        throw error;
+      }
+      const duplicateTag = state.teams.find(
+        (candidate) => candidate.tag.trim().toLowerCase() === String(tag).trim().toLowerCase()
+      );
+      if (duplicateTag) {
+        const error = new Error("duplicate");
+        error.code = "23505";
+        error.constraint = "teams_tag_lower_unique_idx";
+        throw error;
+      }
+
       const team = {
         id: nextTeamId,
         name,
@@ -792,6 +811,27 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       if (!team) {
         return null;
       }
+      const duplicateName = state.teams.find(
+        (candidate) =>
+          candidate.id !== teamId && candidate.name.trim().toLowerCase() === String(name).trim().toLowerCase()
+      );
+      if (duplicateName) {
+        const error = new Error("duplicate");
+        error.code = "23505";
+        error.constraint = "teams_name_lower_unique_idx";
+        throw error;
+      }
+      const duplicateTag = state.teams.find(
+        (candidate) =>
+          candidate.id !== teamId && candidate.tag.trim().toLowerCase() === String(tag).trim().toLowerCase()
+      );
+      if (duplicateTag) {
+        const error = new Error("duplicate");
+        error.code = "23505";
+        error.constraint = "teams_tag_lower_unique_idx";
+        throw error;
+      }
+
       team.name = name;
       team.tag = tag;
       if (removeLogo) {
@@ -1932,6 +1972,45 @@ describe("API routes", () => {
       .attach("logo", Buffer.from("conflict"), { filename: "logo.png", contentType: "image/png" });
     expect(conflictUpdate.status).toBe(400);
     expect(conflictUpdate.body.error.code).toBe("BAD_REQUEST");
+  });
+
+  it("rejects duplicate team names and tags on create and update", async () => {
+    const { app, config } = createMockContext();
+    const leadAuth = buildAuthHeader(1, config);
+
+    const duplicateCreateByName = await request(app)
+      .post("/teams")
+      .set("Authorization", leadAuth)
+      .send({ name: "team alpha", tag: "UNIQA" });
+    expect(duplicateCreateByName.status).toBe(409);
+    expect(duplicateCreateByName.body.error.message).toContain("Team name already exists");
+
+    const duplicateCreateByTag = await request(app)
+      .post("/teams")
+      .set("Authorization", leadAuth)
+      .send({ name: "Unique Team", tag: "alpha" });
+    expect(duplicateCreateByTag.status).toBe(409);
+    expect(duplicateCreateByTag.body.error.message).toContain("Team tag already exists");
+
+    const createSecond = await request(app)
+      .post("/teams")
+      .set("Authorization", leadAuth)
+      .send({ name: "Team Bravo", tag: "BRV" });
+    expect(createSecond.status).toBe(201);
+
+    const duplicateUpdateByName = await request(app)
+      .patch(`/teams/${createSecond.body.team.id}`)
+      .set("Authorization", leadAuth)
+      .send({ name: "TEAM ALPHA", tag: "BRV2" });
+    expect(duplicateUpdateByName.status).toBe(409);
+    expect(duplicateUpdateByName.body.error.message).toContain("Team name already exists");
+
+    const duplicateUpdateByTag = await request(app)
+      .patch(`/teams/${createSecond.body.team.id}`)
+      .set("Authorization", leadAuth)
+      .send({ name: "Team Bravo v2", tag: "alpha" });
+    expect(duplicateUpdateByTag.status).toBe(409);
+    expect(duplicateUpdateByTag.body.error.message).toContain("Team tag already exists");
   });
 
   it("enforces team authorization with owner-admin overrides and lead invariants", async () => {

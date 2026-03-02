@@ -62,6 +62,7 @@ function createFetchHarness({
   pools = [],
   teams = [],
   membersByTeam = {},
+  teamJoinRequestsByTeam = {},
   failCreatePoolWith401 = false,
   championIdsAsStrings = false,
   loginUser = null,
@@ -114,6 +115,9 @@ function createFetchHarness({
     }
   ];
   let nextCompositionRequirementId = 2;
+  let joinRequestsByTeam = Object.fromEntries(
+    Object.entries(teamJoinRequestsByTeam).map(([teamId, requests]) => [String(teamId), [...(requests ?? [])]])
+  );
   const resolvedLoginUser = loginUser ?? {
     id: 11,
     email: "user@example.com",
@@ -132,6 +136,13 @@ function createFetchHarness({
     primaryRole: "Mid",
     secondaryRoles: ["Top"]
   };
+  let nextTeamJoinRequestId = Math.max(
+    1,
+    ...Object.values(joinRequestsByTeam)
+      .flat()
+      .map((request) => Number.parseInt(String(request?.id ?? 0), 10) + 1)
+      .filter((value) => Number.isInteger(value) && value > 0)
+  );
   const adminUsers = [
     {
       id: 11,
@@ -207,6 +218,75 @@ function createFetchHarness({
     }
 
     return null;
+  }
+
+  function getCurrentUserId() {
+    const userId = Number.parseInt(String(resolvedLoginUser?.id ?? resolvedProfile?.id ?? 0), 10);
+    return Number.isInteger(userId) && userId > 0 ? userId : 0;
+  }
+
+  function buildRequesterIdentity(userId) {
+    if (Number(userId) === Number(resolvedProfile.id)) {
+      return {
+        user_id: userId,
+        lane: resolvedProfile.primaryRole ?? null,
+        display_name: `${resolvedProfile.gameName}#${resolvedProfile.tagline}`,
+        game_name: resolvedProfile.gameName,
+        tagline: resolvedProfile.tagline,
+        email: resolvedProfile.email ?? null
+      };
+    }
+
+    for (const roster of Object.values(membersByTeam)) {
+      for (const member of roster ?? []) {
+        if (Number(member?.user_id) === Number(userId)) {
+          const lane = member?.lane ?? member?.primary_role ?? null;
+          return {
+            user_id: Number(userId),
+            lane,
+            display_name: resolveMemberRiotId(member) || `User ${userId}`,
+            game_name: typeof member?.game_name === "string" ? member.game_name : "",
+            tagline: typeof member?.tagline === "string" ? member.tagline : "",
+            email: typeof member?.email === "string" ? member.email : null
+          };
+        }
+      }
+    }
+
+    return {
+      user_id: Number(userId),
+      lane: null,
+      display_name: `User ${userId}`,
+      game_name: "",
+      tagline: "",
+      email: null
+    };
+  }
+
+  function getPendingRequestForUser(teamId, userId) {
+    const requests = joinRequestsByTeam[String(teamId)] ?? [];
+    return requests.find(
+      (request) => Number(request?.requester_user_id) === Number(userId) && String(request?.status) === "pending"
+    ) ?? null;
+  }
+
+  function buildDiscoverTeamsResponse() {
+    const currentUserId = getCurrentUserId();
+    return teams
+      .map((team) => {
+        const teamId = String(team.id);
+        const members = membersByTeam[teamId] ?? [];
+        const membership = members.find((member) => Number(member?.user_id) === currentUserId) ?? null;
+        const pending = getPendingRequestForUser(team.id, currentUserId);
+        return {
+          ...team,
+          membership_role: membership?.role ?? null,
+          membership_team_role: membership?.team_role ?? null,
+          pending_join_request_id: pending?.id ?? null,
+          pending_join_request_status: pending?.status ?? null
+        };
+      })
+      .sort((left, right) => String(left.name ?? "").localeCompare(String(right.name ?? "")));
   }
 
   function toTeamLogoDataUrl(value) {
@@ -743,6 +823,10 @@ function createFetchHarness({
       return createJsonResponse({ pool });
     }
 
+    if (path === "/teams/discover" && method === "GET") {
+      return createJsonResponse({ teams: buildDiscoverTeamsResponse() });
+    }
+
     if (path === "/teams" && method === "GET") {
       return createJsonResponse({ teams });
     }
@@ -827,6 +911,94 @@ function createFetchHarness({
         },
         201
       );
+    }
+
+    const teamJoinRequestCollectionMatch = path.match(/^\/teams\/(\d+)\/join-requests$/);
+    if (teamJoinRequestCollectionMatch && method === "POST") {
+      const teamId = teamJoinRequestCollectionMatch[1];
+      const requesterUserId = getCurrentUserId();
+      const requests = joinRequestsByTeam[teamId] ?? [];
+      const hasPending = requests.some(
+        (request) => Number(request?.requester_user_id) === requesterUserId && String(request?.status) === "pending"
+      );
+      if (hasPending) {
+        return createJsonResponse(
+          { error: { code: "CONFLICT", message: "A pending join request already exists for this team." } },
+          409
+        );
+      }
+
+      const requestRecord = {
+        id: nextTeamJoinRequestId,
+        team_id: Number(teamId),
+        requester_user_id: requesterUserId,
+        requested_lane: resolvedProfile.primaryRole ?? "Mid",
+        status: "pending",
+        note: typeof body?.note === "string" ? body.note : "",
+        reviewed_by_user_id: null,
+        reviewed_at: null,
+        created_at: "2026-01-01T00:00:00.000Z",
+        requester: buildRequesterIdentity(requesterUserId)
+      };
+      nextTeamJoinRequestId += 1;
+      joinRequestsByTeam[teamId] = [...requests, requestRecord];
+      return createJsonResponse({ request: requestRecord }, 201);
+    }
+
+    if (teamJoinRequestCollectionMatch && method === "GET") {
+      const teamId = teamJoinRequestCollectionMatch[1];
+      const status = query.get("status");
+      const requests = (joinRequestsByTeam[teamId] ?? []).filter((request) => (
+        !status || status === "all" ? true : String(request?.status) === status
+      ));
+      return createJsonResponse({ requests });
+    }
+
+    const teamJoinRequestItemMatch = path.match(/^\/teams\/(\d+)\/join-requests\/(\d+)$/);
+    if (teamJoinRequestItemMatch && method === "DELETE") {
+      const [teamId, requestId] = [teamJoinRequestItemMatch[1], Number(teamJoinRequestItemMatch[2])];
+      const requests = joinRequestsByTeam[teamId] ?? [];
+      const requesterUserId = getCurrentUserId();
+      const nextRequests = requests.filter(
+        (request) =>
+          !(Number(request?.id) === requestId &&
+            Number(request?.requester_user_id) === requesterUserId &&
+            String(request?.status) === "pending")
+      );
+      joinRequestsByTeam[teamId] = nextRequests;
+      return createJsonResponse({ ok: true });
+    }
+
+    if (teamJoinRequestItemMatch && method === "PUT") {
+      const [teamId, requestId] = [teamJoinRequestItemMatch[1], Number(teamJoinRequestItemMatch[2])];
+      const requests = joinRequestsByTeam[teamId] ?? [];
+      const target = requests.find((request) => Number(request?.id) === requestId) ?? null;
+      if (!target) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "Join request not found." } }, 404);
+      }
+      target.status = typeof body?.status === "string" ? body.status : target.status;
+      target.reviewed_by_user_id = getCurrentUserId();
+      target.reviewed_at = "2026-01-01T00:00:00.000Z";
+
+      if (target.status === "approved") {
+        const roster = membersByTeam[teamId] ?? [];
+        const exists = roster.some((member) => Number(member?.user_id) === Number(target.requester_user_id));
+        if (!exists) {
+          roster.push({
+            team_id: Number(teamId),
+            user_id: Number(target.requester_user_id),
+            role: "member",
+            team_role: "primary",
+            display_name: target?.requester?.display_name ?? `User ${target.requester_user_id}`,
+            game_name: target?.requester?.game_name ?? "",
+            tagline: target?.requester?.tagline ?? "",
+            email: target?.requester?.email ?? null,
+            lane: target?.requester?.lane ?? target?.requested_lane ?? null
+          });
+          membersByTeam[teamId] = roster;
+        }
+      }
+      return createJsonResponse({ request: target });
     }
 
     if (/^\/teams\/\d+$/.test(path) && method === "PATCH") {
@@ -2114,6 +2286,146 @@ describe("auth + pools + team management", () => {
     expect(addMemberCall).toBeTruthy();
     expect(addMemberCall.body.riot_id).toBe("Lead#NA1");
     expect(addMemberCall.body.user_id).toBeUndefined();
+  });
+
+  test("member can request and cancel join request from teams workspace", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 33, email: "outsider@example.com", role: "member", gameName: "Outsider", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness({
+      loginUser: { id: 33, email: "outsider@example.com", role: "member", gameName: "Outsider", tagline: "NA1" },
+      profile: {
+        id: 33,
+        email: "outsider@example.com",
+        role: "member",
+        gameName: "Outsider",
+        tagline: "NA1",
+        primaryRole: "Top",
+        secondaryRoles: []
+      },
+      pools: [],
+      teams: [
+        {
+          id: 1,
+          name: "Team Alpha",
+          tag: "ALPHA",
+          created_by: 11,
+          membership_role: null,
+          membership_team_role: null,
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      membersByTeam: {
+        "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", display_name: "Lead#NA1", lane: "Mid" }]
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    await flush();
+
+    doc.querySelector("#team-join-load-discover").click();
+    await flush();
+    doc.querySelector("#team-join-note").value = "Interested in scrims.";
+    doc.querySelector("#team-join-request").click();
+    await flush();
+    await flush();
+
+    const requestCall = harness.calls.find((call) => call.path === "/teams/1/join-requests" && call.method === "POST");
+    expect(requestCall).toBeTruthy();
+    expect(requestCall.body.note).toBe("Interested in scrims.");
+
+    doc.querySelector("#team-join-cancel").click();
+    await flush();
+    await flush();
+
+    const cancelCall = harness.calls.find((call) => call.path === "/teams/1/join-requests/1" && call.method === "DELETE");
+    expect(cancelCall).toBeTruthy();
+  });
+
+  test("team lead can load and approve incoming join requests", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", role: "member", gameName: "Lead", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness({
+      loginUser: { id: 11, email: "lead@example.com", role: "member", gameName: "Lead", tagline: "NA1" },
+      profile: {
+        id: 11,
+        email: "lead@example.com",
+        role: "member",
+        gameName: "Lead",
+        tagline: "NA1",
+        primaryRole: "Mid",
+        secondaryRoles: []
+      },
+      pools: [],
+      teams: [
+        {
+          id: 1,
+          name: "Team Alpha",
+          tag: "ALPHA",
+          created_by: 11,
+          membership_role: "lead",
+          membership_team_role: "primary",
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      membersByTeam: {
+        "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", display_name: "Lead#NA1", lane: "Mid" }]
+      },
+      teamJoinRequestsByTeam: {
+        "1": [
+          {
+            id: 7,
+            team_id: 1,
+            requester_user_id: 33,
+            requested_lane: "Top",
+            status: "pending",
+            note: "Can play weakside top.",
+            reviewed_by_user_id: null,
+            reviewed_at: null,
+            created_at: "2026-01-01T00:00:00.000Z",
+            requester: {
+              user_id: 33,
+              lane: "Top",
+              display_name: "Outsider#NA1",
+              game_name: "Outsider",
+              tagline: "NA1",
+              email: "outsider@example.com"
+            }
+          }
+        ]
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    await flush();
+
+    doc.querySelector("#team-join-load-review").click();
+    await flush();
+    await flush();
+    expect(doc.querySelector("#team-join-review-list").textContent).toContain("Outsider#NA1");
+
+    const approveButton = doc.querySelector("#team-join-review-list button[data-team-join-review-action='approve']");
+    expect(approveButton).toBeTruthy();
+    approveButton.click();
+    await flush();
+    await flush();
+
+    const approveCall = harness.calls.find(
+      (call) => call.path === "/teams/1/join-requests/7" && call.method === "PUT"
+    );
+    expect(approveCall).toBeTruthy();
+    expect(approveCall.body).toEqual({ status: "approved" });
   });
 
   test("team update remove-logo action sends JSON remove_logo contract", async () => {

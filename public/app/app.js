@@ -304,8 +304,11 @@ function createInitialState() {
       pools: [],
       poolByTeamId: {},
       teams: [],
+      discoverTeams: [],
       membersByTeamId: {},
+      joinRequestsByTeamId: {},
       selectedTeamId: "",
+      selectedDiscoverTeamId: "",
       isCreatingTeam: false,
       tags: [],
       tagById: {},
@@ -541,6 +544,15 @@ function createElements() {
     teamAdminTeamSelect: runtimeDocument.querySelector("#team-admin-team-select"),
     teamAdminOpenEdit: runtimeDocument.querySelector("#team-admin-open-edit"),
     teamAdminRefresh: runtimeDocument.querySelector("#team-admin-refresh"),
+    teamJoinDiscoverSelect: runtimeDocument.querySelector("#team-join-discover-select"),
+    teamJoinNote: runtimeDocument.querySelector("#team-join-note"),
+    teamJoinLoadDiscover: runtimeDocument.querySelector("#team-join-load-discover"),
+    teamJoinRequest: runtimeDocument.querySelector("#team-join-request"),
+    teamJoinCancel: runtimeDocument.querySelector("#team-join-cancel"),
+    teamJoinDiscoverMeta: runtimeDocument.querySelector("#team-join-discover-meta"),
+    teamJoinLoadReview: runtimeDocument.querySelector("#team-join-load-review"),
+    teamJoinReviewList: runtimeDocument.querySelector("#team-join-review-list"),
+    teamJoinFeedback: runtimeDocument.querySelector("#team-join-feedback"),
     teamAdminRenameName: runtimeDocument.querySelector("#team-admin-rename-name"),
     teamAdminRenameTag: runtimeDocument.querySelector("#team-admin-rename-tag"),
     teamAdminRenameLogoUrl: runtimeDocument.querySelector("#team-admin-rename-logo-url"),
@@ -677,6 +689,12 @@ function setPoolApiFeedback(message) {
 function setTeamAdminFeedback(message) {
   if (elements.teamAdminFeedback) {
     elements.teamAdminFeedback.textContent = message;
+  }
+}
+
+function setTeamJoinFeedback(message) {
+  if (elements.teamJoinFeedback) {
+    elements.teamJoinFeedback.textContent = message;
   }
 }
 
@@ -839,6 +857,14 @@ function findTeamById(teamId) {
     return null;
   }
   return state.api.teams.find((team) => String(team.id) === normalizedId) ?? null;
+}
+
+function findDiscoverTeamById(teamId) {
+  const normalizedId = normalizeTeamEntityId(teamId);
+  if (!normalizedId) {
+    return null;
+  }
+  return state.api.discoverTeams.find((team) => String(team.id) === normalizedId) ?? null;
 }
 
 function closeLogoLightbox() {
@@ -1268,6 +1294,9 @@ function clearAuthSession(feedback = "") {
   state.profile.isSavingRoles = false;
   state.profile.championStats = createEmptyChampionStatsState();
   state.api.isCreatingTeam = false;
+  state.api.discoverTeams = [];
+  state.api.joinRequestsByTeamId = {};
+  state.api.selectedDiscoverTeamId = "";
   state.api.users = [];
   state.api.isLoadingUsers = false;
   state.api.savingUserRoleId = null;
@@ -1283,6 +1312,7 @@ function clearAuthSession(feedback = "") {
   clearTagsManagerState();
   setUsersFeedback("");
   setCompositionRequirementsFeedback("");
+  setTeamJoinFeedback("");
   saveAuthSession();
   setAuthFeedback(feedback);
 }
@@ -3797,11 +3827,61 @@ async function loadTeamMembersForSelectedTeam() {
   }
 }
 
+async function loadDiscoverTeamsFromApi() {
+  if (!isAuthenticated()) {
+    state.api.discoverTeams = [];
+    state.api.selectedDiscoverTeamId = "";
+    return false;
+  }
+
+  try {
+    const payload = await apiRequest("/teams/discover", { auth: true });
+    state.api.discoverTeams = Array.isArray(payload?.teams) ? payload.teams : [];
+    const selectedDiscoverTeam = findDiscoverTeamById(state.api.selectedDiscoverTeamId);
+    state.api.selectedDiscoverTeamId = selectedDiscoverTeam
+      ? String(selectedDiscoverTeam.id)
+      : (state.api.discoverTeams[0] ? String(state.api.discoverTeams[0].id) : "");
+    return true;
+  } catch (error) {
+    state.api.discoverTeams = [];
+    state.api.selectedDiscoverTeamId = "";
+    setTeamJoinFeedback(normalizeApiErrorMessage(error, "Failed to load discoverable teams."));
+    return false;
+  }
+}
+
+async function loadPendingJoinRequestsForSelectedTeam() {
+  const selectedTeam = getSelectedAdminTeam();
+  if (!selectedTeam || !isAuthenticated()) {
+    return false;
+  }
+
+  const selectedTeamId = String(selectedTeam.id);
+  const canReview = selectedTeam.membership_role === "lead" || isAdminUser();
+  if (!canReview) {
+    state.api.joinRequestsByTeamId[selectedTeamId] = [];
+    return false;
+  }
+
+  try {
+    const payload = await apiRequest(`/teams/${selectedTeam.id}/join-requests?status=pending`, { auth: true });
+    state.api.joinRequestsByTeamId[selectedTeamId] = Array.isArray(payload?.requests) ? payload.requests : [];
+    return true;
+  } catch (error) {
+    state.api.joinRequestsByTeamId[selectedTeamId] = [];
+    setTeamJoinFeedback(normalizeApiErrorMessage(error, "Failed to load pending join requests."));
+    return false;
+  }
+}
+
 async function loadTeamsFromApi(preferredTeamId = null) {
   if (!isAuthenticated()) {
     state.api.teams = [];
+    state.api.discoverTeams = [];
     state.api.membersByTeamId = {};
+    state.api.joinRequestsByTeamId = {};
     state.api.selectedTeamId = "";
+    state.api.selectedDiscoverTeamId = "";
     return false;
   }
 
@@ -3815,8 +3895,11 @@ async function loadTeamsFromApi(preferredTeamId = null) {
     return true;
   } catch (error) {
     state.api.teams = [];
+    state.api.discoverTeams = [];
     state.api.membersByTeamId = {};
+    state.api.joinRequestsByTeamId = {};
     state.api.selectedTeamId = "";
+    state.api.selectedDiscoverTeamId = "";
     setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to load teams."));
     return false;
   }
@@ -4414,6 +4497,149 @@ function renderTeamAdminCurrentLogo(selectedTeam) {
   }
 }
 
+function renderTeamJoinWorkspace(selectedTeam) {
+  const discoverTeams = Array.isArray(state.api.discoverTeams) ? state.api.discoverTeams : [];
+  const discoverOptions = discoverTeams
+    .map((team) => {
+      const baseLabel = formatTeamCardTitle(team);
+      const pendingStatus = String(team?.pending_join_request_status ?? "").trim().toLowerCase();
+      const membershipRole = String(team?.membership_role ?? "").trim().toLowerCase();
+      if (membershipRole) {
+        return { value: String(team.id), label: `${baseLabel} (member)` };
+      }
+      if (pendingStatus === "pending") {
+        return { value: String(team.id), label: `${baseLabel} (pending)` };
+      }
+      return { value: String(team.id), label: baseLabel };
+    })
+    .sort((left, right) => left.label.localeCompare(right.label));
+
+  if (elements.teamJoinDiscoverSelect) {
+    replaceOptions(elements.teamJoinDiscoverSelect, discoverOptions);
+  }
+
+  const selectedDiscoverTeam =
+    findDiscoverTeamById(state.api.selectedDiscoverTeamId) ??
+    (discoverTeams[0] ?? null);
+  state.api.selectedDiscoverTeamId = selectedDiscoverTeam ? String(selectedDiscoverTeam.id) : "";
+
+  if (elements.teamJoinDiscoverSelect) {
+    elements.teamJoinDiscoverSelect.value = state.api.selectedDiscoverTeamId;
+    elements.teamJoinDiscoverSelect.disabled = !isAuthenticated();
+  }
+
+  const selectedPendingStatus = String(selectedDiscoverTeam?.pending_join_request_status ?? "").trim().toLowerCase();
+  const selectedMembershipRole = String(selectedDiscoverTeam?.membership_role ?? "").trim().toLowerCase();
+  const hasPendingRequest = Number.isInteger(Number(selectedDiscoverTeam?.pending_join_request_id))
+    && selectedPendingStatus === "pending";
+  const canRequestJoin = Boolean(selectedDiscoverTeam) && !selectedMembershipRole && !hasPendingRequest;
+  const canCancelRequest = Boolean(selectedDiscoverTeam) && hasPendingRequest;
+
+  if (elements.teamJoinRequest) {
+    elements.teamJoinRequest.disabled = !isAuthenticated() || !canRequestJoin;
+  }
+  if (elements.teamJoinCancel) {
+    elements.teamJoinCancel.disabled = !isAuthenticated() || !canCancelRequest;
+  }
+  if (elements.teamJoinNote) {
+    elements.teamJoinNote.disabled = !isAuthenticated() || !canRequestJoin;
+  }
+  if (elements.teamJoinLoadDiscover) {
+    elements.teamJoinLoadDiscover.disabled = !isAuthenticated();
+  }
+
+  if (elements.teamJoinDiscoverMeta) {
+    if (!isAuthenticated()) {
+      elements.teamJoinDiscoverMeta.textContent = "Sign in to discover teams and submit join requests.";
+    } else if (!selectedDiscoverTeam) {
+      elements.teamJoinDiscoverMeta.textContent = "Load discover teams to request a position.";
+    } else if (selectedMembershipRole) {
+      elements.teamJoinDiscoverMeta.textContent = `You are already on ${formatTeamCardTitle(selectedDiscoverTeam)} as ${selectedMembershipRole}.`;
+    } else if (hasPendingRequest) {
+      elements.teamJoinDiscoverMeta.textContent = `Pending request to ${formatTeamCardTitle(selectedDiscoverTeam)} is awaiting lead review.`;
+    } else {
+      elements.teamJoinDiscoverMeta.textContent = `Ready to request a position on ${formatTeamCardTitle(selectedDiscoverTeam)}.`;
+    }
+  }
+
+  const canReview = Boolean(selectedTeam) && (selectedTeam.membership_role === "lead" || isAdminUser());
+  if (elements.teamJoinLoadReview) {
+    elements.teamJoinLoadReview.disabled = !isAuthenticated() || !canReview;
+  }
+  if (!elements.teamJoinReviewList) {
+    return;
+  }
+
+  elements.teamJoinReviewList.innerHTML = "";
+  if (!isAuthenticated()) {
+    const message = runtimeDocument.createElement("p");
+    message.className = "meta";
+    message.textContent = "Sign in to review team join requests.";
+    elements.teamJoinReviewList.append(message);
+    return;
+  }
+  if (!selectedTeam) {
+    const message = runtimeDocument.createElement("p");
+    message.className = "meta";
+    message.textContent = "Select a team to review incoming join requests.";
+    elements.teamJoinReviewList.append(message);
+    return;
+  }
+  if (!canReview) {
+    const message = runtimeDocument.createElement("p");
+    message.className = "meta";
+    message.textContent = "Only team leads can review join requests for this team.";
+    elements.teamJoinReviewList.append(message);
+    return;
+  }
+
+  const requests = state.api.joinRequestsByTeamId[String(selectedTeam.id)] ?? [];
+  if (requests.length === 0) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "No pending requests loaded. Use Load Pending Requests.";
+    elements.teamJoinReviewList.append(empty);
+    return;
+  }
+
+  for (const request of requests) {
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card";
+
+    const title = runtimeDocument.createElement("strong");
+    title.textContent = request?.requester?.display_name ?? `User ${request?.requester_user_id ?? "?"}`;
+
+    const lane = runtimeDocument.createElement("p");
+    lane.className = "meta";
+    lane.textContent = `Requested lane: ${request?.requested_lane ?? "Unknown"}`;
+
+    const note = runtimeDocument.createElement("p");
+    note.className = "meta";
+    const trimmedNote = typeof request?.note === "string" ? request.note.trim() : "";
+    note.textContent = trimmedNote ? `Note: ${trimmedNote}` : "Note: (none)";
+
+    const actions = runtimeDocument.createElement("div");
+    actions.className = "button-row";
+
+    const approve = runtimeDocument.createElement("button");
+    approve.type = "button";
+    approve.textContent = "Approve";
+    approve.dataset.teamJoinReviewAction = "approve";
+    approve.dataset.requestId = String(request.id);
+
+    const reject = runtimeDocument.createElement("button");
+    reject.type = "button";
+    reject.className = "ghost";
+    reject.textContent = "Reject";
+    reject.dataset.teamJoinReviewAction = "reject";
+    reject.dataset.requestId = String(request.id);
+
+    actions.append(approve, reject);
+    card.append(title, lane, note, actions);
+    elements.teamJoinReviewList.append(card);
+  }
+}
+
 function sortRosterMembers(members) {
   return [...members].sort((left, right) => {
     const leftLead = left?.role === "lead" ? 0 : 1;
@@ -4730,6 +4956,7 @@ function renderTeamAdmin() {
     elements.teamAdminOpenEdit.disabled = !adminEnabled;
   }
   setTeamCreateControlsDisabled(state.api.isCreatingTeam);
+  renderTeamJoinWorkspace(selectedTeam);
 
   elements.teamAdminMembers.innerHTML = "";
   renderChampionTagEditor();
@@ -6707,6 +6934,7 @@ function syncTagMutualExclusion(changed, includeValuesInput, excludeValuesInput)
 }
 
 async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAdminTeamId = null) {
+  setTeamJoinFeedback("");
   await loadProfileFromApi();
   await loadPoolsFromApi(preferredPoolTeamId);
   await loadTeamsFromApi(preferredAdminTeamId);
@@ -7303,10 +7531,18 @@ function attachEvents() {
 
   elements.teamAdminTeamSelect.addEventListener("change", () => {
     state.api.selectedTeamId = elements.teamAdminTeamSelect.value;
+    state.api.joinRequestsByTeamId[state.api.selectedTeamId] = [];
     void loadTeamMembersForSelectedTeam().then(() => {
       renderTeamAdmin();
     });
   });
+
+  if (elements.teamJoinDiscoverSelect) {
+    elements.teamJoinDiscoverSelect.addEventListener("change", () => {
+      state.api.selectedDiscoverTeamId = elements.teamJoinDiscoverSelect.value;
+      renderTeamAdmin();
+    });
+  }
 
   elements.teamAdminCreate.addEventListener("click", () => {
     void createTeamFromTeamAdmin();
@@ -7317,6 +7553,114 @@ function attachEvents() {
       void loadTeamsFromApi(state.api.selectedTeamId).then(() => {
         renderTeamAdmin();
       });
+    });
+  }
+
+  if (elements.teamJoinLoadDiscover) {
+    elements.teamJoinLoadDiscover.addEventListener("click", () => {
+      void loadDiscoverTeamsFromApi().then(() => {
+        setTeamJoinFeedback("Discover teams loaded.");
+        renderTeamAdmin();
+      });
+    });
+  }
+
+  if (elements.teamJoinRequest) {
+    elements.teamJoinRequest.addEventListener("click", () => {
+      const selectedDiscoverTeam = findDiscoverTeamById(state.api.selectedDiscoverTeamId);
+      if (!selectedDiscoverTeam) {
+        setTeamJoinFeedback("Select a discoverable team first.");
+        return;
+      }
+      const note = typeof elements.teamJoinNote?.value === "string" ? elements.teamJoinNote.value.trim() : "";
+      void apiRequest(`/teams/${selectedDiscoverTeam.id}/join-requests`, {
+        method: "POST",
+        auth: true,
+        body: note ? { note } : {}
+      })
+        .then(async () => {
+          if (elements.teamJoinNote) {
+            elements.teamJoinNote.value = "";
+          }
+          setTeamJoinFeedback(`Submitted join request for ${formatTeamCardTitle(selectedDiscoverTeam)}.`);
+          await loadDiscoverTeamsFromApi();
+          renderTeamAdmin();
+        })
+        .catch((error) => {
+          setTeamJoinFeedback(normalizeApiErrorMessage(error, "Failed to submit join request."));
+        });
+    });
+  }
+
+  if (elements.teamJoinCancel) {
+    elements.teamJoinCancel.addEventListener("click", () => {
+      const selectedDiscoverTeam = findDiscoverTeamById(state.api.selectedDiscoverTeamId);
+      const requestId = Number.parseInt(String(selectedDiscoverTeam?.pending_join_request_id ?? ""), 10);
+      if (!selectedDiscoverTeam || !Number.isInteger(requestId) || requestId <= 0) {
+        setTeamJoinFeedback("No pending join request to cancel for the selected team.");
+        return;
+      }
+      void apiRequest(`/teams/${selectedDiscoverTeam.id}/join-requests/${requestId}`, {
+        method: "DELETE",
+        auth: true
+      })
+        .then(async () => {
+          setTeamJoinFeedback(`Canceled pending request for ${formatTeamCardTitle(selectedDiscoverTeam)}.`);
+          await loadDiscoverTeamsFromApi();
+          renderTeamAdmin();
+        })
+        .catch((error) => {
+          setTeamJoinFeedback(normalizeApiErrorMessage(error, "Failed to cancel join request."));
+        });
+    });
+  }
+
+  if (elements.teamJoinLoadReview) {
+    elements.teamJoinLoadReview.addEventListener("click", () => {
+      void loadPendingJoinRequestsForSelectedTeam().then(() => {
+        setTeamJoinFeedback("Pending join requests loaded.");
+        renderTeamAdmin();
+      });
+    });
+  }
+
+  if (elements.teamJoinReviewList) {
+    elements.teamJoinReviewList.addEventListener("click", (event) => {
+      const actionButton = event.target.closest("button[data-team-join-review-action]");
+      if (!actionButton || actionButton.disabled) {
+        return;
+      }
+      const selectedTeam = getSelectedAdminTeam();
+      if (!selectedTeam) {
+        setTeamJoinFeedback("Select a team first.");
+        return;
+      }
+      const requestId = Number.parseInt(String(actionButton.dataset.requestId ?? ""), 10);
+      if (!Number.isInteger(requestId) || requestId <= 0) {
+        setTeamJoinFeedback("Could not resolve the selected join request.");
+        return;
+      }
+      const action = actionButton.dataset.teamJoinReviewAction;
+      const status = action === "approve" ? "approved" : (action === "reject" ? "rejected" : "");
+      if (!status) {
+        setTeamJoinFeedback("Unsupported join-request action.");
+        return;
+      }
+
+      void apiRequest(`/teams/${selectedTeam.id}/join-requests/${requestId}`, {
+        method: "PUT",
+        auth: true,
+        body: { status }
+      })
+        .then(async () => {
+          setTeamJoinFeedback(status === "approved" ? "Approved join request." : "Rejected join request.");
+          await loadPendingJoinRequestsForSelectedTeam();
+          await loadTeamsFromApi(selectedTeam.id);
+          renderTeamAdmin();
+        })
+        .catch((error) => {
+          setTeamJoinFeedback(normalizeApiErrorMessage(error, "Failed to update join request."));
+        });
     });
   }
 
@@ -7641,6 +7985,7 @@ async function init() {
       loadStoredPlayerConfig();
       setPoolApiFeedback("Sign in to manage API-backed pools.");
       setTeamAdminFeedback("Sign in to manage teams.");
+      setTeamJoinFeedback("Sign in to request or review team join requests.");
       setProfileRolesFeedback("");
       setUsersFeedback("Sign in as admin to manage users.");
       setCompositionRequirementsFeedback("Sign in to load composition requirements.");

@@ -355,6 +355,22 @@ function mapConstraintError(error) {
   return error;
 }
 
+function mapTeamMutationConstraintError(error) {
+  if (!error || typeof error !== "object" || error.code !== "23505") {
+    return error;
+  }
+
+  const constraint = typeof error.constraint === "string" ? error.constraint : "";
+  if (constraint === "teams_name_lower_unique_idx") {
+    return conflict("Team name already exists.");
+  }
+  if (constraint === "teams_tag_lower_unique_idx") {
+    return conflict("Team tag already exists.");
+  }
+
+  return conflict("Team already exists.");
+}
+
 function assertUserHasPrimaryLane(user) {
   const lane = typeof user?.primary_role === "string" ? user.primary_role : null;
   if (!lane || !ALLOWED_LANES.has(lane)) {
@@ -417,13 +433,18 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
       allowRemoveLogo: false
     });
 
-    const team = await teamsRepository.createTeam({
-      name,
-      tag,
-      logoBlob,
-      logoMimeType,
-      creatorUserId: userId
-    });
+    let team;
+    try {
+      team = await teamsRepository.createTeam({
+        name,
+        tag,
+        logoBlob,
+        logoMimeType,
+        creatorUserId: userId
+      });
+    } catch (error) {
+      throw mapTeamMutationConstraintError(error);
+    }
 
     const creator = await usersRepository.findById(userId);
     const membershipLane = creator?.primary_role ?? null;
@@ -459,13 +480,18 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
     });
 
     const leadMembership = await requireTeamLeadOrAdmin(teamId, userId, teamsRepository, usersRepository);
-    const updated = await teamsRepository.updateTeam(teamId, {
-      name,
-      tag,
-      logoBlob,
-      logoMimeType,
-      removeLogo
-    });
+    let updated;
+    try {
+      updated = await teamsRepository.updateTeam(teamId, {
+        name,
+        tag,
+        logoBlob,
+        logoMimeType,
+        removeLogo
+      });
+    } catch (error) {
+      throw mapTeamMutationConstraintError(error);
+    }
     if (!updated) {
       throw notFound("Team not found.");
     }
