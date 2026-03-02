@@ -152,7 +152,7 @@ const UI_COPY = Object.freeze({
       },
       users: {
         title: "Users",
-        subtitle: "Admin-only user directory and permission controls."
+        subtitle: "Admin-only directory for permissions and one-time Riot ID corrections."
       },
       "composition-requirements": {
         title: "Composition Requirements",
@@ -190,7 +190,7 @@ const UI_COPY = Object.freeze({
     tagsTitle: "Tags",
     tagsMeta: "Review tag categories and current champion coverage.",
     usersTitle: "Users",
-    usersMeta: "Admin-only user directory and permission management.",
+    usersMeta: "Admin-only user directory, permission management, and one-time Riot ID corrections.",
     compositionRequirementsTitle: "Composition Requirements",
     compositionRequirementsMeta: "Create and maintain named requirement profiles for Composer.",
     teamConfigTitle: "Teams",
@@ -323,6 +323,7 @@ function createInitialState() {
       users: [],
       isLoadingUsers: false,
       savingUserRoleId: null,
+      savingUserRiotIdId: null,
       compositionRequirements: [],
       selectedCompositionRequirementId: null,
       compositionRequirementDraft: createEmptyCompositionRequirementDraft(),
@@ -1269,6 +1270,7 @@ function clearAuthSession(feedback = "") {
   state.api.users = [];
   state.api.isLoadingUsers = false;
   state.api.savingUserRoleId = null;
+  state.api.savingUserRiotIdId = null;
   state.api.compositionRequirements = [];
   state.api.selectedCompositionRequirementId = null;
   state.api.compositionRequirementDraft = createEmptyCompositionRequirementDraft();
@@ -2583,12 +2585,23 @@ function normalizeApiAdminUser(rawUser) {
   if (!email) {
     return null;
   }
+  const gameName = typeof rawUser.game_name === "string" ? rawUser.game_name.trim() : "";
+  const tagline = typeof rawUser.tagline === "string" ? rawUser.tagline.trim() : "";
   const riotId = typeof rawUser.riot_id === "string" ? rawUser.riot_id.trim() : "";
+  const correctionCountRaw = Number.parseInt(String(rawUser.riot_id_correction_count ?? 0), 10);
+  const correctionCount = Number.isInteger(correctionCountRaw) && correctionCountRaw >= 0 ? correctionCountRaw : 0;
+  const canUpdateRiotId = rawUser.can_update_riot_id === false
+    ? false
+    : (rawUser.can_update_riot_id === true || correctionCount < 1);
   return {
     id,
     email,
     role: normalizeApiUserRole(rawUser.role),
-    riot_id: riotId
+    game_name: gameName,
+    tagline,
+    riot_id: riotId,
+    riot_id_correction_count: correctionCount,
+    can_update_riot_id: canUpdateRiotId
   };
 }
 
@@ -2649,6 +2662,47 @@ async function saveUserRoleFromWorkspace(userId, role) {
   }
 }
 
+async function saveUserRiotIdFromWorkspace(userId, gameName, tagline) {
+  if (!isAuthenticated() || !isAdminUser()) {
+    return;
+  }
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return;
+  }
+
+  const normalizedGameName = typeof gameName === "string" ? gameName.trim() : "";
+  const normalizedTagline = typeof tagline === "string" ? tagline.trim() : "";
+  if (!normalizedGameName || !normalizedTagline) {
+    setUsersFeedback("Game Name and Tagline are required for Riot ID correction.");
+    return;
+  }
+
+  state.api.savingUserRiotIdId = userId;
+  setUsersFeedback("Saving Riot ID correction...");
+  renderUsersWorkspace();
+
+  try {
+    const payload = await apiRequest(`/admin/users/${userId}/riot-id`, {
+      method: "PUT",
+      auth: true,
+      body: {
+        gameName: normalizedGameName,
+        tagline: normalizedTagline
+      }
+    });
+    const updated = normalizeApiAdminUser(payload?.user);
+    if (updated) {
+      state.api.users = state.api.users.map((candidate) => (candidate.id === updated.id ? updated : candidate));
+    }
+    setUsersFeedback("Riot ID correction saved.");
+  } catch (error) {
+    setUsersFeedback(normalizeApiErrorMessage(error, "Failed to save Riot ID correction."));
+  } finally {
+    state.api.savingUserRiotIdId = null;
+    renderUsersWorkspace();
+  }
+}
+
 function renderUsersWorkspace() {
   if (!elements.usersList || !elements.usersAccess) {
     return;
@@ -2690,6 +2744,9 @@ function renderUsersWorkspace() {
   for (const user of users) {
     const card = runtimeDocument.createElement("article");
     card.className = "summary-card";
+    const isSavingRole = state.api.savingUserRoleId === user.id;
+    const isSavingRiotId = state.api.savingUserRiotIdId === user.id;
+    const isSavingAnyUserAction = isSavingRole || isSavingRiotId;
 
     const title = runtimeDocument.createElement("strong");
     title.textContent = user.email;
@@ -2712,13 +2769,50 @@ function renderUsersWorkspace() {
         ];
     replaceOptions(roleSelect, options);
     roleSelect.value = normalizeApiUserRole(user.role);
-    roleSelect.disabled = state.api.savingUserRoleId === user.id;
+    roleSelect.disabled = isSavingAnyUserAction;
     roleSelect.addEventListener("change", () => {
       void saveUserRoleFromWorkspace(user.id, roleSelect.value);
     });
 
+    const riotCorrectionLabel = runtimeDocument.createElement("label");
+    riotCorrectionLabel.className = "meta";
+    riotCorrectionLabel.textContent = "Riot ID Correction (one-time)";
+
+    const riotCorrectionGameName = runtimeDocument.createElement("input");
+    riotCorrectionGameName.type = "text";
+    riotCorrectionGameName.placeholder = "Game Name";
+    riotCorrectionGameName.value = typeof user.game_name === "string" ? user.game_name : "";
+
+    const riotCorrectionTagline = runtimeDocument.createElement("input");
+    riotCorrectionTagline.type = "text";
+    riotCorrectionTagline.placeholder = "Tagline";
+    riotCorrectionTagline.value = typeof user.tagline === "string" ? user.tagline : "";
+
+    const canUpdateRiotId = user.can_update_riot_id === true;
+    riotCorrectionGameName.disabled = isSavingAnyUserAction || !canUpdateRiotId;
+    riotCorrectionTagline.disabled = isSavingAnyUserAction || !canUpdateRiotId;
+
+    const riotCorrectionSave = runtimeDocument.createElement("button");
+    riotCorrectionSave.type = "button";
+    riotCorrectionSave.textContent = isSavingRiotId ? "Saving..." : "Save Riot ID";
+    riotCorrectionSave.disabled = isSavingAnyUserAction || !canUpdateRiotId;
+    riotCorrectionSave.addEventListener("click", () => {
+      void saveUserRiotIdFromWorkspace(user.id, riotCorrectionGameName.value, riotCorrectionTagline.value);
+    });
+
+    const riotCorrectionMeta = runtimeDocument.createElement("p");
+    riotCorrectionMeta.className = "meta";
+    riotCorrectionMeta.textContent = canUpdateRiotId
+      ? "One-time correction available."
+      : "One-time correction already used.";
+
+    const riotCorrectionControls = runtimeDocument.createElement("div");
+    riotCorrectionControls.className = "button-row";
+    riotCorrectionControls.append(riotCorrectionGameName, riotCorrectionTagline, riotCorrectionSave);
+
     roleLabel.append(runtimeDocument.createElement("br"), roleSelect);
-    card.append(title, riot, roleLabel);
+    riotCorrectionLabel.append(runtimeDocument.createElement("br"), riotCorrectionControls);
+    card.append(title, riot, roleLabel, riotCorrectionLabel, riotCorrectionMeta);
     elements.usersList.append(card);
   }
 }

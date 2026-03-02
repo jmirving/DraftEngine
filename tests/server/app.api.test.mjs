@@ -27,6 +27,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         secondary_roles: ["Top"],
         default_team_id: null,
         active_team_id: null,
+        riot_id_correction_count: 0,
         created_at: "2026-01-01T00:00:00.000Z"
       },
       {
@@ -40,6 +41,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         secondary_roles: ["ADC"],
         default_team_id: null,
         active_team_id: null,
+        riot_id_correction_count: 0,
         created_at: "2026-01-01T00:00:00.000Z"
       },
       {
@@ -53,6 +55,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         secondary_roles: [],
         default_team_id: null,
         active_team_id: null,
+        riot_id_correction_count: 0,
         created_at: "2026-01-01T00:00:00.000Z"
       },
       {
@@ -66,6 +69,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         secondary_roles: [],
         default_team_id: null,
         active_team_id: null,
+        riot_id_correction_count: 0,
         created_at: "2026-01-01T00:00:00.000Z"
       },
       {
@@ -79,6 +83,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         secondary_roles: ["Top"],
         default_team_id: null,
         active_team_id: null,
+        riot_id_correction_count: 0,
         created_at: "2026-01-01T00:00:00.000Z"
       }
     ],
@@ -182,6 +187,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         secondary_roles: [],
         default_team_id: null,
         active_team_id: null,
+        riot_id_correction_count: 0,
         created_at: "2026-01-01T00:00:00.000Z"
       };
       nextUserId += 1;
@@ -194,6 +200,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         role: user.role,
         primary_role: user.primary_role,
         secondary_roles: user.secondary_roles,
+        riot_id_correction_count: user.riot_id_correction_count,
         created_at: user.created_at
       };
     },
@@ -238,6 +245,21 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         return null;
       }
       user.role = role;
+      return user;
+    },
+
+    async updateUserRiotIdOneTime(userId, { gameName, tagline }) {
+      const user = state.users.find((candidate) => candidate.id === userId) ?? null;
+      if (!user) {
+        return null;
+      }
+      const correctionCount = Number.parseInt(String(user.riot_id_correction_count ?? 0), 10);
+      if (Number.isInteger(correctionCount) && correctionCount >= 1) {
+        return null;
+      }
+      user.game_name = gameName;
+      user.tagline = tagline;
+      user.riot_id_correction_count = (Number.isInteger(correctionCount) ? correctionCount : 0) + 1;
       return user;
     },
 
@@ -1491,6 +1513,12 @@ describe("API routes", () => {
       .set("Authorization", buildAuthHeader(2, config));
     expect(memberDenied.status).toBe(403);
 
+    const memberDeniedRiotIdUpdate = await request(app)
+      .put("/admin/users/2/riot-id")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({ gameName: "CorrectedName", tagline: "NA1" });
+    expect(memberDeniedRiotIdUpdate.status).toBe(403);
+
     const adminList = await request(app)
       .get("/admin/users")
       .set("Authorization", buildAuthHeader(1, config));
@@ -1503,6 +1531,21 @@ describe("API routes", () => {
       .send({ role: "global" });
     expect(promoteGlobal.status).toBe(200);
     expect(promoteGlobal.body.user.role).toBe("global");
+
+    const adminCorrectRiotId = await request(app)
+      .put("/admin/users/2/riot-id")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({ gameName: "MemberRenamed", tagline: "NA9" });
+    expect(adminCorrectRiotId.status).toBe(200);
+    expect(adminCorrectRiotId.body.user.riot_id).toBe("MemberRenamed#NA9");
+    expect(adminCorrectRiotId.body.user.can_update_riot_id).toBe(false);
+
+    const secondCorrectionRejected = await request(app)
+      .put("/admin/users/2/riot-id")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({ gameName: "SecondRename", tagline: "NA1" });
+    expect(secondCorrectionRejected.status).toBe(400);
+    expect(secondCorrectionRejected.body.error.code).toBe("BAD_REQUEST");
 
     const globalCanCreateTag = await request(app)
       .post("/tags")

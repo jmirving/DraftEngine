@@ -137,13 +137,21 @@ function createFetchHarness({
       id: 11,
       email: resolvedLoginUser.email,
       role: typeof resolvedLoginUser.role === "string" ? resolvedLoginUser.role : "admin",
-      riot_id: `${resolvedLoginUser.gameName}#${resolvedLoginUser.tagline}`
+      game_name: resolvedLoginUser.gameName,
+      tagline: resolvedLoginUser.tagline,
+      riot_id: `${resolvedLoginUser.gameName}#${resolvedLoginUser.tagline}`,
+      riot_id_correction_count: 0,
+      can_update_riot_id: true
     },
     {
       id: 22,
       email: "member@example.com",
       role: "member",
-      riot_id: "Member#NA1"
+      game_name: "Member",
+      tagline: "NA1",
+      riot_id: "Member#NA1",
+      riot_id_correction_count: 0,
+      can_update_riot_id: true
     }
   ];
 
@@ -485,6 +493,43 @@ function createFetchHarness({
         return createJsonResponse({ error: { code: "NOT_FOUND", message: "User not found." } }, 404);
       }
       user.role = typeof body?.role === "string" ? body.role : user.role;
+      return createJsonResponse({ user });
+    }
+
+    const adminUserRiotIdMatch = path.match(/^\/admin\/users\/(\d+)\/riot-id$/);
+    if (adminUserRiotIdMatch && method === "PUT") {
+      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
+      if (!isAdmin) {
+        return createJsonResponse(
+          { error: { code: "FORBIDDEN", message: "Only admins can update user Riot ID." } },
+          403
+        );
+      }
+      const targetUserId = Number(adminUserRiotIdMatch[1]);
+      const user = adminUsers.find((candidate) => candidate.id === targetUserId) ?? null;
+      if (!user) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "User not found." } }, 404);
+      }
+      const correctionCount = Number.parseInt(String(user.riot_id_correction_count ?? 0), 10);
+      if (Number.isInteger(correctionCount) && correctionCount >= 1) {
+        return createJsonResponse(
+          { error: { code: "BAD_REQUEST", message: "This user's one-time Riot ID correction has already been used." } },
+          400
+        );
+      }
+      const nextGameName = typeof body?.gameName === "string" ? body.gameName.trim() : "";
+      const nextTagline = typeof body?.tagline === "string" ? body.tagline.trim() : "";
+      if (!nextGameName || !nextTagline) {
+        return createJsonResponse(
+          { error: { code: "BAD_REQUEST", message: "Expected 'gameName' and 'tagline'." } },
+          400
+        );
+      }
+      user.game_name = nextGameName;
+      user.tagline = nextTagline;
+      user.riot_id = `${nextGameName}#${nextTagline}`;
+      user.riot_id_correction_count = (Number.isInteger(correctionCount) ? correctionCount : 0) + 1;
+      user.can_update_riot_id = false;
       return createJsonResponse({ user });
     }
 
@@ -1435,7 +1480,7 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#tags-workspace-summary").textContent).toContain("3 tags");
   });
 
-  test("users workspace lists users and updates permissions", async () => {
+  test("users workspace lists users, updates permissions, and supports one-time Riot ID correction", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -1465,6 +1510,35 @@ describe("auth + pools + team management", () => {
     );
     expect(roleUpdateCall).toBeTruthy();
     expect(roleUpdateCall.body.role).toBe("global");
+
+    const memberCard = [...doc.querySelectorAll("#users-list .summary-card")].find((card) =>
+      card.textContent.includes("member@example.com")
+    );
+    const correctionGameNameInput = memberCard?.querySelector("input[placeholder='Game Name']");
+    const correctionTaglineInput = memberCard?.querySelector("input[placeholder='Tagline']");
+    const correctionSaveButton = [...(memberCard?.querySelectorAll("button") ?? [])].find(
+      (button) => button.textContent.trim() === "Save Riot ID"
+    );
+    expect(correctionGameNameInput).toBeTruthy();
+    expect(correctionTaglineInput).toBeTruthy();
+    expect(correctionSaveButton).toBeTruthy();
+
+    correctionGameNameInput.value = "MemberRenamed";
+    correctionTaglineInput.value = "NA9";
+    correctionSaveButton.click();
+    await flush();
+    await flush();
+
+    const riotIdUpdateCall = harness.calls.find(
+      (call) => call.path === "/admin/users/22/riot-id" && call.method === "PUT"
+    );
+    expect(riotIdUpdateCall).toBeTruthy();
+    expect(riotIdUpdateCall.body).toEqual({
+      gameName: "MemberRenamed",
+      tagline: "NA9"
+    });
+    expect(doc.querySelector("#users-list").textContent).toContain("Riot ID: MemberRenamed#NA9");
+    expect(doc.querySelector("#users-list").textContent).toContain("One-time correction already used.");
   });
 
   test("composition requirements workspace creates requirement profiles", async () => {
