@@ -374,7 +374,7 @@ describe("hash navigation routing", () => {
     expect(doc.querySelector("#tags-title").textContent).toBe("Tags");
   });
 
-  test("coming soon categories follow stable page order", async () => {
+  test("updates page clearly separates What's New from Coming Soon", async () => {
     const harness = createFetchHarness();
     const { dom } = await bootApp({
       url: "http://localhost/public/index.html#workflow",
@@ -385,12 +385,17 @@ describe("hash navigation routing", () => {
 
     doc.querySelector(".side-menu-link[data-tab='coming-soon']").click();
 
-    const headings = Array.from(
+    const primaryHeadings = Array.from(
       doc.querySelectorAll("#tab-coming-soon .panel.draft-board-panel h3"),
       (node) => node.textContent.trim()
     );
-    expect(headings).toEqual([
-      "What's New in Version 0.3.0",
+    expect(primaryHeadings).toEqual(["What's New", "Coming Soon"]);
+
+    const comingSoonCategories = Array.from(
+      doc.querySelectorAll("#tab-coming-soon .panel.draft-board-panel h4"),
+      (node) => node.textContent.trim()
+    ).filter((heading) => !heading.startsWith("Version "));
+    expect(comingSoonCategories).toEqual([
       "General",
       "Profile",
       "Composer",

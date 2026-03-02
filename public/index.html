@@ -774,7 +774,15 @@
               <p id="coming-soon-meta" class="meta">Latest shipped changes plus known gaps and planned follow-up grouped by workspace page.</p>
             </div>
             <div class="panel draft-board-panel">
-              <h3>What's New in Version 0.3.0</h3>
+              <h3>What's New</h3>
+              <p class="meta">Shipped updates that are available now.</p>
+              <h4>Version 0.3.1 (March 2, 2026)</h4>
+              <ul class="coming-soon-list">
+                <li>Aligned the champion tag editor "Human reviewed" checkbox control for consistent label/checkbox layout</li>
+                <li>Aligned the Composition Requirements "Set as active profile" checkbox control with the Requirements editor layout</li>
+                <li>Reorganized this Updates page so shipped changes and roadmap items are split into separate sections</li>
+              </ul>
+              <h4>Version 0.3.0</h4>
               <ul class="coming-soon-list">
                 <li>Owner admin can now manage team roster actions (including member removal) even when not assigned as a team lead</li>
                 <li>Users workspace now supports one-time admin Riot ID corrections for mistyped Game Name/Tagline entries</li>
@@ -784,43 +792,46 @@
                 <li>Global editor role now supports global champion-tag and tag-catalog writes without full admin access (draftflow-153)</li>
                 <li>Users workspace now supports permanent deletion of non-owner accounts for demo-user cleanup</li>
               </ul>
-              <h3>General</h3>
+              <hr class="updates-divider" />
+              <h3>Coming Soon</h3>
+              <p class="meta">Deferred and planned follow-up work by workspace page.</p>
+              <h4>General</h4>
               <ul class="coming-soon-list">
                 <li>Champion catalog refresh checks are still manual; automatic release ingestion is not enabled yet (draftflow-129)</li>
                 <li>Admin safeguards and governance guardrails still need hardening for high-impact global edits (draftflow-147)</li>
               </ul>
-              <h3>Profile</h3>
+              <h4>Profile</h4>
               <ul class="coming-soon-list">
                 <li>Set your champion familiarity level in your personal pool (draftflow-144)</li>
                 <li>Get champion pool suggestions based on your real League match history (draftflow-145)</li>
                 <li>Live Riot champion stats in Profile remain a placeholder until the full implementation is shipped (draftflow-146)</li>
               </ul>
-              <h3>Composer</h3>
+              <h4>Composer</h4>
               <ul class="coming-soon-list">
                 <li>Composer currently starts from the active Composition Requirement profile, but per-team and per-user profile overlays are still deferred (draftflow-160)</li>
               </ul>
-              <h3>Teams</h3>
+              <h4>Teams</h4>
               <ul class="coming-soon-list">
                 <li>Team join request flows are API-ready, but request/review controls are not exposed in Teams yet (draftflow-132)</li>
                 <li>Teams member actions require exact Riot ID entry (`GameName#Tagline`); search/autocomplete is not implemented yet (draftflow-139)</li>
                 <li>Request a position on an existing team from the Teams workspace UI (draftflow-132)</li>
                 <li>Team leads can accept or decline incoming team requests from the Teams workspace UI (draftflow-132)</li>
               </ul>
-              <h3>Champions</h3>
+              <h4>Champions</h4>
               <ul class="coming-soon-list">
                 <li>Champion review state currently tracks boolean + reviewer metadata only; audit history and review notes are deferred (draftflow-159)</li>
                 <li>Ship champion auto-ingest now that global champion-tag persistence is in place (draftflow-129)</li>
               </ul>
-              <h3>Tags</h3>
+              <h4>Tags</h4>
               <ul class="coming-soon-list">
                 <li>Global editor permissions currently target tag-catalog and champion-tag writes only; finer-grained policy controls are deferred (draftflow-161)</li>
               </ul>
-              <h3>Users</h3>
+              <h4>Users</h4>
               <ul class="coming-soon-list">
                 <li>User search, filtering, and bulk permission updates are not implemented yet (draftflow-157)</li>
                 <li>User deletion is currently hard-delete only; restore/undo and deletion audit history are deferred</li>
               </ul>
-              <h3>Composition Requirements</h3>
+              <h4>Composition Requirements</h4>
               <ul class="coming-soon-list">
                 <li>Requirement profiles support toggle-based rules today; custom rule definitions and version history are deferred (draftflow-158)</li>
               </ul>
