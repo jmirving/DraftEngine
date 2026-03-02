@@ -91,6 +91,44 @@ function mapJoinRequestRow(row) {
   };
 }
 
+function mapMemberInvitationRow(row) {
+  const targetUserId = Number(row.target_user_id);
+  return {
+    id: Number(row.id),
+    team_id: Number(row.team_id),
+    target_user_id: targetUserId,
+    requested_lane: row.requested_lane,
+    note: row.note ?? "",
+    status: row.status,
+    role: row.role,
+    team_role: row.team_role,
+    invited_by_user_id: Number(row.invited_by_user_id),
+    reviewed_by_user_id:
+      row.reviewed_by_user_id === null || row.reviewed_by_user_id === undefined
+        ? null
+        : Number(row.reviewed_by_user_id),
+    reviewed_at: row.reviewed_at,
+    created_at: row.created_at,
+    target: {
+      user_id: targetUserId,
+      email: row.target_email ?? null,
+      game_name: row.target_game_name ?? "",
+      tagline: row.target_tagline ?? "",
+      primary_role: row.target_primary_role ?? null,
+      display_name: buildIdentityDisplayName({
+        gameName: row.target_game_name,
+        tagline: row.target_tagline,
+        email: row.target_email,
+        fallbackUserId: targetUserId
+      })
+    },
+    team: {
+      name: row.team_name ?? null,
+      tag: row.team_tag ?? null
+    }
+  };
+}
+
 function mapDiscoverableTeamRow(row) {
   const mapped = mapTeamRow(row);
   return {
@@ -584,6 +622,306 @@ export function createTeamsRepository(pool) {
         `,
         [teamId, requesterUserId]
       );
+    }
+
+    async createMemberInvitation({
+      teamId,
+      targetUserId,
+      invitedByUserId,
+      requestedLane,
+      note = "",
+      role = "member",
+      teamRole = "primary"
+    }) {
+      const result = await pool.query(
+        `
+          INSERT INTO team_member_invitations (
+            team_id,
+            target_user_id,
+            invited_by_user_id,
+            requested_lane,
+            note,
+            role,
+            team_role
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          RETURNING id,
+                    team_id,
+                    target_user_id,
+                    requested_lane,
+                    note,
+                    status,
+                    role,
+                    team_role,
+                    invited_by_user_id,
+                    reviewed_by_user_id,
+                    reviewed_at,
+                    created_at
+        `,
+        [teamId, targetUserId, invitedByUserId, requestedLane, note, role, teamRole]
+      );
+
+      return result.rows[0] ? mapMemberInvitationRow(result.rows[0]) : null;
+    },
+
+    async listMemberInvitationsForTeam(teamId, { status = null } = {}) {
+      const parameters = [teamId];
+      let statusPredicate = "";
+      if (status) {
+        parameters.push(status);
+        statusPredicate = "AND inv.status = $2";
+      }
+
+      const result = await pool.query(
+        `
+          SELECT inv.id,
+                 inv.team_id,
+                 inv.target_user_id,
+                 inv.requested_lane,
+                 inv.note,
+                 inv.status,
+                 inv.role,
+                 inv.team_role,
+                 inv.invited_by_user_id,
+                 inv.reviewed_by_user_id,
+                 inv.reviewed_at,
+                 inv.created_at,
+                 target.email AS target_email,
+                 target.game_name AS target_game_name,
+                 target.tagline AS target_tagline,
+                 target.primary_role AS target_primary_role,
+                 team.name AS team_name,
+                 team.tag AS team_tag
+          FROM team_member_invitations inv
+          INNER JOIN users target
+            ON target.id = inv.target_user_id
+          LEFT JOIN teams team
+            ON team.id = inv.team_id
+          WHERE inv.team_id = $1
+          ${statusPredicate}
+          ORDER BY inv.created_at ASC, inv.id ASC
+        `,
+        parameters
+      );
+
+      return result.rows.map(mapMemberInvitationRow);
+    },
+
+    async listMemberInvitationsForUser(targetUserId, { status = null } = {}) {
+      const parameters = [targetUserId];
+      let statusPredicate = "";
+      if (status) {
+        parameters.push(status);
+        statusPredicate = "AND inv.status = $2";
+      }
+
+      const result = await pool.query(
+        `
+          SELECT inv.id,
+                 inv.team_id,
+                 inv.target_user_id,
+                 inv.requested_lane,
+                 inv.note,
+                 inv.status,
+                 inv.role,
+                 inv.team_role,
+                 inv.invited_by_user_id,
+                 inv.reviewed_by_user_id,
+                 inv.reviewed_at,
+                 inv.created_at,
+                 target.email AS target_email,
+                 target.game_name AS target_game_name,
+                 target.tagline AS target_tagline,
+                 target.primary_role AS target_primary_role,
+                 team.name AS team_name,
+                 team.tag AS team_tag
+          FROM team_member_invitations inv
+          INNER JOIN users target
+            ON target.id = inv.target_user_id
+          LEFT JOIN teams team
+            ON team.id = inv.team_id
+          WHERE inv.target_user_id = $1
+          ${statusPredicate}
+          ORDER BY inv.created_at ASC, inv.id ASC
+        `,
+        parameters
+      );
+
+      return result.rows.map(mapMemberInvitationRow);
+    },
+
+    async getMemberInvitation(teamId, invitationId) {
+      const result = await pool.query(
+        `
+          SELECT inv.id,
+                 inv.team_id,
+                 inv.target_user_id,
+                 inv.requested_lane,
+                 inv.note,
+                 inv.status,
+                 inv.role,
+                 inv.team_role,
+                 inv.invited_by_user_id,
+                 inv.reviewed_by_user_id,
+                 inv.reviewed_at,
+                 inv.created_at,
+                 target.email AS target_email,
+                 target.game_name AS target_game_name,
+                 target.tagline AS target_tagline,
+                 target.primary_role AS target_primary_role,
+                 team.name AS team_name,
+                 team.tag AS team_tag
+          FROM team_member_invitations inv
+          INNER JOIN users target
+            ON target.id = inv.target_user_id
+          LEFT JOIN teams team
+            ON team.id = inv.team_id
+          WHERE inv.team_id = $1
+            AND inv.id = $2
+        `,
+        [teamId, invitationId]
+      );
+
+      return result.rows[0] ? mapMemberInvitationRow(result.rows[0]) : null;
+    },
+
+    async setMemberInvitationStatus(teamId, invitationId, { status, reviewedByUserId }) {
+      const result = await pool.query(
+        `
+          UPDATE team_member_invitations
+          SET status = $3,
+              reviewed_by_user_id = $4,
+              reviewed_at = current_timestamp
+          WHERE team_id = $1
+            AND id = $2
+            AND status = 'pending'
+          RETURNING id,
+                    team_id,
+                    target_user_id,
+                    requested_lane,
+                    note,
+                    status,
+                    role,
+                    team_role,
+                    invited_by_user_id,
+                    reviewed_by_user_id,
+                    reviewed_at,
+                    created_at
+        `,
+        [teamId, invitationId, status, reviewedByUserId]
+      );
+
+      return result.rows[0] ? mapMemberInvitationRow(result.rows[0]) : null;
+    },
+
+    async acceptMemberInvitation(teamId, invitationId, { reviewedByUserId }) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+
+        const invitationResult = await client.query(
+          `
+            SELECT id,
+                   team_id,
+                   target_user_id,
+                   requested_lane,
+                   note,
+                   status,
+                   role,
+                   team_role,
+                   invited_by_user_id
+            FROM team_member_invitations
+            WHERE team_id = $1
+              AND id = $2
+              AND status = 'pending'
+            FOR UPDATE
+          `,
+          [teamId, invitationId]
+        );
+
+        if (invitationResult.rowCount === 0) {
+          await client.query("ROLLBACK");
+          return null;
+        }
+
+        const invitation = invitationResult.rows[0];
+
+        const membershipCheck = await client.query(
+          `
+            SELECT 1
+            FROM team_members
+            WHERE team_id = $1
+              AND user_id = $2
+          `,
+          [teamId, invitation.target_user_id]
+        );
+        if (membershipCheck.rowCount > 0) {
+          await client.query("ROLLBACK");
+          const error = new Error("Membership already exists.");
+          error.code = "23505";
+          throw error;
+        }
+
+        await client.query(
+          `
+            INSERT INTO team_members (team_id, user_id, role, team_role)
+            VALUES ($1, $2, $3, $4)
+          `,
+          [teamId, invitation.target_user_id, invitation.role, invitation.team_role]
+        );
+
+        await client.query(
+          `
+            UPDATE team_member_invitations
+            SET status = 'accepted',
+                reviewed_by_user_id = $3,
+                reviewed_at = current_timestamp
+            WHERE team_id = $1
+              AND id = $2
+          `,
+          [teamId, invitationId, reviewedByUserId]
+        );
+
+        const refreshed = await client.query(
+          `
+            SELECT inv.id,
+                   inv.team_id,
+                   inv.target_user_id,
+                   inv.requested_lane,
+                   inv.note,
+                   inv.status,
+                   inv.role,
+                   inv.team_role,
+                   inv.invited_by_user_id,
+                   inv.reviewed_by_user_id,
+                   inv.reviewed_at,
+                   inv.created_at,
+                   target.email AS target_email,
+                   target.game_name AS target_game_name,
+                   target.tagline AS target_tagline,
+                   target.primary_role AS target_primary_role,
+                   team.name AS team_name,
+                   team.tag AS team_tag
+            FROM team_member_invitations inv
+            INNER JOIN users target
+              ON target.id = inv.target_user_id
+            LEFT JOIN teams team
+              ON team.id = inv.team_id
+            WHERE inv.team_id = $1
+              AND inv.id = $2
+          `,
+          [teamId, invitationId]
+        );
+
+        await client.query("COMMIT");
+
+        return refreshed.rows[0] ? mapMemberInvitationRow(refreshed.rows[0]) : null;
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
     }
   };
 }

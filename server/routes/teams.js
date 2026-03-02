@@ -10,6 +10,8 @@ const ALLOWED_TEAM_ROLES = new Set(["primary", "substitute"]);
 const ALLOWED_LANES = new Set(["Top", "Jungle", "Mid", "ADC", "Support"]);
 const ALLOWED_JOIN_REQUEST_STATUSES = new Set(["pending", "approved", "rejected"]);
 const ALLOWED_JOIN_REQUEST_DECISIONS = new Set(["approved", "rejected"]);
+const ALLOWED_INVITATION_STATUSES = new Set(["pending", "accepted", "rejected", "canceled"]);
+const ALLOWED_INVITATION_DECISIONS = new Set(["accepted", "rejected", "canceled"]);
 const ALLOWED_LOGO_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const MAX_LOGO_BYTES = 512 * 1024;
 const MAX_JOIN_REQUEST_NOTE_LENGTH = 280;
@@ -252,6 +254,52 @@ function parseJoinRequestDecision(rawStatus) {
   return normalized;
 }
 
+function parseInvitationListStatus(rawStatus) {
+  if (rawStatus === undefined || rawStatus === null || rawStatus === "" || rawStatus === "all") {
+    return null;
+  }
+
+  if (typeof rawStatus !== "string") {
+    throw badRequest("Expected 'status' to be one of: pending, accepted, rejected, canceled, all.");
+  }
+
+  const normalized = rawStatus.trim().toLowerCase();
+  if (!ALLOWED_INVITATION_STATUSES.has(normalized)) {
+    throw badRequest("Expected 'status' to be one of: pending, accepted, rejected, canceled, all.");
+  }
+
+  return normalized;
+}
+
+function parseInvitationDecision(rawStatus) {
+  if (typeof rawStatus !== "string" || rawStatus.trim() === "") {
+    throw badRequest("Expected 'status' to be one of: accepted, rejected, canceled.");
+  }
+
+  const normalized = rawStatus.trim().toLowerCase();
+  if (!ALLOWED_INVITATION_DECISIONS.has(normalized)) {
+    throw badRequest("Expected 'status' to be one of: accepted, rejected, canceled.");
+  }
+
+  return normalized;
+}
+
+function parseInvitationLane(rawLane) {
+  if (rawLane === undefined || rawLane === null || rawLane === "") {
+    return null;
+  }
+
+  if (typeof rawLane !== "string") {
+    throw badRequest("Expected 'requested_lane' to be one of: Top, Jungle, Mid, ADC, Support.");
+  }
+
+  const normalized = rawLane.trim();
+  if (!ALLOWED_LANES.has(normalized)) {
+    throw badRequest("Expected 'requested_lane' to be one of: Top, Jungle, Mid, ADC, Support.");
+  }
+  return normalized;
+}
+
 function buildIdentityDisplayName(identity) {
   const gameName = typeof identity?.game_name === "string" ? identity.game_name.trim() : "";
   const tagline = typeof identity?.tagline === "string" ? identity.tagline.trim() : "";
@@ -339,6 +387,41 @@ function serializeJoinRequest(request) {
   };
 }
 
+function serializeMemberInvitation(invitation) {
+  const target = invitation?.target
+    ? {
+        ...invitation.target,
+        user_id: Number(invitation.target.user_id)
+      }
+    : null;
+  const team = invitation?.team
+    ? {
+        name: invitation.team.name ?? null,
+        tag: invitation.team.tag ?? null
+      }
+    : null;
+
+  return {
+    id: Number(invitation.id),
+    team_id: Number(invitation.team_id),
+    target_user_id: Number(invitation.target_user_id),
+    requested_lane: invitation.requested_lane,
+    note: invitation.note ?? "",
+    status: invitation.status,
+    role: invitation.role,
+    team_role: invitation.team_role,
+    invited_by_user_id: Number(invitation.invited_by_user_id),
+    reviewed_by_user_id:
+      invitation.reviewed_by_user_id === null || invitation.reviewed_by_user_id === undefined
+        ? null
+        : Number(invitation.reviewed_by_user_id),
+    reviewed_at: invitation.reviewed_at,
+    created_at: invitation.created_at,
+    target,
+    team
+  };
+}
+
 function mapConstraintError(error) {
   if (!error || typeof error !== "object") {
     return error;
@@ -369,6 +452,13 @@ function mapTeamMutationConstraintError(error) {
   }
 
   return conflict("Team already exists.");
+}
+
+function mapMemberInvitationConstraintError(error) {
+  if (!error || typeof error !== "object" || error.code !== "23505") {
+    return error;
+  }
+  return conflict("A pending invitation for that user already exists.");
 }
 
 function assertUserHasPrimaryLane(user) {
@@ -764,6 +854,119 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
     const hydratedRequest = await teamsRepository.getJoinRequestById(teamId, requestId);
     response.json({
       request: serializeJoinRequest(hydratedRequest ?? updatedRequest)
+    });
+  });
+
+  router.post("/teams/:id/member-invitations", async (request, response) => {
+    const userId = request.user.userId;
+    const teamId = parsePositiveInteger(request.params.id, "id");
+    const body = requireObject(request.body);
+    const memberInput = await resolveMemberFromInput(body, usersRepository);
+    const targetUser = memberInput.user ?? await usersRepository.findById(memberInput.userId);
+    if (!targetUser) {
+      throw notFound("User not found.");
+    }
+
+    const requestedLane = parseInvitationLane(body.requested_lane) ?? assertUserHasPrimaryLane(targetUser);
+    const note = parseJoinRequestNote(body.note);
+    const role = parseMemberRole(body.role, "role", "member");
+    const teamRole = parseTeamRole(body.team_role, "team_role", "primary");
+
+    const membership = await teamsRepository.getMembership(teamId, memberInput.userId);
+    if (membership) {
+      throw conflict("User is already a member of this team.");
+    }
+
+    await requireTeamLeadOrAdmin(teamId, userId, teamsRepository, usersRepository);
+
+    let invitation;
+    try {
+      invitation = await teamsRepository.createMemberInvitation({
+        teamId,
+        targetUserId: memberInput.userId,
+        invitedByUserId: userId,
+        requestedLane,
+        note,
+        role,
+        teamRole
+      });
+    } catch (error) {
+      throw mapMemberInvitationConstraintError(error);
+    }
+
+    response.status(201).json({
+      invitation: serializeMemberInvitation(invitation)
+    });
+  });
+
+  router.get("/teams/:id/member-invitations", async (request, response) => {
+    const userId = request.user.userId;
+    const teamId = parsePositiveInteger(request.params.id, "id");
+    const status = parseInvitationListStatus(request.query.status);
+
+    await requireTeamLeadOrAdmin(teamId, userId, teamsRepository, usersRepository);
+    const invitations = await teamsRepository.listMemberInvitationsForTeam(teamId, { status });
+
+    response.json({
+      invitations: invitations.map(serializeMemberInvitation)
+    });
+  });
+
+  router.put("/teams/:id/member-invitations/:invitation_id", async (request, response) => {
+    const userId = request.user.userId;
+    const teamId = parsePositiveInteger(request.params.id, "id");
+    const invitationId = parsePositiveInteger(request.params.invitation_id, "invitation_id");
+    const body = requireObject(request.body);
+    const decision = parseInvitationDecision(body.status);
+
+    const invitation = await teamsRepository.getMemberInvitation(teamId, invitationId);
+    if (!invitation) {
+      throw notFound("Invitation not found.");
+    }
+
+    if (decision === "accepted" || decision === "rejected") {
+      if (invitation.target_user_id !== userId) {
+        throw forbidden("Only the invited user can accept or reject this invitation.");
+      }
+    } else if (decision === "canceled") {
+      await requireTeamLeadOrAdmin(teamId, userId, teamsRepository, usersRepository);
+    }
+
+    let updatedInvitation;
+    if (decision === "accepted") {
+      try {
+        updatedInvitation = await teamsRepository.acceptMemberInvitation(teamId, invitationId, {
+          reviewedByUserId: userId
+        });
+      } catch (error) {
+        throw mapConstraintError(error);
+      }
+      if (!updatedInvitation) {
+        throw badRequest("Invitation is no longer pending.");
+      }
+      await teamsRepository.clearPendingJoinRequestsForUser(teamId, invitation.target_user_id);
+    } else {
+      updatedInvitation = await teamsRepository.setMemberInvitationStatus(teamId, invitationId, {
+        status: decision,
+        reviewedByUserId: userId
+      });
+      if (!updatedInvitation) {
+        throw badRequest("Invitation is no longer pending.");
+      }
+    }
+
+    response.json({
+      invitation: serializeMemberInvitation(updatedInvitation)
+    });
+  });
+
+  router.get("/me/member-invitations", requireAuth, async (request, response) => {
+    const userId = request.user.userId;
+    const status = parseInvitationListStatus(request.query.status);
+    const invitations = await teamsRepository.listMemberInvitationsForUser(userId, { status });
+
+    response.json({
+      invitations: invitations.map(serializeMemberInvitation)
     });
   });
 

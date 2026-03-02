@@ -157,13 +157,15 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       { team_id: 1, user_id: 1, role: "lead", team_role: "primary", created_at: "2026-01-01T00:00:00.000Z" },
       { team_id: 1, user_id: 2, role: "member", team_role: "substitute", created_at: "2026-01-01T00:00:00.000Z" }
     ],
-    joinRequests: []
+    joinRequests: [],
+    memberInvitations: []
   };
 
   let nextUserId = 6;
   let nextPoolId = 3;
   let nextTeamId = 2;
   let nextJoinRequestId = 1;
+  let nextMemberInvitationId = 1;
   let nextTagId = 3;
   let nextCompositionRequirementId = 2;
 
@@ -696,6 +698,29 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
     }
   };
 
+  function mapInvitation(invitation) {
+    const targetUser = state.users.find((candidate) => candidate.id === invitation.target_user_id) ?? null;
+    const targetDisplayName = targetUser?.game_name && targetUser?.tagline
+      ? `${targetUser.game_name}#${targetUser.tagline}`
+      : (targetUser?.game_name ?? targetUser?.email ?? `User ${invitation.target_user_id}`);
+    const team = state.teams.find((candidate) => candidate.id === invitation.team_id) ?? null;
+    return {
+      ...invitation,
+      target: {
+        user_id: invitation.target_user_id,
+        email: targetUser?.email ?? null,
+        game_name: targetUser?.game_name ?? "",
+        tagline: targetUser?.tagline ?? "",
+        primary_role: targetUser?.primary_role ?? null,
+        display_name: targetDisplayName
+      },
+      team: {
+        name: team?.name ?? null,
+        tag: team?.tag ?? null
+      }
+    };
+  }
+
   const teamsRepository = {
     async teamExists(teamId) {
       return state.teams.some((team) => team.id === teamId);
@@ -1003,6 +1028,101 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         (candidate) =>
           !(candidate.team_id === teamId && candidate.requester_user_id === requesterUserId && candidate.status === "pending")
       );
+    },
+    async createMemberInvitation({
+      teamId,
+      targetUserId,
+      invitedByUserId,
+      requestedLane,
+      note = "",
+      role = "member",
+      teamRole = "primary"
+    }) {
+      const existing = state.memberInvitations.find(
+        (candidate) =>
+          candidate.team_id === teamId && candidate.target_user_id === targetUserId && candidate.status === "pending"
+      );
+      if (existing) {
+        const error = new Error("duplicate");
+        error.code = "23505";
+        throw error;
+      }
+      const invitation = {
+        id: nextMemberInvitationId,
+        team_id: teamId,
+        target_user_id: targetUserId,
+        requested_lane: requestedLane,
+        note,
+        status: "pending",
+        role,
+        team_role: teamRole,
+        invited_by_user_id: invitedByUserId,
+        reviewed_by_user_id: null,
+        reviewed_at: null,
+        created_at: "2026-01-01T00:00:00.000Z"
+      };
+      nextMemberInvitationId += 1;
+      state.memberInvitations.push(invitation);
+      return mapInvitation(invitation);
+    },
+    async listMemberInvitationsForTeam(teamId, { status = null } = {}) {
+      return state.memberInvitations
+        .filter(
+          (candidate) => candidate.team_id === teamId && (status === null || candidate.status === status)
+        )
+        .map(mapInvitation);
+    },
+    async listMemberInvitationsForUser(targetUserId, { status = null } = {}) {
+      return state.memberInvitations
+        .filter(
+          (candidate) => candidate.target_user_id === targetUserId && (status === null || candidate.status === status)
+        )
+        .map(mapInvitation);
+    },
+    async getMemberInvitation(teamId, invitationId) {
+      const invitation = state.memberInvitations.find(
+        (candidate) => candidate.team_id === teamId && candidate.id === invitationId
+      );
+      return invitation ? mapInvitation(invitation) : null;
+    },
+    async setMemberInvitationStatus(teamId, invitationId, { status, reviewedByUserId }) {
+      const invitation = state.memberInvitations.find(
+        (candidate) => candidate.team_id === teamId && candidate.id === invitationId && candidate.status === "pending"
+      );
+      if (!invitation) {
+        return null;
+      }
+      invitation.status = status;
+      invitation.reviewed_by_user_id = reviewedByUserId;
+      invitation.reviewed_at = "2026-01-01T00:00:00.000Z";
+      return mapInvitation(invitation);
+    },
+    async acceptMemberInvitation(teamId, invitationId, { reviewedByUserId }) {
+      const invitation = state.memberInvitations.find(
+        (candidate) => candidate.team_id === teamId && candidate.id === invitationId && candidate.status === "pending"
+      );
+      if (!invitation) {
+        return null;
+      }
+      const existingMembership = state.teamMembers.find(
+        (candidate) => candidate.team_id === teamId && candidate.user_id === invitation.target_user_id
+      );
+      if (existingMembership) {
+        const error = new Error("duplicate membership");
+        error.code = "23505";
+        throw error;
+      }
+      invitation.status = "accepted";
+      invitation.reviewed_by_user_id = reviewedByUserId;
+      invitation.reviewed_at = "2026-01-01T00:00:00.000Z";
+      state.teamMembers.push({
+        team_id: teamId,
+        user_id: invitation.target_user_id,
+        role: invitation.role,
+        team_role: invitation.team_role,
+        created_at: "2026-01-01T00:00:00.000Z"
+      });
+      return mapInvitation(invitation);
     },
     async removeMember(teamId, userId) {
       const index = state.teamMembers.findIndex(
@@ -2178,6 +2298,105 @@ describe("API routes", () => {
       .set("Authorization", outsiderAuth);
     expect(cancel.status).toBe(200);
     expect(cancel.body.ok).toBe(true);
+  });
+
+  it("allows team leads to send and cancel member invitations", async () => {
+    const { app, config } = createMockContext();
+    const leadAuth = buildAuthHeader(1, config);
+
+    const createInvite = await request(app)
+      .post("/teams/1/member-invitations")
+      .set("Authorization", leadAuth)
+      .send({ user_id: 3, role: "member", team_role: "primary" });
+    expect(createInvite.status).toBe(201);
+    expect(createInvite.body.invitation.status).toBe("pending");
+    expect(createInvite.body.invitation.target.display_name).toBe("Outsider#NA1");
+
+    const duplicateInvite = await request(app)
+      .post("/teams/1/member-invitations")
+      .set("Authorization", leadAuth)
+      .send({ user_id: 3 });
+    expect(duplicateInvite.status).toBe(409);
+
+    const pendingInvites = await request(app)
+      .get("/teams/1/member-invitations?status=pending")
+      .set("Authorization", leadAuth);
+    expect(pendingInvites.status).toBe(200);
+    expect(pendingInvites.body.invitations).toHaveLength(1);
+
+    const cancelInvite = await request(app)
+      .put(`/teams/1/member-invitations/${createInvite.body.invitation.id}`)
+      .set("Authorization", leadAuth)
+      .send({ status: "canceled" });
+    expect(cancelInvite.status).toBe(200);
+    expect(cancelInvite.body.invitation.status).toBe("canceled");
+
+    const pendingAfterCancel = await request(app)
+      .get("/teams/1/member-invitations?status=pending")
+      .set("Authorization", leadAuth);
+    expect(pendingAfterCancel.body.invitations).toHaveLength(0);
+  });
+
+  it("lets invited users accept and reject invitations", async () => {
+    const { app, config } = createMockContext();
+    const leadAuth = buildAuthHeader(1, config);
+    const outsiderAuth = buildAuthHeader(3, config);
+    const globalAuth = buildAuthHeader(5, config);
+
+    const invitation = await request(app)
+      .post("/teams/1/member-invitations")
+      .set("Authorization", leadAuth)
+      .send({ user_id: 3 });
+    expect(invitation.status).toBe(201);
+
+    const myInvites = await request(app)
+      .get("/me/member-invitations")
+      .set("Authorization", outsiderAuth);
+    expect(myInvites.status).toBe(200);
+    expect(myInvites.body.invitations).toHaveLength(1);
+    expect(myInvites.body.invitations[0].status).toBe("pending");
+
+    const acceptInvite = await request(app)
+      .put(`/teams/1/member-invitations/${invitation.body.invitation.id}`)
+      .set("Authorization", outsiderAuth)
+      .send({ status: "accepted" });
+    expect(acceptInvite.status).toBe(200);
+    expect(acceptInvite.body.invitation.status).toBe("accepted");
+
+    const members = await request(app)
+      .get("/teams/1/members")
+      .set("Authorization", leadAuth);
+    expect(members.body.members.some((member) => member.user_id === 3)).toBe(true);
+
+    const acceptedInvites = await request(app)
+      .get("/me/member-invitations?status=accepted")
+      .set("Authorization", outsiderAuth);
+    expect(acceptedInvites.body.invitations).toHaveLength(1);
+
+    const newTeam = await request(app)
+      .post("/teams")
+      .set("Authorization", leadAuth)
+      .send({ name: "Team Echo", tag: "ECHO" });
+    expect(newTeam.status).toBe(201);
+
+    const secondInvite = await request(app)
+      .post(`/teams/${newTeam.body.team.id}/member-invitations`)
+      .set("Authorization", leadAuth)
+      .send({ user_id: 5, role: "member" });
+    expect(secondInvite.status).toBe(201);
+
+    const rejectInvite = await request(app)
+      .put(`/teams/${newTeam.body.team.id}/member-invitations/${secondInvite.body.invitation.id}`)
+      .set("Authorization", globalAuth)
+      .send({ status: "rejected" });
+    expect(rejectInvite.status).toBe(200);
+    expect(rejectInvite.body.invitation.status).toBe("rejected");
+
+    const rejectedInvites = await request(app)
+      .get("/me/member-invitations?status=rejected")
+      .set("Authorization", globalAuth);
+    expect(rejectedInvites.body.invitations).toHaveLength(1);
+    expect(rejectedInvites.body.invitations[0].team.name).toBe("Team Echo");
   });
 
   it("blocks join flows when user has no primary role set", async () => {

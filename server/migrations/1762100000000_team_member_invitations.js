@@ -31,6 +31,16 @@ export function up(pgm) {
       notNull: true,
       default: ""
     },
+    role: {
+      type: "text",
+      notNull: true,
+      default: "member"
+    },
+    team_role: {
+      type: "text",
+      notNull: true,
+      default: "primary"
+    },
     status: {
       type: "text",
       notNull: true,
@@ -59,6 +69,14 @@ export function up(pgm) {
     check: "requested_lane IN ('Top', 'Jungle', 'Mid', 'ADC', 'Support')"
   });
 
+  pgm.addConstraint("team_member_invitations", "team_member_invitations_role_check", {
+    check: "role IN ('lead', 'member')"
+  });
+
+  pgm.addConstraint("team_member_invitations", "team_member_invitations_team_role_check", {
+    check: "team_role IN ('primary', 'substitute')"
+  });
+
   pgm.createIndex("team_member_invitations", ["team_id", "status"]);
   pgm.createIndex("team_member_invitations", ["target_user_id", "status"]);
   pgm.createIndex("team_member_invitations", ["team_id", "target_user_id"], {
@@ -73,5 +91,7 @@ export function down(pgm) {
   pgm.dropIndex("team_member_invitations", ["team_id", "status"]);
   pgm.dropConstraint("team_member_invitations", "team_member_invitations_lane_check");
   pgm.dropConstraint("team_member_invitations", "team_member_invitations_status_check");
+  pgm.dropConstraint("team_member_invitations", "team_member_invitations_team_role_check");
+  pgm.dropConstraint("team_member_invitations", "team_member_invitations_role_check");
   pgm.dropTable("team_member_invitations");
 }
