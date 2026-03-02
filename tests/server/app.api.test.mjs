@@ -263,6 +263,15 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       return user;
     },
 
+    async deleteUser(userId) {
+      const index = state.users.findIndex((candidate) => candidate.id === userId);
+      if (index < 0) {
+        return false;
+      }
+      state.users.splice(index, 1);
+      return true;
+    },
+
     async updateProfileRoles(userId, { primaryRole, secondaryRoles }) {
       const user = state.users.find((candidate) => candidate.id === userId) ?? null;
       if (!user) {
@@ -1519,6 +1528,11 @@ describe("API routes", () => {
       .send({ gameName: "CorrectedName", tagline: "NA1" });
     expect(memberDeniedRiotIdUpdate.status).toBe(403);
 
+    const memberDeniedDelete = await request(app)
+      .delete("/admin/users/2")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(memberDeniedDelete.status).toBe(403);
+
     const adminList = await request(app)
       .get("/admin/users")
       .set("Authorization", buildAuthHeader(1, config));
@@ -1570,6 +1584,24 @@ describe("API routes", () => {
       .set("Authorization", buildAuthHeader(1, config))
       .send({ role: "member" });
     expect(ownerDemotionRejected.status).toBe(400);
+
+    const ownerDeleteRejected = await request(app)
+      .delete("/admin/users/1")
+      .set("Authorization", buildAuthHeader(1, config));
+    expect(ownerDeleteRejected.status).toBe(400);
+
+    const deleteMember = await request(app)
+      .delete("/admin/users/2")
+      .set("Authorization", buildAuthHeader(1, config));
+    expect(deleteMember.status).toBe(200);
+    expect(deleteMember.body.ok).toBe(true);
+
+    const adminListAfterDelete = await request(app)
+      .get("/admin/users")
+      .set("Authorization", buildAuthHeader(1, config));
+    expect(adminListAfterDelete.status).toBe(200);
+    expect(adminListAfterDelete.body.users).toHaveLength(4);
+    expect(adminListAfterDelete.body.users.some((user) => Number(user.id) === 2)).toBe(false);
   });
 
   it("supports composition requirements CRUD and active profile reads", async () => {

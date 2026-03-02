@@ -324,6 +324,7 @@ function createInitialState() {
       isLoadingUsers: false,
       savingUserRoleId: null,
       savingUserRiotIdId: null,
+      deletingUserId: null,
       compositionRequirements: [],
       selectedCompositionRequirementId: null,
       compositionRequirementDraft: createEmptyCompositionRequirementDraft(),
@@ -2608,6 +2609,7 @@ function normalizeApiAdminUser(rawUser) {
 async function loadUsersFromApi() {
   if (!isAuthenticated() || !isAdminUser()) {
     state.api.users = [];
+    state.api.deletingUserId = null;
     return false;
   }
 
@@ -2703,6 +2705,34 @@ async function saveUserRiotIdFromWorkspace(userId, gameName, tagline) {
   }
 }
 
+async function deleteUserFromWorkspace(userId, email) {
+  if (!isAuthenticated() || !isAdminUser()) {
+    return;
+  }
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return;
+  }
+
+  const userLabel = typeof email === "string" && email.trim() !== "" ? email.trim() : `user #${userId}`;
+  state.api.deletingUserId = userId;
+  setUsersFeedback(`Deleting ${userLabel}...`);
+  renderUsersWorkspace();
+
+  try {
+    await apiRequest(`/admin/users/${userId}`, {
+      method: "DELETE",
+      auth: true
+    });
+    state.api.users = state.api.users.filter((candidate) => candidate.id !== userId);
+    setUsersFeedback(`Deleted ${userLabel}.`);
+  } catch (error) {
+    setUsersFeedback(normalizeApiErrorMessage(error, "Failed to delete user."));
+  } finally {
+    state.api.deletingUserId = null;
+    renderUsersWorkspace();
+  }
+}
+
 function renderUsersWorkspace() {
   if (!elements.usersList || !elements.usersAccess) {
     return;
@@ -2746,7 +2776,8 @@ function renderUsersWorkspace() {
     card.className = "summary-card";
     const isSavingRole = state.api.savingUserRoleId === user.id;
     const isSavingRiotId = state.api.savingUserRiotIdId === user.id;
-    const isSavingAnyUserAction = isSavingRole || isSavingRiotId;
+    const isDeletingUser = state.api.deletingUserId === user.id;
+    const isSavingAnyUserAction = isSavingRole || isSavingRiotId || isDeletingUser;
 
     const title = runtimeDocument.createElement("strong");
     title.textContent = user.email;
@@ -2810,9 +2841,24 @@ function renderUsersWorkspace() {
     riotCorrectionControls.className = "button-row";
     riotCorrectionControls.append(riotCorrectionGameName, riotCorrectionTagline, riotCorrectionSave);
 
+    const deleteUserButton = runtimeDocument.createElement("button");
+    deleteUserButton.type = "button";
+    deleteUserButton.className = "ghost";
+    deleteUserButton.textContent = isDeletingUser ? "Deleting..." : "Delete User";
+    deleteUserButton.disabled = isSavingAnyUserAction || isOwnerAdmin;
+    deleteUserButton.addEventListener("click", () => {
+      void deleteUserFromWorkspace(user.id, user.email);
+    });
+
+    const deleteUserMeta = runtimeDocument.createElement("p");
+    deleteUserMeta.className = "meta";
+    deleteUserMeta.textContent = isOwnerAdmin
+      ? "Owner account cannot be deleted."
+      : "Delete permanently removes this user account and dependent records.";
+
     roleLabel.append(runtimeDocument.createElement("br"), roleSelect);
     riotCorrectionLabel.append(runtimeDocument.createElement("br"), riotCorrectionControls);
-    card.append(title, riot, roleLabel, riotCorrectionLabel, riotCorrectionMeta);
+    card.append(title, riot, roleLabel, riotCorrectionLabel, riotCorrectionMeta, deleteUserButton, deleteUserMeta);
     elements.usersList.append(card);
   }
 }

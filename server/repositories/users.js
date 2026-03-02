@@ -106,6 +106,17 @@ export function createUsersRepository(pool) {
       return result.rows[0] ?? null;
     },
 
+    async deleteUser(userId) {
+      const result = await pool.query(
+        `
+          DELETE FROM users
+          WHERE id = $1
+        `,
+        [userId]
+      );
+      return result.rowCount > 0;
+    },
+
     async findProfileById(userId) {
       const result = await pool.query(
         `

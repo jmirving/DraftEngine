@@ -533,6 +533,25 @@ function createFetchHarness({
       return createJsonResponse({ user });
     }
 
+    const adminUserDeleteMatch = path.match(/^\/admin\/users\/(\d+)$/);
+    if (adminUserDeleteMatch && method === "DELETE") {
+      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
+      if (!isAdmin) {
+        return createJsonResponse({ error: { code: "FORBIDDEN", message: "Only admins can delete users." } }, 403);
+      }
+      const targetUserId = Number(adminUserDeleteMatch[1]);
+      const userIndex = adminUsers.findIndex((candidate) => candidate.id === targetUserId);
+      if (userIndex < 0) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "User not found." } }, 404);
+      }
+      const targetUser = adminUsers[userIndex];
+      if (String(targetUser.email ?? "").trim().toLowerCase() === "jirving0311@gmail.com") {
+        return createJsonResponse({ error: { code: "BAD_REQUEST", message: "The owner account cannot be deleted." } }, 400);
+      }
+      adminUsers.splice(userIndex, 1);
+      return createJsonResponse({ ok: true });
+    }
+
     if (path === "/composition-requirements" && method === "GET") {
       const active = compositionRequirements.find((requirement) => requirement.is_active) ?? null;
       return createJsonResponse({
@@ -1539,6 +1558,18 @@ describe("auth + pools + team management", () => {
     });
     expect(doc.querySelector("#users-list").textContent).toContain("Riot ID: MemberRenamed#NA9");
     expect(doc.querySelector("#users-list").textContent).toContain("One-time correction already used.");
+
+    const deleteButton = [...(memberCard?.querySelectorAll("button") ?? [])].find(
+      (button) => button.textContent.trim() === "Delete User"
+    );
+    expect(deleteButton).toBeTruthy();
+    deleteButton.click();
+    await flush();
+    await flush();
+
+    const deleteUserCall = harness.calls.find((call) => call.path === "/admin/users/22" && call.method === "DELETE");
+    expect(deleteUserCall).toBeTruthy();
+    expect(doc.querySelector("#users-list").textContent).not.toContain("member@example.com");
   });
 
   test("composition requirements workspace creates requirement profiles", async () => {

@@ -147,5 +147,35 @@ export function createAdminUsersRouter({ usersRepository, requireAuth }) {
     });
   });
 
+  router.delete("/admin/users/:id", async (request, response) => {
+    const requesterUserId = request.user.userId;
+    await assertAdminAuthorization({
+      userId: requesterUserId,
+      usersRepository,
+      message: "Only admins can delete users."
+    });
+
+    const targetUserId = parsePositiveInteger(request.params.id, "id");
+    if (targetUserId === requesterUserId) {
+      throw badRequest("You cannot delete your own account.");
+    }
+
+    const targetUser = await usersRepository.findById(targetUserId);
+    if (!targetUser) {
+      throw notFound("User not found.");
+    }
+
+    if (isOwnerAdminEmail(targetUser.email)) {
+      throw badRequest("The owner account cannot be deleted.");
+    }
+
+    const deleted = await usersRepository.deleteUser(targetUserId);
+    if (!deleted) {
+      throw notFound("User not found.");
+    }
+
+    response.status(200).json({ ok: true });
+  });
+
   return router;
 }

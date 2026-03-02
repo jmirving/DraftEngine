@@ -77,6 +77,10 @@ MVP API routes:
 - `DELETE /teams/:id/members/:user_id` (auth + lead required)
 - `PUT /teams/:id/members/:user_id/role` (auth + lead required)
 - `PUT /teams/:id/members/:user_id/team-role` (auth + lead required)
+- `GET /admin/users` (auth + admin required)
+- `PUT /admin/users/:id/role` (auth + admin required)
+- `PUT /admin/users/:id/riot-id` (auth + admin required)
+- `DELETE /admin/users/:id` (auth + admin required)
 
 Team API mutation payloads:
 - `POST /teams` and `PATCH /teams/:id` accept `application/json` and `multipart/form-data`.
