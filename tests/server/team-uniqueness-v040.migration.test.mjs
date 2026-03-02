@@ -13,11 +13,13 @@ describe("v0.4.0 team uniqueness migration", () => {
 
     up(pgm);
 
-    expect(sqlCalls).toHaveLength(4);
+    expect(sqlCalls).toHaveLength(6);
     expect(sqlCalls.some((statement) => statement.includes("teams_name_lower_unique_idx"))).toBe(true);
     expect(sqlCalls.some((statement) => statement.includes("teams_tag_lower_unique_idx"))).toBe(true);
     expect(sqlCalls.some((statement) => statement.includes("lower(name)"))).toBe(true);
     expect(sqlCalls.some((statement) => statement.includes("lower(tag)"))).toBe(true);
+    expect(sqlCalls.some((statement) => statement.includes("trim(name)"))).toBe(true);
+    expect(sqlCalls.some((statement) => statement.includes("trim(tag)"))).toBe(true);
   });
 
   it("drops the unique indexes on down migration", () => {

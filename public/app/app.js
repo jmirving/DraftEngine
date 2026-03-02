@@ -571,6 +571,8 @@ function createElements() {
     teamInviteUserLoad: runtimeDocument.querySelector("#team-invite-user-load"),
     teamInviteUserList: runtimeDocument.querySelector("#team-invite-user-list"),
     teamInviteUserFeedback: runtimeDocument.querySelector("#team-invite-user-feedback"),
+    teamActivityTeamsSummary: runtimeDocument.querySelector("#team-activity-teams-summary"),
+    teamActivityTeamsList: runtimeDocument.querySelector("#team-activity-teams-list"),
     teamAdminRenameName: runtimeDocument.querySelector("#team-admin-rename-name"),
     teamAdminRenameTag: runtimeDocument.querySelector("#team-admin-rename-tag"),
     teamAdminRenameLogoUrl: runtimeDocument.querySelector("#team-admin-rename-logo-url"),
@@ -5391,6 +5393,7 @@ function renderTeamAdmin() {
   renderChampionTagEditor();
   renderTeamInviteList(selectedTeam);
   renderTeamInviteUserList();
+  renderTeamActivityMembership();
   if (!selectedTeam) {
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
@@ -5697,6 +5700,29 @@ function renderSettingsTeamMembership() {
     allTeams,
     authenticated ? "You are not currently on any teams." : "Sign in to view teams."
   );
+}
+
+function renderTeamActivityMembership() {
+  if (!elements.teamActivityTeamsSummary && !elements.teamActivityTeamsList) {
+    return;
+  }
+
+  const currentTeams = [...state.api.teams].sort((left, right) => left.name.localeCompare(right.name));
+  const authenticated = isAuthenticated();
+
+  if (elements.teamActivityTeamsSummary) {
+    elements.teamActivityTeamsSummary.textContent = authenticated
+      ? `${currentTeams.length} team${currentTeams.length === 1 ? "" : "s"} total.`
+      : "Sign in to view your teams.";
+  }
+
+  if (elements.teamActivityTeamsList) {
+    renderSettingsTeamList(
+      elements.teamActivityTeamsList,
+      currentTeams,
+      authenticated ? "You are not currently on any teams." : "Sign in to view teams."
+    );
+  }
 }
 
 async function syncPoolSelectionToApi(teamId) {
