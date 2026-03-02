@@ -336,7 +336,10 @@ function createInitialState() {
       selectedCompositionRequirementId: null,
       compositionRequirementDraft: createEmptyCompositionRequirementDraft(),
       isLoadingCompositionRequirements: false,
-      isSavingCompositionRequirement: false
+      isSavingCompositionRequirement: false,
+      userDetailsById: {},
+      userDetailLoadingIds: new Set(),
+      userDetailErrors: {}
     },
     explorer: {
       search: "",
@@ -2681,7 +2684,201 @@ function normalizeApiAdminUser(rawUser) {
   };
 }
 
+function resetAdminUserDetailCache() {
+  if (!state) {
+    return;
+  }
+  state.api.userDetailsById = {};
+  state.api.userDetailErrors = {};
+  if (state.api.userDetailLoadingIds instanceof Set) {
+    state.api.userDetailLoadingIds.clear();
+  } else {
+    state.api.userDetailLoadingIds = new Set();
+  }
+}
+
+function normalizeTeamDetail(rawTeam) {
+  if (!rawTeam || typeof rawTeam !== "object" || Array.isArray(rawTeam)) {
+    return null;
+  }
+  const teamId = normalizeApiEntityId(rawTeam.team_id);
+  if (!teamId) {
+    return null;
+  }
+  const name = typeof rawTeam.name === "string" ? rawTeam.name : "";
+  const tag = typeof rawTeam.tag === "string" ? rawTeam.tag : null;
+  return {
+    team_id: teamId,
+    name,
+    tag,
+    membership_role: typeof rawTeam.membership_role === "string" ? rawTeam.membership_role : null,
+    membership_team_role:
+      typeof rawTeam.membership_team_role === "string" ? rawTeam.membership_team_role : null,
+    membership_lane: typeof rawTeam.membership_lane === "string" ? rawTeam.membership_lane : null
+  };
+}
+
+function normalizePoolDetail(rawPool) {
+  if (!rawPool || typeof rawPool !== "object" || Array.isArray(rawPool)) {
+    return null;
+  }
+  const poolId = normalizeApiEntityId(rawPool.pool_id);
+  if (!poolId) {
+    return null;
+  }
+  return {
+    pool_id: poolId,
+    name: typeof rawPool.name === "string" ? rawPool.name : "",
+    champion_count: Number.isInteger(rawPool.champion_count) ? rawPool.champion_count : 0
+  };
+}
+
+function normalizeApiUserDetail(rawDetail) {
+  if (!rawDetail || typeof rawDetail !== "object" || Array.isArray(rawDetail)) {
+    return null;
+  }
+  const userId = normalizeApiEntityId(rawDetail.user_id);
+  if (!userId) {
+    return null;
+  }
+  const primaryRole = typeof rawDetail.primary_role === "string" ? rawDetail.primary_role : null;
+  const secondaryRoles = Array.isArray(rawDetail.secondary_roles)
+    ? rawDetail.secondary_roles.filter((value) => typeof value === "string")
+    : [];
+  const defaultTeam = normalizeTeamDetail(rawDetail.default_team);
+  const activeTeam = normalizeTeamDetail(rawDetail.active_team);
+  const championPools = Array.isArray(rawDetail.champion_pools)
+    ? rawDetail.champion_pools.map(normalizePoolDetail).filter(Boolean)
+    : [];
+  const teamMemberships = Array.isArray(rawDetail.team_memberships)
+    ? rawDetail.team_memberships.map(normalizeTeamDetail).filter(Boolean)
+    : [];
+  const promotions =
+    rawDetail.champion_tag_promotions && typeof rawDetail.champion_tag_promotions === "object"
+      ? {
+          pending: Number.isInteger(rawDetail.champion_tag_promotions.pending)
+            ? rawDetail.champion_tag_promotions.pending
+            : 0,
+          approved: Number.isInteger(rawDetail.champion_tag_promotions.approved)
+            ? rawDetail.champion_tag_promotions.approved
+            : 0,
+          rejected: Number.isInteger(rawDetail.champion_tag_promotions.rejected)
+            ? rawDetail.champion_tag_promotions.rejected
+            : 0
+        }
+      : { pending: 0, approved: 0, rejected: 0 };
+  return {
+    user_id: userId,
+    primary_role: primaryRole,
+    secondary_roles: secondaryRoles,
+    default_team: defaultTeam,
+    active_team: activeTeam,
+    champion_pools: championPools,
+    team_memberships: teamMemberships,
+    champion_tag_promotions: promotions
+  };
+}
+
+function createMetaParagraph(text) {
+  const paragraph = runtimeDocument.createElement("p");
+  paragraph.className = "meta";
+  paragraph.textContent = text;
+  return paragraph;
+}
+
+function renderUserDetailContent(userId, container) {
+  container.innerHTML = "";
+  const detail = state.api.userDetailsById[userId];
+  const isLoading = state.api.userDetailLoadingIds.has(userId);
+  const error = state.api.userDetailErrors[userId];
+
+  if (isLoading && !detail) {
+    container.append(createMetaParagraph("Loading details..."));
+    return;
+  }
+  if (error) {
+    container.append(createMetaParagraph(error));
+    return;
+  }
+  if (!detail) {
+    container.append(createMetaParagraph("Expand to load additional user details."));
+    return;
+  }
+
+  const infoGrid = runtimeDocument.createElement("div");
+  infoGrid.className = "user-detail-grid";
+  infoGrid.append(
+    createMetaParagraph(`Primary role: ${detail.primary_role ?? "Not set"}`),
+    createMetaParagraph(
+      detail.secondary_roles.length > 0
+        ? `Secondary roles: ${detail.secondary_roles.join(", ")}`
+        : "Secondary roles: none"
+    ),
+    createMetaParagraph(
+      detail.default_team
+        ? `Default team: ${detail.default_team.name || `Team ${detail.default_team.team_id}`} (${detail.default_team.tag ?? "TBD"})`
+        : "Default team: None"
+    ),
+    createMetaParagraph(
+      detail.active_team
+        ? `Active team: ${detail.active_team.name || `Team ${detail.active_team.team_id}`} (${detail.active_team.tag ?? "TBD"})`
+        : "Active team: None"
+    )
+  );
+  container.append(infoGrid);
+
+  const poolHeading = runtimeDocument.createElement("p");
+  poolHeading.className = "meta";
+  poolHeading.textContent = "Champion pools";
+  container.append(poolHeading);
+  if (detail.champion_pools.length === 0) {
+    container.append(createMetaParagraph("No champion pools yet."));
+  } else {
+    const list = runtimeDocument.createElement("ul");
+    list.className = "user-detail-list";
+    for (const pool of detail.champion_pools) {
+      const item = runtimeDocument.createElement("li");
+      const name = pool.name || "Unnamed pool";
+      const count = Number.isInteger(pool.champion_count) ? pool.champion_count : 0;
+      item.textContent = `${name} — ${count} champion${count === 1 ? "" : "s"}`;
+      list.append(item);
+    }
+    container.append(list);
+  }
+
+  const teamsHeading = runtimeDocument.createElement("p");
+  teamsHeading.className = "meta";
+  teamsHeading.textContent = "Team memberships";
+  container.append(teamsHeading);
+  if (detail.team_memberships.length === 0) {
+    container.append(createMetaParagraph("Not associated with any teams."));
+  } else {
+    const list = runtimeDocument.createElement("ul");
+    list.className = "user-detail-list";
+    for (const membership of detail.team_memberships) {
+      const item = runtimeDocument.createElement("li");
+      const name = membership.name || `Team ${membership.team_id}`;
+      const tagLabel = membership.tag ? ` (${membership.tag})` : "";
+      const role = membership.membership_role ? membership.membership_role : "member";
+      const teamRole = membership.membership_team_role ? membership.membership_team_role : "primary";
+      const lane = membership.membership_lane ? ` | Lane: ${membership.membership_lane}` : "";
+      item.textContent = `${name}${tagLabel} — ${role}/${teamRole}${lane}`;
+      list.append(item);
+    }
+    container.append(list);
+  }
+
+  const promotions = detail.champion_tag_promotions;
+  container.append(
+    createMetaParagraph(
+      `Champion tag promotions — pending: ${promotions.pending}, approved: ${promotions.approved}, rejected: ${promotions.rejected}`
+    )
+  );
+}
+
 async function loadUsersFromApi() {
+  resetAdminUserDetailCache();
+
   if (!isAuthenticated() || !isAdminUser()) {
     state.api.users = [];
     state.api.deletingUserId = null;
@@ -2704,6 +2901,37 @@ async function loadUsersFromApi() {
     return false;
   } finally {
     state.api.isLoadingUsers = false;
+    renderUsersWorkspace();
+  }
+}
+
+async function loadUserDetail(userId) {
+  if (!isAuthenticated() || !isAdminUser()) {
+    return false;
+  }
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return false;
+  }
+  if (state.api.userDetailsById[userId] || state.api.userDetailLoadingIds.has(userId)) {
+    return false;
+  }
+
+  state.api.userDetailLoadingIds.add(userId);
+  delete state.api.userDetailErrors[userId];
+  renderUsersWorkspace();
+
+  try {
+    const payload = await apiRequest(`/admin/users/${userId}/details`, { auth: true });
+    const detail = normalizeApiUserDetail(payload?.details);
+    if (detail) {
+      state.api.userDetailsById[userId] = detail;
+    }
+    return true;
+  } catch (error) {
+    state.api.userDetailErrors[userId] = normalizeApiErrorMessage(error, "Failed to load user details.");
+    return false;
+  } finally {
+    state.api.userDetailLoadingIds.delete(userId);
     renderUsersWorkspace();
   }
 }
@@ -2934,6 +3162,23 @@ function renderUsersWorkspace() {
     roleLabel.append(runtimeDocument.createElement("br"), roleSelect);
     riotCorrectionLabel.append(runtimeDocument.createElement("br"), riotCorrectionControls);
     card.append(title, riot, roleLabel, riotCorrectionLabel, riotCorrectionMeta, deleteUserButton, deleteUserMeta);
+
+    const detailPanel = runtimeDocument.createElement("details");
+    detailPanel.className = "user-detail-panel";
+    const detailSummary = runtimeDocument.createElement("summary");
+    detailSummary.textContent = "Details";
+    const detailContent = runtimeDocument.createElement("div");
+    detailContent.className = "user-detail-content";
+    detailPanel.append(detailSummary, detailContent);
+    detailPanel.addEventListener("toggle", () => {
+      if (!detailPanel.open) {
+        return;
+      }
+      void loadUserDetail(user.id);
+    });
+    renderUserDetailContent(user.id, detailContent);
+    card.append(detailPanel);
+
     elements.usersList.append(card);
   }
 }

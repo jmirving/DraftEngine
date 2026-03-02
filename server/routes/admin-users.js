@@ -49,7 +49,13 @@ function serializeAdminUser(user) {
   };
 }
 
-export function createAdminUsersRouter({ usersRepository, requireAuth }) {
+export function createAdminUsersRouter({
+  usersRepository,
+  teamsRepository,
+  poolsRepository,
+  promotionRequestsRepository,
+  requireAuth
+}) {
   const router = Router();
   router.use("/admin/users", requireAuth);
 
@@ -64,6 +70,76 @@ export function createAdminUsersRouter({ usersRepository, requireAuth }) {
     const users = await usersRepository.listUsersForAdmin();
     response.json({
       users: users.map(serializeAdminUser)
+    });
+  });
+
+  router.get("/admin/users/:id/details", async (request, response) => {
+    const userId = request.user.userId;
+    await assertAdminAuthorization({
+      userId,
+      usersRepository,
+      message: "Only admins can view users."
+    });
+
+    const targetUserId = parsePositiveInteger(request.params.id, "id");
+    const targetUser = await usersRepository.findById(targetUserId);
+    if (!targetUser) {
+      throw notFound("User not found.");
+    }
+
+    const [pools, memberships, tagPromotions] = await Promise.all([
+      poolsRepository.listPoolSummariesByUser(targetUserId),
+      teamsRepository.listTeamsByUser(targetUserId),
+      promotionRequestsRepository.countChampionTagPromotionsByRequester(targetUserId)
+    ]);
+
+    const defaultTeam =
+      Number.isInteger(targetUser.default_team_id) && targetUser.default_team_id > 0
+        ? await teamsRepository.getTeamById(targetUser.default_team_id)
+        : null;
+    const activeTeam =
+      Number.isInteger(targetUser.active_team_id) && targetUser.active_team_id > 0
+        ? await teamsRepository.getTeamById(targetUser.active_team_id)
+        : null;
+
+    response.json({
+      details: {
+        user_id: targetUserId,
+        primary_role: typeof targetUser.primary_role === "string" ? targetUser.primary_role : null,
+        secondary_roles: Array.isArray(targetUser.secondary_roles) ? targetUser.secondary_roles : [],
+        default_team: defaultTeam
+          ? {
+              team_id: Number(defaultTeam.id),
+              name: defaultTeam.name,
+              tag: defaultTeam.tag
+            }
+          : null,
+        active_team: activeTeam
+          ? {
+              team_id: Number(activeTeam.id),
+              name: activeTeam.name,
+              tag: activeTeam.tag
+            }
+          : null,
+        champion_pools: pools.map((pool) => ({
+          pool_id: pool.id,
+          name: pool.name ?? "",
+          champion_count: pool.champion_count
+        })),
+        team_memberships: memberships.map((membership) => ({
+          team_id: Number(membership.id),
+          name: membership.name,
+          tag: membership.tag,
+          membership_role: membership.membership_role ?? null,
+          membership_team_role: membership.membership_team_role ?? null,
+          membership_lane: membership.membership_lane ?? null
+        })),
+        champion_tag_promotions: {
+          pending: tagPromotions.pending ?? 0,
+          approved: tagPromotions.approved ?? 0,
+          rejected: tagPromotions.rejected ?? 0
+        }
+      }
     });
   });
 

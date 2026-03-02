@@ -81,6 +81,9 @@ export function createApp({
     "/",
     createAdminUsersRouter({
       usersRepository,
+      teamsRepository,
+      poolsRepository,
+      promotionRequestsRepository,
       requireAuth
     })
   );

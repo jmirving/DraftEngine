@@ -72,6 +72,30 @@ export function createPromotionRequestsRepository(pool) {
       );
 
       return result.rows[0] ? mapPromotionRequest(result.rows[0]) : null;
+    },
+    async countChampionTagPromotionsByRequester(requestedBy) {
+      const result = await pool.query(
+        `
+          SELECT status, COUNT(*)::int AS count
+          FROM scope_promotion_requests
+          WHERE requested_by = $1
+            AND entity_type = 'champion_tags'
+          GROUP BY status
+        `,
+        [requestedBy]
+      );
+      const counts = {
+        pending: 0,
+        approved: 0,
+        rejected: 0
+      };
+      for (const row of result.rows) {
+        const status = typeof row.status === "string" ? row.status.trim().toLowerCase() : "";
+        if (status && Object.prototype.hasOwnProperty.call(counts, status)) {
+          counts[status] = Number(row.count ?? 0);
+        }
+      }
+      return counts;
     }
   };
 }

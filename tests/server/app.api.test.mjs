@@ -615,6 +615,25 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       };
       state.promotionRequests.push(requestRecord);
       return requestRecord;
+    },
+    async countChampionTagPromotionsByRequester(requestedBy) {
+      const counts = {
+        pending: 0,
+        approved: 0,
+        rejected: 0
+      };
+      for (const requestRecord of state.promotionRequests) {
+        if (
+          requestRecord.requested_by === requestedBy &&
+          requestRecord.entity_type === "champion_tags"
+        ) {
+          const status = typeof requestRecord.status === "string" ? requestRecord.status.trim().toLowerCase() : "";
+          if (status && Object.prototype.hasOwnProperty.call(counts, status)) {
+            counts[status] += 1;
+          }
+        }
+      }
+      return counts;
     }
   };
 
@@ -695,6 +714,15 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         return [];
       }
       return [...set].sort((left, right) => left - right);
+    },
+    async listPoolSummariesByUser(userId) {
+      return state.pools
+        .filter((pool) => pool.user_id === userId)
+        .map((pool) => ({
+          id: pool.id,
+          name: pool.name ?? "",
+          champion_count: state.poolChampionIds.get(pool.id)?.size ?? 0
+        }));
     }
   };
 
@@ -1698,6 +1726,26 @@ describe("API routes", () => {
       .set("Authorization", buildAuthHeader(1, config));
     expect(adminList.status).toBe(200);
     expect(adminList.body.users).toHaveLength(5);
+
+    const memberDetailDenied = await request(app)
+      .get("/admin/users/3/details")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(memberDetailDenied.status).toBe(403);
+
+    const adminDetail = await request(app)
+      .get("/admin/users/2/details")
+      .set("Authorization", buildAuthHeader(1, config));
+    expect(adminDetail.status).toBe(200);
+    expect(adminDetail.body.details.user_id).toBe(2);
+    expect(adminDetail.body.details.primary_role).toBe("Support");
+    expect(Array.isArray(adminDetail.body.details.champion_pools)).toBe(true);
+    expect(adminDetail.body.details.champion_pools).toHaveLength(1);
+    expect(Array.isArray(adminDetail.body.details.team_memberships)).toBe(true);
+    expect(adminDetail.body.details.champion_tag_promotions).toEqual({
+      pending: 0,
+      approved: 0,
+      rejected: 0
+    });
 
     const promoteGlobal = await request(app)
       .put("/admin/users/2/role")

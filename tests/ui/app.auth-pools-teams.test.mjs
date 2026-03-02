@@ -152,7 +152,11 @@ function createFetchHarness({
       tagline: resolvedLoginUser.tagline,
       riot_id: `${resolvedLoginUser.gameName}#${resolvedLoginUser.tagline}`,
       riot_id_correction_count: 0,
-      can_update_riot_id: true
+      can_update_riot_id: true,
+      primary_role: resolvedLoginUser.primaryRole,
+      secondary_roles: Array.isArray(resolvedLoginUser.secondaryRoles)
+        ? [...resolvedLoginUser.secondaryRoles]
+        : []
     },
     {
       id: 22,
@@ -162,7 +166,9 @@ function createFetchHarness({
       tagline: "NA1",
       riot_id: "Member#NA1",
       riot_id_correction_count: 0,
-      can_update_riot_id: true
+      can_update_riot_id: true,
+      primary_role: "Support",
+      secondary_roles: []
     }
   ];
 
@@ -630,6 +636,59 @@ function createFetchHarness({
       }
       adminUsers.splice(userIndex, 1);
       return createJsonResponse({ ok: true });
+    }
+
+    const adminUserDetailsMatch = path.match(/^\/admin\/users\/(\d+)\/details$/);
+    if (adminUserDetailsMatch && method === "GET") {
+      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
+      if (!isAdmin) {
+        return createJsonResponse({ error: { code: "FORBIDDEN", message: "Only admins can view user details." } }, 403);
+      }
+      const targetUserId = Number(adminUserDetailsMatch[1]);
+      const user = adminUsers.find((candidate) => candidate.id === targetUserId) ?? null;
+      if (!user) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "User not found." } }, 404);
+      }
+      const poolSummaries = pools
+        .filter((pool) => Number(pool.user_id) === targetUserId)
+        .map((pool) => ({
+          pool_id: pool.id,
+          name: pool.name,
+          champion_count: Array.isArray(pool.champion_ids) ? pool.champion_ids.length : 0
+        }));
+      const teamMemberships = [];
+      for (const [teamId, roster] of Object.entries(membersByTeam)) {
+        const membershipTeam = teams.find((candidate) => candidate.id === Number(teamId)) ?? null;
+        for (const membership of roster ?? []) {
+          if (Number(membership.user_id) !== targetUserId) {
+            continue;
+          }
+          teamMemberships.push({
+            team_id: Number(teamId),
+            name: membershipTeam?.name ?? `Team ${teamId}`,
+            tag: membershipTeam?.tag ?? null,
+            membership_role: membership.role ?? null,
+            membership_team_role: membership.team_role ?? null,
+            membership_lane: membership.primary_role ?? membership.lane ?? null
+          });
+        }
+      }
+      return createJsonResponse({
+        details: {
+          user_id: targetUserId,
+          primary_role: user.primary_role ?? null,
+          secondary_roles: Array.isArray(user.secondary_roles) ? [...user.secondary_roles] : [],
+          default_team: null,
+          active_team: null,
+          champion_pools: poolSummaries,
+          team_memberships: teamMemberships,
+          champion_tag_promotions: {
+            pending: 0,
+            approved: 0,
+            rejected: 0
+          }
+        }
+      });
     }
 
     if (path === "/composition-requirements" && method === "GET") {

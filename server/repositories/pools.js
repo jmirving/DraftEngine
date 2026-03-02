@@ -113,6 +113,29 @@ export function createPoolsRepository(pool) {
     async listPoolChampionIds(poolId) {
       const rows = await this.listPoolChampions(poolId);
       return rows.map((row) => row.champion_id);
+    },
+
+    async listPoolSummariesByUser(userId) {
+      const result = await pool.query(
+        `
+          SELECT
+            up.id,
+            up.name,
+            COUNT(uc.champion_id)::int AS champion_count
+          FROM user_champion_pools up
+          LEFT JOIN user_pool_champions uc
+            ON uc.pool_id = up.id
+          WHERE up.user_id = $1
+          GROUP BY up.id, up.name
+          ORDER BY up.name ASC, up.id ASC
+        `,
+        [userId]
+      );
+      return result.rows.map((row) => ({
+        id: Number(row.id),
+        name: row.name,
+        champion_count: Number(row.champion_count ?? 0)
+      }));
     }
   };
 }
