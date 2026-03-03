@@ -6469,7 +6469,7 @@ async function fetchBuilderDraftContext(teamId) {
   }
   try {
     const payload = await apiRequest(`/teams/${teamId}/draft-context`, { auth: true });
-    if (payload?.draftContext?.teamId === teamId) {
+    if (payload?.draftContext?.teamId === Number(teamId)) {
       state.builder.draftContext = payload.draftContext;
     }
   } catch {
