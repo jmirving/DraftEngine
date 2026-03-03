@@ -814,6 +814,81 @@ export function createTeamsRepository(pool) {
       return result.rows[0] ? mapMemberInvitationRow(result.rows[0]) : null;
     },
 
+    async listMembersWithPools(teamId) {
+      const result = await pool.query(
+        `
+          SELECT
+            tm.user_id,
+            tm.role,
+            tm.team_role,
+            u.email,
+            u.game_name,
+            u.tagline,
+            u.primary_role,
+            ucp.id        AS pool_id,
+            ucp.name      AS pool_name,
+            upc.champion_id,
+            upc.familiarity
+          FROM team_members tm
+          JOIN users u
+            ON u.id = tm.user_id
+          LEFT JOIN user_champion_pools ucp
+            ON ucp.user_id = tm.user_id
+          LEFT JOIN user_pool_champions upc
+            ON upc.pool_id = ucp.id
+          WHERE tm.team_id = $1
+          ORDER BY tm.user_id, ucp.id, upc.champion_id
+        `,
+        [teamId]
+      );
+
+      const memberMap = new Map();
+      for (const row of result.rows) {
+        const userId = Number(row.user_id);
+        if (!memberMap.has(userId)) {
+          memberMap.set(userId, {
+            user_id: userId,
+            role: row.role,
+            team_role: row.team_role,
+            email: row.email,
+            game_name: row.game_name ?? "",
+            tagline: row.tagline ?? "",
+            primary_role: row.primary_role ?? null,
+            display_name: buildIdentityDisplayName({
+              gameName: row.game_name,
+              tagline: row.tagline,
+              email: row.email,
+              fallbackUserId: userId
+            }),
+            poolMap: new Map()
+          });
+        }
+
+        const member = memberMap.get(userId);
+        if (row.pool_id !== null && row.pool_id !== undefined) {
+          const poolId = Number(row.pool_id);
+          if (!member.poolMap.has(poolId)) {
+            member.poolMap.set(poolId, {
+              id: poolId,
+              name: row.pool_name,
+              champion_ids: [],
+              familiarity_by_champion_id: {}
+            });
+          }
+          if (row.champion_id !== null && row.champion_id !== undefined) {
+            const champ = member.poolMap.get(poolId);
+            champ.champion_ids.push(Number(row.champion_id));
+            champ.familiarity_by_champion_id[String(row.champion_id)] = Number(row.familiarity);
+          }
+        }
+      }
+
+      return Array.from(memberMap.values()).map((member) => {
+        const { poolMap, ...rest } = member;
+        return { ...rest, pools: Array.from(poolMap.values()) };
+      });
+    },
+
     async acceptMemberInvitation(teamId, invitationId, { reviewedByUserId }) {
       const client = await pool.connect();
       try {

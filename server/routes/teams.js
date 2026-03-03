@@ -605,6 +605,32 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
     response.status(204).send();
   });
 
+  router.get("/teams/:id/draft-context", async (request, response) => {
+    const userId = request.user.userId;
+    const teamId = parsePositiveInteger(request.params.id, "id");
+
+    await requireTeamMembership(teamId, userId, teamsRepository);
+    const members = await teamsRepository.listMembersWithPools(teamId);
+    response.json({
+      draftContext: {
+        teamId,
+        members: members.map((m) => ({
+          userId: m.user_id,
+          displayName: m.display_name,
+          lane: m.primary_role,
+          role: m.role,
+          teamRole: m.team_role,
+          pools: m.pools.map((p) => ({
+            id: p.id,
+            name: p.name,
+            championIds: p.champion_ids,
+            familiarityByChampionId: p.familiarity_by_champion_id
+          }))
+        }))
+      }
+    });
+  });
+
   router.get("/teams/:id/members", async (request, response) => {
     const userId = request.user.userId;
     const teamId = parsePositiveInteger(request.params.id, "id");

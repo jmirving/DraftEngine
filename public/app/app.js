@@ -370,6 +370,7 @@ function createInitialState() {
       stage: "setup",
       showOptionalChecks: BUILDER_DEFAULTS.showOptionalChecksByDefault,
       teamId: "",
+      draftContext: null,
       teamState: createEmptyTeamState(),
       draftOrder: [...SLOTS],
       toggles: {
@@ -1641,21 +1642,19 @@ function renderBuilderStageGuide() {
   elements.builderStageInspectMeta.textContent = UI_COPY.builder.stages[1].panelMeta;
   elements.builderContinueValidate.textContent = UI_COPY.builder.continueLabel;
   elements.builderGenerate.textContent = UI_COPY.builder.generateLabel;
-  if (completion.completionState === "empty") {
-    elements.builderStageGuideMeta.textContent = "Pick at least one champion to unlock Review.";
-  } else if (completion.completionState === "partial") {
-    elements.builderStageGuideMeta.textContent = "Review is ready. Generate finish-out options from partial picks.";
+  if (completion.completionState === "partial") {
+    elements.builderStageGuideMeta.textContent = "Generate finish-out options from partial picks.";
+  } else if (completion.completionState === "full") {
+    elements.builderStageGuideMeta.textContent = "Checks evaluate the full composition.";
   } else {
-    elements.builderStageGuideMeta.textContent = "Review is ready. Checks now evaluate a full composition.";
+    elements.builderStageGuideMeta.textContent = "Select champions in Setup, then Generate Tree to inspect options.";
   }
 
-  elements.builderStageSetup.classList.toggle("is-current-stage", state.builder.stage === "setup");
-  elements.builderStageInspect.classList.toggle("is-current-stage", state.builder.stage === "inspect");
-  elements.builderStageSetup.hidden = state.builder.stage !== "setup";
-  elements.builderStageInspect.hidden = state.builder.stage !== "inspect";
+  elements.builderStageSetup.hidden = false;
+  elements.builderStageInspect.hidden = false;
 
-  elements.builderGenerate.disabled = state.builder.stage === "setup";
-  elements.builderContinueValidate.disabled = state.builder.stage !== "setup" || completion.completionState === "empty";
+  elements.builderGenerate.disabled = false;
+  elements.builderContinueValidate.hidden = true;
 }
 
 function createOption(value, label) {
@@ -4781,12 +4780,28 @@ function renderTeamConfig() {
       : `Active team: ${getTeamDisplayLabel(state.teamConfig.activeTeamId)}.${activeTeamSuffix}`;
   }
 
-  const pools = getPoolsForTeam(state.teamConfig.activeTeamId);
+  const ctx = state.builder.draftContext;
+  const memberByLane = new Map();
+  if (ctx?.members) {
+    for (const member of ctx.members) {
+      if (member.lane && SLOTS.includes(member.lane)) {
+        memberByLane.set(member.lane, member);
+      }
+    }
+  }
+
+  const { teamPools } = getEnginePoolContext();
+  const activeTeamId = state.teamConfig.activeTeamId;
+  const poolKey = activeTeamId === NONE_TEAM_ID
+    ? NONE_TEAM_ID
+    : (ctx?.members?.length > 0 ? activeTeamId : BUILDER_PROFILE_POOL_CONTEXT_ID);
+  const pools = teamPools[poolKey] ?? getPoolsForTeam(activeTeamId);
+
   const roleCounts = SLOTS.map((slot) => `${slot}: ${(pools[slot] ?? []).length}`);
   if (elements.teamConfigPoolSummary) {
-    elements.teamConfigPoolSummary.textContent = state.teamConfig.activeTeamId === NONE_TEAM_ID
+    elements.teamConfigPoolSummary.textContent = activeTeamId === NONE_TEAM_ID
       ? `Global candidate pools -> ${roleCounts.join(" | ")}`
-      : `Profile pool snapshot (${getTeamDisplayLabel(state.teamConfig.activeTeamId)} context) -> ${roleCounts.join(" | ")}`;
+      : `Team pool snapshot (${getTeamDisplayLabel(activeTeamId)}) -> ${roleCounts.join(" | ")}`;
   }
 
   if (!elements.teamConfigPoolGrid) {
@@ -4798,7 +4813,8 @@ function renderTeamConfig() {
     card.className = "summary-card";
 
     const title = runtimeDocument.createElement("strong");
-    title.textContent = slot;
+    const member = memberByLane.get(slot);
+    title.textContent = member ? `${slot} (${member.displayName})` : slot;
 
     const count = runtimeDocument.createElement("p");
     count.className = "meta";
@@ -6371,6 +6387,32 @@ function getEnginePoolContext() {
     };
   }
 
+  const ctx = state.builder.draftContext;
+  if (ctx?.members?.length > 0) {
+    const rolePools = createEmptyRolePools();
+    for (const member of ctx.members) {
+      if (!member.lane || !SLOTS.includes(member.lane)) {
+        continue;
+      }
+      const names = new Set();
+      for (const pool of member.pools) {
+        for (const id of pool.championIds) {
+          const name = state.data.championNamesById[id];
+          if (name) {
+            names.add(name);
+          }
+        }
+      }
+      rolePools[member.lane] = Array.from(names);
+    }
+    return {
+      teamId: state.builder.teamId,
+      teamPools: {
+        [state.builder.teamId]: rolePools
+      }
+    };
+  }
+
   const profileRolePools = getProfileRolePools();
   return {
     teamId: BUILDER_PROFILE_POOL_CONTEXT_ID,
@@ -6385,10 +6427,25 @@ function getAutoMaxDepth() {
   return completion.totalSlots - completion.filledSlots;
 }
 
+async function fetchBuilderDraftContext(teamId) {
+  state.builder.draftContext = null;
+  if (!teamId || teamId === NONE_TEAM_ID || !isAuthenticated()) {
+    return;
+  }
+  try {
+    const payload = await apiRequest(`/teams/${teamId}/draft-context`, { auth: true });
+    if (payload?.draftContext?.teamId === teamId) {
+      state.builder.draftContext = payload.draftContext;
+    }
+  } catch {
+    // silently fall back to profile pools
+  }
+}
+
 function generateTreeFromCurrentState({ scrollToResults = true } = {}) {
   const completion = getTeamCompletionInfo(state.builder.teamState);
   if (completion.completionState === "empty") {
-    setSetupFeedback("Select at least one champion before opening Review.");
+    setInspectFeedback("Select at least one champion to generate a tree.");
     return false;
   }
 
@@ -8003,6 +8060,10 @@ function attachEvents() {
     clearBuilderFeedback();
     renderTeamConfig();
     renderBuilder();
+    void fetchBuilderDraftContext(state.builder.teamId).then(() => {
+      renderTeamConfig();
+      renderBuilder();
+    });
     if (isAuthenticated()) {
       void saveTeamContextToApi().then(() => {
         saveTeamConfig();
@@ -8102,10 +8163,6 @@ function attachEvents() {
   }
 
   elements.builderGenerate.addEventListener("click", () => {
-    if (state.builder.stage === "setup") {
-      setSetupFeedback(UI_COPY.builder.setupGateMessage);
-      return;
-    }
     generateTreeFromCurrentState({ scrollToResults: true });
   });
 
