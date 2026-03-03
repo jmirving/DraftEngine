@@ -10,3 +10,4 @@ yarn-error.log*
 pnpm-debug.log*
 docs/nice-to-haves.md
 .beads/
+docs/deprecated
