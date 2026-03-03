@@ -8994,6 +8994,10 @@ async function init() {
     renderChampionTagEditor();
     renderAuth();
     clearBuilderFeedback();
+    void fetchBuilderDraftContext(state.builder.teamId).then(() => {
+      renderTeamConfig();
+      renderBuilder();
+    });
   } catch (error) {
     setSetupFeedback(error instanceof Error ? error.message : "Failed to initialize app.");
   }
