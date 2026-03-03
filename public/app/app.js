@@ -422,6 +422,14 @@ function createElements() {
     authStatus: runtimeDocument.querySelector("#auth-status"),
     authRegistrationHelp: runtimeDocument.querySelector("#auth-registration-help"),
     authFeedback: runtimeDocument.querySelector("#auth-feedback"),
+    authForgotLink: runtimeDocument.querySelector("#auth-forgot-link"),
+    authResetTokenGroup: runtimeDocument.querySelector("#auth-reset-token-group"),
+    authResetToken: runtimeDocument.querySelector("#auth-reset-token"),
+    authNewPasswordGroup: runtimeDocument.querySelector("#auth-new-password-group"),
+    authNewPassword: runtimeDocument.querySelector("#auth-new-password"),
+    authRequestReset: runtimeDocument.querySelector("#auth-request-reset"),
+    authSubmitReset: runtimeDocument.querySelector("#auth-submit-reset"),
+    authBackToLogin: runtimeDocument.querySelector("#auth-back-to-login"),
     explorerTitle: runtimeDocument.querySelector("#explorer-title"),
     explorerMeta: runtimeDocument.querySelector("#explorer-meta"),
     teamConfigTitle: runtimeDocument.querySelector("#team-config-title"),
@@ -1374,7 +1382,8 @@ function clearAuthSession(feedback = "") {
 }
 
 function setAuthMode(mode = "login") {
-  state.auth.mode = mode === "register" ? "register" : "login";
+  const valid = new Set(["login", "register", "forgot", "reset"]);
+  state.auth.mode = valid.has(mode) ? mode : "login";
 }
 
 function hasDefinedProfileRoles(user) {
@@ -1398,15 +1407,19 @@ function resolvePostLoginTab(user) {
 }
 
 function setAuthControlsVisibility(showAuthControls, mode = "login") {
-  const alwaysVisibleWhenSignedOut = [
+  const isForgot = mode === "forgot";
+  const isReset = mode === "reset";
+  const isPasswordFlow = isForgot || isReset;
+
+  const loginRegisterControls = [
     elements.authEmailGroup,
     elements.authPasswordGroup,
     elements.authRegister,
     elements.authLogin
   ];
-  for (const control of alwaysVisibleWhenSignedOut) {
+  for (const control of loginRegisterControls) {
     if (control) {
-      control.hidden = !showAuthControls;
+      control.hidden = !showAuthControls || isPasswordFlow;
     }
   }
 
@@ -1420,6 +1433,28 @@ function setAuthControlsVisibility(showAuthControls, mode = "login") {
     if (control) {
       control.hidden = !showRegisterOnlyControls;
     }
+  }
+
+  if (elements.authForgotLink) {
+    elements.authForgotLink.hidden = !showAuthControls || isPasswordFlow;
+  }
+  if (elements.authEmailGroup) {
+    elements.authEmailGroup.hidden = !showAuthControls || isReset;
+  }
+  if (elements.authResetTokenGroup) {
+    elements.authResetTokenGroup.hidden = !showAuthControls || !isReset;
+  }
+  if (elements.authNewPasswordGroup) {
+    elements.authNewPasswordGroup.hidden = !showAuthControls || !isReset;
+  }
+  if (elements.authRequestReset) {
+    elements.authRequestReset.hidden = !showAuthControls || !isForgot;
+  }
+  if (elements.authSubmitReset) {
+    elements.authSubmitReset.hidden = !showAuthControls || !isReset;
+  }
+  if (elements.authBackToLogin) {
+    elements.authBackToLogin.hidden = !showAuthControls || !isPasswordFlow;
   }
 }
 
@@ -7820,6 +7855,90 @@ function attachEvents() {
       renderAuth();
     });
   });
+
+  if (elements.authForgotLink) {
+    elements.authForgotLink.addEventListener("click", () => {
+      setAuthMode("forgot");
+      setAuthFeedback("");
+      renderAuth();
+    });
+  }
+
+  if (elements.authBackToLogin) {
+    elements.authBackToLogin.addEventListener("click", () => {
+      setAuthMode("login");
+      setAuthFeedback("");
+      renderAuth();
+    });
+  }
+
+  if (elements.authRequestReset) {
+    elements.authRequestReset.addEventListener("click", () => {
+      const email = elements.authEmail?.value?.trim() ?? "";
+      if (!email) {
+        setAuthFeedback("Enter your email address.");
+        renderAuth();
+        return;
+      }
+      elements.authRequestReset.disabled = true;
+      void apiRequest("/auth/request-password-reset", {
+        method: "POST",
+        body: { email }
+      }).then((payload) => {
+        const token = payload?.resetToken;
+        if (token && elements.authResetToken) {
+          elements.authResetToken.value = token;
+        }
+        setAuthMode("reset");
+        setAuthFeedback(token
+          ? "Token issued. It has been pre-filled below (no email service configured)."
+          : (payload?.message ?? "Check your email for a reset token.")
+        );
+        renderAuth();
+      }).catch((error) => {
+        setAuthFeedback(normalizeApiErrorMessage(error, "Request failed."));
+        renderAuth();
+      }).finally(() => {
+        if (elements.authRequestReset) {
+          elements.authRequestReset.disabled = false;
+        }
+      });
+    });
+  }
+
+  if (elements.authSubmitReset) {
+    elements.authSubmitReset.addEventListener("click", () => {
+      const token = elements.authResetToken?.value?.trim() ?? "";
+      const newPassword = elements.authNewPassword?.value ?? "";
+      if (!token || !newPassword) {
+        setAuthFeedback("Enter both the reset token and your new password.");
+        renderAuth();
+        return;
+      }
+      elements.authSubmitReset.disabled = true;
+      void apiRequest("/auth/reset-password", {
+        method: "POST",
+        body: { token, newPassword }
+      }).then(() => {
+        setAuthMode("login");
+        setAuthFeedback("Password updated. You can now log in.");
+        if (elements.authResetToken) {
+          elements.authResetToken.value = "";
+        }
+        if (elements.authNewPassword) {
+          elements.authNewPassword.value = "";
+        }
+        renderAuth();
+      }).catch((error) => {
+        setAuthFeedback(normalizeApiErrorMessage(error, "Reset failed."));
+        renderAuth();
+      }).finally(() => {
+        if (elements.authSubmitReset) {
+          elements.authSubmitReset.disabled = false;
+        }
+      });
+    });
+  }
 
   elements.authLogout.addEventListener("click", () => {
     clearAuthSession("");

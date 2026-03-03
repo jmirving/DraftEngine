@@ -36,6 +36,18 @@
             </label>
             <button id="auth-register" type="button">Register</button>
             <button id="auth-login" type="button">Login</button>
+            <button id="auth-forgot-link" type="button" class="button-subtle">Forgot password?</button>
+            <label id="auth-reset-token-group" hidden>
+              Reset Token
+              <input id="auth-reset-token" type="text" placeholder="Paste reset token" />
+            </label>
+            <label id="auth-new-password-group" hidden>
+              New Password
+              <input id="auth-new-password" type="password" autocomplete="new-password" placeholder="New password" />
+            </label>
+            <button id="auth-request-reset" type="button" hidden>Send Reset Token</button>
+            <button id="auth-submit-reset" type="button" hidden>Set New Password</button>
+            <button id="auth-back-to-login" type="button" class="button-subtle" hidden>Back to Login</button>
           </div>
           <button
             id="nav-toggle"

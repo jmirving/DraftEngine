@@ -1,10 +1,17 @@
+import { createHash, randomBytes } from "crypto";
 import { Router } from "express";
 
-import { ApiError, conflict, unauthorized } from "../errors.js";
-import { requireEmail, requireGameName, requireObject, requirePassword, requireTagline } from "../http/validation.js";
+import { ApiError, badRequest, conflict, unauthorized } from "../errors.js";
+import { requireEmail, requireGameName, requireNonEmptyString, requireObject, requirePassword, requireTagline } from "../http/validation.js";
 import { hashPassword, verifyPassword } from "../auth/password.js";
 import { signAccessToken } from "../auth/tokens.js";
 import { USER_ROLE_ADMIN, USER_ROLE_MEMBER, isOwnerAdminEmail, resolveAuthorizationRole } from "../user-roles.js";
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+function hashResetToken(rawToken) {
+  return createHash("sha256").update(rawToken).digest("hex");
+}
 
 function serializeAuthUser(user) {
   return {
@@ -92,6 +99,48 @@ export function createAuthRouter({ config, usersRepository }) {
       token,
       user: serializeAuthUser(user)
     });
+  });
+
+  router.post("/request-password-reset", async (request, response) => {
+    const body = requireObject(request.body);
+    const email = requireEmail(body.email);
+
+    // Always respond the same way regardless of whether email exists (prevents enumeration)
+    const user = await usersRepository.findByEmail(email);
+    if (!user) {
+      response.json({ message: "If that email is registered, a reset token has been issued." });
+      return;
+    }
+
+    const rawToken = randomBytes(32).toString("hex");
+    const tokenHash = hashResetToken(rawToken);
+    const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+    await usersRepository.createPasswordResetToken(user.id, tokenHash, expiresAt);
+
+    // NOTE: In production this token would be emailed. Returned directly here
+    // because no email service is configured.
+    response.json({
+      message: "If that email is registered, a reset token has been issued.",
+      resetToken: rawToken
+    });
+  });
+
+  router.post("/reset-password", async (request, response) => {
+    const body = requireObject(request.body);
+    const rawToken = requireNonEmptyString(body.token, "token");
+    const newPassword = requirePassword(body.newPassword);
+
+    const tokenHash = hashResetToken(rawToken);
+    const record = await usersRepository.findValidPasswordResetToken(tokenHash);
+    if (!record) {
+      throw badRequest("Invalid or expired reset token.");
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await usersRepository.updatePassword(Number(record.user_id), passwordHash);
+    await usersRepository.markResetTokenUsed(Number(record.id));
+
+    response.json({ message: "Password updated successfully." });
   });
 
   return router;

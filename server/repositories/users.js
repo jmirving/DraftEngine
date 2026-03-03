@@ -167,6 +167,53 @@ export function createUsersRepository(pool) {
         [userId, defaultTeamId, activeTeamId]
       );
       return result.rows[0] ?? null;
+    },
+
+    async createPasswordResetToken(userId, tokenHash, expiresAt) {
+      await pool.query(
+        `
+          INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+          VALUES ($1, $2, $3)
+        `,
+        [userId, tokenHash, expiresAt]
+      );
+    },
+
+    async findValidPasswordResetToken(tokenHash) {
+      const result = await pool.query(
+        `
+          SELECT id, user_id, expires_at, used_at
+          FROM password_reset_tokens
+          WHERE token_hash = $1
+            AND used_at IS NULL
+            AND expires_at > current_timestamp
+        `,
+        [tokenHash]
+      );
+      return result.rows[0] ?? null;
+    },
+
+    async markResetTokenUsed(tokenId) {
+      await pool.query(
+        `
+          UPDATE password_reset_tokens
+          SET used_at = current_timestamp
+          WHERE id = $1
+        `,
+        [tokenId]
+      );
+    },
+
+    async updatePassword(userId, passwordHash) {
+      const result = await pool.query(
+        `
+          UPDATE users
+          SET password_hash = $2
+          WHERE id = $1
+        `,
+        [userId, passwordHash]
+      );
+      return result.rowCount > 0;
     }
   };
 }
