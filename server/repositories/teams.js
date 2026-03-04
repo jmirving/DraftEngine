@@ -821,10 +821,10 @@ export function createTeamsRepository(pool) {
             tm.user_id,
             tm.role,
             tm.team_role,
+            COALESCE(tm.lane, u.primary_role) AS primary_role,
             u.email,
             u.game_name,
             u.tagline,
-            u.primary_role,
             ucp.id        AS pool_id,
             ucp.name      AS pool_name,
             upc.champion_id,
@@ -939,10 +939,10 @@ export function createTeamsRepository(pool) {
 
         await client.query(
           `
-            INSERT INTO team_members (team_id, user_id, role, team_role)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO team_members (team_id, user_id, role, team_role, lane)
+            VALUES ($1, $2, $3, $4, $5)
           `,
-          [teamId, invitation.target_user_id, invitation.role, invitation.team_role]
+          [teamId, invitation.target_user_id, invitation.role, invitation.team_role, invitation.requested_lane ?? null]
         );
 
         await client.query(
