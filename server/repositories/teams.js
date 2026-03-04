@@ -837,7 +837,9 @@ export function createTeamsRepository(pool) {
           LEFT JOIN user_pool_champions upc
             ON upc.pool_id = ucp.id
           WHERE tm.team_id = $1
-          ORDER BY tm.user_id, ucp.id, upc.champion_id
+          ORDER BY
+            CASE WHEN tm.team_role = 'primary' THEN 0 ELSE 1 END,
+            tm.user_id, ucp.id, upc.champion_id
         `,
         [teamId]
       );

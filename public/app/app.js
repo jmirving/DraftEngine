@@ -4527,13 +4527,15 @@ function getMemberForSlot(slot) {
   }
   const ctx = state.builder.draftContext;
   if (ctx?.members) {
-    const member = ctx.members.find((m) => m.lane === slot);
+    const matches = ctx.members.filter((m) => m.lane === slot);
+    const member = matches.find((m) => m.teamRole === "primary") ?? matches[0] ?? null;
     if (member) {
       return member;
     }
   }
   const roster = state.api.membersByTeamId[String(state.builder.teamId)] ?? [];
-  const rosterMember = roster.find((m) => (m.lane ?? m.position) === slot);
+  const rosterMatches = roster.filter((m) => (m.lane ?? m.position) === slot);
+  const rosterMember = rosterMatches.find((m) => m.team_role === "primary") ?? rosterMatches[0] ?? null;
   if (rosterMember) {
     return {
       displayName: rosterMember.display_name || rosterMember.game_name || rosterMember.email || String(rosterMember.user_id),
