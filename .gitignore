@@ -9,5 +9,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 docs/nice-to-haves.md
+docs/bug-feature-quick-notes
 .beads/
 docs/deprecated
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
