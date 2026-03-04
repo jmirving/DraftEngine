@@ -4521,30 +4521,34 @@ function clearExplorerFilters() {
   multiSelectControls.explorerExcludeTags?.setSelected([]);
 }
 
+function getMemberForSlot(slot) {
+  if (state.builder.teamId === NONE_TEAM_ID) {
+    return null;
+  }
+  const ctx = state.builder.draftContext;
+  if (ctx?.members) {
+    const member = ctx.members.find((m) => m.lane === slot);
+    if (member) {
+      return member;
+    }
+  }
+  const roster = state.api.membersByTeamId[String(state.builder.teamId)] ?? [];
+  const rosterMember = roster.find((m) => (m.lane ?? m.position) === slot);
+  if (rosterMember) {
+    return {
+      displayName: rosterMember.display_name || rosterMember.game_name || rosterMember.email || String(rosterMember.user_id),
+      lane: slot
+    };
+  }
+  return null;
+}
+
 function getSlotLabel(slot) {
   if (state.builder.teamId === NONE_TEAM_ID) {
     return slot;
   }
-  const selectedTeam = findTeamById(state.builder.teamId);
-  if (!selectedTeam) {
-    return slot;
-  }
-  const userId = Number.parseInt(String(state.auth.user?.id ?? ""), 10);
-  const isPrimaryByTeamSummary = selectedTeam.membership_team_role === "primary";
-  const selectedTeamMembers = state.api.membersByTeamId[String(selectedTeam.id)] ?? [];
-  const isPrimaryByRoster = Number.isInteger(userId) && selectedTeamMembers.some(
-    (member) => Number(member?.user_id) === userId && member?.team_role === "primary"
-  );
-  if (!isPrimaryByTeamSummary && !isPrimaryByRoster) {
-    return slot;
-  }
-  if (slot !== state.profile.primaryRole) {
-    return slot;
-  }
-  const gameName = typeof state.auth.user?.gameName === "string" ? state.auth.user.gameName.trim() : "";
-  const email = typeof state.auth.user?.email === "string" ? state.auth.user.email.trim() : "";
-  const displayName = gameName || email || "You";
-  return `${slot} (${displayName})`;
+  const member = getMemberForSlot(slot);
+  return member ? `${slot} (${member.displayName})` : slot;
 }
 
 function updateTeamHelpAndSlotLabels() {
@@ -4816,14 +4820,6 @@ function renderTeamConfig() {
   }
 
   const ctx = state.builder.draftContext;
-  const memberByLane = new Map();
-  if (ctx?.members) {
-    for (const member of ctx.members) {
-      if (member.lane && SLOTS.includes(member.lane)) {
-        memberByLane.set(member.lane, member);
-      }
-    }
-  }
 
   const { teamPools } = getEnginePoolContext();
   const activeTeamId = state.teamConfig.activeTeamId;
@@ -4848,8 +4844,7 @@ function renderTeamConfig() {
     card.className = "summary-card";
 
     const title = runtimeDocument.createElement("strong");
-    const member = memberByLane.get(slot);
-    title.textContent = member ? `${slot} (${member.displayName})` : slot;
+    title.textContent = getSlotLabel(slot);
 
     const count = runtimeDocument.createElement("p");
     count.className = "meta";
