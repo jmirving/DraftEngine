@@ -4859,7 +4859,9 @@ function renderTeamConfig() {
       span.textContent = text;
       elements.teamConfigPoolSummary.append(span);
       if (i < roleCounts.length - 1) {
-        elements.teamConfigPoolSummary.append(" | ");
+        const sep = runtimeDocument.createElement("span");
+        sep.textContent = " | ";
+        elements.teamConfigPoolSummary.append(sep);
       }
     });
     if (dupeRoles.size > 0) {
