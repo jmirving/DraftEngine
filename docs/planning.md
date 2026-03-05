@@ -10,13 +10,28 @@
 | Add `getMemberForSlot` helper | — | Single source of truth for Role (PlayerName) across Pool Snapshot, Player Slots, Node Draft Order |
 | Add `team_members.lane` column + backfill from accepted invitations | — | Fixes team-specific position (e.g. SnomJuice → Top) without relying on profile primary role |
 
+#### 2026-03-04 — Composer Player Slots & Pool Snapshot UI Overhaul
+
+| Item | Notes |
+|---|---|
+| Merge Node Draft Order into Player Slots | Removed separate drag list; added ↑↓ arrow buttons inline on each slot row for draft fill priority reorder |
+| Slot row banner header | `slot-row-head` extended to full-width banner with 4-column grid: Summoner name (3fr) + Pick Order / Role / Status (2fr each) |
+| Slot label format | Displays "SUMMONER: PlayerName" (tag stripped, text-selectable, non-draggable) |
+| Pool role change resets slot | Changing role select clears the champion dropdown and resets Filled → Pending |
+| Pool Snapshot cards overhaul | Cards span section width evenly; champion list is vertical + scrollable; text filter per card; max-height cap |
+| Per-member per-role pool accuracy | Introduced `getChampionsForSlotAndRole(slot, poolRole)` — looks up each member's specific pool by lane + role name instead of merged pool; used in `syncSlotSelectOptions`, `validateAndApplySlotSelection`, and `renderTeamConfig` |
+| Bidirectional role select sync | Slot row role select ↔ Pool Snapshot card role select both write `state.builder.slotPoolRole[slot]` and re-render; summary line label reflects selected role |
+| Click-to-select champion from card | Clicking a champion in a Pool Snapshot card sets that slot's Player Slots champion dropdown |
+| Champion dropdown sorted alphabetically | Player Slots champion select sorted A–Z, matching Pool Snapshot card lists |
+| Duplicate role error detection | Summary line highlights duplicate role entries in error red; "All roles must be unique!" pushed to far right via flex layout |
+| Fix duplicate role pipe spacing | Wrapped all role count items in spans for consistent flex children; prevents space collapse around " \| " separators adjacent to colored spans |
+
 ---
 
 ## Needs Action
 | Item | Who | Notes |
 |---|---|---|
-| Run `npm run migrate:up` on hosted server | Server admin | Required for lane backfill — fixes existing TTT members and enables lane storage for future invitation accepts |
-| Verify Pool Snapshot card names show Role (PlayerName) after migration + hard refresh | Tyler | Confirm 5080271 is working end-to-end |
+| — | — | No pending actions |
 
 ---
 
