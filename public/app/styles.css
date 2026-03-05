@@ -984,10 +984,10 @@ button.ghost {
 }
 
 .slot-row-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
   align-items: center;
   gap: 0.42rem;
-  flex-wrap: wrap;
 }
 
 .slot-order {
@@ -1000,11 +1000,9 @@ button.ghost {
   font-weight: 700;
   display: flex;
   align-items: center;
-  align-self: stretch;
 }
 
 .slot-status {
-  margin-left: auto;
   border: 1px solid var(--border);
   border-radius: 999px;
   font-size: 0.7rem;
@@ -1043,6 +1041,10 @@ button.ghost {
 }
 
 .slot-player-name {
+  display: block;
+  width: 66.67%;
+  margin: 0 auto;
+  text-align: center;
   background: #f0f4f8;
   border: 1px solid var(--border);
   border-radius: 6px;
