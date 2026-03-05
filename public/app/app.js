@@ -373,6 +373,7 @@ function createInitialState() {
       draftContext: null,
       teamState: createEmptyTeamState(),
       draftOrder: [...SLOTS],
+      slotPoolRole: Object.fromEntries(SLOTS.map((s) => [s, s])),
       toggles: {
         ...DEFAULT_REQUIREMENT_TOGGLES
       },
@@ -657,6 +658,9 @@ function createElements() {
     ),
     slotStatusBadges: Object.fromEntries(
       SLOTS.map((slot) => [slot, runtimeDocument.querySelector(`#slot-status-${slot}`)])
+    ),
+    slotPoolSelects: Object.fromEntries(
+      SLOTS.map((slot) => [slot, runtimeDocument.querySelector(`#slot-pool-${slot}`)])
     )
   };
 }
@@ -6374,6 +6378,7 @@ function resetBuilderToDefaults() {
   syncConfiguredTeamSelection();
   state.builder.teamState = createEmptyTeamState();
   state.builder.draftOrder = [...SLOTS];
+  state.builder.slotPoolRole = Object.fromEntries(SLOTS.map((s) => [s, s]));
   state.builder.toggles = { ...DEFAULT_REQUIREMENT_TOGGLES };
   state.builder.showOptionalChecks = BUILDER_DEFAULTS.showOptionalChecksByDefault;
   state.builder.excludedChampions = [];
@@ -6533,9 +6538,14 @@ function syncSlotSelectOptions() {
   const { teamId, teamPools } = getEnginePoolContext();
   const rolePools = teamPools[teamId] ?? {};
   for (const slot of SLOTS) {
+    const poolRole = state.builder.slotPoolRole[slot] ?? slot;
     const select = elements.slotSelects[slot];
+    const poolSelect = elements.slotPoolSelects[slot];
     const selected = state.builder.teamState[slot];
-    const pool = rolePools[slot] ?? [];
+    const pool = rolePools[poolRole] ?? [];
+    if (poolSelect && poolSelect.value !== poolRole) {
+      poolSelect.value = poolRole;
+    }
 
     const allowed = pool.filter((championName) => {
       if (state.builder.excludedChampions.includes(championName)) {
@@ -7736,6 +7746,7 @@ async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAd
   renderChampionTagEditor();
   syncSlotSelectOptions();
   void fetchBuilderDraftContext(state.builder.teamId).then(() => {
+    syncSlotSelectOptions();
     renderTeamConfig();
     renderBuilder();
   });
@@ -8157,6 +8168,7 @@ function attachEvents() {
     renderTeamConfig();
     renderBuilder();
     void fetchBuilderDraftContext(state.builder.teamId).then(() => {
+      syncSlotSelectOptions();
       renderTeamConfig();
       renderBuilder();
     });
@@ -8258,6 +8270,10 @@ function attachEvents() {
     });
     elements.slotUpButtons[slot]?.addEventListener("click", () => moveSlotInDraftOrder(slot, -1));
     elements.slotDownButtons[slot]?.addEventListener("click", () => moveSlotInDraftOrder(slot, 1));
+    elements.slotPoolSelects[slot]?.addEventListener("change", () => {
+      state.builder.slotPoolRole[slot] = elements.slotPoolSelects[slot].value;
+      syncSlotSelectOptions();
+    });
     const row = elements.slotRows[slot];
     if (row) {
       row.addEventListener("dragstart", (event) => {
@@ -9004,6 +9020,7 @@ async function init() {
     renderAuth();
     clearBuilderFeedback();
     void fetchBuilderDraftContext(state.builder.teamId).then(() => {
+      syncSlotSelectOptions();
       renderTeamConfig();
       renderBuilder();
     });

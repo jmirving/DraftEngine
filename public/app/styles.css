@@ -1024,24 +1024,33 @@ button.ghost {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  width: 50%;
+  margin: 0 auto;
 }
 
 .slot-row-controls select {
   flex: 1;
 }
 
+.slot-pool-select {
+  flex: 0 0 auto;
+  width: auto;
+}
+
 .slot-order-btns {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 0.15rem;
+  flex-shrink: 0;
 }
 
 .slot-order-btn {
   width: auto;
-  padding: 0.1rem 0.38rem;
-  font-size: 0.8rem;
+  padding: 0 0.4rem;
+  font-size: 0.7rem;
   line-height: 1;
   min-height: unset;
+  height: 1.9rem;
   background: #fff8f2;
   border-color: var(--accent-soft);
   color: var(--accent);
