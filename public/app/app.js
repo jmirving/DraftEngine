@@ -4834,14 +4834,42 @@ function renderTeamConfig() {
 
   const activeTeamId = state.teamConfig.activeTeamId;
 
-  const roleCounts = SLOTS.map((slot) => {
-    const poolRole = state.builder.slotPoolRole[slot] ?? slot;
-    return `${poolRole}: ${getChampionsForSlotAndRole(slot, poolRole).length}`;
+  const poolRoles = SLOTS.map((slot) => state.builder.slotPoolRole[slot] ?? slot);
+  const seen = new Set();
+  const dupeRoles = new Set();
+  for (const r of poolRoles) {
+    if (seen.has(r)) dupeRoles.add(r);
+    seen.add(r);
+  }
+  const roleCounts = SLOTS.map((slot, i) => {
+    const poolRole = poolRoles[i];
+    return { poolRole, text: `${poolRole}: ${getChampionsForSlotAndRole(slot, poolRole).length}` };
   });
   if (elements.teamConfigPoolSummary) {
-    elements.teamConfigPoolSummary.textContent = activeTeamId === NONE_TEAM_ID
-      ? `Global candidate pools -> ${roleCounts.join(" | ")}`
-      : `Team pool snapshot (${getTeamDisplayLabel(activeTeamId)}) -> ${roleCounts.join(" | ")}`;
+    elements.teamConfigPoolSummary.innerHTML = "";
+    const prefix = activeTeamId === NONE_TEAM_ID
+      ? "Global candidate pools -> "
+      : `Team pool snapshot (${getTeamDisplayLabel(activeTeamId)}) -> `;
+    elements.teamConfigPoolSummary.append(prefix);
+    roleCounts.forEach(({ poolRole, text }, i) => {
+      if (dupeRoles.has(poolRole)) {
+        const span = runtimeDocument.createElement("span");
+        span.className = "pool-snapshot-dupe-error";
+        span.textContent = text;
+        elements.teamConfigPoolSummary.append(span);
+      } else {
+        elements.teamConfigPoolSummary.append(text);
+      }
+      if (i < roleCounts.length - 1) {
+        elements.teamConfigPoolSummary.append(" | ");
+      }
+    });
+    if (dupeRoles.size > 0) {
+      const errSpan = runtimeDocument.createElement("span");
+      errSpan.className = "pool-snapshot-dupe-error";
+      errSpan.textContent = "  All roles must be unique!";
+      elements.teamConfigPoolSummary.append(errSpan);
+    }
   }
 
   if (!elements.teamConfigPoolGrid) {
@@ -6624,7 +6652,7 @@ function syncSlotSelectOptions() {
     const select = elements.slotSelects[slot];
     const poolSelect = elements.slotPoolSelects[slot];
     const selected = state.builder.teamState[slot];
-    const pool = getChampionsForSlotAndRole(slot, poolRole);
+    const pool = getChampionsForSlotAndRole(slot, poolRole).slice().sort((a, b) => a.localeCompare(b));
     if (poolSelect && poolSelect.value !== poolRole) {
       poolSelect.value = poolRole;
     }

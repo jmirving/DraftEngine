@@ -1594,6 +1594,11 @@ button.slot-order-btn:disabled {
   font-style: italic;
 }
 
+.pool-snapshot-dupe-error {
+  color: var(--error);
+  font-weight: 700;
+}
+
 .pool-snapshot-list li:not(.pool-snapshot-empty) {
   cursor: pointer;
 }
