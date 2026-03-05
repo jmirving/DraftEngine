@@ -1058,10 +1058,10 @@ button.ghost {
 
 .slot-head-item {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 0.15rem;
+  gap: 0.35rem;
   padding: 0.3rem 0.5rem;
   border-left: 1px solid var(--border);
 }
@@ -1089,7 +1089,7 @@ button.ghost {
   line-height: 1;
   min-height: unset;
   height: 1.71rem;
-  background: #4e5a61;
+  background: lightslategrey;
   border-color: var(--accent-soft);
   color: var(--accent);
 }
