@@ -4572,7 +4572,8 @@ function updateTeamHelpAndSlotLabels() {
   }
 
   for (const slot of SLOTS) {
-    elements.slotLabels[slot].textContent = getSlotLabel(slot);
+    const member = getMemberForSlot(slot);
+    elements.slotLabels[slot].textContent = member ? `(${member.displayName})` : "";
   }
 }
 
@@ -6412,12 +6413,6 @@ function resetBuilderToDefaults() {
   return true;
 }
 
-function getEffectiveRolePools() {
-  if (state.builder.teamId === NONE_TEAM_ID) {
-    return state.data.noneTeamPools;
-  }
-  return getProfileRolePools();
-}
 
 function getEnginePoolContext() {
   if (state.builder.teamId === NONE_TEAM_ID) {
@@ -7685,12 +7680,16 @@ function scrollReviewResultsIntoView() {
 }
 
 function validateAndApplySlotSelection(slot, championName) {
+  const poolRole = state.builder.slotPoolRole[slot] ?? slot;
+  const { teamId, teamPools } = getEnginePoolContext();
+  const rolePools = teamPools[teamId] ?? {};
+  const pools = { ...rolePools, [slot]: rolePools[poolRole] ?? [] };
   const selection = validateSlotSelection({
     slot,
     championName,
     teamState: state.builder.teamState,
     excludedChampions: state.builder.excludedChampions,
-    pools: getEffectiveRolePools(),
+    pools,
     slots: SLOTS
   });
 

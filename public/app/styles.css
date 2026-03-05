@@ -1035,6 +1035,14 @@ button.ghost {
 .slot-pool-select {
   flex: 0 0 auto;
   width: auto;
+  font-size: 0.8rem;
+  padding: 0.05rem 0.2rem;
+}
+
+.slot-player-name {
+  margin-left: 0.35rem;
+  font-size: 0.88rem;
+  color: var(--muted);
 }
 
 .slot-order-btns {
