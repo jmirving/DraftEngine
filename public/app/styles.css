@@ -1020,6 +1020,30 @@ button.ghost {
   background: #edf7f0;
 }
 
+.slot-row-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.slot-row-controls select {
+  flex: 1;
+}
+
+.slot-order-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.slot-order-btn {
+  width: auto;
+  padding: 0.1rem 0.38rem;
+  font-size: 0.8rem;
+  line-height: 1;
+  min-height: unset;
+}
+
 .toggle-group {
   border: 1px solid var(--border);
   border-radius: 10px;

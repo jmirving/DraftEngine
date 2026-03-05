@@ -530,8 +530,13 @@ function createElements() {
     builderContinueValidate: runtimeDocument.querySelector("#builder-continue-validate"),
     builderGenerate: runtimeDocument.querySelector("#builder-generate"),
     builderClear: runtimeDocument.querySelector("#builder-clear"),
-    builderDraftOrder: runtimeDocument.querySelector("#builder-draft-order"),
     builderNextRoleReadout: runtimeDocument.querySelector("#builder-next-role-readout"),
+    slotUpButtons: Object.fromEntries(
+      SLOTS.map((slot) => [slot, runtimeDocument.querySelector(`#slot-up-${slot}`)])
+    ),
+    slotDownButtons: Object.fromEntries(
+      SLOTS.map((slot) => [slot, runtimeDocument.querySelector(`#slot-down-${slot}`)])
+    ),
     builderTeamContext: runtimeDocument.querySelector("#builder-team-context"),
     builderRequiredChecks: runtimeDocument.querySelector("#builder-required-checks"),
     builderOptionalChecks: runtimeDocument.querySelector("#builder-optional-checks"),
@@ -6954,9 +6959,22 @@ function renderExcludedOptions() {
   }
 }
 
-function renderDraftOrder() {
-  elements.builderDraftOrder.innerHTML = "";
+function moveSlotInDraftOrder(slot, direction) {
+  const order = [...state.builder.draftOrder];
+  const idx = order.indexOf(slot);
+  const newIdx = idx + direction;
+  if (newIdx < 0 || newIdx >= order.length) {
+    return;
+  }
+  order.splice(idx, 1);
+  order.splice(newIdx, 0, slot);
+  state.builder.draftOrder = order;
+  setBuilderStage("setup");
+  resetBuilderTreeState();
+  renderBuilder();
+}
 
+function renderDraftOrder() {
   for (let index = 0; index < state.builder.draftOrder.length; index += 1) {
     const role = state.builder.draftOrder[index];
     const row = elements.slotRows[role];
@@ -6984,59 +7002,16 @@ function renderDraftOrder() {
     elements.builderNextRoleReadout.textContent = "All roles are already filled.";
   }
 
-  for (const role of state.builder.draftOrder) {
-    const item = runtimeDocument.createElement("li");
-    item.className = "draft-order-item";
-    if (state.builder.teamState[role]) {
-      item.classList.add("is-filled");
+  for (const role of SLOTS) {
+    const idx = state.builder.draftOrder.indexOf(role);
+    const upBtn = elements.slotUpButtons[role];
+    const downBtn = elements.slotDownButtons[role];
+    if (upBtn) {
+      upBtn.disabled = idx === 0;
     }
-    item.draggable = true;
-    item.dataset.role = role;
-
-    const title = runtimeDocument.createElement("span");
-    title.textContent = state.builder.teamState[role]
-      ? `${getSlotLabel(role)} - filled (${state.builder.teamState[role]})`
-      : `${getSlotLabel(role)} - pending`;
-
-    const handle = runtimeDocument.createElement("span");
-    handle.className = "handle";
-    handle.textContent = "drag";
-
-    item.append(title, handle);
-
-    item.addEventListener("dragstart", (event) => {
-      event.dataTransfer?.setData("text/role", role);
-      event.dataTransfer.effectAllowed = "move";
-    });
-
-    item.addEventListener("dragover", (event) => {
-      event.preventDefault();
-      event.dataTransfer.dropEffect = "move";
-    });
-
-    item.addEventListener("drop", (event) => {
-      event.preventDefault();
-      const sourceRole = event.dataTransfer?.getData("text/role");
-      if (!sourceRole || sourceRole === role) {
-        return;
-      }
-
-      const updated = [...state.builder.draftOrder];
-      const sourceIndex = updated.indexOf(sourceRole);
-      const targetIndex = updated.indexOf(role);
-      if (sourceIndex < 0 || targetIndex < 0) {
-        return;
-      }
-
-      updated.splice(sourceIndex, 1);
-      updated.splice(targetIndex, 0, sourceRole);
-      state.builder.draftOrder = updated;
-      setBuilderStage("setup");
-      resetBuilderTreeState();
-      renderBuilder();
-    });
-
-    elements.builderDraftOrder.append(item);
+    if (downBtn) {
+      downBtn.disabled = idx === state.builder.draftOrder.length - 1;
+    }
   }
 }
 
@@ -8276,6 +8251,8 @@ function attachEvents() {
       renderBuilder();
       setSetupFeedback("");
     });
+    elements.slotUpButtons[slot]?.addEventListener("click", () => moveSlotInDraftOrder(slot, -1));
+    elements.slotDownButtons[slot]?.addEventListener("click", () => moveSlotInDraftOrder(slot, 1));
   }
 
   elements.builderGenerate.addEventListener("click", () => {

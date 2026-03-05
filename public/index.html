@@ -291,59 +291,83 @@
                     <p id="team-config-pool-summary" class="meta"></p>
                     <div id="team-config-pool-grid" class="team-pool-grid"></div>
                   </div>
-                  <div class="setup-board-grid">
-                    <section class="slot-inputs-block">
-                      <h3>Player Slots</h3>
-                      <div class="slot-list">
-                        <label class="slot-row" id="slot-row-Top" data-slot="Top">
-                          <div class="slot-row-head">
-                            <span id="slot-order-Top" class="slot-order">#1</span>
-                            <span id="slot-label-Top">Top</span>
-                            <span id="slot-status-Top" class="slot-status">Pending</span>
+                  <section class="slot-inputs-block">
+                    <h3>Player Slots</h3>
+                    <p class="meta">Use ↑↓ to change draft fill priority.</p>
+                    <p id="builder-next-role-readout" class="meta"></p>
+                    <div class="slot-list">
+                      <label class="slot-row" id="slot-row-Top" data-slot="Top">
+                        <div class="slot-row-head">
+                          <span id="slot-order-Top" class="slot-order">#1</span>
+                          <span id="slot-label-Top">Top</span>
+                          <span id="slot-status-Top" class="slot-status">Pending</span>
+                        </div>
+                        <div class="slot-row-controls">
+                          <div class="slot-order-btns">
+                            <button type="button" id="slot-up-Top" class="ghost slot-order-btn" aria-label="Move Top up in draft order">↑</button>
+                            <button type="button" id="slot-down-Top" class="ghost slot-order-btn" aria-label="Move Top down in draft order">↓</button>
                           </div>
                           <select id="slot-Top"></select>
-                        </label>
-                        <label class="slot-row" id="slot-row-Jungle" data-slot="Jungle">
-                          <div class="slot-row-head">
-                            <span id="slot-order-Jungle" class="slot-order">#2</span>
-                            <span id="slot-label-Jungle">Jungle</span>
-                            <span id="slot-status-Jungle" class="slot-status">Pending</span>
+                        </div>
+                      </label>
+                      <label class="slot-row" id="slot-row-Jungle" data-slot="Jungle">
+                        <div class="slot-row-head">
+                          <span id="slot-order-Jungle" class="slot-order">#2</span>
+                          <span id="slot-label-Jungle">Jungle</span>
+                          <span id="slot-status-Jungle" class="slot-status">Pending</span>
+                        </div>
+                        <div class="slot-row-controls">
+                          <div class="slot-order-btns">
+                            <button type="button" id="slot-up-Jungle" class="ghost slot-order-btn" aria-label="Move Jungle up in draft order">↑</button>
+                            <button type="button" id="slot-down-Jungle" class="ghost slot-order-btn" aria-label="Move Jungle down in draft order">↓</button>
                           </div>
                           <select id="slot-Jungle"></select>
-                        </label>
-                        <label class="slot-row" id="slot-row-Mid" data-slot="Mid">
-                          <div class="slot-row-head">
-                            <span id="slot-order-Mid" class="slot-order">#3</span>
-                            <span id="slot-label-Mid">Mid</span>
-                            <span id="slot-status-Mid" class="slot-status">Pending</span>
+                        </div>
+                      </label>
+                      <label class="slot-row" id="slot-row-Mid" data-slot="Mid">
+                        <div class="slot-row-head">
+                          <span id="slot-order-Mid" class="slot-order">#3</span>
+                          <span id="slot-label-Mid">Mid</span>
+                          <span id="slot-status-Mid" class="slot-status">Pending</span>
+                        </div>
+                        <div class="slot-row-controls">
+                          <div class="slot-order-btns">
+                            <button type="button" id="slot-up-Mid" class="ghost slot-order-btn" aria-label="Move Mid up in draft order">↑</button>
+                            <button type="button" id="slot-down-Mid" class="ghost slot-order-btn" aria-label="Move Mid down in draft order">↓</button>
                           </div>
                           <select id="slot-Mid"></select>
-                        </label>
-                        <label class="slot-row" id="slot-row-ADC" data-slot="ADC">
-                          <div class="slot-row-head">
-                            <span id="slot-order-ADC" class="slot-order">#4</span>
-                            <span id="slot-label-ADC">ADC</span>
-                            <span id="slot-status-ADC" class="slot-status">Pending</span>
+                        </div>
+                      </label>
+                      <label class="slot-row" id="slot-row-ADC" data-slot="ADC">
+                        <div class="slot-row-head">
+                          <span id="slot-order-ADC" class="slot-order">#4</span>
+                          <span id="slot-label-ADC">ADC</span>
+                          <span id="slot-status-ADC" class="slot-status">Pending</span>
+                        </div>
+                        <div class="slot-row-controls">
+                          <div class="slot-order-btns">
+                            <button type="button" id="slot-up-ADC" class="ghost slot-order-btn" aria-label="Move ADC up in draft order">↑</button>
+                            <button type="button" id="slot-down-ADC" class="ghost slot-order-btn" aria-label="Move ADC down in draft order">↓</button>
                           </div>
                           <select id="slot-ADC"></select>
-                        </label>
-                        <label class="slot-row" id="slot-row-Support" data-slot="Support">
-                          <div class="slot-row-head">
-                            <span id="slot-order-Support" class="slot-order">#5</span>
-                            <span id="slot-label-Support">Support</span>
-                            <span id="slot-status-Support" class="slot-status">Pending</span>
+                        </div>
+                      </label>
+                      <label class="slot-row" id="slot-row-Support" data-slot="Support">
+                        <div class="slot-row-head">
+                          <span id="slot-order-Support" class="slot-order">#5</span>
+                          <span id="slot-label-Support">Support</span>
+                          <span id="slot-status-Support" class="slot-status">Pending</span>
+                        </div>
+                        <div class="slot-row-controls">
+                          <div class="slot-order-btns">
+                            <button type="button" id="slot-up-Support" class="ghost slot-order-btn" aria-label="Move Support up in draft order">↑</button>
+                            <button type="button" id="slot-down-Support" class="ghost slot-order-btn" aria-label="Move Support down in draft order">↓</button>
                           </div>
                           <select id="slot-Support"></select>
-                        </label>
-                      </div>
-                    </section>
-                    <div class="draft-order-block">
-                      <h3>Node Draft Order</h3>
-                      <p class="meta">Drag roles to reorder priority. Generation always fills the first unfilled role in this order.</p>
-                      <p id="builder-next-role-readout" class="meta"></p>
-                      <ul id="builder-draft-order" class="draft-order-list"></ul>
+                        </div>
+                      </label>
                     </div>
-                  </div>
+                  </section>
                   <p id="builder-setup-feedback" class="error-inline" hidden></p>
                   <details id="builder-advanced-controls" class="advanced-controls">
                     <summary>Advanced Controls</summary>
