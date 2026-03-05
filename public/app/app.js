@@ -4841,7 +4841,10 @@ function renderTeamConfig() {
     : (ctx?.members?.length > 0 ? activeTeamId : BUILDER_PROFILE_POOL_CONTEXT_ID);
   const pools = teamPools[poolKey] ?? getPoolsForTeam(activeTeamId);
 
-  const roleCounts = SLOTS.map((slot) => `${slot}: ${(pools[slot] ?? []).length}`);
+  const roleCounts = SLOTS.map((slot) => {
+    const poolRole = state.builder.slotPoolRole[slot] ?? slot;
+    return `${slot}: ${(pools[poolRole] ?? []).length}`;
+  });
   if (elements.teamConfigPoolSummary) {
     elements.teamConfigPoolSummary.textContent = activeTeamId === NONE_TEAM_ID
       ? `Global candidate pools -> ${roleCounts.join(" | ")}`
@@ -4853,6 +4856,8 @@ function renderTeamConfig() {
   }
   elements.teamConfigPoolGrid.innerHTML = "";
   for (const slot of SLOTS) {
+    const poolRole = state.builder.slotPoolRole[slot] ?? slot;
+
     const card = runtimeDocument.createElement("article");
     card.className = "summary-card pool-snapshot-card";
 
@@ -4861,7 +4866,17 @@ function renderTeamConfig() {
     const title = runtimeDocument.createElement("strong");
     title.textContent = memberName ? `${slot} · ${memberName}` : slot;
 
-    const champions = [...(pools[slot] ?? [])].sort((left, right) => left.localeCompare(right));
+    const roleSelect = runtimeDocument.createElement("select");
+    roleSelect.className = "pool-snapshot-role-select";
+    for (const s of SLOTS) {
+      const opt = runtimeDocument.createElement("option");
+      opt.value = s;
+      opt.textContent = s;
+      if (s === poolRole) opt.selected = true;
+      roleSelect.append(opt);
+    }
+
+    const champions = [...(pools[poolRole] ?? [])].sort((left, right) => left.localeCompare(right));
 
     const count = runtimeDocument.createElement("p");
     count.className = "meta";
@@ -4895,7 +4910,20 @@ function renderTeamConfig() {
       }
     });
 
-    card.append(title, count, filter, ul);
+    roleSelect.addEventListener("change", () => {
+      state.builder.slotPoolRole[slot] = roleSelect.value;
+      state.builder.teamState[slot] = null;
+      if (elements.slotPoolSelects[slot]) {
+        elements.slotPoolSelects[slot].value = roleSelect.value;
+      }
+      setBuilderStage("setup");
+      resetBuilderTreeState();
+      syncSlotSelectOptions();
+      renderTeamConfig();
+      renderBuilder();
+    });
+
+    card.append(title, roleSelect, count, filter, ul);
     elements.teamConfigPoolGrid.append(card);
   }
 }
@@ -8303,6 +8331,7 @@ function attachEvents() {
       setBuilderStage("setup");
       resetBuilderTreeState();
       syncSlotSelectOptions();
+      renderTeamConfig();
       renderBuilder();
     });
     elements.slotLabels[slot]?.addEventListener("dragstart", (e) => e.stopPropagation());
