@@ -6530,7 +6530,8 @@ function isChampionInOtherSlot(slot, championName) {
 }
 
 function syncSlotSelectOptions() {
-  const rolePools = getEffectiveRolePools();
+  const { teamId, teamPools } = getEnginePoolContext();
+  const rolePools = teamPools[teamId] ?? {};
   for (const slot of SLOTS) {
     const select = elements.slotSelects[slot];
     const selected = state.builder.teamState[slot];
@@ -8257,6 +8258,36 @@ function attachEvents() {
     });
     elements.slotUpButtons[slot]?.addEventListener("click", () => moveSlotInDraftOrder(slot, -1));
     elements.slotDownButtons[slot]?.addEventListener("click", () => moveSlotInDraftOrder(slot, 1));
+    const row = elements.slotRows[slot];
+    if (row) {
+      row.addEventListener("dragstart", (event) => {
+        event.dataTransfer?.setData("text/slot", slot);
+        event.dataTransfer.effectAllowed = "move";
+      });
+      row.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+      });
+      row.addEventListener("drop", (event) => {
+        event.preventDefault();
+        const sourceSlot = event.dataTransfer?.getData("text/slot");
+        if (!sourceSlot || sourceSlot === slot) {
+          return;
+        }
+        const updated = [...state.builder.draftOrder];
+        const sourceIndex = updated.indexOf(sourceSlot);
+        const targetIndex = updated.indexOf(slot);
+        if (sourceIndex < 0 || targetIndex < 0) {
+          return;
+        }
+        updated.splice(sourceIndex, 1);
+        updated.splice(targetIndex, 0, sourceSlot);
+        state.builder.draftOrder = updated;
+        setBuilderStage("setup");
+        resetBuilderTreeState();
+        renderBuilder();
+      });
+    }
   }
 
   elements.builderGenerate.addEventListener("click", () => {

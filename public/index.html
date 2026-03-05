@@ -293,10 +293,9 @@
                   </div>
                   <section class="slot-inputs-block">
                     <h3>Player Slots</h3>
-                    <p class="meta">Use ↑↓ to change draft fill priority.</p>
-                    <p id="builder-next-role-readout" class="meta"></p>
+                    <p class="meta">Drag slots or use ↑↓ to change pick order.</p>
                     <div class="slot-list">
-                      <label class="slot-row" id="slot-row-Top" data-slot="Top">
+                      <label class="slot-row" id="slot-row-Top" data-slot="Top" draggable="true">
                         <div class="slot-row-head">
                           <span id="slot-order-Top" class="slot-order">#1</span>
                           <span id="slot-label-Top">Top</span>
@@ -304,13 +303,13 @@
                         </div>
                         <div class="slot-row-controls">
                           <div class="slot-order-btns">
-                            <button type="button" id="slot-up-Top" class="ghost slot-order-btn" aria-label="Move Top up in draft order">↑</button>
-                            <button type="button" id="slot-down-Top" class="ghost slot-order-btn" aria-label="Move Top down in draft order">↓</button>
+                            <button type="button" id="slot-up-Top" class="ghost slot-order-btn" aria-label="Move Top up in pick order">↑</button>
+                            <button type="button" id="slot-down-Top" class="ghost slot-order-btn" aria-label="Move Top down in pick order">↓</button>
                           </div>
                           <select id="slot-Top"></select>
                         </div>
                       </label>
-                      <label class="slot-row" id="slot-row-Jungle" data-slot="Jungle">
+                      <label class="slot-row" id="slot-row-Jungle" data-slot="Jungle" draggable="true">
                         <div class="slot-row-head">
                           <span id="slot-order-Jungle" class="slot-order">#2</span>
                           <span id="slot-label-Jungle">Jungle</span>
@@ -318,13 +317,13 @@
                         </div>
                         <div class="slot-row-controls">
                           <div class="slot-order-btns">
-                            <button type="button" id="slot-up-Jungle" class="ghost slot-order-btn" aria-label="Move Jungle up in draft order">↑</button>
-                            <button type="button" id="slot-down-Jungle" class="ghost slot-order-btn" aria-label="Move Jungle down in draft order">↓</button>
+                            <button type="button" id="slot-up-Jungle" class="ghost slot-order-btn" aria-label="Move Jungle up in pick order">↑</button>
+                            <button type="button" id="slot-down-Jungle" class="ghost slot-order-btn" aria-label="Move Jungle down in pick order">↓</button>
                           </div>
                           <select id="slot-Jungle"></select>
                         </div>
                       </label>
-                      <label class="slot-row" id="slot-row-Mid" data-slot="Mid">
+                      <label class="slot-row" id="slot-row-Mid" data-slot="Mid" draggable="true">
                         <div class="slot-row-head">
                           <span id="slot-order-Mid" class="slot-order">#3</span>
                           <span id="slot-label-Mid">Mid</span>
@@ -332,13 +331,13 @@
                         </div>
                         <div class="slot-row-controls">
                           <div class="slot-order-btns">
-                            <button type="button" id="slot-up-Mid" class="ghost slot-order-btn" aria-label="Move Mid up in draft order">↑</button>
-                            <button type="button" id="slot-down-Mid" class="ghost slot-order-btn" aria-label="Move Mid down in draft order">↓</button>
+                            <button type="button" id="slot-up-Mid" class="ghost slot-order-btn" aria-label="Move Mid up in pick order">↑</button>
+                            <button type="button" id="slot-down-Mid" class="ghost slot-order-btn" aria-label="Move Mid down in pick order">↓</button>
                           </div>
                           <select id="slot-Mid"></select>
                         </div>
                       </label>
-                      <label class="slot-row" id="slot-row-ADC" data-slot="ADC">
+                      <label class="slot-row" id="slot-row-ADC" data-slot="ADC" draggable="true">
                         <div class="slot-row-head">
                           <span id="slot-order-ADC" class="slot-order">#4</span>
                           <span id="slot-label-ADC">ADC</span>
@@ -346,13 +345,13 @@
                         </div>
                         <div class="slot-row-controls">
                           <div class="slot-order-btns">
-                            <button type="button" id="slot-up-ADC" class="ghost slot-order-btn" aria-label="Move ADC up in draft order">↑</button>
-                            <button type="button" id="slot-down-ADC" class="ghost slot-order-btn" aria-label="Move ADC down in draft order">↓</button>
+                            <button type="button" id="slot-up-ADC" class="ghost slot-order-btn" aria-label="Move ADC up in pick order">↑</button>
+                            <button type="button" id="slot-down-ADC" class="ghost slot-order-btn" aria-label="Move ADC down in pick order">↓</button>
                           </div>
                           <select id="slot-ADC"></select>
                         </div>
                       </label>
-                      <label class="slot-row" id="slot-row-Support" data-slot="Support">
+                      <label class="slot-row" id="slot-row-Support" data-slot="Support" draggable="true">
                         <div class="slot-row-head">
                           <span id="slot-order-Support" class="slot-order">#5</span>
                           <span id="slot-label-Support">Support</span>
@@ -360,8 +359,8 @@
                         </div>
                         <div class="slot-row-controls">
                           <div class="slot-order-btns">
-                            <button type="button" id="slot-up-Support" class="ghost slot-order-btn" aria-label="Move Support up in draft order">↑</button>
-                            <button type="button" id="slot-down-Support" class="ghost slot-order-btn" aria-label="Move Support down in draft order">↓</button>
+                            <button type="button" id="slot-up-Support" class="ghost slot-order-btn" aria-label="Move Support up in pick order">↑</button>
+                            <button type="button" id="slot-down-Support" class="ghost slot-order-btn" aria-label="Move Support down in pick order">↓</button>
                           </div>
                           <select id="slot-Support"></select>
                         </div>
@@ -417,6 +416,7 @@
                 <div class="button-row inspect-generate-row">
                   <button id="builder-generate" type="button">Generate Tree</button>
                   <p class="meta inspect-generate-help">Uses current setup inputs and constraints.</p>
+                  <p id="builder-next-role-readout" class="meta"></p>
                 </div>
                 <div class="tree-toolbar">
                   <label>

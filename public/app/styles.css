@@ -1042,6 +1042,23 @@ button.ghost {
   font-size: 0.8rem;
   line-height: 1;
   min-height: unset;
+  background: #fff8f2;
+  border-color: var(--accent-soft);
+  color: var(--accent);
+}
+
+.slot-order-btn:disabled {
+  background: #f5f2e9;
+  color: var(--border);
+  border-color: var(--border);
+}
+
+.slot-row[draggable="true"] {
+  cursor: grab;
+}
+
+.slot-row[draggable="true"]:active {
+  cursor: grabbing;
 }
 
 .toggle-group {
