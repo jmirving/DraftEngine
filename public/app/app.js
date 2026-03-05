@@ -4854,21 +4854,48 @@ function renderTeamConfig() {
   elements.teamConfigPoolGrid.innerHTML = "";
   for (const slot of SLOTS) {
     const card = runtimeDocument.createElement("article");
-    card.className = "summary-card";
+    card.className = "summary-card pool-snapshot-card";
 
+    const member = getMemberForSlot(slot);
+    const memberName = member?.displayName?.split("#")[0] ?? null;
     const title = runtimeDocument.createElement("strong");
-    title.textContent = getSlotLabel(slot);
+    title.textContent = memberName ? `${slot} · ${memberName}` : slot;
+
+    const champions = [...(pools[slot] ?? [])].sort((left, right) => left.localeCompare(right));
 
     const count = runtimeDocument.createElement("p");
     count.className = "meta";
-    const champions = [...(pools[slot] ?? [])].sort((left, right) => left.localeCompare(right));
     count.textContent = `${champions.length} champion${champions.length === 1 ? "" : "s"} in pool.`;
 
-    const list = runtimeDocument.createElement("p");
-    list.className = "meta";
-    list.textContent = champions.length > 0 ? champions.join(", ") : "No champions configured.";
+    const filter = runtimeDocument.createElement("input");
+    filter.type = "text";
+    filter.className = "pool-snapshot-filter";
+    filter.placeholder = "Filter…";
 
-    card.append(title, count, list);
+    const ul = runtimeDocument.createElement("ul");
+    ul.className = "pool-snapshot-list";
+
+    if (champions.length > 0) {
+      for (const champ of champions) {
+        const li = runtimeDocument.createElement("li");
+        li.textContent = champ;
+        ul.append(li);
+      }
+    } else {
+      const li = runtimeDocument.createElement("li");
+      li.textContent = "No champions configured.";
+      li.className = "pool-snapshot-empty";
+      ul.append(li);
+    }
+
+    filter.addEventListener("input", () => {
+      const q = filter.value.trim().toLowerCase();
+      for (const li of ul.querySelectorAll("li:not(.pool-snapshot-empty)")) {
+        li.hidden = q.length > 0 && !li.textContent.toLowerCase().includes(q);
+      }
+    });
+
+    card.append(title, count, filter, ul);
     elements.teamConfigPoolGrid.append(card);
   }
 }

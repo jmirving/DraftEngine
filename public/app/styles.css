@@ -402,7 +402,7 @@ h3 {
 }
 
 .team-pool-grid {
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(5, 1fr);
 }
 
 .team-context-stack {
@@ -1540,6 +1540,43 @@ button.slot-order-btn:disabled {
 
 .summary-card .button-row button {
   width: auto;
+}
+
+.pool-snapshot-card {
+  display: flex;
+  flex-direction: column;
+  max-height: 14rem;
+}
+
+.pool-snapshot-filter {
+  margin: 0.25rem 0 0.15rem;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.3rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pool-snapshot-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  overflow-y: auto;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.pool-snapshot-list li {
+  padding: 0.05rem 0.25rem;
+}
+
+.pool-snapshot-list li + li {
+  border-top: 1px solid var(--border);
+}
+
+.pool-snapshot-empty {
+  color: var(--muted);
+  font-style: italic;
 }
 
 .user-detail-panel {
