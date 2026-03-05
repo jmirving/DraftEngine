@@ -1043,6 +1043,8 @@ button.ghost {
   width: auto;
   font-size: 0.8rem;
   padding: 0.05rem 0.2rem;
+  vertical-align: middle;
+  margin-bottom: 0.1rem;
 }
 
 .slot-player-name {
