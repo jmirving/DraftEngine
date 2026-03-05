@@ -4573,7 +4573,8 @@ function updateTeamHelpAndSlotLabels() {
 
   for (const slot of SLOTS) {
     const member = getMemberForSlot(slot);
-    elements.slotLabels[slot].textContent = member ? `(${member.displayName})` : "";
+    const name = member?.displayName?.split("#")[0] ?? null;
+    elements.slotLabels[slot].textContent = name ? `Summoner: ${name}` : "";
   }
 }
 
@@ -8271,8 +8272,13 @@ function attachEvents() {
     elements.slotDownButtons[slot]?.addEventListener("click", () => moveSlotInDraftOrder(slot, 1));
     elements.slotPoolSelects[slot]?.addEventListener("change", () => {
       state.builder.slotPoolRole[slot] = elements.slotPoolSelects[slot].value;
+      state.builder.teamState[slot] = null;
+      setBuilderStage("setup");
+      resetBuilderTreeState();
       syncSlotSelectOptions();
+      renderBuilder();
     });
+    elements.slotLabels[slot]?.addEventListener("dragstart", (e) => e.stopPropagation());
     const row = elements.slotRows[slot];
     if (row) {
       row.addEventListener("dragstart", (event) => {
