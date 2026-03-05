@@ -4574,7 +4574,7 @@ function updateTeamHelpAndSlotLabels() {
   for (const slot of SLOTS) {
     const member = getMemberForSlot(slot);
     const name = member?.displayName?.split("#")[0] ?? null;
-    elements.slotLabels[slot].textContent = name ? `Summoner: ${name}` : "";
+    elements.slotLabels[slot].textContent = name ? `SUMMONER: ${name}` : "";
   }
 }
 
