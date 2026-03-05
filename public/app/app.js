@@ -4843,7 +4843,11 @@ function renderTeamConfig() {
 
   const roleCounts = SLOTS.map((slot) => {
     const poolRole = state.builder.slotPoolRole[slot] ?? slot;
-    return `${poolRole}: ${(pools[poolRole] ?? []).length}`;
+    const ctxMember = ctx?.members?.find((m) => m.lane === slot && m.teamRole === "primary")
+      ?? ctx?.members?.find((m) => m.lane === slot);
+    const memberPool = ctxMember?.pools?.find((p) => p.name === poolRole);
+    const count = memberPool ? memberPool.championIds.length : (pools[poolRole] ?? []).length;
+    return `${poolRole}: ${count}`;
   });
   if (elements.teamConfigPoolSummary) {
     elements.teamConfigPoolSummary.textContent = activeTeamId === NONE_TEAM_ID
@@ -4863,6 +4867,15 @@ function renderTeamConfig() {
 
     const member = getMemberForSlot(slot);
     const memberName = member?.displayName?.split("#")[0] ?? null;
+    const ctxMember = ctx?.members?.find((m) => m.lane === slot && m.teamRole === "primary")
+      ?? ctx?.members?.find((m) => m.lane === slot);
+    const memberPool = ctxMember?.pools?.find((p) => p.name === poolRole);
+    const champions = memberPool
+      ? memberPool.championIds
+          .map((id) => state.data.championNamesById[id])
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b))
+      : [...(pools[poolRole] ?? [])].sort((a, b) => a.localeCompare(b));
 
     const header = runtimeDocument.createElement("div");
     header.className = "pool-snapshot-header";
@@ -4880,8 +4893,6 @@ function renderTeamConfig() {
       roleSelect.append(opt);
     }
     header.append(title, roleSelect);
-
-    const champions = [...(pools[poolRole] ?? [])].sort((left, right) => left.localeCompare(right));
 
     const count = runtimeDocument.createElement("p");
     count.className = "meta";
