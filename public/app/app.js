@@ -4852,14 +4852,12 @@ function renderTeamConfig() {
       : `Team pool snapshot (${getTeamDisplayLabel(activeTeamId)}) -> `;
     elements.teamConfigPoolSummary.append(prefix);
     roleCounts.forEach(({ poolRole, text }, i) => {
+      const span = runtimeDocument.createElement("span");
       if (dupeRoles.has(poolRole)) {
-        const span = runtimeDocument.createElement("span");
         span.className = "pool-snapshot-dupe-error";
-        span.textContent = text;
-        elements.teamConfigPoolSummary.append(span);
-      } else {
-        elements.teamConfigPoolSummary.append(text);
       }
+      span.textContent = text;
+      elements.teamConfigPoolSummary.append(span);
       if (i < roleCounts.length - 1) {
         elements.teamConfigPoolSummary.append(" | ");
       }
