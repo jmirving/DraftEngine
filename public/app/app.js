@@ -7734,6 +7734,10 @@ async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAd
   renderCompositionRequirementsWorkspace();
   renderChampionTagEditor();
   syncSlotSelectOptions();
+  void fetchBuilderDraftContext(state.builder.teamId).then(() => {
+    renderTeamConfig();
+    renderBuilder();
+  });
 }
 
 function getAuthCredentials(mode = "login") {
