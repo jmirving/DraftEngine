@@ -985,9 +985,14 @@ button.ghost {
 
 .slot-row-head {
   display: grid;
-  grid-template-columns: auto auto 1fr auto;
-  align-items: center;
-  gap: 0.42rem;
+  grid-template-columns: 3fr 2fr 2fr 2fr;
+  align-items: stretch;
+  gap: 0;
+  margin: -0.5rem -0.5rem 0.5rem -0.5rem;
+  border-radius: 9px 9px 0 0;
+  background: #e8edf2;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
 }
 
 .slot-order {
@@ -1041,19 +1046,33 @@ button.ghost {
 }
 
 .slot-player-name {
-  display: block;
-  width: 66.67%;
-  margin: 0 auto;
-  text-align: center;
-  background: #f0f4f8;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.1rem 0.5rem;
+  display: flex;
+  align-items: center;
+  padding: 0.4rem 0.75rem;
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   color: var(--fg);
   user-select: text;
   cursor: text;
+}
+
+.slot-head-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.3rem 0.5rem;
+  border-left: 1px solid var(--border);
+}
+
+.slot-head-label {
+  font-size: 0.6rem;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
 }
 
 .slot-order-btns {
