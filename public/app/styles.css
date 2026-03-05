@@ -1595,8 +1595,22 @@ button.slot-order-btn:disabled {
 }
 
 .pool-snapshot-dupe-error {
-  color: var(--error);
+  color: var(--warn);
   font-weight: 700;
+}
+
+.pool-snapshot-unique-error {
+  color: var(--warn);
+  font-weight: 700;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+#team-config-pool-summary {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: nowrap;
+  gap: 0;
 }
 
 .pool-snapshot-list li:not(.pool-snapshot-empty) {

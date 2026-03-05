@@ -4866,8 +4866,8 @@ function renderTeamConfig() {
     });
     if (dupeRoles.size > 0) {
       const errSpan = runtimeDocument.createElement("span");
-      errSpan.className = "pool-snapshot-dupe-error";
-      errSpan.textContent = "  All roles must be unique!";
+      errSpan.className = "pool-snapshot-unique-error";
+      errSpan.textContent = "All roles must be unique!";
       elements.teamConfigPoolSummary.append(errSpan);
     }
   }
