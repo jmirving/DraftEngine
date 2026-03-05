@@ -1095,9 +1095,9 @@ button.slot-order-btn {
   line-height: 1;
   min-height: unset;
   height: 1.71rem;
-  background: lightslategrey;
+  background: var(--surface-strong);
   border-color: var(--accent-soft);
-  color: var(--accent);
+  color: var(--fg);
 }
 
 button.slot-order-btn:disabled {
