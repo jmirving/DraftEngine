@@ -1082,7 +1082,7 @@ button.ghost {
   flex-shrink: 0;
 }
 
-.slot-order-btn {
+button.slot-order-btn {
   width: auto;
   padding: 0 0.4rem;
   font-size: 0.7rem;
@@ -1094,7 +1094,7 @@ button.ghost {
   color: var(--accent);
 }
 
-.slot-order-btn:disabled {
+button.slot-order-btn:disabled {
   background: #f5f2e9;
   color: var(--border);
   border-color: var(--border);
