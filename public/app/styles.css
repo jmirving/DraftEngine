@@ -1594,6 +1594,22 @@ button.slot-order-btn:disabled {
   font-style: italic;
 }
 
+.pool-snapshot-list li:not(.pool-snapshot-empty) {
+  cursor: pointer;
+}
+
+.pool-snapshot-list li:not(.pool-snapshot-empty):hover {
+  background: var(--surface-strong);
+}
+
+.pool-snapshot-list li.is-selected {
+  background: #edf7f0;
+  color: var(--good);
+  font-weight: 600;
+  border-left: 2px solid var(--good);
+  padding-left: calc(0.25rem - 2px);
+}
+
 .user-detail-panel {
   margin-top: 0.7rem;
   border-top: 1px dashed var(--border);

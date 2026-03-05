@@ -4910,6 +4910,24 @@ function renderTeamConfig() {
       for (const champ of champions) {
         const li = runtimeDocument.createElement("li");
         li.textContent = champ;
+        if (champ === state.builder.teamState[slot]) {
+          li.classList.add("is-selected");
+        }
+        li.addEventListener("click", () => {
+          if (!validateAndApplySlotSelection(slot, champ)) {
+            syncSlotSelectOptions();
+            return;
+          }
+          for (const item of ul.querySelectorAll("li.is-selected")) {
+            item.classList.remove("is-selected");
+          }
+          li.classList.add("is-selected");
+          setBuilderStage("setup");
+          resetBuilderTreeState();
+          syncSlotSelectOptions();
+          renderBuilder();
+          setSetupFeedback("");
+        });
         ul.append(li);
       }
     } else {
