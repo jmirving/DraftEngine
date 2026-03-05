@@ -4860,7 +4860,7 @@ function renderTeamConfig() {
       elements.teamConfigPoolSummary.append(span);
       if (i < roleCounts.length - 1) {
         const sep = runtimeDocument.createElement("span");
-        sep.textContent = " | ";
+        sep.textContent = "\u00a0|\u00a0";
         elements.teamConfigPoolSummary.append(sep);
       }
     });
