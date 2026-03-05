@@ -4832,22 +4832,11 @@ function renderTeamConfig() {
       : `Active team: ${getTeamDisplayLabel(state.teamConfig.activeTeamId)}.${activeTeamSuffix}`;
   }
 
-  const ctx = state.builder.draftContext;
-
-  const { teamPools } = getEnginePoolContext();
   const activeTeamId = state.teamConfig.activeTeamId;
-  const poolKey = activeTeamId === NONE_TEAM_ID
-    ? NONE_TEAM_ID
-    : (ctx?.members?.length > 0 ? activeTeamId : BUILDER_PROFILE_POOL_CONTEXT_ID);
-  const pools = teamPools[poolKey] ?? getPoolsForTeam(activeTeamId);
 
   const roleCounts = SLOTS.map((slot) => {
     const poolRole = state.builder.slotPoolRole[slot] ?? slot;
-    const ctxMember = ctx?.members?.find((m) => m.lane === slot && m.teamRole === "primary")
-      ?? ctx?.members?.find((m) => m.lane === slot);
-    const memberPool = ctxMember?.pools?.find((p) => p.name === poolRole);
-    const count = memberPool ? memberPool.championIds.length : (pools[poolRole] ?? []).length;
-    return `${poolRole}: ${count}`;
+    return `${poolRole}: ${getChampionsForSlotAndRole(slot, poolRole).length}`;
   });
   if (elements.teamConfigPoolSummary) {
     elements.teamConfigPoolSummary.textContent = activeTeamId === NONE_TEAM_ID
@@ -4867,15 +4856,7 @@ function renderTeamConfig() {
 
     const member = getMemberForSlot(slot);
     const memberName = member?.displayName?.split("#")[0] ?? null;
-    const ctxMember = ctx?.members?.find((m) => m.lane === slot && m.teamRole === "primary")
-      ?? ctx?.members?.find((m) => m.lane === slot);
-    const memberPool = ctxMember?.pools?.find((p) => p.name === poolRole);
-    const champions = memberPool
-      ? memberPool.championIds
-          .map((id) => state.data.championNamesById[id])
-          .filter(Boolean)
-          .sort((a, b) => a.localeCompare(b))
-      : [...(pools[poolRole] ?? [])].sort((a, b) => a.localeCompare(b));
+    const champions = getChampionsForSlotAndRole(slot, poolRole).slice().sort((a, b) => a.localeCompare(b));
 
     const header = runtimeDocument.createElement("div");
     header.className = "pool-snapshot-header";
@@ -6554,6 +6535,24 @@ function getAutoMaxDepth() {
   return completion.totalSlots - completion.filledSlots;
 }
 
+function getChampionsForSlotAndRole(slot, poolRole) {
+  const ctx = state.builder.draftContext;
+  if (ctx?.members?.length > 0) {
+    const ctxMember =
+      ctx.members.find((m) => m.lane === slot && m.teamRole === "primary") ??
+      ctx.members.find((m) => m.lane === slot);
+    if (ctxMember) {
+      const memberPool = ctxMember.pools.find((p) => p.name === poolRole);
+      return memberPool
+        ? memberPool.championIds.map((id) => state.data.championNamesById[id]).filter(Boolean)
+        : [];
+    }
+  }
+  const { teamId, teamPools } = getEnginePoolContext();
+  const rolePools = teamPools[teamId] ?? {};
+  return rolePools[poolRole] ?? [];
+}
+
 async function fetchBuilderDraftContext(teamId) {
   state.builder.draftContext = null;
   if (!teamId || teamId === NONE_TEAM_ID || !isAuthenticated()) {
@@ -6620,14 +6619,12 @@ function isChampionInOtherSlot(slot, championName) {
 }
 
 function syncSlotSelectOptions() {
-  const { teamId, teamPools } = getEnginePoolContext();
-  const rolePools = teamPools[teamId] ?? {};
   for (const slot of SLOTS) {
     const poolRole = state.builder.slotPoolRole[slot] ?? slot;
     const select = elements.slotSelects[slot];
     const poolSelect = elements.slotPoolSelects[slot];
     const selected = state.builder.teamState[slot];
-    const pool = rolePools[poolRole] ?? [];
+    const pool = getChampionsForSlotAndRole(slot, poolRole);
     if (poolSelect && poolSelect.value !== poolRole) {
       poolSelect.value = poolRole;
     }
@@ -7773,7 +7770,7 @@ function validateAndApplySlotSelection(slot, championName) {
   const poolRole = state.builder.slotPoolRole[slot] ?? slot;
   const { teamId, teamPools } = getEnginePoolContext();
   const rolePools = teamPools[teamId] ?? {};
-  const pools = { ...rolePools, [slot]: rolePools[poolRole] ?? [] };
+  const pools = { ...rolePools, [slot]: getChampionsForSlotAndRole(slot, poolRole) };
   const selection = validateSlotSelection({
     slot,
     championName,
