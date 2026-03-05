@@ -1548,12 +1548,19 @@ button.slot-order-btn:disabled {
   max-height: 14rem;
 }
 
+.pool-snapshot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.2rem;
+}
+
 .pool-snapshot-role-select {
   font-size: 0.75rem;
   padding: 0.05rem 0.2rem;
-  width: 100%;
-  box-sizing: border-box;
-  margin: 0.2rem 0 0.1rem;
+  flex-shrink: 0;
+  width: auto;
 }
 
 .pool-snapshot-filter {

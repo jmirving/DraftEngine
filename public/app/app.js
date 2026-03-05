@@ -4843,7 +4843,7 @@ function renderTeamConfig() {
 
   const roleCounts = SLOTS.map((slot) => {
     const poolRole = state.builder.slotPoolRole[slot] ?? slot;
-    return `${slot}: ${(pools[poolRole] ?? []).length}`;
+    return `${poolRole}: ${(pools[poolRole] ?? []).length}`;
   });
   if (elements.teamConfigPoolSummary) {
     elements.teamConfigPoolSummary.textContent = activeTeamId === NONE_TEAM_ID
@@ -4863,8 +4863,12 @@ function renderTeamConfig() {
 
     const member = getMemberForSlot(slot);
     const memberName = member?.displayName?.split("#")[0] ?? null;
+
+    const header = runtimeDocument.createElement("div");
+    header.className = "pool-snapshot-header";
+
     const title = runtimeDocument.createElement("strong");
-    title.textContent = memberName ? `${slot} · ${memberName}` : slot;
+    title.textContent = memberName ?? slot;
 
     const roleSelect = runtimeDocument.createElement("select");
     roleSelect.className = "pool-snapshot-role-select";
@@ -4875,6 +4879,7 @@ function renderTeamConfig() {
       if (s === poolRole) opt.selected = true;
       roleSelect.append(opt);
     }
+    header.append(title, roleSelect);
 
     const champions = [...(pools[poolRole] ?? [])].sort((left, right) => left.localeCompare(right));
 
@@ -4923,7 +4928,7 @@ function renderTeamConfig() {
       renderBuilder();
     });
 
-    card.append(title, roleSelect, count, filter, ul);
+    card.append(header, count, filter, ul);
     elements.teamConfigPoolGrid.append(card);
   }
 }
