@@ -979,14 +979,51 @@ button.ghost {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: #fffefa;
+  position: relative;
+}
+
+.explorer-catalog-toggle {
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.42rem 0.55rem;
+  font-size: 0.88rem;
+  color: var(--muted);
+  text-align: left;
+}
+
+.explorer-catalog-toggle:hover {
+  color: var(--ink);
+}
+
+.explorer-catalog-caret {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.explorer-catalog-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #fffcf5;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
   padding: 0.5rem 0.6rem;
+  z-index: 80;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
 }
 
-.explorer-filter-catalog .chip-row {
-  margin-top: 0.1rem;
+.explorer-catalog-panel .chip-row {
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .filter-label-header {

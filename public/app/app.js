@@ -490,6 +490,9 @@ function createElements() {
     explorerClearSort: runtimeDocument.querySelector("#explorer-clear-sort"),
     explorerClearInclude: runtimeDocument.querySelector("#explorer-clear-include"),
     explorerClearExclude: runtimeDocument.querySelector("#explorer-clear-exclude"),
+    explorerCatalogField: runtimeDocument.querySelector("#explorer-catalog-field"),
+    explorerCatalogToggle: runtimeDocument.querySelector("#explorer-catalog-toggle"),
+    explorerCatalogPanel: runtimeDocument.querySelector("#explorer-catalog-panel"),
     explorerCatalogSearch: runtimeDocument.querySelector("#explorer-catalog-search"),
     explorerCount: runtimeDocument.querySelector("#explorer-count"),
     explorerResults: runtimeDocument.querySelector("#explorer-results"),
@@ -8174,6 +8177,14 @@ function attachEvents() {
 
   elements.explorerCatalogSearch.addEventListener("input", () => {
     renderChampionTagCatalog();
+  });
+
+  elements.explorerCatalogToggle.addEventListener("click", () => {
+    const isOpen = !elements.explorerCatalogPanel.hidden;
+    elements.explorerCatalogPanel.hidden = isOpen;
+    elements.explorerCatalogToggle.setAttribute("aria-expanded", String(!isOpen));
+    const caret = elements.explorerCatalogToggle.querySelector(".explorer-catalog-caret");
+    if (caret) caret.textContent = isOpen ? "▾" : "▴";
   });
 
   elements.explorerFilterToggle.addEventListener("click", () => {
