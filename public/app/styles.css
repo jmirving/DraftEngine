@@ -866,7 +866,7 @@ button.ghost {
 }
 
 #explorer-results.card-grid {
-  max-height: 40rem;
+  max-height: 58rem;
   overflow-y: auto;
   padding-right: 0.25rem;
 }
