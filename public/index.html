@@ -117,11 +117,12 @@
                   <button id="explorer-filter-toggle" class="explorer-filter-toggle" type="button" aria-expanded="true">▾ Filters</button>
                   <div id="explorer-active-pills" class="explorer-active-pills"></div>
                 </div>
+                <p class="explorer-tag-warning">⚠ Include and Exclude tags are mutually exclusive. Selecting one removes it from the other.</p>
                 <div id="explorer-filter-body" class="explorer-filter-body">
                   <div class="explorer-filters-grid">
                     <label>
-                      <span class="filter-label-header">Search <button id="explorer-clear-search" class="filter-clear-btn" type="button" aria-label="Clear search">×</button></span>
-                      <input id="explorer-search" type="search" placeholder="Champion name" />
+                      <span class="filter-label-header">Enter name <button id="explorer-clear-search" class="filter-clear-btn" type="button" aria-label="Clear search">×</button></span>
+                      <input id="explorer-search" type="search" placeholder="Search" />
                     </label>
                     <label>
                       <span class="filter-label-header">Roles <button id="explorer-clear-role" class="filter-clear-btn" type="button" aria-label="Clear roles">×</button></span>
@@ -161,7 +162,6 @@
                       </div>
                     </div>
                   </div>
-                  <p class="meta">Include and Exclude tags are mutually exclusive. Selecting one removes it from the other.</p>
                   <div class="explorer-filter-clear-row">
                     <button id="explorer-clear-all" class="ghost" type="button">Clear All Filters</button>
                   </div>

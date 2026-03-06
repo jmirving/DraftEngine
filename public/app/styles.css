@@ -957,6 +957,16 @@ button.ghost {
   white-space: nowrap;
 }
 
+.explorer-tag-warning {
+  font-size: 0.75rem;
+  color: #6b4a00;
+  background: #fef8e1;
+  border-left: 3px solid #e0a800;
+  border-radius: 0 4px 4px 0;
+  padding: 0.2rem 0.45rem;
+  margin: 0.35rem 0 0;
+}
+
 .explorer-filter-body {
   margin-top: 0.6rem;
 }

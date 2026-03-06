@@ -4553,26 +4553,35 @@ function clearExplorerFilters() {
 function renderActivePills() {
   if (!elements.explorerActivePills) return;
   const pills = [];
-  if (state.explorer.search) pills.push(state.explorer.search);
+  if (state.explorer.search) {
+    pills.push({ label: "Enter name", title: state.explorer.search });
+  }
   if (state.explorer.roles.length > 0) {
-    pills.push(state.explorer.roles.length === 1 ? state.explorer.roles[0] : `${state.explorer.roles.length} roles`);
+    pills.push({ label: "Roles", title: state.explorer.roles.join(", ") });
   }
   if (state.explorer.damageTypes.length > 0) {
-    pills.push(state.explorer.damageTypes.length === 1 ? state.explorer.damageTypes[0] : `${state.explorer.damageTypes.length} damage types`);
+    pills.push({ label: "Damage Type", title: state.explorer.damageTypes.join(", ") });
   }
-  if (state.explorer.scaling) pills.push(state.explorer.scaling);
+  if (state.explorer.scaling) {
+    pills.push({ label: "Scaling", title: state.explorer.scaling });
+  }
   if (state.explorer.sortBy !== "alpha-asc") {
-    const sortLabels = { "alpha-desc": "A-Z ↓", role: "By Role" };
-    pills.push(sortLabels[state.explorer.sortBy] ?? state.explorer.sortBy);
+    const sortLabels = { "alpha-desc": "Alphabetical (Z-A)", role: "Primary Role, then Name" };
+    pills.push({ label: "Sort Cards", title: sortLabels[state.explorer.sortBy] ?? state.explorer.sortBy });
   }
-  for (const tag of state.explorer.includeTags) pills.push(`+${tag}`);
-  for (const tag of state.explorer.excludeTags) pills.push(`−${tag}`);
+  if (state.explorer.includeTags.length > 0) {
+    pills.push({ label: "Include Tags", title: state.explorer.includeTags.join(", ") });
+  }
+  if (state.explorer.excludeTags.length > 0) {
+    pills.push({ label: "Exclude Tags", title: state.explorer.excludeTags.join(", ") });
+  }
 
   elements.explorerActivePills.innerHTML = "";
-  for (const label of pills) {
+  for (const { label, title } of pills) {
     const pill = runtimeDocument.createElement("span");
     pill.className = "explorer-active-pill";
     pill.textContent = label;
+    pill.title = title;
     elements.explorerActivePills.append(pill);
   }
 }
