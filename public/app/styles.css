@@ -979,7 +979,17 @@ button.ghost {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: #fffefa;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.explorer-catalog-wrapper {
+  margin-top: 0.26rem;
   position: relative;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fffcf5;
 }
 
 .explorer-catalog-toggle {
@@ -991,17 +1001,12 @@ button.ghost {
   justify-content: space-between;
   align-items: center;
   padding: 0.42rem 0.55rem;
-  font-size: 0.88rem;
-  color: var(--muted);
+  font-size: inherit;
+  color: var(--ink);
   text-align: left;
 }
 
-.explorer-catalog-toggle:hover {
-  color: var(--ink);
-}
-
 .explorer-catalog-caret {
-  font-size: 0.75rem;
   color: var(--muted);
 }
 
