@@ -490,6 +490,7 @@ function createElements() {
     explorerClearSort: runtimeDocument.querySelector("#explorer-clear-sort"),
     explorerClearInclude: runtimeDocument.querySelector("#explorer-clear-include"),
     explorerClearExclude: runtimeDocument.querySelector("#explorer-clear-exclude"),
+    explorerCatalogSearch: runtimeDocument.querySelector("#explorer-catalog-search"),
     explorerCount: runtimeDocument.querySelector("#explorer-count"),
     explorerResults: runtimeDocument.querySelector("#explorer-results"),
     championTagCatalogMeta: runtimeDocument.querySelector("#champion-tag-catalog-meta"),
@@ -2388,8 +2389,14 @@ function renderChampionTagCatalog() {
     return;
   }
 
-  elements.championTagCatalogMeta.textContent = `${tags.length} tags available across champion metadata categories.`;
-  for (const tag of tags) {
+  const query = elements.explorerCatalogSearch?.value.trim().toLowerCase() ?? "";
+  const visible = query ? tags.filter((tag) => tag.name.toLowerCase().includes(query) || tag.category.toLowerCase().includes(query)) : tags;
+
+  elements.championTagCatalogMeta.textContent = query
+    ? `${visible.length} of ${tags.length} tags match.`
+    : `${tags.length} tags available across champion metadata categories.`;
+
+  for (const tag of visible) {
     const chip = runtimeDocument.createElement("span");
     chip.className = "chip";
     chip.textContent = `${tag.name} (${tag.category})`;
@@ -8163,6 +8170,10 @@ function attachEvents() {
   elements.explorerSort.addEventListener("change", () => {
     state.explorer.sortBy = elements.explorerSort.value;
     renderExplorer();
+  });
+
+  elements.explorerCatalogSearch.addEventListener("input", () => {
+    renderChampionTagCatalog();
   });
 
   elements.explorerFilterToggle.addEventListener("click", () => {

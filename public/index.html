@@ -150,6 +150,12 @@
                       <span class="filter-label-header">Exclude Tags <button id="explorer-clear-exclude" class="filter-clear-btn" type="button" aria-label="Clear exclude tags">×</button></span>
                       <div id="explorer-exclude-tags"></div>
                     </label>
+                    <div class="explorer-filter-catalog">
+                      <span class="filter-label-header">Tag Catalog</span>
+                      <p id="champion-tag-catalog-meta" class="meta"></p>
+                      <input id="explorer-catalog-search" type="search" placeholder="Filter tags..." />
+                      <div id="champion-tag-catalog-list" class="chip-row"></div>
+                    </div>
                   </div>
                   <p class="meta">Include and Exclude tags are mutually exclusive. Selecting one removes it from the other.</p>
                 </div>
@@ -157,11 +163,6 @@
               <p id="explorer-indicator-legend" class="meta">Card indicator order: Roles | Damage Type | Scaling.</p>
               <p id="explorer-count" class="meta"></p>
               <div id="explorer-results" class="card-grid"></div>
-              <details id="explorer-tag-catalog-details" class="explorer-tag-tray">
-                <summary class="explorer-tag-tray-summary"><span class="panel-kicker">Tag Catalog</span></summary>
-                <p id="champion-tag-catalog-meta" class="meta">Load API tags to review available champion tags.</p>
-                <div id="champion-tag-catalog-list" class="chip-row"></div>
-              </details>
               <div id="champion-tag-editor" class="champion-tag-editor" hidden>
                 <p class="panel-kicker">Tag Editor</p>
                 <h3 id="champion-tag-editor-title">Edit Champion Tags</h3>
