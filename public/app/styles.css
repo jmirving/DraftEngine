@@ -865,6 +865,12 @@ button.ghost {
   gap: 0.7rem;
 }
 
+#explorer-results.card-grid {
+  max-height: 40rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
 .champ-card {
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -897,22 +903,6 @@ button.ghost {
   width: auto;
 }
 
-.explorer-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.25rem;
-}
-
-.explorer-header h2 {
-  margin-bottom: 0;
-}
-
-.explorer-header .ghost {
-  width: auto;
-  flex-shrink: 0;
-}
 
 .explorer-filter-section {
   border: 1px solid var(--border);
@@ -975,8 +965,17 @@ button.ghost {
   display: none;
 }
 
+.explorer-filter-clear-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.4rem;
+}
+
+.explorer-filter-clear-row button {
+  width: auto;
+}
+
 .explorer-filter-catalog {
-  grid-column: 1 / -1;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: #fffefa;
