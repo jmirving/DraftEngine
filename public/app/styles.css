@@ -397,6 +397,11 @@ h3 {
   z-index: 3;
 }
 
+.explorer-filters-grid input,
+.explorer-filters-grid select {
+  font-weight: 700;
+}
+
 .team-context-controls {
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
 }
@@ -1039,6 +1044,7 @@ button.ghost {
   align-items: center;
   padding: 0.42rem 0.55rem;
   font-size: inherit;
+  font-weight: 700;
   color: var(--ink);
   text-align: left;
 }
