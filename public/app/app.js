@@ -354,7 +354,8 @@ function createInitialState() {
       scaling: "",
       includeTags: [],
       excludeTags: [],
-      sortBy: "alpha-asc"
+      sortBy: "alpha-asc",
+      filtersOpen: true
     },
     teamConfig: {
       defaultTeamId: null,
@@ -478,6 +479,9 @@ function createElements() {
     explorerSort: runtimeDocument.querySelector("#explorer-sort"),
     explorerIncludeTags: runtimeDocument.querySelector("#explorer-include-tags"),
     explorerExcludeTags: runtimeDocument.querySelector("#explorer-exclude-tags"),
+    explorerFilterToggle: runtimeDocument.querySelector("#explorer-filter-toggle"),
+    explorerFilterBody: runtimeDocument.querySelector("#explorer-filter-body"),
+    explorerActivePills: runtimeDocument.querySelector("#explorer-active-pills"),
     explorerClearAll: runtimeDocument.querySelector("#explorer-clear-all"),
     explorerClearSearch: runtimeDocument.querySelector("#explorer-clear-search"),
     explorerClearRole: runtimeDocument.querySelector("#explorer-clear-role"),
@@ -4533,6 +4537,34 @@ function clearExplorerFilters() {
   elements.explorerSort.value = "alpha-asc";
   multiSelectControls.explorerIncludeTags?.setSelected([]);
   multiSelectControls.explorerExcludeTags?.setSelected([]);
+  renderActivePills();
+}
+
+function renderActivePills() {
+  if (!elements.explorerActivePills) return;
+  const pills = [];
+  if (state.explorer.search) pills.push(state.explorer.search);
+  if (state.explorer.roles.length > 0) {
+    pills.push(state.explorer.roles.length === 1 ? state.explorer.roles[0] : `${state.explorer.roles.length} roles`);
+  }
+  if (state.explorer.damageTypes.length > 0) {
+    pills.push(state.explorer.damageTypes.length === 1 ? state.explorer.damageTypes[0] : `${state.explorer.damageTypes.length} damage types`);
+  }
+  if (state.explorer.scaling) pills.push(state.explorer.scaling);
+  if (state.explorer.sortBy !== "alpha-asc") {
+    const sortLabels = { "alpha-desc": "A-Z ↓", role: "By Role" };
+    pills.push(sortLabels[state.explorer.sortBy] ?? state.explorer.sortBy);
+  }
+  for (const tag of state.explorer.includeTags) pills.push(`+${tag}`);
+  for (const tag of state.explorer.excludeTags) pills.push(`−${tag}`);
+
+  elements.explorerActivePills.innerHTML = "";
+  for (const label of pills) {
+    const pill = runtimeDocument.createElement("span");
+    pill.className = "explorer-active-pill";
+    pill.textContent = label;
+    elements.explorerActivePills.append(pill);
+  }
 }
 
 function getMemberForSlot(slot) {
@@ -6728,6 +6760,7 @@ function sortChampions(champions) {
 }
 
 function renderExplorer() {
+  renderActivePills();
   renderChampionTagCatalog();
   renderChampionTagEditor();
 
@@ -8130,6 +8163,13 @@ function attachEvents() {
   elements.explorerSort.addEventListener("change", () => {
     state.explorer.sortBy = elements.explorerSort.value;
     renderExplorer();
+  });
+
+  elements.explorerFilterToggle.addEventListener("click", () => {
+    state.explorer.filtersOpen = !state.explorer.filtersOpen;
+    elements.explorerFilterBody.classList.toggle("is-collapsed", !state.explorer.filtersOpen);
+    elements.explorerFilterToggle.textContent = state.explorer.filtersOpen ? "▾ Filters" : "▸ Filters";
+    elements.explorerFilterToggle.setAttribute("aria-expanded", String(state.explorer.filtersOpen));
   });
 
   elements.explorerClearSearch.addEventListener("click", () => {

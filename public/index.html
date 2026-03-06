@@ -111,46 +111,57 @@
         <div class="main-content">
           <section id="tab-explorer" class="tab-panel tab-surface">
             <div class="panel draft-board-panel">
-              <h2 id="explorer-title">Champions</h2>
-              <div class="button-row explorer-toolbar">
+              <div class="explorer-header">
+                <h2 id="explorer-title">Champions</h2>
                 <button id="explorer-clear-all" class="ghost" type="button">Clear All Filters</button>
               </div>
-              <div class="explorer-filters-grid">
-                <label>
-                  <span class="filter-label-header">Search <button id="explorer-clear-search" class="filter-clear-btn" type="button" aria-label="Clear search">×</button></span>
-                  <input id="explorer-search" type="search" placeholder="Champion name" />
-                </label>
-                <label>
-                  <span class="filter-label-header">Roles <button id="explorer-clear-role" class="filter-clear-btn" type="button" aria-label="Clear roles">×</button></span>
-                  <div id="explorer-role"></div>
-                </label>
-                <label>
-                  <span class="filter-label-header">Damage Type <button id="explorer-clear-damage" class="filter-clear-btn" type="button" aria-label="Clear damage type">×</button></span>
-                  <div id="explorer-damage"></div>
-                </label>
-                <label>
-                  <span class="filter-label-header">Scaling <button id="explorer-clear-scaling" class="filter-clear-btn" type="button" aria-label="Clear scaling">×</button></span>
-                  <select id="explorer-scaling"></select>
-                </label>
-                <label>
-                  <span class="filter-label-header">Sort Cards <button id="explorer-clear-sort" class="filter-clear-btn" type="button" aria-label="Reset sort">×</button></span>
-                  <select id="explorer-sort"></select>
-                </label>
-                <label>
-                  <span class="filter-label-header">Include Tags <button id="explorer-clear-include" class="filter-clear-btn" type="button" aria-label="Clear include tags">×</button></span>
-                  <div id="explorer-include-tags"></div>
-                </label>
-                <label>
-                  <span class="filter-label-header">Exclude Tags <button id="explorer-clear-exclude" class="filter-clear-btn" type="button" aria-label="Clear exclude tags">×</button></span>
-                  <div id="explorer-exclude-tags"></div>
-                </label>
+              <div class="explorer-filter-section">
+                <div class="explorer-filter-bar">
+                  <button id="explorer-filter-toggle" class="explorer-filter-toggle" type="button" aria-expanded="true">▾ Filters</button>
+                  <div id="explorer-active-pills" class="explorer-active-pills"></div>
+                </div>
+                <div id="explorer-filter-body" class="explorer-filter-body">
+                  <div class="explorer-filters-grid">
+                    <label>
+                      <span class="filter-label-header">Search <button id="explorer-clear-search" class="filter-clear-btn" type="button" aria-label="Clear search">×</button></span>
+                      <input id="explorer-search" type="search" placeholder="Champion name" />
+                    </label>
+                    <label>
+                      <span class="filter-label-header">Roles <button id="explorer-clear-role" class="filter-clear-btn" type="button" aria-label="Clear roles">×</button></span>
+                      <div id="explorer-role"></div>
+                    </label>
+                    <label>
+                      <span class="filter-label-header">Damage Type <button id="explorer-clear-damage" class="filter-clear-btn" type="button" aria-label="Clear damage type">×</button></span>
+                      <div id="explorer-damage"></div>
+                    </label>
+                    <label>
+                      <span class="filter-label-header">Scaling <button id="explorer-clear-scaling" class="filter-clear-btn" type="button" aria-label="Clear scaling">×</button></span>
+                      <select id="explorer-scaling"></select>
+                    </label>
+                    <label>
+                      <span class="filter-label-header">Sort Cards <button id="explorer-clear-sort" class="filter-clear-btn" type="button" aria-label="Reset sort">×</button></span>
+                      <select id="explorer-sort"></select>
+                    </label>
+                    <label>
+                      <span class="filter-label-header">Include Tags <button id="explorer-clear-include" class="filter-clear-btn" type="button" aria-label="Clear include tags">×</button></span>
+                      <div id="explorer-include-tags"></div>
+                    </label>
+                    <label>
+                      <span class="filter-label-header">Exclude Tags <button id="explorer-clear-exclude" class="filter-clear-btn" type="button" aria-label="Clear exclude tags">×</button></span>
+                      <div id="explorer-exclude-tags"></div>
+                    </label>
+                  </div>
+                  <p class="meta">Include and Exclude tags are mutually exclusive. Selecting one removes it from the other.</p>
+                </div>
               </div>
-              <p class="meta">Include and Exclude tags are mutually exclusive. Selecting one removes it from the other.</p>
-              <div class="champion-tag-catalog">
-                <p class="panel-kicker">Tag Catalog</p>
+              <p id="explorer-indicator-legend" class="meta">Card indicator order: Roles | Damage Type | Scaling.</p>
+              <p id="explorer-count" class="meta"></p>
+              <div id="explorer-results" class="card-grid"></div>
+              <details id="explorer-tag-catalog-details" class="explorer-tag-tray">
+                <summary class="explorer-tag-tray-summary"><span class="panel-kicker">Tag Catalog</span></summary>
                 <p id="champion-tag-catalog-meta" class="meta">Load API tags to review available champion tags.</p>
                 <div id="champion-tag-catalog-list" class="chip-row"></div>
-              </div>
+              </details>
               <div id="champion-tag-editor" class="champion-tag-editor" hidden>
                 <p class="panel-kicker">Tag Editor</p>
                 <h3 id="champion-tag-editor-title">Edit Champion Tags</h3>
@@ -254,12 +265,6 @@
                 </div>
                 <p id="champion-tag-editor-feedback" class="meta"></p>
               </div>
-            </div>
-            <div class="panel draft-board-panel">
-              <h2>Candidate Board</h2>
-              <p id="explorer-indicator-legend" class="meta">Card indicator order: Roles | Damage Type | Scaling.</p>
-              <p id="explorer-count" class="meta"></p>
-              <div id="explorer-results" class="card-grid"></div>
             </div>
           </section>
 

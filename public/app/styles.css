@@ -897,6 +897,118 @@ button.ghost {
   width: auto;
 }
 
+.explorer-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.explorer-header h2 {
+  margin-bottom: 0;
+}
+
+.explorer-header .ghost {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.explorer-filter-section {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.explorer-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.explorer-filter-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 0;
+  width: auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.explorer-filter-toggle:hover {
+  color: var(--ink);
+}
+
+.explorer-active-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.explorer-active-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  background: #fff4ef;
+  border: 1px solid var(--accent-soft);
+  border-radius: 20px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.75rem;
+  color: #6b2a12;
+  white-space: nowrap;
+}
+
+.explorer-filter-body {
+  margin-top: 0.6rem;
+}
+
+.explorer-filter-body.is-collapsed {
+  display: none;
+}
+
+.explorer-tag-tray {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-top: 0.75rem;
+}
+
+.explorer-tag-tray-summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.5rem 0.6rem;
+  user-select: none;
+}
+
+.explorer-tag-tray-summary::-webkit-details-marker {
+  display: none;
+}
+
+.explorer-tag-tray-summary .panel-kicker {
+  display: inline;
+}
+
+.explorer-tag-tray-summary::after {
+  content: " ▾";
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.explorer-tag-tray[open] .explorer-tag-tray-summary::after {
+  content: " ▴";
+}
+
+.explorer-tag-tray > p,
+.explorer-tag-tray > .chip-row {
+  padding: 0 0.6rem 0.6rem;
+}
+
 .filter-label-header {
   display: flex;
   justify-content: space-between;
