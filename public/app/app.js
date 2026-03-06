@@ -479,6 +479,11 @@ function createElements() {
     explorerIncludeTags: runtimeDocument.querySelector("#explorer-include-tags"),
     explorerExcludeTags: runtimeDocument.querySelector("#explorer-exclude-tags"),
     explorerClearAll: runtimeDocument.querySelector("#explorer-clear-all"),
+    explorerClearSearch: runtimeDocument.querySelector("#explorer-clear-search"),
+    explorerClearRole: runtimeDocument.querySelector("#explorer-clear-role"),
+    explorerClearDamage: runtimeDocument.querySelector("#explorer-clear-damage"),
+    explorerClearScaling: runtimeDocument.querySelector("#explorer-clear-scaling"),
+    explorerClearSort: runtimeDocument.querySelector("#explorer-clear-sort"),
     explorerClearInclude: runtimeDocument.querySelector("#explorer-clear-include"),
     explorerClearExclude: runtimeDocument.querySelector("#explorer-clear-exclude"),
     explorerCount: runtimeDocument.querySelector("#explorer-count"),
@@ -8124,6 +8129,36 @@ function attachEvents() {
 
   elements.explorerSort.addEventListener("change", () => {
     state.explorer.sortBy = elements.explorerSort.value;
+    renderExplorer();
+  });
+
+  elements.explorerClearSearch.addEventListener("click", () => {
+    elements.explorerSearch.value = "";
+    state.explorer.search = "";
+    renderExplorer();
+  });
+
+  elements.explorerClearRole.addEventListener("click", () => {
+    multiSelectControls.explorerRole?.setSelected([NO_FILTER]);
+    state.explorer.roles = [];
+    renderExplorer();
+  });
+
+  elements.explorerClearDamage.addEventListener("click", () => {
+    multiSelectControls.explorerDamage?.setSelected([NO_FILTER]);
+    state.explorer.damageTypes = [];
+    renderExplorer();
+  });
+
+  elements.explorerClearScaling.addEventListener("click", () => {
+    elements.explorerScaling.value = "";
+    state.explorer.scaling = "";
+    renderExplorer();
+  });
+
+  elements.explorerClearSort.addEventListener("click", () => {
+    elements.explorerSort.value = "alpha-asc";
+    state.explorer.sortBy = "alpha-asc";
     renderExplorer();
   });
 

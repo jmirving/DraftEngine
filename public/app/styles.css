@@ -893,17 +893,33 @@ button.ghost {
   color: #6b2a12;
 }
 
-.explorer-tag-actions {
-  display: flex;
-  gap: 0.5rem;
-  align-items: end;
-  grid-column: 1 / -1;
-  justify-content: flex-end;
-}
-
-.explorer-tag-actions button,
 .explorer-toolbar button {
   width: auto;
+}
+
+.filter-label-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.filter-clear-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0.15rem;
+  border-radius: 4px;
+  width: auto;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.filter-clear-btn:hover {
+  color: var(--ink);
+  background: var(--border);
 }
 
 .champion-tag-catalog,
@@ -1989,12 +2005,6 @@ button.slot-order-btn:disabled {
     grid-template-columns: 1fr;
   }
 
-  .explorer-tag-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .explorer-tag-actions button,
   .explorer-toolbar button {
     width: 100%;
   }

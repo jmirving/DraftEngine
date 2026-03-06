@@ -117,37 +117,33 @@
               </div>
               <div class="explorer-filters-grid">
                 <label>
-                  Search
+                  <span class="filter-label-header">Search <button id="explorer-clear-search" class="filter-clear-btn" type="button" aria-label="Clear search">×</button></span>
                   <input id="explorer-search" type="search" placeholder="Champion name" />
                 </label>
                 <label>
-                  Roles
+                  <span class="filter-label-header">Roles <button id="explorer-clear-role" class="filter-clear-btn" type="button" aria-label="Clear roles">×</button></span>
                   <div id="explorer-role"></div>
                 </label>
                 <label>
-                  Damage Type
+                  <span class="filter-label-header">Damage Type <button id="explorer-clear-damage" class="filter-clear-btn" type="button" aria-label="Clear damage type">×</button></span>
                   <div id="explorer-damage"></div>
                 </label>
                 <label>
-                  Scaling
+                  <span class="filter-label-header">Scaling <button id="explorer-clear-scaling" class="filter-clear-btn" type="button" aria-label="Clear scaling">×</button></span>
                   <select id="explorer-scaling"></select>
                 </label>
                 <label>
-                  Sort Cards
+                  <span class="filter-label-header">Sort Cards <button id="explorer-clear-sort" class="filter-clear-btn" type="button" aria-label="Reset sort">×</button></span>
                   <select id="explorer-sort"></select>
                 </label>
                 <label>
-                  Include Tags
+                  <span class="filter-label-header">Include Tags <button id="explorer-clear-include" class="filter-clear-btn" type="button" aria-label="Clear include tags">×</button></span>
                   <div id="explorer-include-tags"></div>
                 </label>
                 <label>
-                  Exclude Tags
+                  <span class="filter-label-header">Exclude Tags <button id="explorer-clear-exclude" class="filter-clear-btn" type="button" aria-label="Clear exclude tags">×</button></span>
                   <div id="explorer-exclude-tags"></div>
                 </label>
-                <div class="explorer-tag-actions">
-                  <button id="explorer-clear-include" class="ghost" type="button">Clear Include Tags</button>
-                  <button id="explorer-clear-exclude" class="ghost" type="button">Clear Exclude Tags</button>
-                </div>
               </div>
               <p class="meta">Include and Exclude tags are mutually exclusive. Selecting one removes it from the other.</p>
               <div class="champion-tag-catalog">
