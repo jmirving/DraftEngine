@@ -4554,34 +4554,54 @@ function renderActivePills() {
   if (!elements.explorerActivePills) return;
   const pills = [];
   if (state.explorer.search) {
-    pills.push({ label: "Enter name", title: state.explorer.search });
+    pills.push({ label: "Champion Name", values: [state.explorer.search] });
   }
   if (state.explorer.roles.length > 0) {
-    pills.push({ label: "Roles", title: state.explorer.roles.join(", ") });
+    pills.push({ label: "Roles", values: state.explorer.roles });
   }
   if (state.explorer.damageTypes.length > 0) {
-    pills.push({ label: "Damage Type", title: state.explorer.damageTypes.join(", ") });
+    pills.push({ label: "Damage Type", values: state.explorer.damageTypes });
   }
   if (state.explorer.scaling) {
-    pills.push({ label: "Scaling", title: state.explorer.scaling });
+    pills.push({ label: "Scaling", values: [state.explorer.scaling] });
   }
   if (state.explorer.sortBy !== "alpha-asc") {
     const sortLabels = { "alpha-desc": "Alphabetical (Z-A)", role: "Primary Role, then Name" };
-    pills.push({ label: "Sort Cards", title: sortLabels[state.explorer.sortBy] ?? state.explorer.sortBy });
+    pills.push({ label: "Sort Cards", values: [sortLabels[state.explorer.sortBy] ?? state.explorer.sortBy] });
   }
   if (state.explorer.includeTags.length > 0) {
-    pills.push({ label: "Include Tags", title: state.explorer.includeTags.join(", ") });
+    pills.push({ label: "Include Tags", values: state.explorer.includeTags });
   }
   if (state.explorer.excludeTags.length > 0) {
-    pills.push({ label: "Exclude Tags", title: state.explorer.excludeTags.join(", ") });
+    pills.push({ label: "Exclude Tags", values: state.explorer.excludeTags });
   }
 
   elements.explorerActivePills.innerHTML = "";
-  for (const { label, title } of pills) {
+
+  // Shared tooltip element
+  let pillTooltip = runtimeDocument.querySelector(".explorer-pill-tooltip");
+  if (!pillTooltip) {
+    pillTooltip = runtimeDocument.createElement("div");
+    pillTooltip.className = "explorer-pill-tooltip";
+    runtimeDocument.body.append(pillTooltip);
+  }
+
+  for (const { label, values } of pills) {
     const pill = runtimeDocument.createElement("span");
     pill.className = "explorer-active-pill";
     pill.textContent = label;
-    pill.title = title;
+
+    pill.addEventListener("mouseenter", () => {
+      pillTooltip.innerHTML = values.map(v => `<span>${v}</span>`).join("");
+      pillTooltip.classList.add("visible");
+      const rect = pill.getBoundingClientRect();
+      pillTooltip.style.left = `${rect.left + window.scrollX}px`;
+      pillTooltip.style.top = `${rect.bottom + window.scrollY + 4}px`;
+    });
+    pill.addEventListener("mouseleave", () => {
+      pillTooltip.classList.remove("visible");
+    });
+
     elements.explorerActivePills.append(pill);
   }
 }
