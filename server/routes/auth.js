@@ -6,6 +6,7 @@ import { requireEmail, requireGameName, requireNonEmptyString, requireObject, re
 import { hashPassword, verifyPassword } from "../auth/password.js";
 import { signAccessToken } from "../auth/tokens.js";
 import { USER_ROLE_ADMIN, USER_ROLE_MEMBER, isOwnerAdminEmail, resolveAuthorizationRole } from "../user-roles.js";
+import { createRequireAuth } from "../auth/middleware.js";
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
@@ -41,6 +42,7 @@ function mapUniqueConstraintError(error) {
 
 export function createAuthRouter({ config, usersRepository }) {
   const router = Router();
+  const requireAuth = createRequireAuth(config);
 
   router.post("/register", async (request, response) => {
     const body = requireObject(request.body);
@@ -141,6 +143,16 @@ export function createAuthRouter({ config, usersRepository }) {
     await usersRepository.markResetTokenUsed(Number(record.id));
 
     response.json({ message: "Password updated successfully." });
+  });
+
+  router.post("/change-password", requireAuth, async (request, response) => {
+    const body = requireObject(request.body);
+    const newPassword = requirePassword(body.newPassword);
+
+    const passwordHash = await hashPassword(newPassword);
+    await usersRepository.updatePassword(request.user.userId, passwordHash);
+
+    response.json({ message: "Password changed successfully." });
   });
 
   return router;
