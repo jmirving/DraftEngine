@@ -1648,7 +1648,11 @@ function clearAuthSession(feedback = "") {
 
 function setAuthMode(mode = "login") {
   const valid = new Set(["login", "register", "forgot", "reset", "change-password"]);
-  state.auth.mode = valid.has(mode) ? mode : "login";
+  const next = valid.has(mode) ? mode : "login";
+  if (next !== state.auth.mode) {
+    clearAuthForm();
+  }
+  state.auth.mode = next;
 }
 
 function hasDefinedProfileRoles(user) {
@@ -8435,7 +8439,27 @@ function getAuthCredentials(mode = "login") {
 }
 
 function clearAuthForm() {
-  elements.authPassword.value = "";
+  const inputIds = [
+    "auth-email", "auth-password", "auth-retype-password",
+    "auth-game-name", "auth-tagline", "auth-first-name", "auth-last-name",
+    "auth-reset-token", "auth-new-password", "auth-confirm-new-password"
+  ];
+  for (const id of inputIds) {
+    const el = runtimeDocument.querySelector(`#${id}`);
+    if (el) el.value = "";
+  }
+  // Reset all password show/hide toggles back to hidden state
+  runtimeDocument.querySelectorAll(".password-toggle").forEach((btn) => {
+    const targetId = btn.dataset.target;
+    const input = targetId ? runtimeDocument.querySelector(`#${targetId}`) : null;
+    if (input) input.type = "password";
+    btn.classList.remove("is-visible");
+    btn.setAttribute("aria-label", "Show password");
+  });
+  // Clear any field-error states
+  runtimeDocument.querySelectorAll(".auth-card label.field-error").forEach((label) => {
+    label.classList.remove("field-error");
+  });
 }
 
 async function handleAuthSubmit(path, mode = "login") {
