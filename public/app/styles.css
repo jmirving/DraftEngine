@@ -337,10 +337,14 @@ body:has(#app-shell.is-nav-collapsed) .nav-drawer {
   font-size: 0.85rem;
   line-height: 1;
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface-strong);
   border-color: var(--accent-soft);
   color: var(--fg);
   font-weight: 700;
+}
+
+body:has(#app-shell.is-nav-collapsed) .nav-desktop-toggle {
+  background: #fff;
 }
 
 .side-menu-link {

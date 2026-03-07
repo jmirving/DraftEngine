@@ -8653,7 +8653,8 @@ function attachEvents() {
       elements.authChangePassword.disabled = true;
       void apiRequest("/auth/change-password", {
         method: "POST",
-        body: { newPassword }
+        body: { newPassword },
+        auth: true
       }).then(() => {
         if (elements.authNewPassword) elements.authNewPassword.value = "";
         if (elements.authConfirmNewPassword) elements.authConfirmNewPassword.value = "";
