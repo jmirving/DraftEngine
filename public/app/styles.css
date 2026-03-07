@@ -136,7 +136,7 @@ h3 {
   justify-content: center;
   padding: 2rem 1rem 3rem;
   min-height: calc(100vh - 6rem);
-  align-items: flex-start;
+  align-items: center;
 }
 
 .auth-card {
@@ -228,7 +228,7 @@ h3 {
   display: block;
 }
 
-.app-shell.is-nav-collapsed .nav-drawer {
+body:has(#app-shell.is-nav-collapsed) .nav-drawer {
   width: 3.35rem;
 }
 
@@ -352,32 +352,37 @@ h3 {
 
 .report-issue-link {
   display: inline-block;
-  margin-top: 20px;
+  margin-top: 8px;
   color: #7a3419;
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 0.12rem;
 }
 
+.updates-nav-link {
+  margin-top: 20px;
+}
+
 .report-issue-link:hover {
   color: var(--accent);
 }
 
-.app-shell.is-nav-collapsed .side-menu {
+body:has(#app-shell.is-nav-collapsed) .side-menu {
   padding: 0.45rem 0.3rem;
   overflow: hidden;
 }
 
-.app-shell.is-nav-collapsed .side-menu-header {
+body:has(#app-shell.is-nav-collapsed) .side-menu-header {
   justify-content: center;
   margin-bottom: 0;
 }
 
-.app-shell.is-nav-collapsed #nav-title,
-.app-shell.is-nav-collapsed #nav-meta,
-.app-shell.is-nav-collapsed .side-menu-link,
-.app-shell.is-nav-collapsed .report-issue-link,
-.app-shell.is-nav-collapsed .side-menu-spacer {
+body:has(#app-shell.is-nav-collapsed) #nav-title,
+body:has(#app-shell.is-nav-collapsed) #nav-meta,
+body:has(#app-shell.is-nav-collapsed) .side-menu-link,
+body:has(#app-shell.is-nav-collapsed) .report-issue-link,
+body:has(#app-shell.is-nav-collapsed) .updates-nav-link,
+body:has(#app-shell.is-nav-collapsed) .side-menu-spacer {
   display: none;
 }
 

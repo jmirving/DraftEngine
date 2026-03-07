@@ -427,6 +427,7 @@ function createElements() {
     authSignupLink: runtimeDocument.querySelector("#auth-signup-link"),
     authLoginLinkWrap: runtimeDocument.querySelector("#auth-login-link-wrap"),
     authToLogin: runtimeDocument.querySelector("#auth-to-login"),
+    updatesNavLink: runtimeDocument.querySelector(".updates-nav-link"),
     siteHero: runtimeDocument.querySelector("#site-hero"),
     navToggle: runtimeDocument.querySelector("#nav-toggle"),
     navDesktopToggle: runtimeDocument.querySelector("#nav-desktop-toggle"),
@@ -445,13 +446,14 @@ function createElements() {
     authGameNameGroup: runtimeDocument.querySelector("#auth-game-name-group"),
     authTagline: runtimeDocument.querySelector("#auth-tagline"),
     authTaglineGroup: runtimeDocument.querySelector("#auth-tagline-group"),
+    authFirstNameGroup: runtimeDocument.querySelector("#auth-first-name-group"),
+    authLastNameGroup: runtimeDocument.querySelector("#auth-last-name-group"),
     authPassword: runtimeDocument.querySelector("#auth-password"),
     authPasswordGroup: runtimeDocument.querySelector("#auth-password-group"),
     authRegister: runtimeDocument.querySelector("#auth-register"),
     authLogin: runtimeDocument.querySelector("#auth-login"),
     authLogout: runtimeDocument.querySelector("#auth-logout"),
     authStatus: runtimeDocument.querySelector("#auth-status"),
-    authRegistrationHelp: runtimeDocument.querySelector("#auth-registration-help"),
     authFeedback: runtimeDocument.querySelector("#auth-feedback"),
     authForgotLink: runtimeDocument.querySelector("#auth-forgot-link"),
     authResetTokenGroup: runtimeDocument.querySelector("#auth-reset-token-group"),
@@ -1697,7 +1699,8 @@ function setAuthControlsVisibility(showAuthControls, mode = "login") {
   const registerOnlyControls = [
     elements.authGameNameGroup,
     elements.authTaglineGroup,
-    elements.authRegistrationHelp
+    elements.authFirstNameGroup,
+    elements.authLastNameGroup,
   ];
   for (const control of registerOnlyControls) {
     if (control) {
@@ -8572,6 +8575,17 @@ function attachEvents() {
       setAuthMode("login");
       setAuthFeedback("");
       renderAuth();
+    });
+  }
+
+  if (elements.updatesNavLink) {
+    elements.updatesNavLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!hasAuthSession()) {
+        setAuthFeedback("Login required to access app screens.");
+        return;
+      }
+      setTab("coming-soon", { syncRoute: true });
     });
   }
 
