@@ -2157,6 +2157,24 @@ describe("API routes", () => {
       });
     expect(memberCreateDenied.status).toBe(403);
 
+    const invalidSeparation = await request(app)
+      .post("/requirements")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({
+        name: "Invalid Separation",
+        definition: "References a missing clause id.",
+        rules: [
+          {
+            id: "clause-one",
+            expr: { tag: "Disengage" },
+            minCount: 1,
+            separateFrom: ["missing-clause"]
+          }
+        ]
+      });
+    expect(invalidSeparation.status).toBe(400);
+    expect(invalidSeparation.body.error.code).toBe("BAD_REQUEST");
+
     const adminCreateRequirement = await request(app)
       .post("/requirements")
       .set("Authorization", buildAuthHeader(1, config))
@@ -2165,13 +2183,29 @@ describe("API routes", () => {
         definition: "Needs at least one disengage tool.",
         rules: [
           {
-            expr: { tag: "Disengage" },
+            id: "clause-disengage-pair",
+            expr: {
+              and: [{ tag: "Disengage" }, { tag: "ZoneControl" }]
+            },
+            minCount: 1
+          },
+          {
+            id: "clause-followup",
+            expr: { tag: "FollowUpEngage" },
+            minCount: 1,
+            separateFrom: ["clause-disengage-pair"]
+          },
+          {
+            id: "clause-top-threat",
+            expr: { tag: "PickThreat" },
             minCount: 1
           }
         ]
       });
     expect(adminCreateRequirement.status).toBe(201);
     expect(adminCreateRequirement.body.requirement.name).toBe("Disengage Clause");
+    expect(adminCreateRequirement.body.requirement.rules).toHaveLength(3);
+    expect(adminCreateRequirement.body.requirement.rules[1].separateFrom).toEqual(["clause-disengage-pair"]);
 
     const adminUpdateRequirement = await request(app)
       .put(`/requirements/${adminCreateRequirement.body.requirement.id}`)

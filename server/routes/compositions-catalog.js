@@ -8,6 +8,7 @@ import { assertAdminAuthorization } from "../scope-authorization.js";
 const SLOT_SET = new Set(SLOTS);
 const MAX_REQUIREMENT_NAME_LENGTH = 80;
 const MAX_REQUIREMENT_DEFINITION_LENGTH = 500;
+const MAX_REQUIREMENT_CLAUSE_ID_LENGTH = 120;
 const MAX_COMPOSITION_NAME_LENGTH = 80;
 const MAX_COMPOSITION_DESCRIPTION_LENGTH = 500;
 
@@ -65,12 +66,53 @@ function normalizeRoleFilter(rawRoleFilter, clauseIndex) {
   return roles.length > 0 ? roles : null;
 }
 
+function normalizeClauseId(rawClauseId, clauseIndex) {
+  if (rawClauseId === undefined) {
+    return null;
+  }
+  if (typeof rawClauseId !== "string" || rawClauseId.trim() === "") {
+    throw badRequest(`Expected 'rules[${clauseIndex}].id' to be a non-empty string.`);
+  }
+  const normalized = rawClauseId.trim();
+  if (normalized.length > MAX_REQUIREMENT_CLAUSE_ID_LENGTH) {
+    throw badRequest(
+      `Expected 'rules[${clauseIndex}].id' to be ${MAX_REQUIREMENT_CLAUSE_ID_LENGTH} characters or fewer.`
+    );
+  }
+  return normalized;
+}
+
+function normalizeClauseReferences(rawReferences, clauseIndex) {
+  if (rawReferences === undefined) {
+    return null;
+  }
+  if (!Array.isArray(rawReferences)) {
+    throw badRequest(`Expected 'rules[${clauseIndex}].separateFrom' to be an array.`);
+  }
+  const references = [];
+  for (const value of rawReferences) {
+    if (typeof value !== "string" || value.trim() === "") {
+      throw badRequest(`Expected 'rules[${clauseIndex}].separateFrom' values to be non-empty strings.`);
+    }
+    const normalizedValue = value.trim();
+    if (normalizedValue.length > MAX_REQUIREMENT_CLAUSE_ID_LENGTH) {
+      throw badRequest(
+        `Expected 'rules[${clauseIndex}].separateFrom' values to be ${MAX_REQUIREMENT_CLAUSE_ID_LENGTH} characters or fewer.`
+      );
+    }
+    if (!references.includes(normalizedValue)) {
+      references.push(normalizedValue);
+    }
+  }
+  return references.length > 0 ? references : null;
+}
+
 function normalizeRuleClause(rawClause, clauseIndex) {
   if (!rawClause || typeof rawClause !== "object" || Array.isArray(rawClause)) {
     throw badRequest(`Expected 'rules[${clauseIndex}]' to be an object.`);
   }
 
-  const { expr, minCount, maxCount, roleFilter } = rawClause;
+  const { id, expr, minCount, maxCount, roleFilter, separateFrom } = rawClause;
   if (expr === undefined || expr === null) {
     throw badRequest(`Expected 'rules[${clauseIndex}].expr' to be provided.`);
   }
@@ -95,12 +137,19 @@ function normalizeRuleClause(rawClause, clauseIndex) {
   }
 
   const normalizedRoleFilter = normalizeRoleFilter(roleFilter, clauseIndex);
+  const normalizedClauseId = normalizeClauseId(id, clauseIndex);
+  const normalizedSeparateFrom = normalizeClauseReferences(separateFrom, clauseIndex);
+  if (normalizedSeparateFrom && !normalizedClauseId) {
+    throw badRequest(`Expected 'rules[${clauseIndex}].id' when using separateFrom.`);
+  }
 
   return {
+    ...(normalizedClauseId ? { id: normalizedClauseId } : {}),
     expr,
     minCount: normalizedMinCount,
     ...(maxCount === undefined ? {} : { maxCount }),
-    ...(normalizedRoleFilter ? { roleFilter: normalizedRoleFilter } : {})
+    ...(normalizedRoleFilter ? { roleFilter: normalizedRoleFilter } : {}),
+    ...(normalizedSeparateFrom ? { separateFrom: normalizedSeparateFrom } : {})
   };
 }
 
@@ -111,7 +160,31 @@ function normalizeRequirementRules(rawRules) {
   if (rawRules.length < 1) {
     throw badRequest("Expected 'rules' to include at least one clause.");
   }
-  return rawRules.map((rule, index) => normalizeRuleClause(rule, index));
+  const normalizedRules = rawRules.map((rule, index) => normalizeRuleClause(rule, index));
+  const clauseIdSet = new Set();
+  for (const [index, rule] of normalizedRules.entries()) {
+    if (!rule.id) {
+      continue;
+    }
+    if (clauseIdSet.has(rule.id)) {
+      throw badRequest(`Duplicate rules[${index}].id '${rule.id}' is not allowed.`);
+    }
+    clauseIdSet.add(rule.id);
+  }
+  for (const [index, rule] of normalizedRules.entries()) {
+    if (!Array.isArray(rule.separateFrom) || rule.separateFrom.length < 1) {
+      continue;
+    }
+    for (const referenceId of rule.separateFrom) {
+      if (!clauseIdSet.has(referenceId)) {
+        throw badRequest(`Unknown clause id '${referenceId}' in rules[${index}].separateFrom.`);
+      }
+      if (rule.id === referenceId) {
+        throw badRequest(`rules[${index}].separateFrom cannot reference its own id.`);
+      }
+    }
+  }
+  return normalizedRules;
 }
 
 function normalizeRequirementIds(rawRequirementIds) {

@@ -2086,6 +2086,10 @@ describe("auth + pools + team management", () => {
 
     doc.querySelector("#requirements-cancel").click();
     await flush();
+    expect(doc.querySelector("#requirements-editor").hidden).toBe(true);
+
+    doc.querySelector("#requirements-open-editor").click();
+    await flush();
 
     const requirementName = doc.querySelector("#requirements-name");
     requirementName.value = "Aggressive";
@@ -2095,10 +2099,41 @@ describe("auth + pools + team management", () => {
     definitionInput.value = "Must have engage and frontline";
     definitionInput.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
 
-    const firstClauseTag = doc.querySelector("#requirements-clauses select[data-field='tag'][data-clause-index='0']");
-    expect(firstClauseTag).toBeTruthy();
-    firstClauseTag.value = "HardEngage";
-    firstClauseTag.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    const firstClauseLogic = doc.querySelector("#requirements-clauses select[data-field='logic'][data-clause-index='0']");
+    expect(firstClauseLogic).toBeTruthy();
+    firstClauseLogic.value = "and";
+    firstClauseLogic.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+    const firstClauseHardEngage = doc.querySelector(
+      "#requirements-clauses input[data-field='tag'][data-clause-index='0'][data-tag='HardEngage']"
+    );
+    expect(firstClauseHardEngage).toBeTruthy();
+    firstClauseHardEngage.checked = true;
+    firstClauseHardEngage.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+    const firstClauseFrontline = doc.querySelector(
+      "#requirements-clauses input[data-field='tag'][data-clause-index='0'][data-tag='Frontline']"
+    );
+    expect(firstClauseFrontline).toBeTruthy();
+    firstClauseFrontline.checked = true;
+    firstClauseFrontline.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+    doc.querySelector("#requirements-add-clause").click();
+    await flush();
+
+    const secondClauseTag = doc.querySelector(
+      "#requirements-clauses input[data-field='tag'][data-clause-index='1'][data-tag='FollowUpEngage']"
+    );
+    expect(secondClauseTag).toBeTruthy();
+    secondClauseTag.checked = true;
+    secondClauseTag.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+    const secondClauseSeparateFromFirst = doc.querySelector(
+      "#requirements-clauses input[data-field='separate-from'][data-clause-index='1'][data-target-clause-index='0']"
+    );
+    expect(secondClauseSeparateFromFirst).toBeTruthy();
+    secondClauseSeparateFromFirst.checked = true;
+    secondClauseSeparateFromFirst.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
 
     doc.querySelector("#requirements-save").click();
     await flush();
@@ -2106,7 +2141,12 @@ describe("auth + pools + team management", () => {
     const createRequirementCall = harness.calls.find((call) => call.path === "/requirements" && call.method === "POST");
     expect(createRequirementCall).toBeTruthy();
     expect(createRequirementCall.body.name).toBe("Aggressive");
-    expect(createRequirementCall.body.rules[0].expr.tag).toBe("HardEngage");
+    expect(new Set(createRequirementCall.body.rules[0].expr.and.map((entry) => entry.tag))).toEqual(
+      new Set(["HardEngage", "Frontline"])
+    );
+    expect(createRequirementCall.body.rules[1].expr.tag).toBe("FollowUpEngage");
+    expect(createRequirementCall.body.rules[1].separateFrom).toEqual([createRequirementCall.body.rules[0].id]);
+    expect(doc.querySelector("#requirements-editor").hidden).toBe(true);
 
     doc.querySelector("#compositions-cancel").click();
     await flush();

@@ -1962,6 +1962,12 @@ button.slot-order-btn:disabled {
   gap: 0.45rem;
 }
 
+.requirements-clause-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
 .summary-card {
   border: 1px solid var(--border);
   border-radius: 10px;

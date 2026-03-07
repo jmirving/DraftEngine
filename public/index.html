@@ -973,27 +973,32 @@
             </div>
             <div class="panel draft-board-panel">
               <p class="panel-kicker">Requirement Definitions</p>
-              <div class="grid grid-2">
-                <label>
-                  Name
-                  <input id="requirements-name" type="text" placeholder="e.g. Frontline Anchor" />
-                </label>
-                <label>
-                  Definition
-                  <input id="requirements-definition" type="text" placeholder="What this requirement enforces" />
-                </label>
-              </div>
-              <div>
-                <div class="button-row">
-                  <p class="meta">Rule Clauses</p>
-                  <button id="requirements-add-clause" class="ghost" type="button">Add Clause</button>
-                </div>
-                <div id="requirements-clauses" class="summary-card-list"></div>
-              </div>
               <div class="button-row">
-                <button id="requirements-save" type="button">Create Requirement</button>
-                <button id="requirements-cancel" class="ghost" type="button">Clear</button>
-                <button id="requirements-delete" class="ghost" type="button" hidden>Delete</button>
+                <button id="requirements-open-editor" type="button">Create New Requirement</button>
+              </div>
+              <div id="requirements-editor">
+                <div class="grid grid-2">
+                  <label>
+                    Name
+                    <input id="requirements-name" type="text" placeholder="e.g. Frontline Anchor" />
+                  </label>
+                  <label>
+                    Definition
+                    <input id="requirements-definition" type="text" placeholder="What this requirement enforces" />
+                  </label>
+                </div>
+                <div>
+                  <div class="button-row">
+                    <p class="meta">Rule Clauses</p>
+                    <button id="requirements-add-clause" class="ghost" type="button">Add Clause</button>
+                  </div>
+                  <div id="requirements-clauses" class="requirements-clause-list"></div>
+                </div>
+                <div class="button-row">
+                  <button id="requirements-save" type="button">Create Requirement</button>
+                  <button id="requirements-cancel" class="ghost" type="button">Close</button>
+                  <button id="requirements-delete" class="ghost" type="button" hidden>Delete</button>
+                </div>
               </div>
               <p id="requirements-feedback" class="meta"></p>
             </div>
@@ -1089,7 +1094,8 @@
                 <ul class="coming-soon-list">
                   <li>The Requirements workspace was replaced with a Compositions workspace that separates Requirement Definitions from Composition bundles.</li>
                   <li>Requirement definitions now support CRUD for `name`, `definition`, and phase-2 style `rules` clauses (expr/minCount/maxCount/roleFilter).</li>
-                  <li>Requirement rule entry now uses an in-form clause builder (tag/advanced expression, min/max counts, role filters) instead of requiring full raw JSON input.</li>
+                  <li>Requirement rule entry now uses an in-form clause builder (single tag, AND/OR tag logic, advanced expression fallback, min/max counts, role filters, and optional clause-to-clause separate-champion constraints) instead of requiring full raw JSON input.</li>
+                  <li>Requirement editor behavior now auto-closes after create/update so admins can immediately start a fresh requirement from the list view.</li>
                   <li>Compositions now support CRUD for named bundles of requirement definitions, including active-composition selection.</li>
                 </ul>
                 <h4>Version 0.5.2 (Shipped)</h4>
