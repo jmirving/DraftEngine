@@ -409,8 +409,7 @@ h3 {
 
 .workflow-surface .stage-guide,
 .workflow-surface .stage-panel {
-  margin-inline: auto;
-  width: min(100%, 1180px);
+  width: 100%;
 }
 
 .stage-guide-actions {

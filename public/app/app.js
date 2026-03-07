@@ -180,7 +180,7 @@ const UI_COPY = Object.freeze({
     }
   },
   nav: {
-    title: "Workspace",
+    title: "DraftEngine",
     meta: "Jump between Composer, Teams, Profile, Champions, Tags, Users, Requirements, and Updates.",
     toggleClosed: "Menu",
     toggleOpen: "Close Menu",
