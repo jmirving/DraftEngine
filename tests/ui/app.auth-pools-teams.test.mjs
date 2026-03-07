@@ -1673,7 +1673,7 @@ describe("auth + pools + team management", () => {
     expect(card.textContent).toContain("engage");
   });
 
-  test("champion explorer metadata tabs save global metadata edits", async () => {
+  test("champion explorer metadata editor supports shared role profiles", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -1698,13 +1698,18 @@ describe("auth + pools + team management", () => {
     topRoleCheckbox.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
 
     await flush();
-    const topProfileCard = Array.from(doc.querySelectorAll(".champion-role-profile-card")).find((node) =>
-      node.textContent.includes("Top Profile")
+    const sharedProfileToggle = doc.querySelector("#champion-metadata-share-role-profile");
+    expect(sharedProfileToggle).toBeTruthy();
+    sharedProfileToggle.checked = true;
+    sharedProfileToggle.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+    const sharedProfileCard = Array.from(doc.querySelectorAll(".champion-role-profile-card")).find((node) =>
+      node.textContent.includes("All Selected Roles Profile")
     );
-    expect(topProfileCard).toBeTruthy();
-    const topDamageSelect = topProfileCard.querySelector("select");
-    topDamageSelect.value = "mixed";
-    topDamageSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    expect(sharedProfileCard).toBeTruthy();
+    const sharedDamageSelect = sharedProfileCard.querySelector("select");
+    sharedDamageSelect.value = "mixed";
+    sharedDamageSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
 
     doc.querySelector("#champion-tag-editor-save").click();
     await flush();
@@ -1714,6 +1719,7 @@ describe("auth + pools + team management", () => {
     );
     expect(metadataSaveCall).toBeTruthy();
     expect(metadataSaveCall.body.role_profiles.Top.primary_damage_type).toBe("mixed");
+    expect(metadataSaveCall.body.role_profiles.Mid.primary_damage_type).toBe("mixed");
     expect(new Set(metadataSaveCall.body.roles)).toEqual(new Set(["Top", "Mid"]));
     expect(doc.querySelector("#champion-tag-editor-feedback").textContent).toContain("saved");
   });
@@ -1736,10 +1742,21 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#tags-workspace-summary").textContent).toContain("3 tags");
 
     const tagLabels = Array.from(
-      doc.querySelectorAll("#tags-workspace-categories .tags-workspace-item .chip"),
+      doc.querySelectorAll("#tags-workspace-categories .tags-workspace-item .tags-workspace-name"),
       (node) => node.textContent.trim()
     );
     expect(tagLabels).toEqual(["burst", "engage", "frontline"]);
+
+    const engageRow = Array.from(doc.querySelectorAll("#tags-workspace-categories .tags-workspace-item")).find((node) =>
+      node.textContent.includes("engage")
+    );
+    expect(engageRow).toBeTruthy();
+    const engageContentChildren = Array.from(engageRow.querySelector(".tags-workspace-content").children).map((node) =>
+      node.className
+    );
+    expect(engageContentChildren[0]).toContain("tags-workspace-name");
+    expect(engageContentChildren[1]).toContain("tags-workspace-definition");
+    expect(engageContentChildren[2]).toContain("tags-workspace-usage");
   });
 
   test("tags workspace supports admin CRUD operations", async () => {

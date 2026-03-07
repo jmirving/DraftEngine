@@ -291,7 +291,8 @@ const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
 function createEmptyChampionMetadataDraft() {
   return {
     roles: [],
-    roleProfiles: {}
+    roleProfiles: {},
+    useSharedRoleProfile: false
   };
 }
 
@@ -932,6 +933,43 @@ function normalizeRoleProfilesFromMetadata(rawRoleProfiles, roles) {
   return profiles;
 }
 
+function cloneRoleProfileDraft(profile) {
+  const source = profile && typeof profile === "object" && !Array.isArray(profile) ? profile : {};
+  return {
+    primaryDamageType: normalizeApiPrimaryDamageType(source.primaryDamageType ?? source.primary_damage_type) ?? "mixed",
+    effectiveness: {
+      early: normalizeApiEffectivenessLevel(source.effectiveness?.early) ?? "neutral",
+      mid: normalizeApiEffectivenessLevel(source.effectiveness?.mid) ?? "neutral",
+      late: normalizeApiEffectivenessLevel(source.effectiveness?.late) ?? "neutral"
+    }
+  };
+}
+
+function roleProfilesMatch(leftProfile, rightProfile) {
+  const left = cloneRoleProfileDraft(leftProfile);
+  const right = cloneRoleProfileDraft(rightProfile);
+  return (
+    left.primaryDamageType === right.primaryDamageType &&
+    left.effectiveness.early === right.effectiveness.early &&
+    left.effectiveness.mid === right.effectiveness.mid &&
+    left.effectiveness.late === right.effectiveness.late
+  );
+}
+
+function selectedRoleProfilesAreUniform(roles, roleProfiles) {
+  if (!Array.isArray(roles) || roles.length < 2) {
+    return false;
+  }
+  const anchorProfile = roleProfiles?.[roles[0]] ?? createDefaultRoleProfileDraft();
+  for (const role of roles.slice(1)) {
+    const candidateProfile = roleProfiles?.[role] ?? createDefaultRoleProfileDraft();
+    if (!roleProfilesMatch(anchorProfile, candidateProfile)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function ensureChampionMetadataRoleProfiles() {
   const selectedRoles = normalizeChampionMetadataRoles(state.api.championMetadataDraft.roles);
   state.api.championMetadataDraft.roles = selectedRoles;
@@ -943,6 +981,13 @@ function ensureChampionMetadataRoleProfiles() {
         ? normalizeRoleProfilesFromMetadata({ [role]: existing }, [role])[role]
         : createDefaultRoleProfileDraft();
     nextProfiles[role] = normalizedExisting;
+  }
+  if (state.api.championMetadataDraft.useSharedRoleProfile === true && selectedRoles.length > 1) {
+    const anchorRole = selectedRoles[0];
+    const anchorProfile = nextProfiles[anchorRole] ?? createDefaultRoleProfileDraft();
+    for (const role of selectedRoles) {
+      nextProfiles[role] = cloneRoleProfileDraft(anchorProfile);
+    }
   }
   state.api.championMetadataDraft.roleProfiles = nextProfiles;
 }
@@ -1020,9 +1065,11 @@ function initializeChampionMetadataDraft(champion) {
   }
   const roles = normalizeChampionMetadataRoles(champion.roles);
   const roleProfiles = normalizeRoleProfilesFromMetadata(champion.roleProfiles, roles);
+  const useSharedRoleProfile = selectedRoleProfilesAreUniform(roles, roleProfiles);
   state.api.championMetadataDraft = {
     roles,
-    roleProfiles
+    roleProfiles,
+    useSharedRoleProfile
   };
   ensureChampionMetadataRoleProfiles();
   state.api.championReviewedDraft = champion.reviewed === true;
@@ -2857,20 +2904,24 @@ function renderTagsWorkspace() {
     const item = runtimeDocument.createElement("li");
     item.className = "tags-workspace-item";
 
-    const chip = runtimeDocument.createElement("span");
-    chip.className = "chip";
-    chip.textContent = tag.name;
-
     const usageCount = (usageByTagId.get(tag.id) ?? []).length;
-    const usage = runtimeDocument.createElement("span");
-    usage.className = "meta";
-    usage.textContent = usageCount === 1 ? "Used by 1 champion" : `Used by ${usageCount} champions`;
+    const content = runtimeDocument.createElement("div");
+    content.className = "tags-workspace-content";
+
+    const name = runtimeDocument.createElement("p");
+    name.className = "tags-workspace-name";
+    name.textContent = tag.name;
 
     const definition = runtimeDocument.createElement("p");
-    definition.className = "meta";
+    definition.className = "meta tags-workspace-definition";
     definition.textContent = String(tag.definition ?? "").trim() || "No definition set.";
 
-    item.append(chip, usage, definition);
+    const usage = runtimeDocument.createElement("p");
+    usage.className = "meta tags-workspace-usage";
+    usage.textContent = usageCount === 1 ? "Used by 1 champion" : `Used by ${usageCount} champions`;
+
+    content.append(name, definition, usage);
+    item.append(content);
 
     if (isAuthenticated() && isGlobalTagEditorUser()) {
       const actions = runtimeDocument.createElement("div");
@@ -3903,13 +3954,12 @@ function renderChampionMetadataRoleProfileEditors() {
     return;
   }
 
-  for (const role of selectedRoles) {
-    const profile = state.api.championMetadataDraft.roleProfiles?.[role] ?? createDefaultRoleProfileDraft();
+  const renderRoleProfileCard = (titleText, profile, onDamageChange, onEffectivenessChange) => {
     const card = runtimeDocument.createElement("section");
     card.className = "panel draft-board-panel champion-role-profile-card";
 
     const title = runtimeDocument.createElement("h4");
-    title.textContent = `${role} Profile`;
+    title.textContent = titleText;
     card.append(title);
 
     const damageLabel = runtimeDocument.createElement("label");
@@ -3918,13 +3968,7 @@ function renderChampionMetadataRoleProfileEditors() {
     replaceOptions(damageSelect, PRIMARY_DAMAGE_TYPE_OPTIONS);
     damageSelect.value = normalizeApiPrimaryDamageType(profile.primaryDamageType) ?? "mixed";
     damageSelect.disabled = state.api.isSavingChampionTags;
-    damageSelect.addEventListener("change", () => {
-      state.api.championMetadataDraft.roleProfiles[role] = {
-        ...state.api.championMetadataDraft.roleProfiles[role],
-        primaryDamageType: normalizeApiPrimaryDamageType(damageSelect.value) ?? "mixed"
-      };
-      renderChampionTagEditor();
-    });
+    damageSelect.addEventListener("change", () => onDamageChange(damageSelect.value));
     damageLabel.append(damageSelect);
     card.append(damageLabel);
 
@@ -3938,21 +3982,99 @@ function renderChampionMetadataRoleProfileEditors() {
       phaseSelect.value = normalizeApiEffectivenessLevel(profile.effectiveness?.[phase]) ?? "neutral";
       phaseSelect.disabled = state.api.isSavingChampionTags;
       phaseSelect.addEventListener("change", () => {
-        const roleProfile = state.api.championMetadataDraft.roleProfiles[role] ?? createDefaultRoleProfileDraft();
-        state.api.championMetadataDraft.roleProfiles[role] = {
-          ...roleProfile,
-          effectiveness: {
-            ...(roleProfile.effectiveness ?? {}),
-            [phase]: normalizeApiEffectivenessLevel(phaseSelect.value) ?? "neutral"
-          }
-        };
-        renderChampionTagEditor();
+        onEffectivenessChange(phase, phaseSelect.value);
       });
       phaseLabel.append(phaseSelect);
       grid.append(phaseLabel);
     }
 
     card.append(grid);
+    return card;
+  };
+
+  if (selectedRoles.length > 1) {
+    const shareToggleLabel = runtimeDocument.createElement("label");
+    shareToggleLabel.className = "inline-checkbox champion-role-profile-sync-toggle";
+
+    const shareToggle = runtimeDocument.createElement("input");
+    shareToggle.id = "champion-metadata-share-role-profile";
+    shareToggle.type = "checkbox";
+    shareToggle.checked = state.api.championMetadataDraft.useSharedRoleProfile === true;
+    shareToggle.disabled = state.api.isSavingChampionTags;
+    shareToggle.addEventListener("change", () => {
+      state.api.championMetadataDraft.useSharedRoleProfile = shareToggle.checked;
+      ensureChampionMetadataRoleProfiles();
+      renderChampionTagEditor();
+    });
+
+    const shareToggleText = runtimeDocument.createElement("span");
+    shareToggleText.textContent = "All selected roles are the same";
+
+    shareToggleLabel.append(shareToggle, shareToggleText);
+    elements.championMetadataRoleProfiles.append(shareToggleLabel);
+  }
+
+  const useSharedRoleProfile = state.api.championMetadataDraft.useSharedRoleProfile === true && selectedRoles.length > 1;
+  if (useSharedRoleProfile) {
+    const anchorRole = selectedRoles[0];
+    const profile = state.api.championMetadataDraft.roleProfiles?.[anchorRole] ?? createDefaultRoleProfileDraft();
+    const sharedCard = renderRoleProfileCard(
+      "All Selected Roles Profile",
+      profile,
+      (nextDamageType) => {
+        const normalizedDamageType = normalizeApiPrimaryDamageType(nextDamageType) ?? "mixed";
+        for (const role of selectedRoles) {
+          const roleProfile = state.api.championMetadataDraft.roleProfiles?.[role] ?? createDefaultRoleProfileDraft();
+          state.api.championMetadataDraft.roleProfiles[role] = {
+            ...roleProfile,
+            primaryDamageType: normalizedDamageType
+          };
+        }
+        renderChampionTagEditor();
+      },
+      (phase, nextLevel) => {
+        const normalizedLevel = normalizeApiEffectivenessLevel(nextLevel) ?? "neutral";
+        for (const role of selectedRoles) {
+          const roleProfile = state.api.championMetadataDraft.roleProfiles?.[role] ?? createDefaultRoleProfileDraft();
+          state.api.championMetadataDraft.roleProfiles[role] = {
+            ...roleProfile,
+            effectiveness: {
+              ...(roleProfile.effectiveness ?? {}),
+              [phase]: normalizedLevel
+            }
+          };
+        }
+        renderChampionTagEditor();
+      }
+    );
+    elements.championMetadataRoleProfiles.append(sharedCard);
+    return;
+  }
+
+  for (const role of selectedRoles) {
+    const profile = state.api.championMetadataDraft.roleProfiles?.[role] ?? createDefaultRoleProfileDraft();
+    const card = renderRoleProfileCard(
+      `${role} Profile`,
+      profile,
+      (nextDamageType) => {
+        state.api.championMetadataDraft.roleProfiles[role] = {
+          ...state.api.championMetadataDraft.roleProfiles[role],
+          primaryDamageType: normalizeApiPrimaryDamageType(nextDamageType) ?? "mixed"
+        };
+        renderChampionTagEditor();
+      },
+      (phase, nextLevel) => {
+        const roleProfile = state.api.championMetadataDraft.roleProfiles[role] ?? createDefaultRoleProfileDraft();
+        state.api.championMetadataDraft.roleProfiles[role] = {
+          ...roleProfile,
+          effectiveness: {
+            ...(roleProfile.effectiveness ?? {}),
+            [phase]: normalizeApiEffectivenessLevel(nextLevel) ?? "neutral"
+          }
+        };
+        renderChampionTagEditor();
+      }
+    );
     elements.championMetadataRoleProfiles.append(card);
   }
 }

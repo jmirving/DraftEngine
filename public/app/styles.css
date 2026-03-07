@@ -1190,6 +1190,10 @@ button.ghost {
   margin: 0 0 0.35rem 0;
 }
 
+.champion-role-profile-sync-toggle {
+  margin: 0.1rem 0 0.15rem;
+}
+
 .champ-card-scope-tags {
   margin-top: 0.5rem;
 }
@@ -1944,13 +1948,23 @@ button.slot-order-btn:disabled {
 
 .tags-workspace-item {
   display: grid;
-  grid-template-columns: auto auto 1fr auto;
+  grid-template-columns: 1fr auto;
   align-items: start;
   gap: 0.4rem;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: #fffcf5;
   padding: 0.45rem 0.5rem;
+}
+
+.tags-workspace-content {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.tags-workspace-name {
+  margin: 0;
+  font-weight: 700;
 }
 
 .tags-workspace-item .meta {
