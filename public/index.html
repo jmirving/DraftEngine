@@ -88,6 +88,10 @@
             Password
             <input id="auth-password" type="password" autocomplete="current-password" placeholder="password" />
           </label>
+          <label id="auth-retype-password-group" hidden>
+            Re-type Password
+            <input id="auth-retype-password" type="password" autocomplete="new-password" placeholder="re-type password" />
+          </label>
           <label id="auth-game-name-group" hidden>
             Game Name
             <input id="auth-game-name" type="text" placeholder="Summoner name" />
@@ -112,16 +116,22 @@
             New Password
             <input id="auth-new-password" type="password" autocomplete="new-password" placeholder="New password" />
           </label>
+          <label id="auth-confirm-new-password-group" hidden>
+            Re-enter New Password
+            <input id="auth-confirm-new-password" type="password" autocomplete="new-password" placeholder="Re-enter new password" />
+          </label>
           <p id="auth-feedback" class="error-inline" hidden></p>
           <button id="auth-login" type="button">Log In</button>
           <button id="auth-register" type="button" hidden>Create Account</button>
           <button id="auth-request-reset" type="button" hidden>Send Reset Token</button>
           <button id="auth-submit-reset" type="button" hidden>Set New Password</button>
+          <button id="auth-change-password" type="button" hidden>Change Password</button>
           <div class="auth-card-links">
             <button id="auth-forgot-link" type="button" class="auth-link">Forgot your password?</button>
             <p class="auth-switch">Don't have an account? <button id="auth-signup-link" type="button" class="auth-link">Sign Up</button></p>
             <p id="auth-login-link-wrap" class="auth-switch" hidden>Already have an account? <button id="auth-to-login" type="button" class="auth-link">Log In</button></p>
             <button id="auth-back-to-login" type="button" class="auth-link" hidden>Back to Log In</button>
+            <button id="auth-cancel-change" type="button" class="auth-link" hidden>Cancel</button>
           </div>
         </div>
       </div>
@@ -919,6 +929,12 @@
                 <p class="panel-kicker">My Teams</p>
                 <p id="settings-teams-member-summary" class="meta"></p>
                 <div id="settings-teams-member-list" class="summary-card-list"></div>
+              </div>
+              <div class="profile-section">
+                <p class="panel-kicker">Account</p>
+                <div class="button-row">
+                  <button id="profile-change-password" type="button">Change Password</button>
+                </div>
               </div>
             </div>
           </section>

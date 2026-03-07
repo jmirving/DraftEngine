@@ -174,8 +174,24 @@ h3 {
 .auth-card #auth-login,
 .auth-card #auth-register,
 .auth-card #auth-request-reset,
-.auth-card #auth-submit-reset {
+.auth-card #auth-submit-reset,
+.auth-card #auth-change-password {
   margin-top: 1.1rem;
+}
+
+.auth-card #auth-register {
+  margin-top: 2.2rem;
+}
+
+.auth-card label.field-error input {
+  border-color: var(--error, #c0392b);
+  outline: 2px solid color-mix(in srgb, var(--error, #c0392b) 30%, transparent);
+}
+
+.auth-card .field-error-msg {
+  font-size: 0.8rem;
+  color: var(--error, #c0392b);
+  margin-top: 0.25rem;
 }
 
 .auth-card .error-inline {
@@ -456,6 +472,10 @@ body:has(#app-shell.is-nav-collapsed) .side-menu-spacer {
 
 .tab-surface .panel {
   margin-bottom: 0;
+}
+
+.panel.side-menu {
+  border-radius: 0;
 }
 
 .draft-board-panel {

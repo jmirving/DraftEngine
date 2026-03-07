@@ -448,6 +448,13 @@ function createElements() {
     authTaglineGroup: runtimeDocument.querySelector("#auth-tagline-group"),
     authFirstNameGroup: runtimeDocument.querySelector("#auth-first-name-group"),
     authLastNameGroup: runtimeDocument.querySelector("#auth-last-name-group"),
+    authRetypePassword: runtimeDocument.querySelector("#auth-retype-password"),
+    authRetypePasswordGroup: runtimeDocument.querySelector("#auth-retype-password-group"),
+    authConfirmNewPassword: runtimeDocument.querySelector("#auth-confirm-new-password"),
+    authConfirmNewPasswordGroup: runtimeDocument.querySelector("#auth-confirm-new-password-group"),
+    authChangePassword: runtimeDocument.querySelector("#auth-change-password"),
+    authCancelChange: runtimeDocument.querySelector("#auth-cancel-change"),
+    profileChangePassword: runtimeDocument.querySelector("#profile-change-password"),
     authPassword: runtimeDocument.querySelector("#auth-password"),
     authPasswordGroup: runtimeDocument.querySelector("#auth-password-group"),
     authRegister: runtimeDocument.querySelector("#auth-register"),
@@ -1638,7 +1645,7 @@ function clearAuthSession(feedback = "") {
 }
 
 function setAuthMode(mode = "login") {
-  const valid = new Set(["login", "register", "forgot", "reset"]);
+  const valid = new Set(["login", "register", "forgot", "reset", "change-password"]);
   state.auth.mode = valid.has(mode) ? mode : "login";
 }
 
@@ -1667,6 +1674,7 @@ const AUTH_CARD_TITLES = {
   register: "Create Your Account",
   forgot: "Reset Your Password",
   reset: "Set New Password",
+  "change-password": "Change Your Password",
 };
 
 function setAuthControlsVisibility(showAuthControls, mode = "login") {
@@ -1674,26 +1682,31 @@ function setAuthControlsVisibility(showAuthControls, mode = "login") {
   const isReset = mode === "reset";
   const isPasswordFlow = isForgot || isReset;
   const isRegister = mode === "register";
+  const isChangePassword = mode === "change-password";
 
   if (elements.authCardTitle) {
     elements.authCardTitle.textContent = AUTH_CARD_TITLES[mode] ?? AUTH_CARD_TITLES.login;
   }
 
-  // Email: shown in login, register, forgot — hidden in reset
+  // Email: shown in login, register, forgot only
   if (elements.authEmailGroup) {
-    elements.authEmailGroup.hidden = !showAuthControls || isReset;
+    elements.authEmailGroup.hidden = !showAuthControls || isReset || isChangePassword;
   }
-  // Password: shown in login and register — hidden in forgot/reset
+  // Password: shown in login and register only
   if (elements.authPasswordGroup) {
-    elements.authPasswordGroup.hidden = !showAuthControls || isPasswordFlow;
+    elements.authPasswordGroup.hidden = !showAuthControls || isPasswordFlow || isChangePassword;
+  }
+  // Retype Password: register only
+  if (elements.authRetypePasswordGroup) {
+    elements.authRetypePasswordGroup.hidden = !(showAuthControls && isRegister);
   }
   // Login button: login mode only
   if (elements.authLogin) {
-    elements.authLogin.hidden = !showAuthControls || isPasswordFlow || isRegister;
+    elements.authLogin.hidden = !showAuthControls || isPasswordFlow || isRegister || isChangePassword;
   }
   // Register submit button: register mode only
   if (elements.authRegister) {
-    elements.authRegister.hidden = !showAuthControls || isPasswordFlow || !isRegister;
+    elements.authRegister.hidden = !showAuthControls || isPasswordFlow || !isRegister || isChangePassword;
   }
   // Register-only fields
   const registerOnlyControls = [
@@ -1709,23 +1722,28 @@ function setAuthControlsVisibility(showAuthControls, mode = "login") {
   }
   // Forgot link: login mode only
   if (elements.authForgotLink) {
-    elements.authForgotLink.hidden = !showAuthControls || isPasswordFlow || isRegister;
+    elements.authForgotLink.hidden = !showAuthControls || isPasswordFlow || isRegister || isChangePassword;
   }
   // Sign Up link row: login mode only
   if (elements.authSignupLink) {
     const signupWrap = elements.authSignupLink.closest("p");
-    if (signupWrap) signupWrap.hidden = !showAuthControls || isPasswordFlow || isRegister;
+    if (signupWrap) signupWrap.hidden = !showAuthControls || isPasswordFlow || isRegister || isChangePassword;
   }
   // "Already have an account? Log In" wrap: register mode only
   if (elements.authLoginLinkWrap) {
     elements.authLoginLinkWrap.hidden = !(showAuthControls && isRegister);
   }
-  // Reset token + new password: reset mode only
+  // Reset token: reset mode only
   if (elements.authResetTokenGroup) {
     elements.authResetTokenGroup.hidden = !showAuthControls || !isReset;
   }
+  // New Password: reset or change-password modes
   if (elements.authNewPasswordGroup) {
-    elements.authNewPasswordGroup.hidden = !showAuthControls || !isReset;
+    elements.authNewPasswordGroup.hidden = !showAuthControls || (!isReset && !isChangePassword);
+  }
+  // Confirm New Password: change-password mode only
+  if (elements.authConfirmNewPasswordGroup) {
+    elements.authConfirmNewPasswordGroup.hidden = !(showAuthControls && isChangePassword);
   }
   // Forgot/reset action buttons
   if (elements.authRequestReset) {
@@ -1734,22 +1752,31 @@ function setAuthControlsVisibility(showAuthControls, mode = "login") {
   if (elements.authSubmitReset) {
     elements.authSubmitReset.hidden = !showAuthControls || !isReset;
   }
+  // Change Password button: change-password mode only
+  if (elements.authChangePassword) {
+    elements.authChangePassword.hidden = !(showAuthControls && isChangePassword);
+  }
   // Back to login: forgot/reset modes only
   if (elements.authBackToLogin) {
     elements.authBackToLogin.hidden = !showAuthControls || !isPasswordFlow;
+  }
+  // Cancel change: change-password mode only
+  if (elements.authCancelChange) {
+    elements.authCancelChange.hidden = !(showAuthControls && isChangePassword);
   }
 }
 
 function renderAuthGate() {
   const signedIn = hasAuthSession();
+  const isChangingPassword = signedIn && state.auth.mode === "change-password";
   if (elements.appShell) {
-    elements.appShell.hidden = !signedIn;
+    elements.appShell.hidden = !signedIn || isChangingPassword;
   }
   if (elements.authScreen) {
-    elements.authScreen.hidden = signedIn;
+    elements.authScreen.hidden = signedIn && !isChangingPassword;
   }
   if (elements.siteHero) {
-    elements.siteHero.hidden = !signedIn;
+    elements.siteHero.hidden = !signedIn || isChangingPassword;
   }
   if (!signedIn) {
     setNavOpen(false);
@@ -1772,7 +1799,8 @@ function renderAuth() {
     return;
   }
 
-  setAuthControlsVisibility(false, state.auth.mode);
+  const showOverlay = state.auth.mode === "change-password";
+  setAuthControlsVisibility(showOverlay, state.auth.mode);
   const email = typeof state.auth.user.email === "string" ? state.auth.user.email : "unknown";
   const gameName = typeof state.auth.user.gameName === "string" ? state.auth.user.gameName : "";
   const tagline = typeof state.auth.user.tagline === "string" ? state.auth.user.tagline : "";
@@ -8447,6 +8475,19 @@ function attachEvents() {
       renderAuth();
       return;
     }
+    const password = elements.authPassword?.value ?? "";
+    const retype = elements.authRetypePassword?.value ?? "";
+    if (password !== retype) {
+      setAuthFeedback("Passwords do not match.");
+      if (elements.authRetypePasswordGroup) {
+        elements.authRetypePasswordGroup.classList.add("field-error");
+      }
+      renderAuth();
+      return;
+    }
+    if (elements.authRetypePasswordGroup) {
+      elements.authRetypePasswordGroup.classList.remove("field-error");
+    }
     void handleAuthSubmit("/auth/register", "register").catch((error) => {
       setAuthFeedback(normalizeApiErrorMessage(error, "Registration failed."));
       renderAuth();
@@ -8578,11 +8619,92 @@ function attachEvents() {
     });
   }
 
+  if (elements.authRetypePassword) {
+    elements.authRetypePassword.addEventListener("input", () => {
+      const password = elements.authPassword?.value ?? "";
+      const retype = elements.authRetypePassword.value;
+      const mismatch = retype.length > 0 && password !== retype;
+      if (elements.authRetypePasswordGroup) {
+        elements.authRetypePasswordGroup.classList.toggle("field-error", mismatch);
+      }
+    });
+  }
+
+  if (elements.authChangePassword) {
+    elements.authChangePassword.addEventListener("click", () => {
+      const newPassword = elements.authNewPassword?.value ?? "";
+      const confirm = elements.authConfirmNewPassword?.value ?? "";
+      if (!newPassword || !confirm) {
+        setAuthFeedback("Enter and confirm your new password.");
+        renderAuth();
+        return;
+      }
+      if (newPassword !== confirm) {
+        setAuthFeedback("Passwords do not match.");
+        if (elements.authConfirmNewPasswordGroup) {
+          elements.authConfirmNewPasswordGroup.classList.add("field-error");
+        }
+        renderAuth();
+        return;
+      }
+      if (elements.authConfirmNewPasswordGroup) {
+        elements.authConfirmNewPasswordGroup.classList.remove("field-error");
+      }
+      elements.authChangePassword.disabled = true;
+      void apiRequest("/auth/change-password", {
+        method: "POST",
+        body: { newPassword }
+      }).then(() => {
+        if (elements.authNewPassword) elements.authNewPassword.value = "";
+        if (elements.authConfirmNewPassword) elements.authConfirmNewPassword.value = "";
+        setAuthMode("login");
+        setAuthFeedback("");
+        renderAuth();
+        setTab("player-config", { syncRoute: true });
+      }).catch((error) => {
+        setAuthFeedback(normalizeApiErrorMessage(error, "Password change failed."));
+        renderAuth();
+      }).finally(() => {
+        if (elements.authChangePassword) elements.authChangePassword.disabled = false;
+      });
+    });
+  }
+
+  if (elements.authCancelChange) {
+    elements.authCancelChange.addEventListener("click", () => {
+      if (elements.authNewPassword) elements.authNewPassword.value = "";
+      if (elements.authConfirmNewPassword) elements.authConfirmNewPassword.value = "";
+      setAuthMode("login");
+      setAuthFeedback("");
+      renderAuth();
+      setTab("player-config", { syncRoute: true });
+    });
+  }
+
+  if (elements.profileChangePassword) {
+    elements.profileChangePassword.addEventListener("click", () => {
+      setAuthMode("change-password");
+      setAuthFeedback("");
+      renderAuth();
+    });
+  }
+
+  if (elements.authConfirmNewPassword) {
+    elements.authConfirmNewPassword.addEventListener("input", () => {
+      const newPassword = elements.authNewPassword?.value ?? "";
+      const confirm = elements.authConfirmNewPassword.value;
+      const mismatch = confirm.length > 0 && newPassword !== confirm;
+      if (elements.authConfirmNewPasswordGroup) {
+        elements.authConfirmNewPasswordGroup.classList.toggle("field-error", mismatch);
+      }
+    });
+  }
+
   if (elements.updatesNavLink) {
     elements.updatesNavLink.addEventListener("click", (e) => {
       e.preventDefault();
       if (!hasAuthSession()) {
-        setAuthFeedback("Login required to access app screens.");
+        setAuthFeedback("Login/Registration required to proceed.");
         return;
       }
       setTab("coming-soon", { syncRoute: true });
@@ -8635,7 +8757,7 @@ function attachEvents() {
   for (const button of elements.tabTriggers) {
     button.addEventListener("click", () => {
       if (!hasAuthSession()) {
-        setAuthFeedback("Login required to access app screens.");
+        setAuthFeedback("Login/Registration required to proceed.");
         return;
       }
       setTab(button.dataset.tab, { syncRoute: true });
