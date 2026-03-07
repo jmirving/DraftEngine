@@ -2037,6 +2037,16 @@ button.slot-order-btn:disabled {
   cursor: pointer;
 }
 
+.requirement-condition-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.4rem;
+}
+
+.requirement-condition-picker-title {
+  margin: 0 0 0.2rem;
+}
+
 .summary-card {
   border: 1px solid var(--border);
   border-radius: 10px;

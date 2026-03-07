@@ -169,9 +169,13 @@ const UI_COPY = Object.freeze({
         title: "Users",
         subtitle: "Admin-only directory for permissions and one-time Riot ID corrections."
       },
-      "composition-requirements": {
+      requirements: {
+        title: "Requirements",
+        subtitle: "Manage reusable requirement definitions and clause rules."
+      },
+      compositions: {
         title: "Compositions",
-        subtitle: "Manage requirement definitions and composition bundles."
+        subtitle: "Build named bundles from requirement definitions."
       },
       "coming-soon": {
         title: "Updates & Roadmap",
@@ -181,7 +185,7 @@ const UI_COPY = Object.freeze({
   },
   nav: {
     title: "DraftEngine",
-    meta: "Jump between Composer, Teams, Profile, Champions, Tags, Users, Compositions, and Updates.",
+    meta: "Jump between Composer, Teams, Profile, Champions, Tags, Users, Requirements, Compositions, and Updates.",
     toggleClosed: "Menu",
     toggleOpen: "Close Menu",
     desktopCollapseIcon: "◀",
@@ -195,7 +199,8 @@ const UI_COPY = Object.freeze({
       explorer: "Champions",
       tags: "Tags",
       users: "Users",
-      "composition-requirements": "Compositions",
+      requirements: "Requirements",
+      compositions: "Compositions",
       "coming-soon": "Updates"
     }
   },
@@ -206,8 +211,10 @@ const UI_COPY = Object.freeze({
     tagsMeta: "Manage shared tag definitions and current champion coverage.",
     usersTitle: "Users",
     usersMeta: "Admin-only user directory, permission management, and one-time Riot ID corrections.",
-    compositionRequirementsTitle: "Compositions",
-    compositionRequirementsMeta: "Define requirement rules and group them into named composition bundles.",
+    requirementsTitle: "Requirements",
+    requirementsMeta: "Define reusable requirement rules and clause logic.",
+    compositionsTitle: "Compositions",
+    compositionsMeta: "Group requirement definitions into named composition bundles.",
     teamConfigTitle: "Teams",
     teamConfigMeta: "Lead-only controls are grouped by Create and Manage modes.",
     playerConfigTitle: "Profile",
@@ -244,10 +251,14 @@ const TAB_ROUTES = Object.freeze([
   "explorer",
   "tags",
   "users",
-  "composition-requirements",
+  "requirements",
+  "compositions",
   "coming-soon"
 ]);
 const TAB_ROUTE_SET = new Set(TAB_ROUTES);
+const LEGACY_TAB_ROUTE_ALIASES = Object.freeze({
+  "composition-requirements": "requirements"
+});
 const LANE_ORDER = Object.freeze(["Top", "Jungle", "Mid", "ADC", "Support"]);
 
 let runtimeWindow = null;
@@ -294,14 +305,19 @@ const REQUIREMENT_TERM_KIND_OPTIONS = Object.freeze([
   { value: "effectiveness_focus", label: "Effectiveness Focus" }
 ]);
 const REQUIREMENT_TERM_KIND_VALUE_SET = new Set(REQUIREMENT_TERM_KIND_OPTIONS.map((option) => option.value));
-const REQUIREMENT_TAG_OPTIONS = Object.freeze([...BOOLEAN_TAGS].sort((left, right) => left.localeCompare(right)));
 const REQUIREMENT_DAMAGE_TYPE_OPTIONS = Object.freeze(
-  [...PRIMARY_DAMAGE_TYPE_OPTIONS].sort((left, right) => left.label.localeCompare(right.label))
+  [...PRIMARY_DAMAGE_TYPE_OPTIONS]
+    .sort((left, right) => left.label.localeCompare(right.label))
+    .map((option) => ({
+      ...option,
+      description: `Champion primary damage profile is ${option.label}.`
+    }))
 );
 const REQUIREMENT_EFFECTIVENESS_FOCUS_OPTIONS = Object.freeze(
   EFFECTIVENESS_PHASES.map((phase) => ({
     value: phase,
-    label: SCALING_ALIASES[phase.toUpperCase()] ?? phase
+    label: SCALING_ALIASES[phase.toUpperCase()] ?? phase,
+    description: `Champion effectiveness profile peaks in ${SCALING_ALIASES[phase.toUpperCase()] ?? phase} game stages.`
   }))
 );
 let requirementClauseDraftIdSeed = 0;
@@ -325,7 +341,7 @@ function createDefaultRequirementRuleClauseDraft() {
     terms: [createEmptyRequirementClauseTerm()],
     termJoiners: [],
     activeTermIndex: 0,
-    termSearch: "",
+    termSearchByKind: {},
     isOpen: true,
     minCount: 1,
     maxCount: "",
@@ -565,9 +581,11 @@ function createElements() {
     usersAccess: runtimeDocument.querySelector("#users-access"),
     usersList: runtimeDocument.querySelector("#users-list"),
     usersFeedback: runtimeDocument.querySelector("#users-feedback"),
-    compositionRequirementsTitle: runtimeDocument.querySelector("#composition-requirements-title"),
-    compositionRequirementsMeta: runtimeDocument.querySelector("#composition-requirements-meta"),
-    compositionRequirementsSummary: runtimeDocument.querySelector("#composition-requirements-summary"),
+    requirementsTitle: runtimeDocument.querySelector("#requirements-title"),
+    requirementsMeta: runtimeDocument.querySelector("#requirements-meta"),
+    compositionsTitle: runtimeDocument.querySelector("#compositions-title"),
+    compositionsMeta: runtimeDocument.querySelector("#compositions-meta"),
+    compositionsSummary: runtimeDocument.querySelector("#compositions-summary"),
     compositionRequirementsName: runtimeDocument.querySelector("#composition-requirements-name"),
     compositionRequirementsIsActive: runtimeDocument.querySelector("#composition-requirements-is-active"),
     compositionRequirementsToggles: runtimeDocument.querySelector("#composition-requirements-toggles"),
@@ -602,7 +620,8 @@ function createElements() {
     tabWorkflow: runtimeDocument.querySelector("#tab-workflow"),
     tabTags: runtimeDocument.querySelector("#tab-tags"),
     tabUsers: runtimeDocument.querySelector("#tab-users"),
-    tabCompositionRequirements: runtimeDocument.querySelector("#tab-composition-requirements"),
+    tabRequirements: runtimeDocument.querySelector("#tab-requirements"),
+    tabCompositions: runtimeDocument.querySelector("#tab-compositions"),
     tabTeamConfig: runtimeDocument.querySelector("#tab-team-config"),
     tabPlayerConfig: runtimeDocument.querySelector("#tab-player-config"),
     tabComingSoon: runtimeDocument.querySelector("#tab-coming-soon"),
@@ -1964,11 +1983,17 @@ function applyUiCopy() {
   if (elements.usersMeta) {
     elements.usersMeta.textContent = UI_COPY.panels.usersMeta;
   }
-  if (elements.compositionRequirementsTitle) {
-    elements.compositionRequirementsTitle.textContent = UI_COPY.panels.compositionRequirementsTitle;
+  if (elements.requirementsTitle) {
+    elements.requirementsTitle.textContent = UI_COPY.panels.requirementsTitle;
   }
-  if (elements.compositionRequirementsMeta) {
-    elements.compositionRequirementsMeta.textContent = UI_COPY.panels.compositionRequirementsMeta;
+  if (elements.requirementsMeta) {
+    elements.requirementsMeta.textContent = UI_COPY.panels.requirementsMeta;
+  }
+  if (elements.compositionsTitle) {
+    elements.compositionsTitle.textContent = UI_COPY.panels.compositionsTitle;
+  }
+  if (elements.compositionsMeta) {
+    elements.compositionsMeta.textContent = UI_COPY.panels.compositionsMeta;
   }
   if (elements.teamConfigTitle) {
     elements.teamConfigTitle.textContent = UI_COPY.panels.teamConfigTitle;
@@ -2327,21 +2352,31 @@ function createCheckboxMultiControl({
 
 function parseTabRouteHash(rawHash) {
   if (typeof rawHash !== "string" || rawHash === "") {
-    return { tab: null, status: "missing" };
+    return { tab: null, status: "missing", shouldNormalize: false };
   }
   const normalized = rawHash.startsWith("#") ? rawHash.slice(1).trim() : rawHash.trim();
   if (!normalized) {
-    return { tab: null, status: "missing" };
+    return { tab: null, status: "missing", shouldNormalize: false };
   }
-  if (TAB_ROUTE_SET.has(normalized)) {
-    return { tab: normalized, status: "valid" };
+  const resolved = resolveTabRoute(normalized);
+  if (TAB_ROUTE_SET.has(resolved)) {
+    return { tab: resolved, status: "valid", shouldNormalize: resolved !== normalized };
   }
-  return { tab: null, status: "invalid" };
+  return { tab: null, status: "invalid", shouldNormalize: false };
 }
 
 function formatTabRouteHash(tab) {
-  const resolved = TAB_ROUTE_SET.has(tab) ? tab : DEFAULT_TAB_ROUTE;
+  const resolved = resolveTabRoute(tab);
   return `#${resolved}`;
+}
+
+function resolveTabRoute(tab) {
+  const rawTab = typeof tab === "string" ? tab.trim() : "";
+  if (!rawTab) {
+    return DEFAULT_TAB_ROUTE;
+  }
+  const mapped = LEGACY_TAB_ROUTE_ALIASES[rawTab] ?? rawTab;
+  return TAB_ROUTE_SET.has(mapped) ? mapped : DEFAULT_TAB_ROUTE;
 }
 
 function updateLocationHashForTab(tab, { replace = false } = {}) {
@@ -2366,9 +2401,9 @@ function updateLocationHashForTab(tab, { replace = false } = {}) {
 
 function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
   const requestedTab = typeof tabName === "string" ? tabName : "";
-  const normalizedRequestedTab = TAB_ROUTE_SET.has(requestedTab) ? requestedTab : DEFAULT_TAB_ROUTE;
+  const normalizedRequestedTab = resolveTabRoute(requestedTab);
   const resolvedTab = hasAuthSession() ? normalizedRequestedTab : DEFAULT_TAB_ROUTE;
-  const shouldNormalizeRoute = requestedTab !== resolvedTab || !TAB_ROUTE_SET.has(requestedTab);
+  const shouldNormalizeRoute = requestedTab !== resolvedTab || resolveTabRoute(requestedTab) !== requestedTab;
   const shouldSyncRoute = syncRoute || shouldNormalizeRoute;
   const tabChanged = state.activeTab !== resolvedTab;
 
@@ -2389,7 +2424,8 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
   elements.tabWorkflow.classList.toggle("is-active", resolvedTab === "workflow");
   elements.tabTags.classList.toggle("is-active", resolvedTab === "tags");
   elements.tabUsers.classList.toggle("is-active", resolvedTab === "users");
-  elements.tabCompositionRequirements.classList.toggle("is-active", resolvedTab === "composition-requirements");
+  elements.tabRequirements.classList.toggle("is-active", resolvedTab === "requirements");
+  elements.tabCompositions.classList.toggle("is-active", resolvedTab === "compositions");
   elements.tabTeamConfig.classList.toggle("is-active", resolvedTab === "team-config");
   elements.tabPlayerConfig.classList.toggle("is-active", resolvedTab === "player-config");
   elements.tabComingSoon.classList.toggle("is-active", resolvedTab === "coming-soon");
@@ -2414,17 +2450,20 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
     }
     renderUsersWorkspace();
   }
-  if (resolvedTab === "composition-requirements") {
-    if (isAuthenticated() && state.api.compositionRequirements.length === 0 && !state.api.isLoadingCompositionRequirements) {
-      void loadCompositionRequirementsFromApi();
+  if (resolvedTab === "requirements") {
+    if (isAuthenticated() && state.api.requirementDefinitions.length === 0 && !state.api.isLoadingRequirementDefinitions) {
+      void loadRequirementDefinitionsFromApi();
     }
+    renderRequirementDefinitionsWorkspace();
+  }
+  if (resolvedTab === "compositions") {
     if (isAuthenticated() && state.api.requirementDefinitions.length === 0 && !state.api.isLoadingRequirementDefinitions) {
       void loadRequirementDefinitionsFromApi();
     }
     if (isAuthenticated() && state.api.compositionBundles.length === 0 && !state.api.isLoadingCompositionBundles) {
       void loadCompositionBundlesFromApi();
     }
-    renderCompositionRequirementsWorkspace();
+    renderCompositionBundlesWorkspace();
   }
   if (resolvedTab === "coming-soon") {
     renderUpdatesReleaseTabs();
@@ -3777,6 +3816,122 @@ function normalizeRequirementTermKind(rawKind, fallback = "tag") {
   return REQUIREMENT_TERM_KIND_VALUE_SET.has(kind) ? kind : normalizedFallback;
 }
 
+function collectTagValuesFromRequirementExpr(rawExpr, values) {
+  if (typeof rawExpr === "string") {
+    const trimmed = rawExpr.trim();
+    if (trimmed) {
+      values.add(trimmed);
+    }
+    return;
+  }
+  if (!rawExpr || typeof rawExpr !== "object" || Array.isArray(rawExpr)) {
+    return;
+  }
+  if (typeof rawExpr.tag === "string" && rawExpr.tag.trim() !== "") {
+    values.add(rawExpr.tag.trim());
+  }
+  for (const joiner of REQUIREMENT_JOINER_MODES) {
+    if (!Array.isArray(rawExpr[joiner])) {
+      continue;
+    }
+    for (const child of rawExpr[joiner]) {
+      collectTagValuesFromRequirementExpr(child, values);
+    }
+  }
+}
+
+function collectKnownRequirementTagValues() {
+  const knownValues = new Set();
+  const addTermTagValue = (rawTerm) => {
+    if (!rawTerm || typeof rawTerm !== "object" || Array.isArray(rawTerm)) {
+      return;
+    }
+    const kind = normalizeRequirementTermKind(rawTerm.kind, "tag");
+    if (kind !== "tag" || typeof rawTerm.value !== "string") {
+      return;
+    }
+    const trimmedValue = rawTerm.value.trim();
+    if (trimmedValue) {
+      knownValues.add(trimmedValue);
+    }
+  };
+  const addRuleTagValues = (rawRule) => {
+    if (!rawRule || typeof rawRule !== "object" || Array.isArray(rawRule)) {
+      return;
+    }
+    if (Array.isArray(rawRule.terms)) {
+      for (const rawTerm of rawRule.terms) {
+        addTermTagValue(rawTerm);
+      }
+    }
+    if (rawRule.expr !== undefined) {
+      collectTagValuesFromRequirementExpr(rawRule.expr, knownValues);
+    }
+  };
+  for (const requirement of Array.isArray(state.api.requirementDefinitions) ? state.api.requirementDefinitions : []) {
+    for (const rawRule of Array.isArray(requirement.rules) ? requirement.rules : []) {
+      addRuleTagValues(rawRule);
+    }
+  }
+  for (const rawRule of Array.isArray(state.api.requirementDefinitionDraft.rules)
+    ? state.api.requirementDefinitionDraft.rules
+    : []) {
+    addRuleTagValues(rawRule);
+  }
+  return knownValues;
+}
+
+function getRequirementTagOptions() {
+  const optionsByKey = new Map();
+  const addOption = (value, description = "") => {
+    if (typeof value !== "string") {
+      return;
+    }
+    const trimmedValue = value.trim();
+    if (!trimmedValue) {
+      return;
+    }
+    const key = trimmedValue.toLowerCase();
+    const existing = optionsByKey.get(key);
+    if (existing) {
+      if (!existing.description && description) {
+        existing.description = description;
+      }
+      return;
+    }
+    optionsByKey.set(key, {
+      value: trimmedValue,
+      label: trimmedValue,
+      description
+    });
+  };
+
+  const catalogTags = Array.isArray(state.api.tags)
+    ? [...state.api.tags]
+        .map((tag) => ({
+          name: typeof tag?.name === "string" ? tag.name.trim() : "",
+          definition: typeof tag?.definition === "string" ? tag.definition.trim() : ""
+        }))
+        .filter((tag) => tag.name !== "")
+        .sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" }))
+    : [];
+  for (const tag of catalogTags) {
+    addOption(tag.name, tag.definition);
+  }
+  if (optionsByKey.size < 1) {
+    for (const legacyTag of [...BOOLEAN_TAGS].sort((left, right) => left.localeCompare(right))) {
+      addOption(legacyTag, "Legacy tag value.");
+    }
+  }
+  for (const knownValue of collectKnownRequirementTagValues()) {
+    addOption(knownValue, "Legacy requirement value. Add this tag in Tags to define it.");
+  }
+
+  return Array.from(optionsByKey.values()).sort((left, right) =>
+    left.label.localeCompare(right.label, undefined, { sensitivity: "base" })
+  );
+}
+
 function getRequirementTermOptions(kind) {
   const normalizedKind = normalizeRequirementTermKind(kind, "tag");
   if (normalizedKind === "damage_type") {
@@ -3785,7 +3940,7 @@ function getRequirementTermOptions(kind) {
   if (normalizedKind === "effectiveness_focus") {
     return REQUIREMENT_EFFECTIVENESS_FOCUS_OPTIONS;
   }
-  return REQUIREMENT_TAG_OPTIONS.map((tag) => ({ value: tag, label: tag }));
+  return getRequirementTagOptions();
 }
 
 function getRequirementTermKindLabel(kind) {
@@ -3798,6 +3953,11 @@ function getRequirementTermLabel(kind, value) {
   return option?.label ?? value;
 }
 
+function getRequirementTermDescription(kind, value) {
+  const option = getRequirementTermOptions(kind).find((candidate) => candidate.value === value);
+  return typeof option?.description === "string" ? option.description : "";
+}
+
 function normalizeRequirementTermValue(kind, rawValue) {
   if (typeof rawValue !== "string") {
     return "";
@@ -3806,7 +3966,13 @@ function normalizeRequirementTermValue(kind, rawValue) {
   if (!value) {
     return "";
   }
-  return getRequirementTermOptions(kind).some((option) => option.value === value) ? value : "";
+  const options = getRequirementTermOptions(kind);
+  const exactMatch = options.find((option) => option.value === value);
+  if (exactMatch) {
+    return exactMatch.value;
+  }
+  const caseInsensitiveMatch = options.find((option) => option.value.toLowerCase() === value.toLowerCase());
+  return caseInsensitiveMatch ? caseInsensitiveMatch.value : "";
 }
 
 function normalizeRequirementClauseTerm(rawTerm = null) {
@@ -3834,18 +4000,41 @@ function normalizeRequirementClauseTermJoiners(rawJoiners, termCount) {
   return normalized;
 }
 
+function normalizeRequirementTermSearchByKind(rawValue = null) {
+  const normalized = {};
+  for (const kindOption of REQUIREMENT_TERM_KIND_OPTIONS) {
+    normalized[kindOption.value] = "";
+  }
+  if (typeof rawValue === "string") {
+    normalized.tag = rawValue;
+    return normalized;
+  }
+  if (!rawValue || typeof rawValue !== "object" || Array.isArray(rawValue)) {
+    return normalized;
+  }
+  for (const kindOption of REQUIREMENT_TERM_KIND_OPTIONS) {
+    const value = rawValue[kindOption.value];
+    normalized[kindOption.value] = typeof value === "string" ? value : "";
+  }
+  return normalized;
+}
+
 function createRequirementTermFromExprNode(rawNode) {
   if (typeof rawNode === "string") {
-    if (REQUIREMENT_TAG_OPTIONS.includes(rawNode)) {
-      return { kind: "tag", value: rawNode };
+    const value = normalizeRequirementTermValue("tag", rawNode);
+    if (value) {
+      return { kind: "tag", value };
     }
     return null;
   }
   if (!rawNode || typeof rawNode !== "object" || Array.isArray(rawNode)) {
     return null;
   }
-  if (typeof rawNode.tag === "string" && REQUIREMENT_TAG_OPTIONS.includes(rawNode.tag)) {
-    return { kind: "tag", value: rawNode.tag };
+  if (typeof rawNode.tag === "string") {
+    const value = normalizeRequirementTermValue("tag", rawNode.tag);
+    if (value) {
+      return { kind: "tag", value };
+    }
   }
   const rawDamageType =
     typeof rawNode.damageType === "string"
@@ -3976,7 +4165,7 @@ function createRequirementRuleClauseDraft(rawClause = null) {
       Number.isInteger(activeTermIndex) && activeTermIndex >= 0 && activeTermIndex < terms.length
         ? activeTermIndex
         : Math.max(0, terms.length - 1),
-    termSearch: typeof clause.termSearch === "string" ? clause.termSearch : "",
+    termSearchByKind: normalizeRequirementTermSearchByKind(clause.termSearchByKind ?? clause.termSearch),
     isOpen: clause.isOpen === true,
     minCount,
     maxCount,
@@ -4209,7 +4398,7 @@ function formatRequirementClauseTermSummary(term) {
   const kind = normalizeRequirementTermKind(term.kind, "tag");
   const value = normalizeRequirementTermValue(kind, term.value);
   if (!value) {
-    return `Select ${getRequirementTermKindLabel(kind)}`;
+    return "Select Condition";
   }
   return `${getRequirementTermKindLabel(kind)}: ${getRequirementTermLabel(kind, value)}`;
 }
@@ -4237,7 +4426,7 @@ function renderRequirementClauseEditor() {
     clause.terms = normalizeRequirementClauseTerms(clause.terms);
     clause.termJoiners = normalizeRequirementClauseTermJoiners(clause.termJoiners, clause.terms.length);
     clause.clauseJoiner = normalizeRequirementJoiner(clause.clauseJoiner, "and");
-    clause.termSearch = typeof clause.termSearch === "string" ? clause.termSearch : "";
+    clause.termSearchByKind = normalizeRequirementTermSearchByKind(clause.termSearchByKind ?? clause.termSearch);
     const parsedActiveTermIndex = Number.parseInt(String(clause.activeTermIndex), 10);
     clause.activeTermIndex =
       Number.isInteger(parsedActiveTermIndex) && parsedActiveTermIndex >= 0 && parsedActiveTermIndex < clause.terms.length
@@ -4370,7 +4559,14 @@ function renderRequirementClauseEditor() {
       termButton.className = `ghost requirement-inline-button requirement-tag-token${
         clause.activeTermIndex === termIndex ? " is-active" : ""
       }`;
-      termButton.textContent = formatRequirementClauseTermSummary(clause.terms[termIndex]);
+      const termSummary = formatRequirementClauseTermSummary(clause.terms[termIndex]);
+      termButton.textContent = termSummary;
+      const activeTermKind = normalizeRequirementTermKind(clause.terms[termIndex]?.kind, "tag");
+      const activeTermValue = normalizeRequirementTermValue(activeTermKind, clause.terms[termIndex]?.value);
+      const activeTermDescription = activeTermValue ? getRequirementTermDescription(activeTermKind, activeTermValue) : "";
+      if (activeTermDescription) {
+        termButton.title = activeTermDescription;
+      }
       termButton.disabled = controlsDisabled;
       termButton.addEventListener("click", () => {
         clause.activeTermIndex = termIndex;
@@ -4413,79 +4609,76 @@ function renderRequirementClauseEditor() {
     termChain.append(addTermButton);
 
     const activeTerm = clause.terms[clause.activeTermIndex] ?? createEmptyRequirementClauseTerm();
-    const termTypeLabel = runtimeDocument.createElement("label");
-    termTypeLabel.textContent = "Condition Type";
-    const termTypeSelect = runtimeDocument.createElement("select");
-    termTypeSelect.className = "requirement-inline-select";
-    termTypeSelect.dataset.field = "term-kind";
-    termTypeSelect.dataset.clauseIndex = String(index);
-    termTypeSelect.dataset.termIndex = String(clause.activeTermIndex);
-    replaceOptions(termTypeSelect, REQUIREMENT_TERM_KIND_OPTIONS);
-    termTypeSelect.value = normalizeRequirementTermKind(activeTerm.kind, "tag");
-    termTypeSelect.disabled = controlsDisabled;
-    termTypeSelect.addEventListener("change", () => {
-      const nextKind = normalizeRequirementTermKind(termTypeSelect.value, "tag");
-      clause.terms[clause.activeTermIndex] = {
-        kind: nextKind,
-        value: ""
-      };
-      clause.termSearch = "";
-      renderRequirementClauseEditor();
-    });
-    termTypeLabel.append(runtimeDocument.createElement("br"), termTypeSelect);
-
     const activeKind = normalizeRequirementTermKind(activeTerm.kind, "tag");
-    const termPicker = runtimeDocument.createElement("div");
-    termPicker.className = "requirement-tag-picker";
-    const termFilterInput = runtimeDocument.createElement("input");
-    termFilterInput.type = "text";
-    termFilterInput.className = "pool-snapshot-filter";
-    termFilterInput.placeholder = `Filter ${getRequirementTermKindLabel(activeKind).toLowerCase()}...`;
-    termFilterInput.value = clause.termSearch;
-    termFilterInput.dataset.field = "term-filter";
-    termFilterInput.dataset.clauseIndex = String(index);
-    termFilterInput.disabled = controlsDisabled;
-    termFilterInput.addEventListener("input", () => {
-      clause.termSearch = termFilterInput.value;
-      renderRequirementClauseEditor();
-    });
-    termPicker.append(termFilterInput);
+    const activeValue = normalizeRequirementTermValue(activeKind, activeTerm.value);
+    const conditionGrid = runtimeDocument.createElement("div");
+    conditionGrid.className = "requirement-condition-grid";
 
-    const termList = runtimeDocument.createElement("ul");
-    termList.className = "pool-snapshot-list requirement-tag-picker-list";
-    const filterText = clause.termSearch.trim().toLowerCase();
-    const filteredOptions = getRequirementTermOptions(activeKind).filter((option) =>
-      option.label.toLowerCase().includes(filterText)
-    );
-    if (filteredOptions.length < 1) {
-      const emptyTerm = runtimeDocument.createElement("li");
-      emptyTerm.className = "pool-snapshot-empty";
-      emptyTerm.textContent = "No options match.";
-      termList.append(emptyTerm);
-    } else {
-      for (const option of filteredOptions) {
-        const optionItem = runtimeDocument.createElement("li");
-        if (activeTerm.value === option.value) {
-          optionItem.classList.add("is-selected");
+    for (const kindOption of REQUIREMENT_TERM_KIND_OPTIONS) {
+      const conditionKind = normalizeRequirementTermKind(kindOption.value, "tag");
+      const termPicker = runtimeDocument.createElement("div");
+      termPicker.className = "requirement-tag-picker requirement-condition-picker";
+
+      const pickerTitle = runtimeDocument.createElement("p");
+      pickerTitle.className = "meta requirement-condition-picker-title";
+      pickerTitle.textContent = kindOption.label;
+      termPicker.append(pickerTitle);
+
+      const termFilterInput = runtimeDocument.createElement("input");
+      termFilterInput.type = "text";
+      termFilterInput.className = "pool-snapshot-filter";
+      termFilterInput.placeholder = `Filter ${kindOption.label.toLowerCase()}...`;
+      termFilterInput.value = clause.termSearchByKind[conditionKind] ?? "";
+      termFilterInput.dataset.field = "term-filter";
+      termFilterInput.dataset.clauseIndex = String(index);
+      termFilterInput.dataset.kind = conditionKind;
+      termFilterInput.disabled = controlsDisabled;
+      termFilterInput.addEventListener("input", () => {
+        clause.termSearchByKind[conditionKind] = termFilterInput.value;
+        renderRequirementClauseEditor();
+      });
+      termPicker.append(termFilterInput);
+
+      const termList = runtimeDocument.createElement("ul");
+      termList.className = "pool-snapshot-list requirement-tag-picker-list";
+      const filterText = String(clause.termSearchByKind[conditionKind] ?? "").trim().toLowerCase();
+      const filteredOptions = getRequirementTermOptions(conditionKind).filter((option) =>
+        option.label.toLowerCase().includes(filterText)
+      );
+      if (filteredOptions.length < 1) {
+        const emptyTerm = runtimeDocument.createElement("li");
+        emptyTerm.className = "pool-snapshot-empty";
+        emptyTerm.textContent = "No options match.";
+        termList.append(emptyTerm);
+      } else {
+        for (const option of filteredOptions) {
+          const optionItem = runtimeDocument.createElement("li");
+          if (activeKind === conditionKind && activeValue === option.value) {
+            optionItem.classList.add("is-selected");
+          }
+          optionItem.dataset.field = "term-option";
+          optionItem.dataset.clauseIndex = String(index);
+          optionItem.dataset.kind = conditionKind;
+          optionItem.dataset.value = option.value;
+          optionItem.textContent = option.label;
+          if (option.description) {
+            optionItem.title = option.description;
+          }
+          if (!controlsDisabled) {
+            optionItem.addEventListener("click", () => {
+              clause.terms[clause.activeTermIndex] = {
+                kind: conditionKind,
+                value: option.value
+              };
+              renderRequirementClauseEditor();
+            });
+          }
+          termList.append(optionItem);
         }
-        optionItem.dataset.field = "term-option";
-        optionItem.dataset.clauseIndex = String(index);
-        optionItem.dataset.kind = activeKind;
-        optionItem.dataset.value = option.value;
-        optionItem.textContent = option.label;
-        if (!controlsDisabled) {
-          optionItem.addEventListener("click", () => {
-            clause.terms[clause.activeTermIndex] = {
-              kind: activeKind,
-              value: option.value
-            };
-            renderRequirementClauseEditor();
-          });
-        }
-        termList.append(optionItem);
       }
+      termPicker.append(termList);
+      conditionGrid.append(termPicker);
     }
-    termPicker.append(termList);
 
     const minMaxGrid = runtimeDocument.createElement("div");
     minMaxGrid.className = "grid grid-2";
@@ -4599,7 +4792,7 @@ function renderRequirementClauseEditor() {
         separationWrap.append(candidateLabel);
       }
     }
-    editor.append(termsTitle, termChain, termTypeLabel, termPicker, minMaxGrid, roleFilterWrap, separationWrap);
+    editor.append(termsTitle, termChain, conditionGrid, minMaxGrid, roleFilterWrap, separationWrap);
     card.append(editor);
     elements.requirementsClauses.append(card);
   }
@@ -4739,8 +4932,8 @@ function renderCompositionBundlesWorkspace() {
 
   const compositions = Array.isArray(state.api.compositionBundles) ? state.api.compositionBundles : [];
   const activeComposition = compositions.find((composition) => composition.is_active) ?? null;
-  if (elements.compositionRequirementsSummary) {
-    elements.compositionRequirementsSummary.textContent = activeComposition
+  if (elements.compositionsSummary) {
+    elements.compositionsSummary.textContent = activeComposition
       ? `Active composition: ${activeComposition.name}`
       : "No active composition selected.";
   }
@@ -9896,7 +10089,7 @@ async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAd
   renderChampionTagCatalog();
   renderTagsWorkspace();
   renderUsersWorkspace();
-  renderCompositionRequirementsWorkspace();
+  renderCompositionsWorkspace();
   renderChampionTagEditor();
   syncSlotSelectOptions();
   void fetchBuilderDraftContext(state.builder.teamId).then(() => {
@@ -10297,7 +10490,7 @@ function attachEvents() {
   runtimeWindow.addEventListener("hashchange", () => {
     const route = parseTabRouteHash(runtimeWindow.location.hash);
     if (route.status === "valid") {
-      setTab(route.tab);
+      setTab(route.tab, { syncRoute: route.shouldNormalize, replaceRoute: route.shouldNormalize });
       return;
     }
     setTab(DEFAULT_TAB_ROUTE, { syncRoute: true, replaceRoute: true });
@@ -11459,7 +11652,7 @@ async function init() {
           : state.activeTab;
     setTab(initialTab, {
       syncRoute: true,
-      replaceRoute: initialRoute.status !== "valid"
+      replaceRoute: initialRoute.status !== "valid" || initialRoute.shouldNormalize
     });
     syncSlotSelectOptions();
     renderTeamConfig();
@@ -11469,7 +11662,7 @@ async function init() {
     renderChampionTagCatalog();
     renderTagsWorkspace();
     renderUsersWorkspace();
-    renderCompositionRequirementsWorkspace();
+    renderCompositionsWorkspace();
     renderChampionTagEditor();
     renderAuth();
     clearBuilderFeedback();

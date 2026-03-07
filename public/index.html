@@ -30,7 +30,8 @@
         <button class="side-menu-link" data-tab="explorer" type="button">Champions</button>
         <button class="side-menu-link" data-tab="tags" type="button">Tags</button>
         <button class="side-menu-link" data-tab="users" type="button">Users</button>
-        <button class="side-menu-link" data-tab="composition-requirements" type="button">Requirements</button>
+        <button class="side-menu-link" data-tab="requirements" type="button">Requirements</button>
+        <button class="side-menu-link" data-tab="compositions" type="button">Compositions</button>
         <div class="side-menu-spacer"></div>
         <button class="side-menu-link" data-tab="player-config" type="button">Profile</button>
         <button id="auth-logout" class="side-menu-link side-menu-link-logout" type="button">Logout</button>
@@ -963,13 +964,12 @@
             </div>
           </section>
 
-          <section id="tab-composition-requirements" class="tab-panel tab-surface">
+          <section id="tab-requirements" class="tab-panel tab-surface">
             <div class="panel draft-board-panel">
-              <h2 id="composition-requirements-title">Compositions</h2>
-              <p id="composition-requirements-meta" class="meta">
-                Define reusable requirement rules and group them into named compositions.
+              <h2 id="requirements-title">Requirements</h2>
+              <p id="requirements-meta" class="meta">
+                Define reusable requirement clauses with condition logic and champion separation constraints.
               </p>
-              <p id="composition-requirements-summary" class="meta"></p>
             </div>
             <div class="panel draft-board-panel">
               <p class="panel-kicker">Requirement Definitions</p>
@@ -1003,6 +1003,16 @@
             </div>
             <div class="panel draft-board-panel">
               <div id="requirements-list" class="summary-card-list"></div>
+            </div>
+          </section>
+
+          <section id="tab-compositions" class="tab-panel tab-surface">
+            <div class="panel draft-board-panel">
+              <h2 id="compositions-title">Compositions</h2>
+              <p id="compositions-meta" class="meta">
+                Group requirement definitions into reusable named composition bundles.
+              </p>
+              <p id="compositions-summary" class="meta"></p>
             </div>
             <div class="panel draft-board-panel">
               <p class="panel-kicker">Compositions</p>
@@ -1091,10 +1101,11 @@
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
                 <h4>Version 0.6.0 (Shipped)</h4>
                 <ul class="coming-soon-list">
-                  <li>The Requirements workspace was replaced with a Compositions workspace that separates Requirement Definitions from Composition bundles.</li>
+                  <li>Requirements and Compositions are now separate workspace pages so definition authoring and bundle management are split into focused flows.</li>
                   <li>Requirement definitions now support CRUD for `name`, `definition`, and phase-2 style `rules` clauses (expr/minCount/maxCount/roleFilter).</li>
-                  <li>Requirement rule entry now uses an in-form clause builder (tag/damage-type/effectiveness-focus condition chains with AND/OR joiners, clause-to-clause AND/OR joiners, min/max counts, role filters, and optional separate-champion constraints) instead of requiring full raw JSON input.</li>
+                  <li>Requirement rule entry now uses an in-form clause builder with side-by-side Tag, Damage Type, and Effectiveness Focus pickers, AND/OR joiners, min/max counts, role filters, and optional separate-champion constraints instead of requiring raw JSON input.</li>
                   <li>Requirement editor behavior now auto-closes after create/update so admins can immediately start a fresh requirement from the list view.</li>
+                  <li>Requirement option rows now expose hover definitions/tooltips for tags and condition metadata.</li>
                   <li>Compositions now support CRUD for named bundles of requirement definitions, including active-composition selection.</li>
                 </ul>
                 <h4>Version 0.5.2 (Shipped)</h4>

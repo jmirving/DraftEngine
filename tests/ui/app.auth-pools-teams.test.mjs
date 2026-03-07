@@ -2081,7 +2081,7 @@ describe("auth + pools + team management", () => {
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
 
-    doc.querySelector(".side-menu-link[data-tab='composition-requirements']").click();
+    doc.querySelector(".side-menu-link[data-tab='requirements']").click();
     await flush();
 
     doc.querySelector("#requirements-cancel").click();
@@ -2100,9 +2100,10 @@ describe("auth + pools + team management", () => {
     definitionInput.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
 
     const firstClauseHardEngage = doc.querySelector(
-      "#requirements-clauses [data-field='term-option'][data-clause-index='0'][data-kind='tag'][data-value='HardEngage']"
+      "#requirements-clauses [data-field='term-option'][data-clause-index='0'][data-kind='tag'][data-value='engage']"
     );
     expect(firstClauseHardEngage).toBeTruthy();
+    expect(firstClauseHardEngage.getAttribute("title")).toContain("start fights");
     firstClauseHardEngage.click();
 
     const firstClauseAddTag = doc.querySelector(
@@ -2113,7 +2114,7 @@ describe("auth + pools + team management", () => {
     await flush();
 
     const firstClauseFrontline = doc.querySelector(
-      "#requirements-clauses [data-field='term-option'][data-clause-index='0'][data-kind='tag'][data-value='Frontline']"
+      "#requirements-clauses [data-field='term-option'][data-clause-index='0'][data-kind='tag'][data-value='frontline']"
     );
     expect(firstClauseFrontline).toBeTruthy();
     firstClauseFrontline.click();
@@ -2122,7 +2123,7 @@ describe("auth + pools + team management", () => {
     await flush();
 
     const secondClauseTag = doc.querySelector(
-      "#requirements-clauses [data-field='term-option'][data-clause-index='1'][data-kind='tag'][data-value='FollowUpEngage']"
+      "#requirements-clauses [data-field='term-option'][data-clause-index='1'][data-kind='damage_type'][data-value='ad']"
     );
     expect(secondClauseTag).toBeTruthy();
     secondClauseTag.click();
@@ -2141,12 +2142,15 @@ describe("auth + pools + team management", () => {
     expect(createRequirementCall).toBeTruthy();
     expect(createRequirementCall.body.name).toBe("Aggressive");
     expect(new Set(createRequirementCall.body.rules[0].expr.and.map((entry) => entry.tag))).toEqual(
-      new Set(["HardEngage", "Frontline"])
+      new Set(["engage", "frontline"])
     );
-    expect(createRequirementCall.body.rules[1].expr.tag).toBe("FollowUpEngage");
+    expect(createRequirementCall.body.rules[1].expr.damageType).toBe("ad");
     expect(createRequirementCall.body.rules[1].clauseJoiner).toBe("and");
     expect(createRequirementCall.body.rules[1].separateFrom).toEqual([createRequirementCall.body.rules[0].id]);
     expect(doc.querySelector("#requirements-editor").hidden).toBe(true);
+
+    doc.querySelector(".side-menu-link[data-tab='compositions']").click();
+    await flush();
 
     doc.querySelector("#compositions-cancel").click();
     await flush();
