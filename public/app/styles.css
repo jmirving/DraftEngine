@@ -1569,6 +1569,7 @@ button.slot-order-btn:disabled {
 
 .button-row > button {
   width: auto;
+  margin-top: 0;
 }
 
 .optional-checks-header {
@@ -1966,6 +1967,74 @@ button.slot-order-btn:disabled {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
+}
+
+.requirement-clause-card {
+  padding: 0.4rem 0.5rem;
+}
+
+.requirement-clause-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.45rem;
+}
+
+.requirement-clause-summary .meta {
+  margin: 0.08rem 0 0;
+}
+
+.requirement-clause-editor {
+  margin-top: 0.5rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.requirement-inline-actions {
+  margin-left: auto;
+  align-items: center;
+}
+
+.requirement-inline-select,
+.requirement-inline-button {
+  width: auto;
+  margin-top: 0;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.74rem;
+}
+
+.requirement-tag-token.is-active {
+  background: #f6ddd2;
+  border-color: #dcae9e;
+}
+
+.requirement-tag-chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.requirement-tag-picker {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fffefa;
+  box-shadow: inset 0 2px 0 rgba(204, 91, 52, 0.18);
+  padding: 0.35rem 0.4rem;
+}
+
+.requirement-tag-picker .pool-snapshot-filter {
+  margin-top: 0;
+}
+
+.requirement-tag-picker .pool-snapshot-list {
+  max-height: 7.2rem;
+  font-size: 0.76rem;
+}
+
+.requirement-tag-picker-list li {
+  cursor: pointer;
 }
 
 .summary-card {

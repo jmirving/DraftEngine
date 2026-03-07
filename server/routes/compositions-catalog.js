@@ -107,12 +107,26 @@ function normalizeClauseReferences(rawReferences, clauseIndex) {
   return references.length > 0 ? references : null;
 }
 
+function normalizeClauseJoiner(rawClauseJoiner, clauseIndex) {
+  if (rawClauseJoiner === undefined) {
+    return null;
+  }
+  if (typeof rawClauseJoiner !== "string" || rawClauseJoiner.trim() === "") {
+    throw badRequest(`Expected 'rules[${clauseIndex}].clauseJoiner' to be 'and' or 'or'.`);
+  }
+  const normalized = rawClauseJoiner.trim().toLowerCase();
+  if (normalized !== "and" && normalized !== "or") {
+    throw badRequest(`Expected 'rules[${clauseIndex}].clauseJoiner' to be 'and' or 'or'.`);
+  }
+  return normalized;
+}
+
 function normalizeRuleClause(rawClause, clauseIndex) {
   if (!rawClause || typeof rawClause !== "object" || Array.isArray(rawClause)) {
     throw badRequest(`Expected 'rules[${clauseIndex}]' to be an object.`);
   }
 
-  const { id, expr, minCount, maxCount, roleFilter, separateFrom } = rawClause;
+  const { id, expr, minCount, maxCount, roleFilter, separateFrom, clauseJoiner } = rawClause;
   if (expr === undefined || expr === null) {
     throw badRequest(`Expected 'rules[${clauseIndex}].expr' to be provided.`);
   }
@@ -139,6 +153,7 @@ function normalizeRuleClause(rawClause, clauseIndex) {
   const normalizedRoleFilter = normalizeRoleFilter(roleFilter, clauseIndex);
   const normalizedClauseId = normalizeClauseId(id, clauseIndex);
   const normalizedSeparateFrom = normalizeClauseReferences(separateFrom, clauseIndex);
+  const normalizedClauseJoiner = normalizeClauseJoiner(clauseJoiner, clauseIndex);
   if (normalizedSeparateFrom && !normalizedClauseId) {
     throw badRequest(`Expected 'rules[${clauseIndex}].id' when using separateFrom.`);
   }
@@ -149,6 +164,7 @@ function normalizeRuleClause(rawClause, clauseIndex) {
     minCount: normalizedMinCount,
     ...(maxCount === undefined ? {} : { maxCount }),
     ...(normalizedRoleFilter ? { roleFilter: normalizedRoleFilter } : {}),
+    ...(normalizedClauseJoiner ? { clauseJoiner: normalizedClauseJoiner } : {}),
     ...(normalizedSeparateFrom ? { separateFrom: normalizedSeparateFrom } : {})
   };
 }
@@ -161,6 +177,15 @@ function normalizeRequirementRules(rawRules) {
     throw badRequest("Expected 'rules' to include at least one clause.");
   }
   const normalizedRules = rawRules.map((rule, index) => normalizeRuleClause(rule, index));
+  for (const [index, rule] of normalizedRules.entries()) {
+    if (index < 1) {
+      delete rule.clauseJoiner;
+      continue;
+    }
+    if (!rule.clauseJoiner) {
+      rule.clauseJoiner = "and";
+    }
+  }
   const clauseIdSet = new Set();
   for (const [index, rule] of normalizedRules.entries()) {
     if (!rule.id) {

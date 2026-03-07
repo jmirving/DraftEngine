@@ -2099,34 +2099,26 @@ describe("auth + pools + team management", () => {
     definitionInput.value = "Must have engage and frontline";
     definitionInput.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
 
-    const firstClauseLogic = doc.querySelector("#requirements-clauses select[data-field='logic'][data-clause-index='0']");
-    expect(firstClauseLogic).toBeTruthy();
-    firstClauseLogic.value = "and";
-    firstClauseLogic.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-
     const firstClauseHardEngage = doc.querySelector(
-      "#requirements-clauses input[data-field='tag'][data-clause-index='0'][data-tag='HardEngage']"
+      "#requirements-clauses [data-field='tag-option'][data-clause-index='0'][data-tag='HardEngage']"
     );
     expect(firstClauseHardEngage).toBeTruthy();
-    firstClauseHardEngage.checked = true;
-    firstClauseHardEngage.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    firstClauseHardEngage.click();
 
-    const firstClauseFrontline = doc.querySelector(
-      "#requirements-clauses input[data-field='tag'][data-clause-index='0'][data-tag='Frontline']"
+    const firstClauseAddTag = doc.querySelector(
+      "#requirements-clauses button[data-field='add-tag'][data-clause-index='0']"
     );
-    expect(firstClauseFrontline).toBeTruthy();
-    firstClauseFrontline.checked = true;
-    firstClauseFrontline.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    expect(firstClauseAddTag).toBeTruthy();
+    firstClauseAddTag.click();
 
     doc.querySelector("#requirements-add-clause").click();
     await flush();
 
     const secondClauseTag = doc.querySelector(
-      "#requirements-clauses input[data-field='tag'][data-clause-index='1'][data-tag='FollowUpEngage']"
+      "#requirements-clauses [data-field='tag-option'][data-clause-index='1'][data-tag='FollowUpEngage']"
     );
     expect(secondClauseTag).toBeTruthy();
-    secondClauseTag.checked = true;
-    secondClauseTag.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    secondClauseTag.click();
 
     const secondClauseSeparateFromFirst = doc.querySelector(
       "#requirements-clauses input[data-field='separate-from'][data-clause-index='1'][data-target-clause-index='0']"
@@ -2145,6 +2137,7 @@ describe("auth + pools + team management", () => {
       new Set(["HardEngage", "Frontline"])
     );
     expect(createRequirementCall.body.rules[1].expr.tag).toBe("FollowUpEngage");
+    expect(createRequirementCall.body.rules[1].clauseJoiner).toBe("and");
     expect(createRequirementCall.body.rules[1].separateFrom).toEqual([createRequirementCall.body.rules[0].id]);
     expect(doc.querySelector("#requirements-editor").hidden).toBe(true);
 

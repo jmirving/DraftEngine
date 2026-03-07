@@ -287,7 +287,7 @@ const EFFECTIVENESS_LEVEL_VALUE_SET = new Set(EFFECTIVENESS_LEVEL_OPTIONS.map((o
 const EFFECTIVENESS_PHASES = Object.freeze(["early", "mid", "late"]);
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
-const REQUIREMENT_CLAUSE_LOGIC_MODES = Object.freeze(["single", "and", "or"]);
+const REQUIREMENT_JOINER_MODES = Object.freeze(["and", "or"]);
 let requirementClauseDraftIdSeed = 0;
 
 function getDefaultRequirementClauseTag() {
@@ -302,10 +302,12 @@ function createRequirementClauseDraftId() {
 function createDefaultRequirementRuleClauseDraft() {
   return {
     clauseId: createRequirementClauseDraftId(),
-    exprMode: "tag",
-    logic: "single",
+    clauseJoiner: "and",
     tags: [getDefaultRequirementClauseTag()],
-    exprText: "",
+    tagJoiners: [],
+    activeTagIndex: 0,
+    tagSearch: "",
+    isOpen: true,
     minCount: 1,
     maxCount: "",
     roleFilter: [],
@@ -3744,9 +3746,10 @@ function normalizeRequirementClauseReferenceIds(rawReferenceIds) {
   return normalized;
 }
 
-function normalizeRequirementClauseLogic(rawLogic) {
-  const logic = typeof rawLogic === "string" ? rawLogic.trim().toLowerCase() : "";
-  return REQUIREMENT_CLAUSE_LOGIC_MODES.includes(logic) ? logic : "single";
+function normalizeRequirementJoiner(rawJoiner, fallback = "and") {
+  const normalizedFallback = REQUIREMENT_JOINER_MODES.includes(fallback) ? fallback : "and";
+  const joiner = typeof rawJoiner === "string" ? rawJoiner.trim().toLowerCase() : "";
+  return REQUIREMENT_JOINER_MODES.includes(joiner) ? joiner : normalizedFallback;
 }
 
 function getRequirementClauseTagFromExprNode(rawNode) {
@@ -3779,6 +3782,87 @@ function normalizeRequirementClauseTags(rawTags) {
   return BOOLEAN_TAGS.filter((tag) => normalized.includes(tag));
 }
 
+function normalizeRequirementClauseTagJoiners(rawJoiners, tagCount) {
+  const joinerCount = Math.max(0, tagCount - 1);
+  const values = Array.isArray(rawJoiners) ? rawJoiners : [];
+  const normalized = [];
+  for (let index = 0; index < joinerCount; index += 1) {
+    normalized.push(normalizeRequirementJoiner(values[index], "and"));
+  }
+  return normalized;
+}
+
+function flattenRequirementClauseExprToTagChain(rawExpr) {
+  const directTag = getRequirementClauseTagFromExprNode(rawExpr);
+  if (directTag) {
+    return {
+      tags: [directTag],
+      tagJoiners: []
+    };
+  }
+  if (typeof rawExpr === "string") {
+    const parts = rawExpr
+      .split(/\s+(AND|OR)\s+/i)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+    if (parts.length >= 3 && parts.length % 2 === 1) {
+      const tags = [];
+      const tagJoiners = [];
+      let isValid = true;
+      for (let index = 0; index < parts.length; index += 1) {
+        if (index % 2 === 0) {
+          if (!BOOLEAN_TAGS.includes(parts[index])) {
+            isValid = false;
+            break;
+          }
+          tags.push(parts[index]);
+        } else {
+          tagJoiners.push(normalizeRequirementJoiner(parts[index], "and"));
+        }
+      }
+      if (isValid && tags.length > 0) {
+        return {
+          tags,
+          tagJoiners: normalizeRequirementClauseTagJoiners(tagJoiners, tags.length)
+        };
+      }
+    }
+  }
+  if (!rawExpr || typeof rawExpr !== "object" || Array.isArray(rawExpr)) {
+    return null;
+  }
+
+  for (const joiner of REQUIREMENT_JOINER_MODES) {
+    const children = rawExpr[joiner];
+    if (!Array.isArray(children) || children.length < 2) {
+      continue;
+    }
+
+    const parts = children.map((child) => flattenRequirementClauseExprToTagChain(child));
+    if (parts.some((part) => !part || part.tags.length < 1)) {
+      continue;
+    }
+
+    const tags = [...parts[0].tags];
+    const tagJoiners = [...parts[0].tagJoiners];
+    for (let partIndex = 1; partIndex < parts.length; partIndex += 1) {
+      const part = parts[partIndex];
+      tagJoiners.push(joiner);
+      tags.push(part.tags[0]);
+      for (let tagIndex = 1; tagIndex < part.tags.length; tagIndex += 1) {
+        tagJoiners.push(normalizeRequirementJoiner(part.tagJoiners[tagIndex - 1], "and"));
+        tags.push(part.tags[tagIndex]);
+      }
+    }
+    return {
+      tags,
+      tagJoiners: normalizeRequirementClauseTagJoiners(tagJoiners, tags.length)
+    };
+  }
+
+  return null;
+}
+
 function createRequirementRuleClauseDraft(rawClause = null) {
   const clause = rawClause && typeof rawClause === "object" && !Array.isArray(rawClause) ? rawClause : {};
   const minCount = Number.isInteger(clause.minCount) && clause.minCount > 0 ? clause.minCount : 1;
@@ -3788,69 +3872,28 @@ function createRequirementRuleClauseDraft(rawClause = null) {
   const clauseId =
     typeof clause.id === "string" && clause.id.trim() !== "" ? clause.id.trim() : createRequirementClauseDraftId();
   const separateFrom = normalizeRequirementClauseReferenceIds(clause.separateFrom);
+  const clauseJoiner = normalizeRequirementJoiner(clause.clauseJoiner, "and");
   const defaultTag = getDefaultRequirementClauseTag();
 
-  const singleTag = getRequirementClauseTagFromExprNode(clause.expr);
-  if (singleTag) {
-    return {
-      clauseId,
-      exprMode: "tag",
-      logic: "single",
-      tags: [singleTag],
-      exprText: "",
-      minCount,
-      maxCount,
-      roleFilter,
-      separateFrom
-    };
-  }
-
-  if (clause.expr && typeof clause.expr === "object" && !Array.isArray(clause.expr)) {
-    if (Array.isArray(clause.expr.and)) {
-      const andTags = normalizeRequirementClauseTags(clause.expr.and);
-      if (andTags.length > 0) {
-        return {
-          clauseId,
-          exprMode: "tag",
-          logic: "and",
-          tags: andTags,
-          exprText: "",
-          minCount,
-          maxCount,
-          roleFilter,
-          separateFrom
-        };
-      }
-    }
-    if (Array.isArray(clause.expr.or)) {
-      const orTags = normalizeRequirementClauseTags(clause.expr.or);
-      if (orTags.length > 0) {
-        return {
-          clauseId,
-          exprMode: "tag",
-          logic: "or",
-          tags: orTags,
-          exprText: "",
-          minCount,
-          maxCount,
-          roleFilter,
-          separateFrom
-        };
-      }
-    }
-  }
+  const flattenedExpr = flattenRequirementClauseExprToTagChain(clause.expr);
+  const tags = flattenedExpr?.tags ?? [defaultTag];
+  const tagJoiners = normalizeRequirementClauseTagJoiners(
+    flattenedExpr?.tagJoiners ?? clause.tagJoiners,
+    tags.length
+  );
+  const activeTagIndex = Number.parseInt(String(clause.activeTagIndex), 10);
 
   return {
     clauseId,
-    exprMode: "advanced",
-    logic: "single",
-    tags: [defaultTag],
-    exprText:
-      clause.expr === undefined
-        ? ""
-        : typeof clause.expr === "string"
-          ? clause.expr
-          : JSON.stringify(clause.expr),
+    clauseJoiner,
+    tags,
+    tagJoiners,
+    activeTagIndex:
+      Number.isInteger(activeTagIndex) && activeTagIndex >= 0 && activeTagIndex < tags.length
+        ? activeTagIndex
+        : Math.max(0, tags.length - 1),
+    tagSearch: typeof clause.tagSearch === "string" ? clause.tagSearch : "",
+    isOpen: clause.isOpen === true,
     minCount,
     maxCount,
     roleFilter,
@@ -3886,41 +3929,23 @@ function syncRequirementDefinitionInputsFromState() {
 }
 
 function parseRequirementRuleClauseExpr(clause, clauseIndex) {
-  if (clause.exprMode === "tag") {
-    const logic = normalizeRequirementClauseLogic(clause.logic);
-    const tags = normalizeRequirementClauseTags(clause.tags);
+  const tags = normalizeRequirementClauseTags(clause.tags);
+  if (tags.length < 1) {
+    throw new Error(`Clause ${clauseIndex + 1}: select at least one tag.`);
+  }
+  if (tags.length === 1) {
+    return { tag: tags[0] };
+  }
 
-    if (logic === "single") {
-      if (tags.length < 1) {
-        throw new Error(`Clause ${clauseIndex + 1}: select a valid tag.`);
-      }
-      return { tag: tags[0] };
-    }
-
-    if (tags.length < 2) {
-      throw new Error(`Clause ${clauseIndex + 1}: ${logic.toUpperCase()} logic requires at least 2 tags.`);
-    }
-    return {
-      [logic]: tags.map((tag) => ({ tag }))
+  const tagJoiners = normalizeRequirementClauseTagJoiners(clause.tagJoiners, tags.length);
+  let expression = { tag: tags[0] };
+  for (let index = 1; index < tags.length; index += 1) {
+    const joiner = normalizeRequirementJoiner(tagJoiners[index - 1], "and");
+    expression = {
+      [joiner]: [expression, { tag: tags[index] }]
     };
   }
-
-  const exprText = String(clause.exprText ?? "").trim();
-  if (!exprText) {
-    throw new Error(`Clause ${clauseIndex + 1}: expression is required in advanced mode.`);
-  }
-  try {
-    const parsed = JSON.parse(exprText);
-    if (typeof parsed === "string") {
-      return parsed;
-    }
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed;
-    }
-    return exprText;
-  } catch (_error) {
-    return exprText;
-  }
+  return expression;
 }
 
 function parseRequirementRulesFromDraftClauses() {
@@ -3967,6 +3992,7 @@ function parseRequirementRulesFromDraftClauses() {
     const separateFrom = normalizeRequirementClauseReferenceIds(clause.separateFrom).filter(
       (referenceId) => referenceId !== clause.clauseId
     );
+    const clauseJoiner = normalizeRequirementJoiner(clause.clauseJoiner, "and");
     for (const referenceId of separateFrom) {
       if (!clauseIdSet.has(referenceId)) {
         throw new Error(`Clause ${index + 1}: unknown separation target '${referenceId}'.`);
@@ -3979,6 +4005,7 @@ function parseRequirementRulesFromDraftClauses() {
       minCount,
       ...(maxCount === null ? {} : { maxCount }),
       ...(roleFilter.length < 1 ? {} : { roleFilter }),
+      ...(index < 1 ? {} : { clauseJoiner }),
       ...(separateFrom.length < 1 ? {} : { separateFrom })
     };
   });
@@ -4065,6 +4092,19 @@ function renderCompositionRequirementOptions() {
   }
 }
 
+function formatRequirementClauseExpressionSummary(clause) {
+  const tags = normalizeRequirementClauseTags(clause.tags);
+  if (tags.length < 1) {
+    return "No tags selected.";
+  }
+  const tagJoiners = normalizeRequirementClauseTagJoiners(clause.tagJoiners, tags.length);
+  let summary = tags[0];
+  for (let index = 1; index < tags.length; index += 1) {
+    summary = `${summary} ${normalizeRequirementJoiner(tagJoiners[index - 1], "and").toUpperCase()} ${tags[index]}`;
+  }
+  return summary;
+}
+
 function renderRequirementClauseEditor() {
   if (!elements.requirementsClauses) {
     return;
@@ -4085,122 +4125,234 @@ function renderRequirementClauseEditor() {
   }
 
   for (const [index, clause] of clauses.entries()) {
-    const card = runtimeDocument.createElement("article");
-    card.className = "summary-card";
+    if (normalizeRequirementClauseTags(clause.tags).length < 1) {
+      clause.tags = [getDefaultRequirementClauseTag()];
+    }
+    clause.tagJoiners = normalizeRequirementClauseTagJoiners(clause.tagJoiners, clause.tags.length);
+    clause.clauseJoiner = normalizeRequirementJoiner(clause.clauseJoiner, "and");
+    clause.tagSearch = typeof clause.tagSearch === "string" ? clause.tagSearch : "";
+    const parsedActiveTagIndex = Number.parseInt(String(clause.activeTagIndex), 10);
+    clause.activeTagIndex =
+      Number.isInteger(parsedActiveTagIndex) && parsedActiveTagIndex >= 0 && parsedActiveTagIndex < clause.tags.length
+        ? parsedActiveTagIndex
+        : Math.max(0, clause.tags.length - 1);
 
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card requirement-clause-card";
+
+    const summaryRow = runtimeDocument.createElement("div");
+    summaryRow.className = "requirement-clause-summary";
+
+    const summaryText = runtimeDocument.createElement("div");
     const heading = runtimeDocument.createElement("p");
     heading.className = "panel-kicker";
     heading.textContent = `Clause ${index + 1}`;
+    const expressionSummary = runtimeDocument.createElement("p");
+    expressionSummary.className = "meta";
+    expressionSummary.textContent = formatRequirementClauseExpressionSummary(clause);
+    const constraintsSummary = runtimeDocument.createElement("p");
+    constraintsSummary.className = "meta";
+    const roleFilterCount = normalizeRequirementRoleFilter(clause.roleFilter).length;
+    const separateFromCount = normalizeRequirementClauseReferenceIds(clause.separateFrom).length;
+    constraintsSummary.textContent = [
+      `Min ${Number.parseInt(String(clause.minCount), 10) || 1}`,
+      String(clause.maxCount ?? "").trim() === "" ? "Max none" : `Max ${String(clause.maxCount).trim()}`,
+      roleFilterCount > 0 ? `${roleFilterCount} role filter${roleFilterCount === 1 ? "" : "s"}` : "No role filter",
+      separateFromCount > 0
+        ? `${separateFromCount} separate-champion link${separateFromCount === 1 ? "" : "s"}`
+        : "No separation links"
+    ].join(" | ");
+    summaryText.append(heading, expressionSummary, constraintsSummary);
 
-    const modeLabel = runtimeDocument.createElement("label");
-    modeLabel.textContent = "Expression Mode";
-    const modeSelect = runtimeDocument.createElement("select");
-    replaceOptions(modeSelect, [
-      { value: "tag", label: "Tag Logic Builder" },
-      { value: "advanced", label: "Advanced Expression" }
-    ]);
-    modeSelect.value = clause.exprMode === "advanced" ? "advanced" : "tag";
-    modeSelect.disabled = controlsDisabled;
-    modeSelect.addEventListener("change", () => {
-      clause.exprMode = modeSelect.value === "advanced" ? "advanced" : "tag";
-      if (clause.exprMode === "tag" && normalizeRequirementClauseTags(clause.tags).length < 1) {
-        clause.tags = [getDefaultRequirementClauseTag()];
-      }
+    const summaryControls = runtimeDocument.createElement("div");
+    summaryControls.className = "button-row requirement-inline-actions";
+    if (index > 0) {
+      const clauseJoinerSelect = runtimeDocument.createElement("select");
+      clauseJoinerSelect.className = "requirement-inline-select";
+      clauseJoinerSelect.dataset.field = "clause-joiner";
+      clauseJoinerSelect.dataset.clauseIndex = String(index);
+      replaceOptions(clauseJoinerSelect, [
+        { value: "and", label: "AND" },
+        { value: "or", label: "OR" }
+      ]);
+      clauseJoinerSelect.value = normalizeRequirementJoiner(clause.clauseJoiner, "and");
+      clauseJoinerSelect.disabled = controlsDisabled;
+      clauseJoinerSelect.addEventListener("change", () => {
+        clause.clauseJoiner = normalizeRequirementJoiner(clauseJoinerSelect.value, "and");
+      });
+      summaryControls.append(clauseJoinerSelect);
+    }
+
+    const editButton = runtimeDocument.createElement("button");
+    editButton.type = "button";
+    editButton.className = "ghost requirement-inline-button";
+    editButton.textContent = clause.isOpen ? "Close" : "Edit";
+    editButton.disabled = controlsDisabled;
+    editButton.addEventListener("click", () => {
+      clause.isOpen = !clause.isOpen;
       renderRequirementClauseEditor();
     });
-    modeLabel.append(runtimeDocument.createElement("br"), modeSelect);
+    summaryControls.append(editButton);
 
-    const exprWrap = runtimeDocument.createElement("div");
-    if (clause.exprMode === "advanced") {
-      const exprLabel = runtimeDocument.createElement("label");
-      exprLabel.textContent = "Expression";
-      const exprInput = runtimeDocument.createElement("input");
-      exprInput.type = "text";
-      exprInput.placeholder = "e.g. Frontline OR {\"tag\":\"Frontline\"}";
-      exprInput.value = String(clause.exprText ?? "");
-      exprInput.disabled = controlsDisabled;
-      exprInput.addEventListener("input", () => {
-        clause.exprText = exprInput.value;
-      });
-      exprLabel.append(runtimeDocument.createElement("br"), exprInput);
-      exprWrap.append(exprLabel);
-    } else {
-      const logicLabel = runtimeDocument.createElement("label");
-      logicLabel.textContent = "Tag Logic";
-      const logicSelect = runtimeDocument.createElement("select");
-      replaceOptions(logicSelect, [
-        { value: "single", label: "Single tag" },
-        { value: "and", label: "All selected tags (AND)" },
-        { value: "or", label: "Any selected tags (OR)" }
-      ]);
-      logicSelect.value = normalizeRequirementClauseLogic(clause.logic);
-      logicSelect.disabled = controlsDisabled;
-      logicSelect.dataset.field = "logic";
-      logicSelect.dataset.clauseIndex = String(index);
-      logicSelect.addEventListener("change", () => {
-        clause.logic = normalizeRequirementClauseLogic(logicSelect.value);
-        const currentTags = normalizeRequirementClauseTags(clause.tags);
-        if (clause.logic === "single" && currentTags.length > 1) {
-          clause.tags = [currentTags[0]];
-          renderRequirementClauseEditor();
-          return;
-        }
-        if (currentTags.length < 1) {
-          clause.tags = [getDefaultRequirementClauseTag()];
-          renderRequirementClauseEditor();
-        }
-      });
-      logicLabel.append(runtimeDocument.createElement("br"), logicSelect);
-      exprWrap.append(logicLabel);
+    const removeButton = runtimeDocument.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "ghost requirement-inline-button";
+    removeButton.textContent = "Remove";
+    removeButton.disabled = controlsDisabled || clauses.length <= 1;
+    removeButton.addEventListener("click", () => {
+      const nextClauses = [...clauses];
+      nextClauses.splice(index, 1);
+      const remainingIds = new Set(
+        nextClauses
+          .map((candidate) =>
+            typeof candidate?.clauseId === "string" && candidate.clauseId.trim() !== ""
+              ? candidate.clauseId.trim()
+              : null
+          )
+          .filter(Boolean)
+      );
+      for (const nextClause of nextClauses) {
+        nextClause.separateFrom = normalizeRequirementClauseReferenceIds(nextClause.separateFrom).filter((referenceId) =>
+          remainingIds.has(referenceId)
+        );
+      }
+      state.api.requirementDefinitionDraft.rules = nextClauses;
+      renderRequirementClauseEditor();
+    });
+    summaryControls.append(removeButton);
 
-      const tagList = runtimeDocument.createElement("div");
-      const tagTitle = runtimeDocument.createElement("p");
-      tagTitle.className = "meta";
-      tagTitle.textContent = "Tags";
-      tagList.append(tagTitle);
-      const selectedTagSet = new Set(normalizeRequirementClauseTags(clause.tags));
-      for (const tag of BOOLEAN_TAGS) {
-        const tagOptionLabel = runtimeDocument.createElement("label");
-        tagOptionLabel.className = "selection-option";
+    summaryRow.append(summaryText, summaryControls);
+    card.append(summaryRow);
 
-        const tagCheckbox = runtimeDocument.createElement("input");
-        tagCheckbox.type = "checkbox";
-        tagCheckbox.checked = selectedTagSet.has(tag);
-        tagCheckbox.disabled = controlsDisabled;
-        tagCheckbox.dataset.field = "tag";
-        tagCheckbox.dataset.clauseIndex = String(index);
-        tagCheckbox.dataset.tag = tag;
-        tagCheckbox.addEventListener("change", () => {
-          const currentLogic = normalizeRequirementClauseLogic(clause.logic);
-          const next = new Set(normalizeRequirementClauseTags(clause.tags));
-          if (currentLogic === "single") {
-            clause.tags = tagCheckbox.checked ? [tag] : [];
-            renderRequirementClauseEditor();
-            return;
-          }
-          if (tagCheckbox.checked) {
-            next.add(tag);
-          } else {
-            next.delete(tag);
-          }
-          clause.tags = BOOLEAN_TAGS.filter((value) => next.has(value));
+    if (!clause.isOpen) {
+      elements.requirementsClauses.append(card);
+      continue;
+    }
+
+    const editor = runtimeDocument.createElement("div");
+    editor.className = "requirement-clause-editor";
+
+    const tagsTitle = runtimeDocument.createElement("p");
+    tagsTitle.className = "meta";
+    tagsTitle.textContent = "Tags";
+
+    const tagChain = runtimeDocument.createElement("div");
+    tagChain.className = "requirement-tag-chain";
+    for (let tagIndex = 0; tagIndex < clause.tags.length; tagIndex += 1) {
+      if (tagIndex > 0) {
+        const tagJoinerSelect = runtimeDocument.createElement("select");
+        tagJoinerSelect.className = "requirement-inline-select";
+        tagJoinerSelect.dataset.field = "tag-joiner";
+        tagJoinerSelect.dataset.clauseIndex = String(index);
+        tagJoinerSelect.dataset.tagIndex = String(tagIndex);
+        replaceOptions(tagJoinerSelect, [
+          { value: "and", label: "AND" },
+          { value: "or", label: "OR" }
+        ]);
+        tagJoinerSelect.value = normalizeRequirementJoiner(clause.tagJoiners[tagIndex - 1], "and");
+        tagJoinerSelect.disabled = controlsDisabled;
+        tagJoinerSelect.addEventListener("change", () => {
+          clause.tagJoiners = normalizeRequirementClauseTagJoiners(clause.tagJoiners, clause.tags.length);
+          clause.tagJoiners[tagIndex - 1] = normalizeRequirementJoiner(tagJoinerSelect.value, "and");
         });
-
-        const tagText = runtimeDocument.createElement("span");
-        tagText.textContent = tag;
-        tagOptionLabel.append(tagCheckbox, tagText);
-        tagList.append(tagOptionLabel);
+        tagChain.append(tagJoinerSelect);
       }
 
-      const logicMeta = runtimeDocument.createElement("p");
-      logicMeta.className = "meta";
-      logicMeta.textContent =
-        normalizeRequirementClauseLogic(clause.logic) === "single"
-          ? "Single tag mode requires exactly one checked tag."
-          : "Select two or more tags.";
+      const tagButton = runtimeDocument.createElement("button");
+      tagButton.type = "button";
+      tagButton.className = `ghost requirement-inline-button requirement-tag-token${
+        clause.activeTagIndex === tagIndex ? " is-active" : ""
+      }`;
+      tagButton.textContent = clause.tags[tagIndex];
+      tagButton.disabled = controlsDisabled;
+      tagButton.addEventListener("click", () => {
+        clause.activeTagIndex = tagIndex;
+        renderRequirementClauseEditor();
+      });
+      tagChain.append(tagButton);
 
-      exprWrap.append(tagList, logicMeta);
+      if (clause.tags.length > 1) {
+        const removeTagButton = runtimeDocument.createElement("button");
+        removeTagButton.type = "button";
+        removeTagButton.className = "ghost requirement-inline-button";
+        removeTagButton.textContent = "x";
+        removeTagButton.disabled = controlsDisabled;
+        removeTagButton.addEventListener("click", () => {
+          clause.tags = clause.tags.filter((_tag, candidateIndex) => candidateIndex !== tagIndex);
+          clause.tagJoiners = normalizeRequirementClauseTagJoiners(
+            clause.tagJoiners.filter((_joiner, candidateIndex) => candidateIndex !== tagIndex - 1),
+            clause.tags.length
+          );
+          clause.activeTagIndex = Math.max(0, Math.min(clause.activeTagIndex, clause.tags.length - 1));
+          renderRequirementClauseEditor();
+        });
+        tagChain.append(removeTagButton);
+      }
     }
+
+    const addTagButton = runtimeDocument.createElement("button");
+    addTagButton.type = "button";
+    addTagButton.className = "ghost requirement-inline-button";
+    addTagButton.textContent = "Add Tag";
+    addTagButton.dataset.field = "add-tag";
+    addTagButton.dataset.clauseIndex = String(index);
+    addTagButton.disabled = controlsDisabled;
+    addTagButton.addEventListener("click", () => {
+      clause.tags = [...clause.tags, getDefaultRequirementClauseTag()];
+      clause.tagJoiners = [...normalizeRequirementClauseTagJoiners(clause.tagJoiners, clause.tags.length - 1), "and"];
+      clause.activeTagIndex = clause.tags.length - 1;
+      renderRequirementClauseEditor();
+    });
+    tagChain.append(addTagButton);
+
+    const tagPicker = runtimeDocument.createElement("div");
+    tagPicker.className = "requirement-tag-picker";
+    const tagFilterInput = runtimeDocument.createElement("input");
+    tagFilterInput.type = "text";
+    tagFilterInput.className = "pool-snapshot-filter";
+    tagFilterInput.placeholder = "Filter tags...";
+    tagFilterInput.value = clause.tagSearch;
+    tagFilterInput.dataset.field = "tag-filter";
+    tagFilterInput.dataset.clauseIndex = String(index);
+    tagFilterInput.disabled = controlsDisabled;
+    tagFilterInput.addEventListener("input", () => {
+      clause.tagSearch = tagFilterInput.value;
+      renderRequirementClauseEditor();
+    });
+    tagPicker.append(tagFilterInput);
+
+    const tagList = runtimeDocument.createElement("ul");
+    tagList.className = "pool-snapshot-list requirement-tag-picker-list";
+    const filterText = clause.tagSearch.trim().toLowerCase();
+    const filteredTags = BOOLEAN_TAGS.filter((tag) => tag.toLowerCase().includes(filterText));
+    if (filteredTags.length < 1) {
+      const emptyTag = runtimeDocument.createElement("li");
+      emptyTag.className = "pool-snapshot-empty";
+      emptyTag.textContent = "No tags match.";
+      tagList.append(emptyTag);
+    } else {
+      for (const tag of filteredTags) {
+        const tagItem = runtimeDocument.createElement("li");
+        if (clause.tags[clause.activeTagIndex] === tag) {
+          tagItem.classList.add("is-selected");
+        }
+        tagItem.dataset.field = "tag-option";
+        tagItem.dataset.clauseIndex = String(index);
+        tagItem.dataset.tag = tag;
+        tagItem.textContent = tag;
+        if (!controlsDisabled) {
+          tagItem.addEventListener("click", () => {
+            clause.tags[clause.activeTagIndex] = tag;
+            renderRequirementClauseEditor();
+          });
+        }
+        tagList.append(tagItem);
+      }
+    }
+    tagPicker.append(tagList);
+
+    const minMaxGrid = runtimeDocument.createElement("div");
+    minMaxGrid.className = "grid grid-2";
 
     const minLabel = runtimeDocument.createElement("label");
     minLabel.textContent = "Min Count";
@@ -4217,6 +4369,7 @@ function renderRequirementClauseEditor() {
       if (String(clause.maxCount ?? "").trim() !== "" && Number.parseInt(String(clause.maxCount), 10) < clause.minCount) {
         clause.maxCount = String(clause.minCount);
       }
+      renderRequirementClauseEditor();
     });
     minLabel.append(runtimeDocument.createElement("br"), minInput);
 
@@ -4233,6 +4386,7 @@ function renderRequirementClauseEditor() {
       clause.maxCount = maxInput.value.trim();
     });
     maxLabel.append(runtimeDocument.createElement("br"), maxInput);
+    minMaxGrid.append(minLabel, maxLabel);
 
     const roleFilterWrap = runtimeDocument.createElement("div");
     const roleFilterTitle = runtimeDocument.createElement("p");
@@ -4309,38 +4463,8 @@ function renderRequirementClauseEditor() {
         separationWrap.append(candidateLabel);
       }
     }
-
-    const removeButton = runtimeDocument.createElement("button");
-    removeButton.type = "button";
-    removeButton.className = "ghost";
-    removeButton.textContent = "Remove Clause";
-    removeButton.disabled = controlsDisabled || clauses.length <= 1;
-    removeButton.addEventListener("click", () => {
-      const nextClauses = [...clauses];
-      nextClauses.splice(index, 1);
-      const remainingIds = new Set(
-        nextClauses
-          .map((candidate) =>
-            typeof candidate?.clauseId === "string" && candidate.clauseId.trim() !== ""
-              ? candidate.clauseId.trim()
-              : null
-          )
-          .filter(Boolean)
-      );
-      for (const nextClause of nextClauses) {
-        nextClause.separateFrom = normalizeRequirementClauseReferenceIds(nextClause.separateFrom).filter((referenceId) =>
-          remainingIds.has(referenceId)
-        );
-      }
-      state.api.requirementDefinitionDraft.rules = nextClauses;
-      renderRequirementClauseEditor();
-    });
-
-    const grid = runtimeDocument.createElement("div");
-    grid.className = "grid grid-2";
-    grid.append(modeLabel, exprWrap, minLabel, maxLabel);
-
-    card.append(heading, grid, roleFilterWrap, separationWrap, removeButton);
+    editor.append(tagsTitle, tagChain, tagPicker, minMaxGrid, roleFilterWrap, separationWrap);
+    card.append(editor);
     elements.requirementsClauses.append(card);
   }
 }
@@ -4428,7 +4552,7 @@ function renderRequirementDefinitionsWorkspace() {
     if (isAdminUser()) {
       const edit = runtimeDocument.createElement("button");
       edit.type = "button";
-      edit.className = "ghost";
+      edit.className = "ghost requirement-inline-button";
       edit.textContent = "Edit";
       edit.disabled = state.api.isSavingRequirementDefinition;
       edit.addEventListener("click", () => {
@@ -4437,7 +4561,10 @@ function renderRequirementDefinitionsWorkspace() {
         setRequirementsFeedback(`Editing '${requirement.name}'.`);
         renderRequirementDefinitionsWorkspace();
       });
-      card.append(edit);
+      const actionRow = runtimeDocument.createElement("div");
+      actionRow.className = "button-row requirement-inline-actions";
+      actionRow.append(edit);
+      card.append(actionRow);
     }
     elements.requirementsList.append(card);
   }
@@ -4539,7 +4666,7 @@ function renderCompositionBundlesWorkspace() {
     if (isAdminUser()) {
       const edit = runtimeDocument.createElement("button");
       edit.type = "button";
-      edit.className = "ghost";
+      edit.className = "ghost requirement-inline-button";
       edit.textContent = "Edit";
       edit.disabled = state.api.isSavingCompositionBundle;
       edit.addEventListener("click", () => {
@@ -4547,7 +4674,10 @@ function renderCompositionBundlesWorkspace() {
         setCompositionsFeedback(`Editing '${composition.name}'.`);
         renderCompositionBundlesWorkspace();
       });
-      card.append(edit);
+      const actionRow = runtimeDocument.createElement("div");
+      actionRow.className = "button-row requirement-inline-actions";
+      actionRow.append(edit);
+      card.append(actionRow);
     }
     elements.compositionsList.append(card);
   }
@@ -10199,6 +10329,9 @@ function attachEvents() {
       const nextRules = Array.isArray(state.api.requirementDefinitionDraft.rules)
         ? [...state.api.requirementDefinitionDraft.rules]
         : [];
+      for (const existingClause of nextRules) {
+        existingClause.isOpen = false;
+      }
       nextRules.push(createDefaultRequirementRuleClauseDraft());
       state.api.requirementDefinitionDraft.rules = nextRules;
       renderRequirementClauseEditor();

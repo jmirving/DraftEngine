@@ -2205,6 +2205,7 @@ describe("API routes", () => {
     expect(adminCreateRequirement.status).toBe(201);
     expect(adminCreateRequirement.body.requirement.name).toBe("Disengage Clause");
     expect(adminCreateRequirement.body.requirement.rules).toHaveLength(3);
+    expect(adminCreateRequirement.body.requirement.rules[1].clauseJoiner).toBe("and");
     expect(adminCreateRequirement.body.requirement.rules[1].separateFrom).toEqual(["clause-disengage-pair"]);
 
     const adminUpdateRequirement = await request(app)
