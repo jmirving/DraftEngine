@@ -422,7 +422,12 @@ function createInitialState() {
 function createElements() {
   return {
     appShell: runtimeDocument.querySelector("#app-shell"),
-    authGate: runtimeDocument.querySelector("#auth-gate"),
+    authScreen: runtimeDocument.querySelector("#auth-screen"),
+    authCardTitle: runtimeDocument.querySelector("#auth-card-title"),
+    authSignupLink: runtimeDocument.querySelector("#auth-signup-link"),
+    authLoginLinkWrap: runtimeDocument.querySelector("#auth-login-link-wrap"),
+    authToLogin: runtimeDocument.querySelector("#auth-to-login"),
+    siteHero: runtimeDocument.querySelector("#site-hero"),
     navToggle: runtimeDocument.querySelector("#nav-toggle"),
     navDesktopToggle: runtimeDocument.querySelector("#nav-desktop-toggle"),
     navDrawer: runtimeDocument.querySelector("#nav-drawer"),
@@ -1655,53 +1660,78 @@ function resolvePostLoginTab(user) {
   return hasDefinedProfileRoles(user) ? DEFAULT_TAB_ROUTE : "player-config";
 }
 
+const AUTH_CARD_TITLES = {
+  login: "Log In to Your Account",
+  register: "Create Your Account",
+  forgot: "Reset Your Password",
+  reset: "Set New Password",
+};
+
 function setAuthControlsVisibility(showAuthControls, mode = "login") {
   const isForgot = mode === "forgot";
   const isReset = mode === "reset";
   const isPasswordFlow = isForgot || isReset;
+  const isRegister = mode === "register";
 
-  const loginRegisterControls = [
-    elements.authEmailGroup,
-    elements.authPasswordGroup,
-    elements.authRegister,
-    elements.authLogin
-  ];
-  for (const control of loginRegisterControls) {
-    if (control) {
-      control.hidden = !showAuthControls || isPasswordFlow;
-    }
+  if (elements.authCardTitle) {
+    elements.authCardTitle.textContent = AUTH_CARD_TITLES[mode] ?? AUTH_CARD_TITLES.login;
   }
 
+  // Email: shown in login, register, forgot — hidden in reset
+  if (elements.authEmailGroup) {
+    elements.authEmailGroup.hidden = !showAuthControls || isReset;
+  }
+  // Password: shown in login and register — hidden in forgot/reset
+  if (elements.authPasswordGroup) {
+    elements.authPasswordGroup.hidden = !showAuthControls || isPasswordFlow;
+  }
+  // Login button: login mode only
+  if (elements.authLogin) {
+    elements.authLogin.hidden = !showAuthControls || isPasswordFlow || isRegister;
+  }
+  // Register submit button: register mode only
+  if (elements.authRegister) {
+    elements.authRegister.hidden = !showAuthControls || isPasswordFlow || !isRegister;
+  }
+  // Register-only fields
   const registerOnlyControls = [
     elements.authGameNameGroup,
     elements.authTaglineGroup,
     elements.authRegistrationHelp
   ];
-  const showRegisterOnlyControls = showAuthControls && mode === "register";
   for (const control of registerOnlyControls) {
     if (control) {
-      control.hidden = !showRegisterOnlyControls;
+      control.hidden = !(showAuthControls && isRegister);
     }
   }
-
+  // Forgot link: login mode only
   if (elements.authForgotLink) {
-    elements.authForgotLink.hidden = !showAuthControls || isPasswordFlow;
+    elements.authForgotLink.hidden = !showAuthControls || isPasswordFlow || isRegister;
   }
-  if (elements.authEmailGroup) {
-    elements.authEmailGroup.hidden = !showAuthControls || isReset;
+  // Sign Up link row: login mode only
+  if (elements.authSignupLink) {
+    const signupWrap = elements.authSignupLink.closest("p");
+    if (signupWrap) signupWrap.hidden = !showAuthControls || isPasswordFlow || isRegister;
   }
+  // "Already have an account? Log In" wrap: register mode only
+  if (elements.authLoginLinkWrap) {
+    elements.authLoginLinkWrap.hidden = !(showAuthControls && isRegister);
+  }
+  // Reset token + new password: reset mode only
   if (elements.authResetTokenGroup) {
     elements.authResetTokenGroup.hidden = !showAuthControls || !isReset;
   }
   if (elements.authNewPasswordGroup) {
     elements.authNewPasswordGroup.hidden = !showAuthControls || !isReset;
   }
+  // Forgot/reset action buttons
   if (elements.authRequestReset) {
     elements.authRequestReset.hidden = !showAuthControls || !isForgot;
   }
   if (elements.authSubmitReset) {
     elements.authSubmitReset.hidden = !showAuthControls || !isReset;
   }
+  // Back to login: forgot/reset modes only
   if (elements.authBackToLogin) {
     elements.authBackToLogin.hidden = !showAuthControls || !isPasswordFlow;
   }
@@ -1712,8 +1742,11 @@ function renderAuthGate() {
   if (elements.appShell) {
     elements.appShell.hidden = !signedIn;
   }
-  if (elements.authGate) {
-    elements.authGate.hidden = signedIn;
+  if (elements.authScreen) {
+    elements.authScreen.hidden = signedIn;
+  }
+  if (elements.siteHero) {
+    elements.siteHero.hidden = !signedIn;
   }
   if (!signedIn) {
     setNavOpen(false);
@@ -1856,13 +1889,12 @@ function applyNavLayout() {
   const compact = isCompactNavViewport();
   const showDrawer = state.ui.isNavOpen && compact;
   const hideDesktopNav = state.ui.isNavCollapsed && !compact;
-  const signedIn = hasAuthSession();
 
   if (elements.navToggle) {
-    elements.navToggle.hidden = !signedIn || !compact;
+    elements.navToggle.hidden = !compact;
   }
   if (elements.navDesktopToggle) {
-    elements.navDesktopToggle.hidden = !signedIn || compact;
+    elements.navDesktopToggle.hidden = compact;
   }
 
   elements.navDrawer.classList.toggle("is-open", showDrawer);
@@ -8526,6 +8558,22 @@ function attachEvents() {
     renderCompositionRequirementsWorkspace();
     renderAuth();
   });
+
+  if (elements.authSignupLink) {
+    elements.authSignupLink.addEventListener("click", () => {
+      setAuthMode("register");
+      setAuthFeedback("");
+      renderAuth();
+    });
+  }
+
+  if (elements.authToLogin) {
+    elements.authToLogin.addEventListener("click", () => {
+      setAuthMode("login");
+      setAuthFeedback("");
+      renderAuth();
+    });
+  }
 
   elements.navToggle.addEventListener("click", () => {
     toggleNav();
