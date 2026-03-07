@@ -29,11 +29,14 @@
         <button class="side-menu-link" data-tab="team-config" type="button">Teams</button>
         <button class="side-menu-link" data-tab="explorer" type="button">Champions</button>
         <button class="side-menu-link" data-tab="tags" type="button">Tags</button>
-        <button class="side-menu-link" data-tab="users" type="button">Users</button>
         <button class="side-menu-link" data-tab="requirements" type="button">Requirements</button>
         <button class="side-menu-link" data-tab="compositions" type="button">Compositions</button>
         <div class="side-menu-spacer"></div>
         <button class="side-menu-link" data-tab="player-config" type="button">Profile</button>
+        <div id="nav-admin-section" class="side-menu-admin-section" hidden>
+          <p id="nav-admin-label" class="side-menu-admin-label">Admin Tools</p>
+          <button class="side-menu-link side-menu-link-admin" data-tab="users" type="button">Users</button>
+        </div>
         <button id="auth-logout" class="side-menu-link side-menu-link-logout" type="button">Logout</button>
         <a
           class="updates-nav-link report-issue-link"
@@ -1102,6 +1105,7 @@
                 <h4>Version 0.6.0 (Shipped)</h4>
                 <ul class="coming-soon-list">
                   <li>Requirements and Compositions are now separate workspace pages so definition authoring and bundle management are split into focused flows.</li>
+                  <li>Users was moved into a visually separated Admin Tools area near Profile/Logout to keep normal user navigation focused.</li>
                   <li>Requirement definitions now support CRUD for `name`, `definition`, and phase-2 style `rules` clauses (expr/minCount/maxCount/roleFilter).</li>
                   <li>Requirement rule entry now uses an in-form clause builder with side-by-side Tag, Damage Type, and Effectiveness Focus pickers, AND/OR joiners, min/max counts, role filters, and optional separate-champion constraints instead of requiring raw JSON input.</li>
                   <li>Requirement editor behavior now auto-closes after create/update so admins can immediately start a fresh requirement from the list view.</li>

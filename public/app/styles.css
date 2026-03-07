@@ -332,6 +332,21 @@ body:has(#app-shell.is-nav-collapsed) .nav-drawer {
   flex: 1;
 }
 
+.side-menu-admin-section {
+  margin-top: 0.7rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--accent-soft);
+}
+
+.side-menu-admin-label {
+  margin: 0 0 0.1rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8f5f4f;
+}
+
 .side-menu-header {
   display: flex;
   align-items: center;
@@ -404,6 +419,12 @@ body:has(#app-shell.is-nav-collapsed) .nav-desktop-toggle {
   border-color: #efc8bc;
 }
 
+.side-menu-link-admin {
+  background: #f6fbff;
+  border-color: #b7d2e4;
+  color: #1f4761;
+}
+
 .side-menu-link-logout:hover {
   box-shadow: 0 4px 12px rgba(125, 47, 29, 0.14);
 }
@@ -438,6 +459,8 @@ body:has(#app-shell.is-nav-collapsed) .side-menu-header {
 body:has(#app-shell.is-nav-collapsed) #nav-title,
 body:has(#app-shell.is-nav-collapsed) #nav-meta,
 body:has(#app-shell.is-nav-collapsed) .side-menu-link,
+body:has(#app-shell.is-nav-collapsed) .side-menu-admin-section,
+body:has(#app-shell.is-nav-collapsed) .side-menu-admin-label,
 body:has(#app-shell.is-nav-collapsed) .report-issue-link,
 body:has(#app-shell.is-nav-collapsed) .updates-nav-link,
 body:has(#app-shell.is-nav-collapsed) .side-menu-spacer {

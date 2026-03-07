@@ -192,6 +192,7 @@ const UI_COPY = Object.freeze({
     desktopExpandIcon: "▶",
     desktopCollapseLabel: "Collapse sidebar",
     desktopExpandLabel: "Expand sidebar",
+    adminLabel: "Admin Tools",
     items: {
       workflow: "Composer",
       "team-config": "Teams",
@@ -523,6 +524,8 @@ function createElements() {
     navDesktopToggle: runtimeDocument.querySelector("#nav-desktop-toggle"),
     navDrawer: runtimeDocument.querySelector("#nav-drawer"),
     navOverlay: runtimeDocument.querySelector("#nav-overlay"),
+    navAdminSection: runtimeDocument.querySelector("#nav-admin-section"),
+    navAdminLabel: runtimeDocument.querySelector("#nav-admin-label"),
     tabTriggers: Array.from(runtimeDocument.querySelectorAll("button[data-tab]")),
     sideMenuLinks: Array.from(runtimeDocument.querySelectorAll(".side-menu-link")),
     heroKicker: runtimeDocument.querySelector("#hero-kicker"),
@@ -1931,12 +1934,16 @@ function renderAuthGate() {
 function renderAuth() {
   const signedIn = hasAuthSession();
   const usersTabButton = elements.tabTriggers.find((button) => button.dataset.tab === "users");
+  const isAdmin = signedIn && isAdminUser();
   if (!signedIn) {
     setAuthControlsVisibility(true, state.auth.mode);
     elements.authStatus.textContent = "Signed out.";
     elements.authLogout.disabled = true;
     if (usersTabButton) {
       usersTabButton.hidden = true;
+    }
+    if (elements.navAdminSection) {
+      elements.navAdminSection.hidden = true;
     }
     renderAuthGate();
     return;
@@ -1953,9 +1960,12 @@ function renderAuth() {
     : `Signed in as ${email}.`;
   elements.authLogout.disabled = false;
   if (usersTabButton) {
-    usersTabButton.hidden = !isAdminUser();
+    usersTabButton.hidden = !isAdmin;
   }
-  if (!isAdminUser() && state.activeTab === "users") {
+  if (elements.navAdminSection) {
+    elements.navAdminSection.hidden = !isAdmin;
+  }
+  if (!isAdmin && state.activeTab === "users") {
     setTab(DEFAULT_TAB_ROUTE, { syncRoute: true, replaceRoute: true });
   }
   renderAuthGate();
@@ -1966,6 +1976,9 @@ function applyUiCopy() {
   elements.navTitle.textContent = UI_COPY.nav.title;
   if (elements.navMeta) {
     elements.navMeta.textContent = UI_COPY.nav.meta;
+  }
+  if (elements.navAdminLabel) {
+    elements.navAdminLabel.textContent = UI_COPY.nav.adminLabel;
   }
   elements.explorerTitle.textContent = UI_COPY.panels.explorerTitle;
   if (elements.explorerMeta) {
