@@ -2,14 +2,14 @@ import { OWNER_ADMIN_EMAIL } from "../user-roles.js";
 
 export function createUsersRepository(pool) {
   return {
-    async createUser({ email, passwordHash, gameName, tagline, role = "member" }) {
+    async createUser({ email, passwordHash, gameName, tagline, firstName = null, lastName = null, role = "member" }) {
       const result = await pool.query(
         `
-          INSERT INTO users (email, password_hash, game_name, tagline, role)
-          VALUES ($1, $2, $3, $4, $5)
-          RETURNING id, email, game_name, tagline, role, primary_role, secondary_roles, riot_id_correction_count, created_at
+          INSERT INTO users (email, password_hash, game_name, tagline, first_name, last_name, role)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          RETURNING id, email, game_name, tagline, first_name, last_name, role, primary_role, secondary_roles, riot_id_correction_count, created_at
         `,
-        [email, passwordHash, gameName, tagline, role]
+        [email, passwordHash, gameName, tagline, firstName || null, lastName || null, role]
       );
       return result.rows[0] ?? null;
     },
@@ -17,7 +17,7 @@ export function createUsersRepository(pool) {
     async findByEmail(email) {
       const result = await pool.query(
         `
-          SELECT id, email, password_hash, game_name, tagline, role, primary_role, secondary_roles, riot_id_correction_count, created_at
+          SELECT id, email, password_hash, game_name, tagline, first_name, last_name, role, primary_role, secondary_roles, riot_id_correction_count, created_at
           FROM users
           WHERE email = $1
         `,
@@ -29,7 +29,7 @@ export function createUsersRepository(pool) {
     async findById(userId) {
       const result = await pool.query(
         `
-          SELECT id, email, password_hash, game_name, tagline, role, primary_role, secondary_roles, riot_id_correction_count, created_at
+          SELECT id, email, password_hash, game_name, tagline, first_name, last_name, role, primary_role, secondary_roles, riot_id_correction_count, created_at
           FROM users
           WHERE id = $1
         `,
@@ -41,7 +41,7 @@ export function createUsersRepository(pool) {
     async findByRiotId(gameName, tagline) {
       const result = await pool.query(
         `
-          SELECT id, email, password_hash, game_name, tagline, role, primary_role, secondary_roles, riot_id_correction_count, created_at
+          SELECT id, email, password_hash, game_name, tagline, first_name, last_name, role, primary_role, secondary_roles, riot_id_correction_count, created_at
           FROM users
           WHERE lower(game_name) = lower($1)
             AND lower(tagline) = lower($2)

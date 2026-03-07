@@ -446,7 +446,9 @@ function createElements() {
     authGameNameGroup: runtimeDocument.querySelector("#auth-game-name-group"),
     authTagline: runtimeDocument.querySelector("#auth-tagline"),
     authTaglineGroup: runtimeDocument.querySelector("#auth-tagline-group"),
+    authFirstName: runtimeDocument.querySelector("#auth-first-name"),
     authFirstNameGroup: runtimeDocument.querySelector("#auth-first-name-group"),
+    authLastName: runtimeDocument.querySelector("#auth-last-name"),
     authLastNameGroup: runtimeDocument.querySelector("#auth-last-name-group"),
     authRetypePassword: runtimeDocument.querySelector("#auth-retype-password"),
     authRetypePasswordGroup: runtimeDocument.querySelector("#auth-retype-password-group"),
@@ -8417,11 +8419,18 @@ function getAuthCredentials(mode = "login") {
     throw new Error("Game Name and Tagline are required for registration.");
   }
 
+  const firstName =
+    typeof elements.authFirstName?.value === "string" ? elements.authFirstName.value.trim() : "";
+  const lastName =
+    typeof elements.authLastName?.value === "string" ? elements.authLastName.value.trim() : "";
+
   return {
     email,
     password,
     gameName,
-    tagline
+    tagline,
+    firstName,
+    lastName
   };
 }
 
@@ -8455,6 +8464,18 @@ async function handleAuthSubmit(path, mode = "login") {
 function attachEvents() {
   const NodeCtor = runtimeWindow.Node ?? globalThis.Node;
   const InputCtor = runtimeWindow.HTMLInputElement ?? globalThis.HTMLInputElement;
+
+  runtimeDocument.querySelectorAll(".password-toggle").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetId = btn.dataset.target;
+      const input = targetId ? runtimeDocument.querySelector(`#${targetId}`) : null;
+      if (!input) return;
+      const isVisible = input.type === "text";
+      input.type = isVisible ? "password" : "text";
+      btn.classList.toggle("is-visible", !isVisible);
+      btn.setAttribute("aria-label", isVisible ? "Show password" : "Hide password");
+    });
+  });
 
   runtimeDocument.addEventListener("pointerdown", (event) => {
     const target = event.target;

@@ -21,6 +21,8 @@ function serializeAuthUser(user) {
     role: resolveAuthorizationRole(user),
     gameName: user.game_name ?? "",
     tagline: user.tagline ?? "",
+    firstName: user.first_name ?? "",
+    lastName: user.last_name ?? "",
     primaryRole: user.primary_role ?? "Mid",
     secondaryRoles: Array.isArray(user.secondary_roles) ? user.secondary_roles : []
   };
@@ -50,6 +52,8 @@ export function createAuthRouter({ config, usersRepository }) {
     const password = requirePassword(body.password);
     const gameName = requireGameName(body.gameName);
     const tagline = requireTagline(body.tagline);
+    const firstName = typeof body.firstName === "string" ? body.firstName.trim() : null;
+    const lastName = typeof body.lastName === "string" ? body.lastName.trim() : null;
 
     const existing = await usersRepository.findByEmail(email);
     if (existing) {
@@ -64,6 +68,8 @@ export function createAuthRouter({ config, usersRepository }) {
         passwordHash,
         gameName,
         tagline,
+        firstName,
+        lastName,
         role: isOwnerAdminEmail(email) ? USER_ROLE_ADMIN : USER_ROLE_MEMBER
       });
     } catch (error) {

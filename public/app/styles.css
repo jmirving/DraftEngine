@@ -171,6 +171,44 @@ h3 {
   margin-top: 0.75rem;
 }
 
+.password-field-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-field-wrap input {
+  flex: 1;
+  padding-right: 2.4rem;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  padding: 0.2rem 0.3rem;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+  min-height: unset;
+  min-width: unset;
+  width: auto;
+  height: auto;
+  margin: 0;
+  border-radius: 4px;
+  transition: color 120ms ease;
+}
+
+.password-toggle:hover {
+  color: var(--fg);
+}
+
+.password-toggle.is-visible {
+  color: var(--accent);
+}
+
 .auth-card #auth-login,
 .auth-card #auth-register,
 .auth-card #auth-request-reset,

@@ -86,11 +86,17 @@
           </label>
           <label id="auth-password-group">
             Password
-            <input id="auth-password" type="password" autocomplete="current-password" placeholder="password" />
+            <div class="password-field-wrap">
+              <input id="auth-password" type="password" autocomplete="current-password" placeholder="password" />
+              <button type="button" class="password-toggle" aria-label="Show password" data-target="auth-password">&#128065;</button>
+            </div>
           </label>
           <label id="auth-retype-password-group" hidden>
             Re-type Password
-            <input id="auth-retype-password" type="password" autocomplete="new-password" placeholder="re-type password" />
+            <div class="password-field-wrap">
+              <input id="auth-retype-password" type="password" autocomplete="new-password" placeholder="re-type password" />
+              <button type="button" class="password-toggle" aria-label="Show password" data-target="auth-retype-password">&#128065;</button>
+            </div>
           </label>
           <label id="auth-game-name-group" hidden>
             Game Name
@@ -114,11 +120,17 @@
           </label>
           <label id="auth-new-password-group" hidden>
             New Password
-            <input id="auth-new-password" type="password" autocomplete="new-password" placeholder="New password" />
+            <div class="password-field-wrap">
+              <input id="auth-new-password" type="password" autocomplete="new-password" placeholder="New password" />
+              <button type="button" class="password-toggle" aria-label="Show password" data-target="auth-new-password">&#128065;</button>
+            </div>
           </label>
           <label id="auth-confirm-new-password-group" hidden>
             Re-enter New Password
-            <input id="auth-confirm-new-password" type="password" autocomplete="new-password" placeholder="Re-enter new password" />
+            <div class="password-field-wrap">
+              <input id="auth-confirm-new-password" type="password" autocomplete="new-password" placeholder="Re-enter new password" />
+              <button type="button" class="password-toggle" aria-label="Show password" data-target="auth-confirm-new-password">&#128065;</button>
+            </div>
           </label>
           <p id="auth-feedback" class="error-inline" hidden></p>
           <button id="auth-login" type="button">Log In</button>
@@ -1041,7 +1053,8 @@
                 <ul class="coming-soon-list">
                   <li>Navigation bar redesigned as a fixed full-height sidebar anchored to the left viewport edge with a smooth collapse/expand toggle; nav stays visible whether logged in or out.</li>
                   <li>Login, Register, Forgot Password, and Reset Password flows now appear as a centered card modal that overlays the nav layout instead of replacing the full page.</li>
-                  <li>Register form now captures Game Name, Tagline, First Name, and Last Name alongside password; a Re-type Password field with live mismatch validation prevents mismatched submissions.</li>
+                  <li>Register form now captures Game Name, Tagline, First Name, and Last Name alongside password; First Name and Last Name are persisted to the database. A Re-type Password field with live mismatch validation prevents mismatched submissions.</li>
+                  <li>Password fields across all auth forms now include a show/hide toggle so users can verify what they have typed.</li>
                   <li>Change Password is available from the Profile page (Account section) and opens a dedicated modal with New Password and Re-enter New Password confirmation fields; a server-side change-password endpoint was added.</li>
                   <li>Updates and Report an issue moved to link-style items at the bottom of the nav; Report an issue now shows an external link indicator (↗).</li>
                   <li>Nav sidebar right-edge border radius removed so the nav sits flush against the left viewport edge.</li>
@@ -1069,8 +1082,6 @@
                 </ul>
                 <h4>Profile</h4>
                 <ul class="coming-soon-list">
-                  <li>First Name and Last Name are captured in the register form but not yet sent to the server or persisted; backend schema and registration endpoint need updating before these fields are stored.</li>
-                  <li>Change Password does not currently require entry of the existing password before accepting a new one; current-password verification is deferred.</li>
                   <li>Set your champion familiarity level in your personal pool (draftflow-144)</li>
                   <li>Get champion pool suggestions based on your real League match history (draftflow-145)</li>
                   <li>Live Riot champion stats in Profile remain a placeholder until the full implementation is shipped (draftflow-146)</li>
