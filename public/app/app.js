@@ -288,25 +288,44 @@ const EFFECTIVENESS_PHASES = Object.freeze(["early", "mid", "late"]);
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
 const REQUIREMENT_JOINER_MODES = Object.freeze(["and", "or"]);
+const REQUIREMENT_TERM_KIND_OPTIONS = Object.freeze([
+  { value: "tag", label: "Tag" },
+  { value: "damage_type", label: "Damage Type" },
+  { value: "effectiveness_focus", label: "Effectiveness Focus" }
+]);
+const REQUIREMENT_TERM_KIND_VALUE_SET = new Set(REQUIREMENT_TERM_KIND_OPTIONS.map((option) => option.value));
+const REQUIREMENT_TAG_OPTIONS = Object.freeze([...BOOLEAN_TAGS].sort((left, right) => left.localeCompare(right)));
+const REQUIREMENT_DAMAGE_TYPE_OPTIONS = Object.freeze(
+  [...PRIMARY_DAMAGE_TYPE_OPTIONS].sort((left, right) => left.label.localeCompare(right.label))
+);
+const REQUIREMENT_EFFECTIVENESS_FOCUS_OPTIONS = Object.freeze(
+  EFFECTIVENESS_PHASES.map((phase) => ({
+    value: phase,
+    label: SCALING_ALIASES[phase.toUpperCase()] ?? phase
+  }))
+);
 let requirementClauseDraftIdSeed = 0;
-
-function getDefaultRequirementClauseTag() {
-  return BOOLEAN_TAGS.includes("Frontline") ? "Frontline" : BOOLEAN_TAGS[0] ?? "Frontline";
-}
 
 function createRequirementClauseDraftId() {
   requirementClauseDraftIdSeed += 1;
   return `clause-${Date.now().toString(36)}-${requirementClauseDraftIdSeed.toString(36)}`;
 }
 
+function createEmptyRequirementClauseTerm() {
+  return {
+    kind: "tag",
+    value: ""
+  };
+}
+
 function createDefaultRequirementRuleClauseDraft() {
   return {
     clauseId: createRequirementClauseDraftId(),
     clauseJoiner: "and",
-    tags: [getDefaultRequirementClauseTag()],
-    tagJoiners: [],
-    activeTagIndex: 0,
-    tagSearch: "",
+    terms: [createEmptyRequirementClauseTerm()],
+    termJoiners: [],
+    activeTermIndex: 0,
+    termSearch: "",
     isOpen: true,
     minCount: 1,
     maxCount: "",
@@ -3752,38 +3771,61 @@ function normalizeRequirementJoiner(rawJoiner, fallback = "and") {
   return REQUIREMENT_JOINER_MODES.includes(joiner) ? joiner : normalizedFallback;
 }
 
-function getRequirementClauseTagFromExprNode(rawNode) {
-  if (typeof rawNode === "string" && BOOLEAN_TAGS.includes(rawNode)) {
-    return rawNode;
-  }
-  if (!rawNode || typeof rawNode !== "object" || Array.isArray(rawNode)) {
-    return null;
-  }
-  if (typeof rawNode.tag === "string" && BOOLEAN_TAGS.includes(rawNode.tag)) {
-    return rawNode.tag;
-  }
-  return null;
+function normalizeRequirementTermKind(rawKind, fallback = "tag") {
+  const normalizedFallback = REQUIREMENT_TERM_KIND_VALUE_SET.has(fallback) ? fallback : "tag";
+  const kind = typeof rawKind === "string" ? rawKind.trim().toLowerCase() : "";
+  return REQUIREMENT_TERM_KIND_VALUE_SET.has(kind) ? kind : normalizedFallback;
 }
 
-function normalizeRequirementClauseTags(rawTags) {
-  const values = Array.isArray(rawTags)
-    ? rawTags
-    : rawTags === undefined || rawTags === null
-      ? []
-      : [rawTags];
-  const normalized = [];
-  for (const value of values) {
-    const tag = getRequirementClauseTagFromExprNode(value);
-    if (!tag || normalized.includes(tag)) {
-      continue;
-    }
-    normalized.push(tag);
+function getRequirementTermOptions(kind) {
+  const normalizedKind = normalizeRequirementTermKind(kind, "tag");
+  if (normalizedKind === "damage_type") {
+    return REQUIREMENT_DAMAGE_TYPE_OPTIONS;
   }
-  return BOOLEAN_TAGS.filter((tag) => normalized.includes(tag));
+  if (normalizedKind === "effectiveness_focus") {
+    return REQUIREMENT_EFFECTIVENESS_FOCUS_OPTIONS;
+  }
+  return REQUIREMENT_TAG_OPTIONS.map((tag) => ({ value: tag, label: tag }));
 }
 
-function normalizeRequirementClauseTagJoiners(rawJoiners, tagCount) {
-  const joinerCount = Math.max(0, tagCount - 1);
+function getRequirementTermKindLabel(kind) {
+  const normalizedKind = normalizeRequirementTermKind(kind, "tag");
+  return REQUIREMENT_TERM_KIND_OPTIONS.find((option) => option.value === normalizedKind)?.label ?? "Tag";
+}
+
+function getRequirementTermLabel(kind, value) {
+  const option = getRequirementTermOptions(kind).find((candidate) => candidate.value === value);
+  return option?.label ?? value;
+}
+
+function normalizeRequirementTermValue(kind, rawValue) {
+  if (typeof rawValue !== "string") {
+    return "";
+  }
+  const value = rawValue.trim();
+  if (!value) {
+    return "";
+  }
+  return getRequirementTermOptions(kind).some((option) => option.value === value) ? value : "";
+}
+
+function normalizeRequirementClauseTerm(rawTerm = null) {
+  const term = rawTerm && typeof rawTerm === "object" && !Array.isArray(rawTerm) ? rawTerm : {};
+  const kind = normalizeRequirementTermKind(term.kind, "tag");
+  return {
+    kind,
+    value: normalizeRequirementTermValue(kind, term.value)
+  };
+}
+
+function normalizeRequirementClauseTerms(rawTerms) {
+  const values = Array.isArray(rawTerms) ? rawTerms : [];
+  const terms = values.map((term) => normalizeRequirementClauseTerm(term));
+  return terms.length > 0 ? terms : [createEmptyRequirementClauseTerm()];
+}
+
+function normalizeRequirementClauseTermJoiners(rawJoiners, termCount) {
+  const joinerCount = Math.max(0, termCount - 1);
   const values = Array.isArray(rawJoiners) ? rawJoiners : [];
   const normalized = [];
   for (let index = 0; index < joinerCount; index += 1) {
@@ -3792,12 +3834,54 @@ function normalizeRequirementClauseTagJoiners(rawJoiners, tagCount) {
   return normalized;
 }
 
-function flattenRequirementClauseExprToTagChain(rawExpr) {
-  const directTag = getRequirementClauseTagFromExprNode(rawExpr);
-  if (directTag) {
+function createRequirementTermFromExprNode(rawNode) {
+  if (typeof rawNode === "string") {
+    if (REQUIREMENT_TAG_OPTIONS.includes(rawNode)) {
+      return { kind: "tag", value: rawNode };
+    }
+    return null;
+  }
+  if (!rawNode || typeof rawNode !== "object" || Array.isArray(rawNode)) {
+    return null;
+  }
+  if (typeof rawNode.tag === "string" && REQUIREMENT_TAG_OPTIONS.includes(rawNode.tag)) {
+    return { kind: "tag", value: rawNode.tag };
+  }
+  const rawDamageType =
+    typeof rawNode.damageType === "string"
+      ? rawNode.damageType
+      : typeof rawNode.primaryDamageType === "string"
+        ? rawNode.primaryDamageType
+        : typeof rawNode.damage_type === "string"
+          ? rawNode.damage_type
+          : null;
+  if (rawDamageType) {
+    const value = normalizeRequirementTermValue("damage_type", rawDamageType.toLowerCase());
+    if (value) {
+      return { kind: "damage_type", value };
+    }
+  }
+  const rawEffectivenessFocus =
+    typeof rawNode.effectivenessFocus === "string"
+      ? rawNode.effectivenessFocus
+      : typeof rawNode.effectiveness_focus === "string"
+        ? rawNode.effectiveness_focus
+        : null;
+  if (rawEffectivenessFocus) {
+    const value = normalizeRequirementTermValue("effectiveness_focus", rawEffectivenessFocus.toLowerCase());
+    if (value) {
+      return { kind: "effectiveness_focus", value };
+    }
+  }
+  return null;
+}
+
+function flattenRequirementClauseExprToTermChain(rawExpr) {
+  const directTerm = createRequirementTermFromExprNode(rawExpr);
+  if (directTerm) {
     return {
-      tags: [directTag],
-      tagJoiners: []
+      terms: [directTerm],
+      termJoiners: []
     };
   }
   if (typeof rawExpr === "string") {
@@ -3806,24 +3890,25 @@ function flattenRequirementClauseExprToTagChain(rawExpr) {
       .map((part) => part.trim())
       .filter((part) => part.length > 0);
     if (parts.length >= 3 && parts.length % 2 === 1) {
-      const tags = [];
-      const tagJoiners = [];
+      const terms = [];
+      const termJoiners = [];
       let isValid = true;
       for (let index = 0; index < parts.length; index += 1) {
         if (index % 2 === 0) {
-          if (!BOOLEAN_TAGS.includes(parts[index])) {
+          const term = createRequirementTermFromExprNode(parts[index]);
+          if (!term) {
             isValid = false;
             break;
           }
-          tags.push(parts[index]);
+          terms.push(term);
         } else {
-          tagJoiners.push(normalizeRequirementJoiner(parts[index], "and"));
+          termJoiners.push(normalizeRequirementJoiner(parts[index], "and"));
         }
       }
-      if (isValid && tags.length > 0) {
+      if (isValid && terms.length > 0) {
         return {
-          tags,
-          tagJoiners: normalizeRequirementClauseTagJoiners(tagJoiners, tags.length)
+          terms,
+          termJoiners: normalizeRequirementClauseTermJoiners(termJoiners, terms.length)
         };
       }
     }
@@ -3838,25 +3923,25 @@ function flattenRequirementClauseExprToTagChain(rawExpr) {
       continue;
     }
 
-    const parts = children.map((child) => flattenRequirementClauseExprToTagChain(child));
-    if (parts.some((part) => !part || part.tags.length < 1)) {
+    const parts = children.map((child) => flattenRequirementClauseExprToTermChain(child));
+    if (parts.some((part) => !part || part.terms.length < 1)) {
       continue;
     }
 
-    const tags = [...parts[0].tags];
-    const tagJoiners = [...parts[0].tagJoiners];
+    const terms = [...parts[0].terms];
+    const termJoiners = [...parts[0].termJoiners];
     for (let partIndex = 1; partIndex < parts.length; partIndex += 1) {
       const part = parts[partIndex];
-      tagJoiners.push(joiner);
-      tags.push(part.tags[0]);
-      for (let tagIndex = 1; tagIndex < part.tags.length; tagIndex += 1) {
-        tagJoiners.push(normalizeRequirementJoiner(part.tagJoiners[tagIndex - 1], "and"));
-        tags.push(part.tags[tagIndex]);
+      termJoiners.push(joiner);
+      terms.push(part.terms[0]);
+      for (let termIndex = 1; termIndex < part.terms.length; termIndex += 1) {
+        termJoiners.push(normalizeRequirementJoiner(part.termJoiners[termIndex - 1], "and"));
+        terms.push(part.terms[termIndex]);
       }
     }
     return {
-      tags,
-      tagJoiners: normalizeRequirementClauseTagJoiners(tagJoiners, tags.length)
+      terms,
+      termJoiners: normalizeRequirementClauseTermJoiners(termJoiners, terms.length)
     };
   }
 
@@ -3873,26 +3958,25 @@ function createRequirementRuleClauseDraft(rawClause = null) {
     typeof clause.id === "string" && clause.id.trim() !== "" ? clause.id.trim() : createRequirementClauseDraftId();
   const separateFrom = normalizeRequirementClauseReferenceIds(clause.separateFrom);
   const clauseJoiner = normalizeRequirementJoiner(clause.clauseJoiner, "and");
-  const defaultTag = getDefaultRequirementClauseTag();
 
-  const flattenedExpr = flattenRequirementClauseExprToTagChain(clause.expr);
-  const tags = flattenedExpr?.tags ?? [defaultTag];
-  const tagJoiners = normalizeRequirementClauseTagJoiners(
-    flattenedExpr?.tagJoiners ?? clause.tagJoiners,
-    tags.length
+  const flattenedExpr = flattenRequirementClauseExprToTermChain(clause.expr);
+  const terms = flattenedExpr?.terms ?? normalizeRequirementClauseTerms(clause.terms);
+  const termJoiners = normalizeRequirementClauseTermJoiners(
+    flattenedExpr?.termJoiners ?? clause.termJoiners,
+    terms.length
   );
-  const activeTagIndex = Number.parseInt(String(clause.activeTagIndex), 10);
+  const activeTermIndex = Number.parseInt(String(clause.activeTermIndex), 10);
 
   return {
     clauseId,
     clauseJoiner,
-    tags,
-    tagJoiners,
-    activeTagIndex:
-      Number.isInteger(activeTagIndex) && activeTagIndex >= 0 && activeTagIndex < tags.length
-        ? activeTagIndex
-        : Math.max(0, tags.length - 1),
-    tagSearch: typeof clause.tagSearch === "string" ? clause.tagSearch : "",
+    terms,
+    termJoiners,
+    activeTermIndex:
+      Number.isInteger(activeTermIndex) && activeTermIndex >= 0 && activeTermIndex < terms.length
+        ? activeTermIndex
+        : Math.max(0, terms.length - 1),
+    termSearch: typeof clause.termSearch === "string" ? clause.termSearch : "",
     isOpen: clause.isOpen === true,
     minCount,
     maxCount,
@@ -3929,23 +4013,39 @@ function syncRequirementDefinitionInputsFromState() {
 }
 
 function parseRequirementRuleClauseExpr(clause, clauseIndex) {
-  const tags = normalizeRequirementClauseTags(clause.tags);
-  if (tags.length < 1) {
-    throw new Error(`Clause ${clauseIndex + 1}: select at least one tag.`);
+  const terms = normalizeRequirementClauseTerms(clause.terms);
+  for (const [termIndex, term] of terms.entries()) {
+    const value = normalizeRequirementTermValue(term.kind, term.value);
+    if (!value) {
+      throw new Error(`Clause ${clauseIndex + 1}, condition ${termIndex + 1}: select a value.`);
+    }
+    term.value = value;
   }
-  if (tags.length === 1) {
-    return { tag: tags[0] };
+  if (terms.length === 1) {
+    return createRequirementExprNodeFromTerm(terms[0]);
   }
 
-  const tagJoiners = normalizeRequirementClauseTagJoiners(clause.tagJoiners, tags.length);
-  let expression = { tag: tags[0] };
-  for (let index = 1; index < tags.length; index += 1) {
-    const joiner = normalizeRequirementJoiner(tagJoiners[index - 1], "and");
+  const termJoiners = normalizeRequirementClauseTermJoiners(clause.termJoiners, terms.length);
+  let expression = createRequirementExprNodeFromTerm(terms[0]);
+  for (let index = 1; index < terms.length; index += 1) {
+    const joiner = normalizeRequirementJoiner(termJoiners[index - 1], "and");
     expression = {
-      [joiner]: [expression, { tag: tags[index] }]
+      [joiner]: [expression, createRequirementExprNodeFromTerm(terms[index])]
     };
   }
   return expression;
+}
+
+function createRequirementExprNodeFromTerm(term) {
+  const kind = normalizeRequirementTermKind(term.kind, "tag");
+  const value = normalizeRequirementTermValue(kind, term.value);
+  if (kind === "damage_type") {
+    return { damageType: value };
+  }
+  if (kind === "effectiveness_focus") {
+    return { effectivenessFocus: value };
+  }
+  return { tag: value };
 }
 
 function parseRequirementRulesFromDraftClauses() {
@@ -4093,16 +4193,25 @@ function renderCompositionRequirementOptions() {
 }
 
 function formatRequirementClauseExpressionSummary(clause) {
-  const tags = normalizeRequirementClauseTags(clause.tags);
-  if (tags.length < 1) {
-    return "No tags selected.";
+  const terms = normalizeRequirementClauseTerms(clause.terms);
+  if (terms.length < 1) {
+    return "No conditions selected.";
   }
-  const tagJoiners = normalizeRequirementClauseTagJoiners(clause.tagJoiners, tags.length);
-  let summary = tags[0];
-  for (let index = 1; index < tags.length; index += 1) {
-    summary = `${summary} ${normalizeRequirementJoiner(tagJoiners[index - 1], "and").toUpperCase()} ${tags[index]}`;
+  const termJoiners = normalizeRequirementClauseTermJoiners(clause.termJoiners, terms.length);
+  let summary = formatRequirementClauseTermSummary(terms[0]);
+  for (let index = 1; index < terms.length; index += 1) {
+    summary = `${summary} ${normalizeRequirementJoiner(termJoiners[index - 1], "and").toUpperCase()} ${formatRequirementClauseTermSummary(terms[index])}`;
   }
   return summary;
+}
+
+function formatRequirementClauseTermSummary(term) {
+  const kind = normalizeRequirementTermKind(term.kind, "tag");
+  const value = normalizeRequirementTermValue(kind, term.value);
+  if (!value) {
+    return `Select ${getRequirementTermKindLabel(kind)}`;
+  }
+  return `${getRequirementTermKindLabel(kind)}: ${getRequirementTermLabel(kind, value)}`;
 }
 
 function renderRequirementClauseEditor() {
@@ -4125,17 +4234,15 @@ function renderRequirementClauseEditor() {
   }
 
   for (const [index, clause] of clauses.entries()) {
-    if (normalizeRequirementClauseTags(clause.tags).length < 1) {
-      clause.tags = [getDefaultRequirementClauseTag()];
-    }
-    clause.tagJoiners = normalizeRequirementClauseTagJoiners(clause.tagJoiners, clause.tags.length);
+    clause.terms = normalizeRequirementClauseTerms(clause.terms);
+    clause.termJoiners = normalizeRequirementClauseTermJoiners(clause.termJoiners, clause.terms.length);
     clause.clauseJoiner = normalizeRequirementJoiner(clause.clauseJoiner, "and");
-    clause.tagSearch = typeof clause.tagSearch === "string" ? clause.tagSearch : "";
-    const parsedActiveTagIndex = Number.parseInt(String(clause.activeTagIndex), 10);
-    clause.activeTagIndex =
-      Number.isInteger(parsedActiveTagIndex) && parsedActiveTagIndex >= 0 && parsedActiveTagIndex < clause.tags.length
-        ? parsedActiveTagIndex
-        : Math.max(0, clause.tags.length - 1);
+    clause.termSearch = typeof clause.termSearch === "string" ? clause.termSearch : "";
+    const parsedActiveTermIndex = Number.parseInt(String(clause.activeTermIndex), 10);
+    clause.activeTermIndex =
+      Number.isInteger(parsedActiveTermIndex) && parsedActiveTermIndex >= 0 && parsedActiveTermIndex < clause.terms.length
+        ? parsedActiveTermIndex
+        : Math.max(0, clause.terms.length - 1);
 
     const card = runtimeDocument.createElement("article");
     card.className = "summary-card requirement-clause-card";
@@ -4232,124 +4339,153 @@ function renderRequirementClauseEditor() {
     const editor = runtimeDocument.createElement("div");
     editor.className = "requirement-clause-editor";
 
-    const tagsTitle = runtimeDocument.createElement("p");
-    tagsTitle.className = "meta";
-    tagsTitle.textContent = "Tags";
+    const termsTitle = runtimeDocument.createElement("p");
+    termsTitle.className = "meta";
+    termsTitle.textContent = "Conditions";
 
-    const tagChain = runtimeDocument.createElement("div");
-    tagChain.className = "requirement-tag-chain";
-    for (let tagIndex = 0; tagIndex < clause.tags.length; tagIndex += 1) {
-      if (tagIndex > 0) {
-        const tagJoinerSelect = runtimeDocument.createElement("select");
-        tagJoinerSelect.className = "requirement-inline-select";
-        tagJoinerSelect.dataset.field = "tag-joiner";
-        tagJoinerSelect.dataset.clauseIndex = String(index);
-        tagJoinerSelect.dataset.tagIndex = String(tagIndex);
-        replaceOptions(tagJoinerSelect, [
+    const termChain = runtimeDocument.createElement("div");
+    termChain.className = "requirement-tag-chain";
+    for (let termIndex = 0; termIndex < clause.terms.length; termIndex += 1) {
+      if (termIndex > 0) {
+        const termJoinerSelect = runtimeDocument.createElement("select");
+        termJoinerSelect.className = "requirement-inline-select";
+        termJoinerSelect.dataset.field = "term-joiner";
+        termJoinerSelect.dataset.clauseIndex = String(index);
+        termJoinerSelect.dataset.termIndex = String(termIndex);
+        replaceOptions(termJoinerSelect, [
           { value: "and", label: "AND" },
           { value: "or", label: "OR" }
         ]);
-        tagJoinerSelect.value = normalizeRequirementJoiner(clause.tagJoiners[tagIndex - 1], "and");
-        tagJoinerSelect.disabled = controlsDisabled;
-        tagJoinerSelect.addEventListener("change", () => {
-          clause.tagJoiners = normalizeRequirementClauseTagJoiners(clause.tagJoiners, clause.tags.length);
-          clause.tagJoiners[tagIndex - 1] = normalizeRequirementJoiner(tagJoinerSelect.value, "and");
+        termJoinerSelect.value = normalizeRequirementJoiner(clause.termJoiners[termIndex - 1], "and");
+        termJoinerSelect.disabled = controlsDisabled;
+        termJoinerSelect.addEventListener("change", () => {
+          clause.termJoiners = normalizeRequirementClauseTermJoiners(clause.termJoiners, clause.terms.length);
+          clause.termJoiners[termIndex - 1] = normalizeRequirementJoiner(termJoinerSelect.value, "and");
         });
-        tagChain.append(tagJoinerSelect);
+        termChain.append(termJoinerSelect);
       }
 
-      const tagButton = runtimeDocument.createElement("button");
-      tagButton.type = "button";
-      tagButton.className = `ghost requirement-inline-button requirement-tag-token${
-        clause.activeTagIndex === tagIndex ? " is-active" : ""
+      const termButton = runtimeDocument.createElement("button");
+      termButton.type = "button";
+      termButton.className = `ghost requirement-inline-button requirement-tag-token${
+        clause.activeTermIndex === termIndex ? " is-active" : ""
       }`;
-      tagButton.textContent = clause.tags[tagIndex];
-      tagButton.disabled = controlsDisabled;
-      tagButton.addEventListener("click", () => {
-        clause.activeTagIndex = tagIndex;
+      termButton.textContent = formatRequirementClauseTermSummary(clause.terms[termIndex]);
+      termButton.disabled = controlsDisabled;
+      termButton.addEventListener("click", () => {
+        clause.activeTermIndex = termIndex;
         renderRequirementClauseEditor();
       });
-      tagChain.append(tagButton);
+      termChain.append(termButton);
 
-      if (clause.tags.length > 1) {
-        const removeTagButton = runtimeDocument.createElement("button");
-        removeTagButton.type = "button";
-        removeTagButton.className = "ghost requirement-inline-button";
-        removeTagButton.textContent = "x";
-        removeTagButton.disabled = controlsDisabled;
-        removeTagButton.addEventListener("click", () => {
-          clause.tags = clause.tags.filter((_tag, candidateIndex) => candidateIndex !== tagIndex);
-          clause.tagJoiners = normalizeRequirementClauseTagJoiners(
-            clause.tagJoiners.filter((_joiner, candidateIndex) => candidateIndex !== tagIndex - 1),
-            clause.tags.length
+      if (clause.terms.length > 1) {
+        const removeTermButton = runtimeDocument.createElement("button");
+        removeTermButton.type = "button";
+        removeTermButton.className = "ghost requirement-inline-button";
+        removeTermButton.textContent = "x";
+        removeTermButton.disabled = controlsDisabled;
+        removeTermButton.addEventListener("click", () => {
+          clause.terms = clause.terms.filter((_term, candidateIndex) => candidateIndex !== termIndex);
+          clause.termJoiners = normalizeRequirementClauseTermJoiners(
+            clause.termJoiners.filter((_joiner, candidateIndex) => candidateIndex !== termIndex - 1),
+            clause.terms.length
           );
-          clause.activeTagIndex = Math.max(0, Math.min(clause.activeTagIndex, clause.tags.length - 1));
+          clause.activeTermIndex = Math.max(0, Math.min(clause.activeTermIndex, clause.terms.length - 1));
           renderRequirementClauseEditor();
         });
-        tagChain.append(removeTagButton);
+        termChain.append(removeTermButton);
       }
     }
 
-    const addTagButton = runtimeDocument.createElement("button");
-    addTagButton.type = "button";
-    addTagButton.className = "ghost requirement-inline-button";
-    addTagButton.textContent = "Add Tag";
-    addTagButton.dataset.field = "add-tag";
-    addTagButton.dataset.clauseIndex = String(index);
-    addTagButton.disabled = controlsDisabled;
-    addTagButton.addEventListener("click", () => {
-      clause.tags = [...clause.tags, getDefaultRequirementClauseTag()];
-      clause.tagJoiners = [...normalizeRequirementClauseTagJoiners(clause.tagJoiners, clause.tags.length - 1), "and"];
-      clause.activeTagIndex = clause.tags.length - 1;
+    const addTermButton = runtimeDocument.createElement("button");
+    addTermButton.type = "button";
+    addTermButton.className = "ghost requirement-inline-button";
+    addTermButton.textContent = "Add Condition";
+    addTermButton.dataset.field = "add-term";
+    addTermButton.dataset.clauseIndex = String(index);
+    addTermButton.disabled = controlsDisabled;
+    addTermButton.addEventListener("click", () => {
+      clause.terms = [...clause.terms, createEmptyRequirementClauseTerm()];
+      clause.termJoiners = [...normalizeRequirementClauseTermJoiners(clause.termJoiners, clause.terms.length - 1), "and"];
+      clause.activeTermIndex = clause.terms.length - 1;
       renderRequirementClauseEditor();
     });
-    tagChain.append(addTagButton);
+    termChain.append(addTermButton);
 
-    const tagPicker = runtimeDocument.createElement("div");
-    tagPicker.className = "requirement-tag-picker";
-    const tagFilterInput = runtimeDocument.createElement("input");
-    tagFilterInput.type = "text";
-    tagFilterInput.className = "pool-snapshot-filter";
-    tagFilterInput.placeholder = "Filter tags...";
-    tagFilterInput.value = clause.tagSearch;
-    tagFilterInput.dataset.field = "tag-filter";
-    tagFilterInput.dataset.clauseIndex = String(index);
-    tagFilterInput.disabled = controlsDisabled;
-    tagFilterInput.addEventListener("input", () => {
-      clause.tagSearch = tagFilterInput.value;
+    const activeTerm = clause.terms[clause.activeTermIndex] ?? createEmptyRequirementClauseTerm();
+    const termTypeLabel = runtimeDocument.createElement("label");
+    termTypeLabel.textContent = "Condition Type";
+    const termTypeSelect = runtimeDocument.createElement("select");
+    termTypeSelect.className = "requirement-inline-select";
+    termTypeSelect.dataset.field = "term-kind";
+    termTypeSelect.dataset.clauseIndex = String(index);
+    termTypeSelect.dataset.termIndex = String(clause.activeTermIndex);
+    replaceOptions(termTypeSelect, REQUIREMENT_TERM_KIND_OPTIONS);
+    termTypeSelect.value = normalizeRequirementTermKind(activeTerm.kind, "tag");
+    termTypeSelect.disabled = controlsDisabled;
+    termTypeSelect.addEventListener("change", () => {
+      const nextKind = normalizeRequirementTermKind(termTypeSelect.value, "tag");
+      clause.terms[clause.activeTermIndex] = {
+        kind: nextKind,
+        value: ""
+      };
+      clause.termSearch = "";
       renderRequirementClauseEditor();
     });
-    tagPicker.append(tagFilterInput);
+    termTypeLabel.append(runtimeDocument.createElement("br"), termTypeSelect);
 
-    const tagList = runtimeDocument.createElement("ul");
-    tagList.className = "pool-snapshot-list requirement-tag-picker-list";
-    const filterText = clause.tagSearch.trim().toLowerCase();
-    const filteredTags = BOOLEAN_TAGS.filter((tag) => tag.toLowerCase().includes(filterText));
-    if (filteredTags.length < 1) {
-      const emptyTag = runtimeDocument.createElement("li");
-      emptyTag.className = "pool-snapshot-empty";
-      emptyTag.textContent = "No tags match.";
-      tagList.append(emptyTag);
+    const activeKind = normalizeRequirementTermKind(activeTerm.kind, "tag");
+    const termPicker = runtimeDocument.createElement("div");
+    termPicker.className = "requirement-tag-picker";
+    const termFilterInput = runtimeDocument.createElement("input");
+    termFilterInput.type = "text";
+    termFilterInput.className = "pool-snapshot-filter";
+    termFilterInput.placeholder = `Filter ${getRequirementTermKindLabel(activeKind).toLowerCase()}...`;
+    termFilterInput.value = clause.termSearch;
+    termFilterInput.dataset.field = "term-filter";
+    termFilterInput.dataset.clauseIndex = String(index);
+    termFilterInput.disabled = controlsDisabled;
+    termFilterInput.addEventListener("input", () => {
+      clause.termSearch = termFilterInput.value;
+      renderRequirementClauseEditor();
+    });
+    termPicker.append(termFilterInput);
+
+    const termList = runtimeDocument.createElement("ul");
+    termList.className = "pool-snapshot-list requirement-tag-picker-list";
+    const filterText = clause.termSearch.trim().toLowerCase();
+    const filteredOptions = getRequirementTermOptions(activeKind).filter((option) =>
+      option.label.toLowerCase().includes(filterText)
+    );
+    if (filteredOptions.length < 1) {
+      const emptyTerm = runtimeDocument.createElement("li");
+      emptyTerm.className = "pool-snapshot-empty";
+      emptyTerm.textContent = "No options match.";
+      termList.append(emptyTerm);
     } else {
-      for (const tag of filteredTags) {
-        const tagItem = runtimeDocument.createElement("li");
-        if (clause.tags[clause.activeTagIndex] === tag) {
-          tagItem.classList.add("is-selected");
+      for (const option of filteredOptions) {
+        const optionItem = runtimeDocument.createElement("li");
+        if (activeTerm.value === option.value) {
+          optionItem.classList.add("is-selected");
         }
-        tagItem.dataset.field = "tag-option";
-        tagItem.dataset.clauseIndex = String(index);
-        tagItem.dataset.tag = tag;
-        tagItem.textContent = tag;
+        optionItem.dataset.field = "term-option";
+        optionItem.dataset.clauseIndex = String(index);
+        optionItem.dataset.kind = activeKind;
+        optionItem.dataset.value = option.value;
+        optionItem.textContent = option.label;
         if (!controlsDisabled) {
-          tagItem.addEventListener("click", () => {
-            clause.tags[clause.activeTagIndex] = tag;
+          optionItem.addEventListener("click", () => {
+            clause.terms[clause.activeTermIndex] = {
+              kind: activeKind,
+              value: option.value
+            };
             renderRequirementClauseEditor();
           });
         }
-        tagList.append(tagItem);
+        termList.append(optionItem);
       }
     }
-    tagPicker.append(tagList);
+    termPicker.append(termList);
 
     const minMaxGrid = runtimeDocument.createElement("div");
     minMaxGrid.className = "grid grid-2";
@@ -4463,7 +4599,7 @@ function renderRequirementClauseEditor() {
         separationWrap.append(candidateLabel);
       }
     }
-    editor.append(tagsTitle, tagChain, tagPicker, minMaxGrid, roleFilterWrap, separationWrap);
+    editor.append(termsTitle, termChain, termTypeLabel, termPicker, minMaxGrid, roleFilterWrap, separationWrap);
     card.append(editor);
     elements.requirementsClauses.append(card);
   }

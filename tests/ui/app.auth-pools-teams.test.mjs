@@ -2100,22 +2100,29 @@ describe("auth + pools + team management", () => {
     definitionInput.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
 
     const firstClauseHardEngage = doc.querySelector(
-      "#requirements-clauses [data-field='tag-option'][data-clause-index='0'][data-tag='HardEngage']"
+      "#requirements-clauses [data-field='term-option'][data-clause-index='0'][data-kind='tag'][data-value='HardEngage']"
     );
     expect(firstClauseHardEngage).toBeTruthy();
     firstClauseHardEngage.click();
 
     const firstClauseAddTag = doc.querySelector(
-      "#requirements-clauses button[data-field='add-tag'][data-clause-index='0']"
+      "#requirements-clauses button[data-field='add-term'][data-clause-index='0']"
     );
     expect(firstClauseAddTag).toBeTruthy();
     firstClauseAddTag.click();
+    await flush();
+
+    const firstClauseFrontline = doc.querySelector(
+      "#requirements-clauses [data-field='term-option'][data-clause-index='0'][data-kind='tag'][data-value='Frontline']"
+    );
+    expect(firstClauseFrontline).toBeTruthy();
+    firstClauseFrontline.click();
 
     doc.querySelector("#requirements-add-clause").click();
     await flush();
 
     const secondClauseTag = doc.querySelector(
-      "#requirements-clauses [data-field='tag-option'][data-clause-index='1'][data-tag='FollowUpEngage']"
+      "#requirements-clauses [data-field='term-option'][data-clause-index='1'][data-kind='tag'][data-value='FollowUpEngage']"
     );
     expect(secondClauseTag).toBeTruthy();
     secondClauseTag.click();
