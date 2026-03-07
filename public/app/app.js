@@ -307,19 +307,20 @@ function createEmptyCompositionRequirementDraft() {
 }
 
 function createEmptyRequirementDefinitionDraft() {
+  const defaultTag = BOOLEAN_TAGS.includes("Frontline") ? "Frontline" : BOOLEAN_TAGS[0] ?? "Frontline";
   return {
     name: "",
     definition: "",
-    rulesText: JSON.stringify(
-      [
-        {
-          expr: { tag: "Frontline" },
-          minCount: 1
-        }
-      ],
-      null,
-      2
-    )
+    rules: [
+      {
+        exprMode: "tag",
+        tag: defaultTag,
+        exprText: "",
+        minCount: 1,
+        maxCount: "",
+        roleFilter: []
+      }
+    ]
   };
 }
 
@@ -540,7 +541,8 @@ function createElements() {
     compositionRequirementsList: runtimeDocument.querySelector("#composition-requirements-list"),
     requirementsName: runtimeDocument.querySelector("#requirements-name"),
     requirementsDefinition: runtimeDocument.querySelector("#requirements-definition"),
-    requirementsRules: runtimeDocument.querySelector("#requirements-rules"),
+    requirementsClauses: runtimeDocument.querySelector("#requirements-clauses"),
+    requirementsAddClause: runtimeDocument.querySelector("#requirements-add-clause"),
     requirementsSave: runtimeDocument.querySelector("#requirements-save"),
     requirementsCancel: runtimeDocument.querySelector("#requirements-cancel"),
     requirementsDelete: runtimeDocument.querySelector("#requirements-delete"),
@@ -3698,6 +3700,63 @@ function getSelectedRequirementDefinition() {
   return state.api.requirementDefinitions.find((requirement) => requirement.id === selectedId) ?? null;
 }
 
+function normalizeRequirementRoleFilter(rawRoleFilter) {
+  const roles = Array.isArray(rawRoleFilter) ? rawRoleFilter : [];
+  const normalized = roles.map((role) => normalizeApiSlot(role)).filter(Boolean);
+  return SLOTS.filter((slot) => normalized.includes(slot));
+}
+
+function createRequirementRuleClauseDraft(rawClause = null) {
+  const clause = rawClause && typeof rawClause === "object" && !Array.isArray(rawClause) ? rawClause : {};
+  const minCount = Number.isInteger(clause.minCount) && clause.minCount > 0 ? clause.minCount : 1;
+  const maxCount =
+    Number.isInteger(clause.maxCount) && clause.maxCount >= minCount ? String(clause.maxCount) : "";
+  const roleFilter = normalizeRequirementRoleFilter(clause.roleFilter);
+  const defaultTag = BOOLEAN_TAGS.includes("Frontline") ? "Frontline" : BOOLEAN_TAGS[0] ?? "Frontline";
+
+  if (typeof clause.expr === "string" && BOOLEAN_TAGS.includes(clause.expr)) {
+    return {
+      exprMode: "tag",
+      tag: clause.expr,
+      exprText: "",
+      minCount,
+      maxCount,
+      roleFilter
+    };
+  }
+  if (
+    clause.expr &&
+    typeof clause.expr === "object" &&
+    !Array.isArray(clause.expr) &&
+    Object.keys(clause.expr).length === 1 &&
+    typeof clause.expr.tag === "string" &&
+    BOOLEAN_TAGS.includes(clause.expr.tag)
+  ) {
+    return {
+      exprMode: "tag",
+      tag: clause.expr.tag,
+      exprText: "",
+      minCount,
+      maxCount,
+      roleFilter
+    };
+  }
+
+  return {
+    exprMode: "advanced",
+    tag: defaultTag,
+    exprText:
+      clause.expr === undefined
+        ? ""
+        : typeof clause.expr === "string"
+          ? clause.expr
+          : JSON.stringify(clause.expr),
+    minCount,
+    maxCount,
+    roleFilter
+  };
+}
+
 function setRequirementDefinitionDraft(requirement = null) {
   if (!requirement) {
     state.api.selectedRequirementDefinitionId = null;
@@ -3709,7 +3768,10 @@ function setRequirementDefinitionDraft(requirement = null) {
   state.api.requirementDefinitionDraft = {
     name: requirement.name,
     definition: requirement.definition,
-    rulesText: JSON.stringify(requirement.rules, null, 2)
+    rules:
+      Array.isArray(requirement.rules) && requirement.rules.length > 0
+        ? requirement.rules.map((rule) => createRequirementRuleClauseDraft(rule))
+        : createEmptyRequirementDefinitionDraft().rules
   };
 }
 
@@ -3720,26 +3782,63 @@ function syncRequirementDefinitionInputsFromState() {
   if (elements.requirementsDefinition) {
     elements.requirementsDefinition.value = state.api.requirementDefinitionDraft.definition;
   }
-  if (elements.requirementsRules) {
-    elements.requirementsRules.value = state.api.requirementDefinitionDraft.rulesText;
+}
+
+function parseRequirementRuleClauseExpr(clause, clauseIndex) {
+  if (clause.exprMode === "tag") {
+    if (!BOOLEAN_TAGS.includes(clause.tag)) {
+      throw new Error(`Clause ${clauseIndex + 1}: select a valid tag.`);
+    }
+    return { tag: clause.tag };
+  }
+
+  const exprText = String(clause.exprText ?? "").trim();
+  if (!exprText) {
+    throw new Error(`Clause ${clauseIndex + 1}: expression is required in advanced mode.`);
+  }
+  try {
+    const parsed = JSON.parse(exprText);
+    if (typeof parsed === "string") {
+      return parsed;
+    }
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed;
+    }
+    return exprText;
+  } catch (_error) {
+    return exprText;
   }
 }
 
-function parseRequirementRulesFromDraftText() {
-  const rawText = String(state.api.requirementDefinitionDraft.rulesText ?? "").trim();
-  if (!rawText) {
-    throw new Error("Rules JSON is required.");
+function parseRequirementRulesFromDraftClauses() {
+  const rules = Array.isArray(state.api.requirementDefinitionDraft.rules)
+    ? state.api.requirementDefinitionDraft.rules
+    : [];
+  if (rules.length < 1) {
+    throw new Error("Add at least one rule clause.");
   }
-  let parsed;
-  try {
-    parsed = JSON.parse(rawText);
-  } catch (_error) {
-    throw new Error("Rules JSON is invalid.");
-  }
-  if (!Array.isArray(parsed) || parsed.length < 1) {
-    throw new Error("Rules JSON must be a non-empty array.");
-  }
-  return parsed;
+
+  return rules.map((clause, index) => {
+    const minCount = Number.parseInt(String(clause.minCount), 10);
+    if (!Number.isInteger(minCount) || minCount < 1) {
+      throw new Error(`Clause ${index + 1}: min count must be a positive integer.`);
+    }
+
+    const maxCountRaw = String(clause.maxCount ?? "").trim();
+    const maxCount = maxCountRaw === "" ? null : Number.parseInt(maxCountRaw, 10);
+    if (maxCount !== null && (!Number.isInteger(maxCount) || maxCount < minCount)) {
+      throw new Error(`Clause ${index + 1}: max count must be blank or >= min count.`);
+    }
+
+    const roleFilter = normalizeRequirementRoleFilter(clause.roleFilter);
+
+    return {
+      expr: parseRequirementRuleClauseExpr(clause, index),
+      minCount,
+      ...(maxCount === null ? {} : { maxCount }),
+      ...(roleFilter.length < 1 ? {} : { roleFilter })
+    };
+  });
 }
 
 function getSelectedCompositionBundle() {
@@ -3823,12 +3922,168 @@ function renderCompositionRequirementOptions() {
   }
 }
 
+function renderRequirementClauseEditor() {
+  if (!elements.requirementsClauses) {
+    return;
+  }
+  elements.requirementsClauses.innerHTML = "";
+
+  const clauses = Array.isArray(state.api.requirementDefinitionDraft.rules)
+    ? state.api.requirementDefinitionDraft.rules
+    : [];
+  const controlsDisabled = state.api.isSavingRequirementDefinition || !isAdminUser();
+
+  if (clauses.length < 1) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "Add at least one clause.";
+    elements.requirementsClauses.append(empty);
+    return;
+  }
+
+  for (const [index, clause] of clauses.entries()) {
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card";
+
+    const heading = runtimeDocument.createElement("p");
+    heading.className = "panel-kicker";
+    heading.textContent = `Clause ${index + 1}`;
+
+    const modeLabel = runtimeDocument.createElement("label");
+    modeLabel.textContent = "Expression Mode";
+    const modeSelect = runtimeDocument.createElement("select");
+    replaceOptions(modeSelect, [
+      { value: "tag", label: "Tag Match" },
+      { value: "advanced", label: "Advanced Expression" }
+    ]);
+    modeSelect.value = clause.exprMode === "advanced" ? "advanced" : "tag";
+    modeSelect.disabled = controlsDisabled;
+    modeSelect.addEventListener("change", () => {
+      clause.exprMode = modeSelect.value === "advanced" ? "advanced" : "tag";
+      renderRequirementClauseEditor();
+    });
+    modeLabel.append(runtimeDocument.createElement("br"), modeSelect);
+
+    const exprLabel = runtimeDocument.createElement("label");
+    if (clause.exprMode === "advanced") {
+      exprLabel.textContent = "Expression";
+      const exprInput = runtimeDocument.createElement("input");
+      exprInput.type = "text";
+      exprInput.placeholder = "e.g. Frontline OR {\"tag\":\"Frontline\"}";
+      exprInput.value = String(clause.exprText ?? "");
+      exprInput.disabled = controlsDisabled;
+      exprInput.addEventListener("input", () => {
+        clause.exprText = exprInput.value;
+      });
+      exprLabel.append(runtimeDocument.createElement("br"), exprInput);
+    } else {
+      exprLabel.textContent = "Tag";
+      const tagSelect = runtimeDocument.createElement("select");
+      replaceOptions(
+        tagSelect,
+        BOOLEAN_TAGS.map((tag) => ({
+          value: tag,
+          label: tag
+        }))
+      );
+      tagSelect.value = BOOLEAN_TAGS.includes(clause.tag) ? clause.tag : BOOLEAN_TAGS[0];
+      tagSelect.disabled = controlsDisabled;
+      tagSelect.dataset.field = "tag";
+      tagSelect.dataset.clauseIndex = String(index);
+      tagSelect.addEventListener("change", () => {
+        clause.tag = tagSelect.value;
+      });
+      exprLabel.append(runtimeDocument.createElement("br"), tagSelect);
+    }
+
+    const minLabel = runtimeDocument.createElement("label");
+    minLabel.textContent = "Min Count";
+    const minInput = runtimeDocument.createElement("input");
+    minInput.type = "number";
+    minInput.min = "1";
+    minInput.step = "1";
+    minInput.value = String(clause.minCount ?? 1);
+    minInput.disabled = controlsDisabled;
+    minInput.addEventListener("change", () => {
+      const parsed = Number.parseInt(minInput.value, 10);
+      clause.minCount = Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+      minInput.value = String(clause.minCount);
+      if (String(clause.maxCount ?? "").trim() !== "" && Number.parseInt(String(clause.maxCount), 10) < clause.minCount) {
+        clause.maxCount = String(clause.minCount);
+      }
+    });
+    minLabel.append(runtimeDocument.createElement("br"), minInput);
+
+    const maxLabel = runtimeDocument.createElement("label");
+    maxLabel.textContent = "Max Count (optional)";
+    const maxInput = runtimeDocument.createElement("input");
+    maxInput.type = "number";
+    maxInput.min = "1";
+    maxInput.step = "1";
+    maxInput.placeholder = "No max";
+    maxInput.value = String(clause.maxCount ?? "");
+    maxInput.disabled = controlsDisabled;
+    maxInput.addEventListener("input", () => {
+      clause.maxCount = maxInput.value.trim();
+    });
+    maxLabel.append(runtimeDocument.createElement("br"), maxInput);
+
+    const roleFilterWrap = runtimeDocument.createElement("div");
+    const roleFilterTitle = runtimeDocument.createElement("p");
+    roleFilterTitle.className = "meta";
+    roleFilterTitle.textContent = "Role Filter (optional)";
+    roleFilterWrap.append(roleFilterTitle);
+    const roleSet = new Set(normalizeRequirementRoleFilter(clause.roleFilter));
+    for (const slot of SLOTS) {
+      const roleLabel = runtimeDocument.createElement("label");
+      roleLabel.className = "selection-option";
+      const roleCheckbox = runtimeDocument.createElement("input");
+      roleCheckbox.type = "checkbox";
+      roleCheckbox.checked = roleSet.has(slot);
+      roleCheckbox.disabled = controlsDisabled;
+      roleCheckbox.addEventListener("change", () => {
+        const next = new Set(normalizeRequirementRoleFilter(clause.roleFilter));
+        if (roleCheckbox.checked) {
+          next.add(slot);
+        } else {
+          next.delete(slot);
+        }
+        clause.roleFilter = [...next].sort((left, right) => SLOTS.indexOf(left) - SLOTS.indexOf(right));
+      });
+      const roleText = runtimeDocument.createElement("span");
+      roleText.textContent = slot;
+      roleLabel.append(roleCheckbox, roleText);
+      roleFilterWrap.append(roleLabel);
+    }
+
+    const removeButton = runtimeDocument.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "ghost";
+    removeButton.textContent = "Remove Clause";
+    removeButton.disabled = controlsDisabled || clauses.length <= 1;
+    removeButton.addEventListener("click", () => {
+      const nextClauses = [...clauses];
+      nextClauses.splice(index, 1);
+      state.api.requirementDefinitionDraft.rules = nextClauses;
+      renderRequirementClauseEditor();
+    });
+
+    const grid = runtimeDocument.createElement("div");
+    grid.className = "grid grid-2";
+    grid.append(modeLabel, exprLabel, minLabel, maxLabel);
+
+    card.append(heading, grid, roleFilterWrap, removeButton);
+    elements.requirementsClauses.append(card);
+  }
+}
+
 function renderRequirementDefinitionsWorkspace() {
   if (!elements.requirementsList) {
     return;
   }
 
   syncRequirementDefinitionInputsFromState();
+  renderRequirementClauseEditor();
 
   const isEditing = Boolean(normalizeApiEntityId(state.api.selectedRequirementDefinitionId));
   const controlsDisabled = state.api.isSavingRequirementDefinition || !isAdminUser();
@@ -3838,8 +4093,8 @@ function renderRequirementDefinitionsWorkspace() {
   if (elements.requirementsDefinition) {
     elements.requirementsDefinition.disabled = controlsDisabled;
   }
-  if (elements.requirementsRules) {
-    elements.requirementsRules.disabled = controlsDisabled;
+  if (elements.requirementsAddClause) {
+    elements.requirementsAddClause.disabled = controlsDisabled;
   }
   if (elements.requirementsSave) {
     elements.requirementsSave.disabled = controlsDisabled;
@@ -4118,9 +4373,9 @@ async function saveRequirementDefinitionFromWorkspace() {
   const isEditing = Boolean(selectedRequirement);
   let parsedRules;
   try {
-    parsedRules = parseRequirementRulesFromDraftText();
+    parsedRules = parseRequirementRulesFromDraftClauses();
   } catch (error) {
-    setRequirementsFeedback(error instanceof Error ? error.message : "Rules JSON is invalid.");
+    setRequirementsFeedback(error instanceof Error ? error.message : "Rules are invalid.");
     return;
   }
 
@@ -9651,9 +9906,22 @@ function attachEvents() {
     });
   }
 
-  if (elements.requirementsRules) {
-    elements.requirementsRules.addEventListener("input", () => {
-      state.api.requirementDefinitionDraft.rulesText = elements.requirementsRules.value;
+  if (elements.requirementsAddClause) {
+    elements.requirementsAddClause.addEventListener("click", () => {
+      const defaultTag = BOOLEAN_TAGS.includes("Frontline") ? "Frontline" : BOOLEAN_TAGS[0] ?? "Frontline";
+      const nextRules = Array.isArray(state.api.requirementDefinitionDraft.rules)
+        ? [...state.api.requirementDefinitionDraft.rules]
+        : [];
+      nextRules.push({
+        exprMode: "tag",
+        tag: defaultTag,
+        exprText: "",
+        minCount: 1,
+        maxCount: "",
+        roleFilter: []
+      });
+      state.api.requirementDefinitionDraft.rules = nextRules;
+      renderRequirementClauseEditor();
     });
   }
 

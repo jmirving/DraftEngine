@@ -2095,9 +2095,10 @@ describe("auth + pools + team management", () => {
     definitionInput.value = "Must have engage and frontline";
     definitionInput.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
 
-    const rulesInput = doc.querySelector("#requirements-rules");
-    rulesInput.value = JSON.stringify([{ expr: { tag: "HardEngage" }, minCount: 1 }], null, 2);
-    rulesInput.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+    const firstClauseTag = doc.querySelector("#requirements-clauses select[data-field='tag'][data-clause-index='0']");
+    expect(firstClauseTag).toBeTruthy();
+    firstClauseTag.value = "HardEngage";
+    firstClauseTag.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
 
     doc.querySelector("#requirements-save").click();
     await flush();
@@ -2105,6 +2106,7 @@ describe("auth + pools + team management", () => {
     const createRequirementCall = harness.calls.find((call) => call.path === "/requirements" && call.method === "POST");
     expect(createRequirementCall).toBeTruthy();
     expect(createRequirementCall.body.name).toBe("Aggressive");
+    expect(createRequirementCall.body.rules[0].expr.tag).toBe("HardEngage");
 
     doc.querySelector("#compositions-cancel").click();
     await flush();
