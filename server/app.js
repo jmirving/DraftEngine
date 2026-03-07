@@ -8,6 +8,7 @@ import { createAuthRouter } from "./routes/auth.js";
 import { createAdminUsersRouter } from "./routes/admin-users.js";
 import { createChampionsRouter } from "./routes/champions.js";
 import { createChecksRouter } from "./routes/checks.js";
+import { createCompositionsCatalogRouter } from "./routes/compositions-catalog.js";
 import { createCompositionRequirementsRouter } from "./routes/composition-requirements.js";
 import { createProfileRouter } from "./routes/profile.js";
 import { createPoolsRouter } from "./routes/pools.js";
@@ -30,6 +31,7 @@ export function createApp({
   championsRepository,
   tagsRepository,
   checksRepository,
+  compositionsCatalogRepository,
   compositionRequirementsRepository,
   promotionRequestsRepository,
   poolsRepository,
@@ -41,6 +43,7 @@ export function createApp({
   requireDependency(championsRepository, "championsRepository");
   requireDependency(tagsRepository, "tagsRepository");
   requireDependency(checksRepository, "checksRepository");
+  requireDependency(compositionsCatalogRepository, "compositionsCatalogRepository");
   requireDependency(compositionRequirementsRepository, "compositionRequirementsRepository");
   requireDependency(promotionRequestsRepository, "promotionRequestsRepository");
   requireDependency(poolsRepository, "poolsRepository");
@@ -114,6 +117,14 @@ export function createApp({
       promotionRequestsRepository,
       usersRepository,
       teamsRepository,
+      requireAuth
+    })
+  );
+  app.use(
+    "/",
+    createCompositionsCatalogRouter({
+      compositionsCatalogRepository,
+      usersRepository,
       requireAuth
     })
   );

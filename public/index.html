@@ -965,34 +965,71 @@
 
           <section id="tab-composition-requirements" class="tab-panel tab-surface">
             <div class="panel draft-board-panel">
-              <h2 id="composition-requirements-title">Composition Requirements</h2>
+              <h2 id="composition-requirements-title">Compositions</h2>
               <p id="composition-requirements-meta" class="meta">
-                Create and maintain named requirement profiles. Mark one as active to seed Composer checks.
+                Define reusable requirement rules and group them into named compositions.
               </p>
               <p id="composition-requirements-summary" class="meta"></p>
             </div>
             <div class="panel draft-board-panel">
-              <p class="panel-kicker">Requirement Editor</p>
+              <p class="panel-kicker">Requirement Definitions</p>
               <div class="grid grid-2">
                 <label>
                   Name
-                  <input id="composition-requirements-name" type="text" placeholder="e.g. Standard 5v5" />
+                  <input id="requirements-name" type="text" placeholder="e.g. Frontline Anchor" />
                 </label>
-                <label class="inline-checkbox">
-                  <input id="composition-requirements-is-active" type="checkbox" />
-                  Set as active profile
+                <label>
+                  Definition
+                  <input id="requirements-definition" type="text" placeholder="What this requirement enforces" />
                 </label>
               </div>
-              <div id="composition-requirements-toggles" class="excluded-options"></div>
+              <label>
+                Rules (JSON)
+                <textarea
+                  id="requirements-rules"
+                  rows="8"
+                  placeholder='[\n+  {\n+    "expr": { "tag": "Frontline" },\n+    "minCount": 1,\n+    "roleFilter": ["Top", "Jungle"]\n+  }\n+]'
+                ></textarea>
+              </label>
               <div class="button-row">
-                <button id="composition-requirements-save" type="button">Create Requirement</button>
-                <button id="composition-requirements-cancel" class="ghost" type="button">Clear</button>
-                <button id="composition-requirements-delete" class="ghost" type="button">Delete</button>
+                <button id="requirements-save" type="button">Create Requirement</button>
+                <button id="requirements-cancel" class="ghost" type="button">Clear</button>
+                <button id="requirements-delete" class="ghost" type="button" hidden>Delete</button>
               </div>
-              <p id="composition-requirements-feedback" class="meta"></p>
+              <p id="requirements-feedback" class="meta"></p>
             </div>
             <div class="panel draft-board-panel">
-              <div id="composition-requirements-list" class="summary-card-list"></div>
+              <div id="requirements-list" class="summary-card-list"></div>
+            </div>
+            <div class="panel draft-board-panel">
+              <p class="panel-kicker">Compositions</p>
+              <div class="grid grid-2">
+                <label>
+                  Name
+                  <input id="compositions-name" type="text" placeholder="e.g. Teamfight Core" />
+                </label>
+                <label class="inline-checkbox">
+                  <input id="compositions-is-active" type="checkbox" />
+                  Set as active composition
+                </label>
+              </div>
+              <label>
+                Description
+                <input id="compositions-description" type="text" placeholder="Optional context for this bundle" />
+              </label>
+              <div>
+                <p class="meta">Included requirement definitions</p>
+                <div id="compositions-requirement-options" class="excluded-options"></div>
+              </div>
+              <div class="button-row">
+                <button id="compositions-save" type="button">Create Composition</button>
+                <button id="compositions-cancel" class="ghost" type="button">Clear</button>
+                <button id="compositions-delete" class="ghost" type="button" hidden>Delete</button>
+              </div>
+              <p id="compositions-feedback" class="meta"></p>
+            </div>
+            <div class="panel draft-board-panel">
+              <div id="compositions-list" class="summary-card-list"></div>
             </div>
           </section>
 
@@ -1048,7 +1085,13 @@
                 aria-labelledby="updates-release-tab-whats-new"
               >
                 <h3>What's New</h3>
-                <p class="meta">Shipped updates that are available now (latest two releases).</p>
+                <p class="meta">Shipped updates that are available now (latest releases).</p>
+                <h4>Version 0.6.0 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>The Requirements workspace was replaced with a Compositions workspace that separates Requirement Definitions from Composition bundles.</li>
+                  <li>Requirement definitions now support CRUD for `name`, `definition`, and phase-2 style `rules` clauses (expr/minCount/maxCount/roleFilter).</li>
+                  <li>Compositions now support CRUD for named bundles of requirement definitions, including active-composition selection.</li>
+                </ul>
                 <h4>Version 0.5.2 (Shipped)</h4>
                 <ul class="coming-soon-list">
                   <li>Navigation bar redesigned as a fixed full-height sidebar anchored to the left viewport edge with a smooth collapse/expand toggle; nav stays visible whether logged in or out.</li>
@@ -1088,7 +1131,8 @@
                 </ul>
                 <h4>Composer</h4>
                 <ul class="coming-soon-list">
-                  <li>Composer currently starts from the active Composition Requirement profile, but per-team and per-user profile overlays are still deferred (draftflow-160)</li>
+                  <li>Composer evaluation still uses the legacy toggle-based check engine; requirement-clause runtime evaluation and pruning integration are deferred.</li>
+                  <li>Per-team and per-user composition overlays remain deferred (draftflow-160)</li>
                 </ul>
                 <h4>Teams</h4>
                 <ul class="coming-soon-list">
@@ -1111,9 +1155,9 @@
                   <li>User search, filtering, and bulk permission updates are not implemented yet (draftflow-157)</li>
                   <li>User deletion is currently hard-delete only; restore/undo and deletion audit history are deferred</li>
                 </ul>
-                <h4>Composition Requirements</h4>
+                <h4>Compositions</h4>
                 <ul class="coming-soon-list">
-                  <li>Requirement profiles support toggle-based rules today; custom rule definitions and version history are deferred (draftflow-158)</li>
+                  <li>Requirement definition version history and diff/audit views are deferred (draftflow-158)</li>
                   <li>Team-scoped composition requirement workflows plus promotion moderation for leads are still in flight (draftflow-171).</li>
                 </ul>
               </div>

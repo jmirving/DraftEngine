@@ -399,7 +399,11 @@ describe("hash navigation routing", () => {
       doc.querySelectorAll("#updates-release-panel-whats-new h4"),
       (node) => node.textContent.trim()
     );
-    expect(whatsNewVersions).toEqual(["Version 0.5.1 (Shipped)", "Version 0.5.0 (Shipped)"]);
+    expect(whatsNewVersions).toEqual([
+      "Version 0.6.0 (Shipped)",
+      "Version 0.5.1 (Shipped)",
+      "Version 0.5.0 (Shipped)"
+    ]);
     expect(whatsNewVersions.includes("Version 0.4.2 (Shipped)")).toBe(false);
 
     doc.querySelector("#updates-release-tab-coming-soon").click();
@@ -418,7 +422,7 @@ describe("hash navigation routing", () => {
       "Champions",
       "Tags",
       "Users",
-      "Composition Requirements"
+      "Compositions"
     ]);
 
     doc.querySelector("#updates-release-tab-previous").click();

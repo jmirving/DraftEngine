@@ -99,6 +99,36 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         updated_at: "2026-01-01T00:00:00.000Z"
       }
     ],
+    requirementDefinitions: [
+      {
+        id: 1,
+        name: "Frontline Anchor",
+        definition: "Team must include at least one frontline tag.",
+        rules: [
+          {
+            expr: { tag: "Frontline" },
+            minCount: 1
+          }
+        ],
+        created_by_user_id: 1,
+        updated_by_user_id: 1,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    compositions: [
+      {
+        id: 1,
+        name: "Standard Comp",
+        description: "Baseline composition profile",
+        requirement_ids: [1],
+        is_active: true,
+        created_by_user_id: 1,
+        updated_by_user_id: 1,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z"
+      }
+    ],
     champions: [
       {
         id: 1,
@@ -168,6 +198,8 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
   let nextMemberInvitationId = 1;
   let nextTagId = 3;
   let nextCompositionRequirementId = 2;
+  let nextRequirementDefinitionId = 2;
+  let nextCompositionId = 2;
 
   const usersRepository = {
     async createUser({ email, passwordHash, gameName, tagline, role = "member" }) {
@@ -593,6 +625,196 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       }
       const [deleted] = state.compositionRequirements.splice(index, 1);
       return { ...deleted, toggles: { ...deleted.toggles } };
+    }
+  };
+
+  const compositionsCatalogRepository = {
+    async listRequirements() {
+      return state.requirementDefinitions.map((requirement) => ({
+        ...requirement,
+        rules: Array.isArray(requirement.rules) ? requirement.rules.map((rule) => ({ ...rule })) : []
+      }));
+    },
+    async getRequirementById(requirementId) {
+      const requirement = state.requirementDefinitions.find((candidate) => candidate.id === requirementId) ?? null;
+      if (!requirement) {
+        return null;
+      }
+      return {
+        ...requirement,
+        rules: Array.isArray(requirement.rules) ? requirement.rules.map((rule) => ({ ...rule })) : []
+      };
+    },
+    async listMissingRequirementIds(requirementIds = []) {
+      const existingIds = new Set(state.requirementDefinitions.map((requirement) => requirement.id));
+      const deduped = [...new Set(requirementIds.map((value) => Number.parseInt(String(value), 10)))].filter(
+        (value) => Number.isInteger(value) && value > 0
+      );
+      return deduped.filter((id) => !existingIds.has(id));
+    },
+    async createRequirement({ name, definition, rules, actorUserId }) {
+      if (state.requirementDefinitions.some((requirement) => requirement.name.toLowerCase() === name.toLowerCase())) {
+        const error = new Error("duplicate");
+        error.code = "23505";
+        throw error;
+      }
+      const created = {
+        id: nextRequirementDefinitionId,
+        name,
+        definition,
+        rules: Array.isArray(rules) ? rules.map((rule) => ({ ...rule })) : [],
+        created_by_user_id: actorUserId ?? null,
+        updated_by_user_id: actorUserId ?? null,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z"
+      };
+      nextRequirementDefinitionId += 1;
+      state.requirementDefinitions.push(created);
+      return { ...created, rules: created.rules.map((rule) => ({ ...rule })) };
+    },
+    async updateRequirement(requirementId, { name, definition, rules, actorUserId }) {
+      const requirement = state.requirementDefinitions.find((candidate) => candidate.id === requirementId) ?? null;
+      if (!requirement) {
+        return null;
+      }
+      if (
+        name &&
+        state.requirementDefinitions.some(
+          (candidate) => candidate.id !== requirementId && candidate.name.toLowerCase() === name.toLowerCase()
+        )
+      ) {
+        const error = new Error("duplicate");
+        error.code = "23505";
+        throw error;
+      }
+      if (typeof name === "string" && name.trim() !== "") {
+        requirement.name = name.trim();
+      }
+      if (typeof definition === "string") {
+        requirement.definition = definition;
+      }
+      if (Array.isArray(rules)) {
+        requirement.rules = rules.map((rule) => ({ ...rule }));
+      }
+      requirement.updated_by_user_id = actorUserId ?? null;
+      requirement.updated_at = "2026-01-01T00:00:00.000Z";
+      return { ...requirement, rules: requirement.rules.map((rule) => ({ ...rule })) };
+    },
+    async deleteRequirement(requirementId) {
+      const index = state.requirementDefinitions.findIndex((candidate) => candidate.id === requirementId);
+      if (index < 0) {
+        return null;
+      }
+      const [deleted] = state.requirementDefinitions.splice(index, 1);
+      return { ...deleted, rules: deleted.rules.map((rule) => ({ ...rule })) };
+    },
+    async removeRequirementFromCompositions(requirementId, actorUserId) {
+      for (const composition of state.compositions) {
+        if (!composition.requirement_ids.includes(requirementId)) {
+          continue;
+        }
+        composition.requirement_ids = composition.requirement_ids.filter((id) => id !== requirementId);
+        composition.updated_by_user_id = actorUserId ?? null;
+        composition.updated_at = "2026-01-01T00:00:00.000Z";
+      }
+    },
+    async listCompositions() {
+      return state.compositions.map((composition) => ({
+        ...composition,
+        requirement_ids: [...composition.requirement_ids]
+      }));
+    },
+    async getCompositionById(compositionId) {
+      const composition = state.compositions.find((candidate) => candidate.id === compositionId) ?? null;
+      if (!composition) {
+        return null;
+      }
+      return {
+        ...composition,
+        requirement_ids: [...composition.requirement_ids]
+      };
+    },
+    async getActiveComposition() {
+      const composition = state.compositions.find((candidate) => candidate.is_active) ?? null;
+      if (!composition) {
+        return null;
+      }
+      return {
+        ...composition,
+        requirement_ids: [...composition.requirement_ids]
+      };
+    },
+    async createComposition({ name, description, requirementIds, isActive, actorUserId }) {
+      if (state.compositions.some((composition) => composition.name.toLowerCase() === name.toLowerCase())) {
+        const error = new Error("duplicate");
+        error.code = "23505";
+        throw error;
+      }
+      if (isActive) {
+        for (const composition of state.compositions) {
+          composition.is_active = false;
+        }
+      }
+      const created = {
+        id: nextCompositionId,
+        name,
+        description,
+        requirement_ids: [...new Set(requirementIds)].sort((left, right) => left - right),
+        is_active: isActive === true,
+        created_by_user_id: actorUserId ?? null,
+        updated_by_user_id: actorUserId ?? null,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z"
+      };
+      nextCompositionId += 1;
+      state.compositions.push(created);
+      return { ...created, requirement_ids: [...created.requirement_ids] };
+    },
+    async updateComposition(compositionId, { name, description, requirementIds, isActive, actorUserId }) {
+      const composition = state.compositions.find((candidate) => candidate.id === compositionId) ?? null;
+      if (!composition) {
+        return null;
+      }
+      if (
+        name &&
+        state.compositions.some(
+          (candidate) => candidate.id !== compositionId && candidate.name.toLowerCase() === name.toLowerCase()
+        )
+      ) {
+        const error = new Error("duplicate");
+        error.code = "23505";
+        throw error;
+      }
+      if (typeof isActive === "boolean" && isActive) {
+        for (const candidate of state.compositions) {
+          if (candidate.id !== compositionId) {
+            candidate.is_active = false;
+          }
+        }
+      }
+      if (typeof name === "string" && name.trim() !== "") {
+        composition.name = name.trim();
+      }
+      if (typeof description === "string") {
+        composition.description = description;
+      }
+      if (Array.isArray(requirementIds)) {
+        composition.requirement_ids = [...new Set(requirementIds)].sort((left, right) => left - right);
+      }
+      if (typeof isActive === "boolean") {
+        composition.is_active = isActive;
+      }
+      composition.updated_by_user_id = actorUserId ?? null;
+      composition.updated_at = "2026-01-01T00:00:00.000Z";
+      return { ...composition, requirement_ids: [...composition.requirement_ids] };
+    },
+    async deleteComposition(compositionId) {
+      const index = state.compositions.findIndex((candidate) => candidate.id === compositionId);
+      if (index < 0) {
+        return null;
+      }
+      const [deleted] = state.compositions.splice(index, 1);
+      return { ...deleted, requirement_ids: [...deleted.requirement_ids] };
     }
   };
 
@@ -1204,6 +1426,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
     championsRepository,
     tagsRepository,
     checksRepository,
+    compositionsCatalogRepository,
     compositionRequirementsRepository,
     promotionRequestsRepository,
     poolsRepository,
@@ -1908,6 +2131,99 @@ describe("API routes", () => {
       .delete(`/composition-requirements/${adminCreate.body.requirement.id}`)
       .set("Authorization", buildAuthHeader(1, config));
     expect(deleteResponse.status).toBe(204);
+  });
+
+  it("supports requirement definition and composition CRUD", async () => {
+    const { app, config } = createMockContext();
+
+    const listRequirements = await request(app)
+      .get("/requirements")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(listRequirements.status).toBe(200);
+    expect(listRequirements.body.requirements).toHaveLength(1);
+
+    const memberCreateDenied = await request(app)
+      .post("/requirements")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        name: "Disengage Clause",
+        definition: "Needs at least one disengage tool.",
+        rules: [
+          {
+            expr: { tag: "Disengage" },
+            minCount: 1
+          }
+        ]
+      });
+    expect(memberCreateDenied.status).toBe(403);
+
+    const adminCreateRequirement = await request(app)
+      .post("/requirements")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({
+        name: "Disengage Clause",
+        definition: "Needs at least one disengage tool.",
+        rules: [
+          {
+            expr: { tag: "Disengage" },
+            minCount: 1
+          }
+        ]
+      });
+    expect(adminCreateRequirement.status).toBe(201);
+    expect(adminCreateRequirement.body.requirement.name).toBe("Disengage Clause");
+
+    const adminUpdateRequirement = await request(app)
+      .put(`/requirements/${adminCreateRequirement.body.requirement.id}`)
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({
+        definition: "Needs at least one disengage or peel tool."
+      });
+    expect(adminUpdateRequirement.status).toBe(200);
+    expect(adminUpdateRequirement.body.requirement.definition).toContain("peel");
+
+    const listCompositions = await request(app)
+      .get("/compositions")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(listCompositions.status).toBe(200);
+    expect(listCompositions.body.compositions).toHaveLength(1);
+
+    const adminCreateComposition = await request(app)
+      .post("/compositions")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({
+        name: "Siege Setup",
+        description: "Frontline plus disengage fallback",
+        requirement_ids: [1, adminCreateRequirement.body.requirement.id],
+        is_active: true
+      });
+    expect(adminCreateComposition.status).toBe(201);
+    expect(adminCreateComposition.body.composition.requirement_ids).toContain(1);
+    expect(adminCreateComposition.body.composition.requirement_ids).toContain(
+      adminCreateRequirement.body.requirement.id
+    );
+    expect(adminCreateComposition.body.composition.is_active).toBe(true);
+
+    const activeComposition = await request(app)
+      .get("/compositions/active")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(activeComposition.status).toBe(200);
+    expect(activeComposition.body.composition.name).toBe("Siege Setup");
+    expect(activeComposition.body.requirements).toHaveLength(2);
+
+    const adminDeleteRequirement = await request(app)
+      .delete(`/requirements/${adminCreateRequirement.body.requirement.id}`)
+      .set("Authorization", buildAuthHeader(1, config));
+    expect(adminDeleteRequirement.status).toBe(204);
+
+    const listCompositionsAfterDelete = await request(app)
+      .get("/compositions")
+      .set("Authorization", buildAuthHeader(1, config));
+    expect(listCompositionsAfterDelete.status).toBe(200);
+    const siege = listCompositionsAfterDelete.body.compositions.find(
+      (composition) => composition.name === "Siege Setup"
+    );
+    expect(siege.requirement_ids).toEqual([1]);
   });
 
   it("enforces scoped required-check settings auth and promotion requests", async () => {

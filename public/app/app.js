@@ -170,8 +170,8 @@ const UI_COPY = Object.freeze({
         subtitle: "Admin-only directory for permissions and one-time Riot ID corrections."
       },
       "composition-requirements": {
-        title: "Composition Requirements",
-        subtitle: "Create and maintain named requirement profiles for Composer."
+        title: "Compositions",
+        subtitle: "Manage requirement definitions and composition bundles."
       },
       "coming-soon": {
         title: "Updates & Roadmap",
@@ -181,7 +181,7 @@ const UI_COPY = Object.freeze({
   },
   nav: {
     title: "DraftEngine",
-    meta: "Jump between Composer, Teams, Profile, Champions, Tags, Users, Requirements, and Updates.",
+    meta: "Jump between Composer, Teams, Profile, Champions, Tags, Users, Compositions, and Updates.",
     toggleClosed: "Menu",
     toggleOpen: "Close Menu",
     desktopCollapseIcon: "◀",
@@ -195,7 +195,7 @@ const UI_COPY = Object.freeze({
       explorer: "Champions",
       tags: "Tags",
       users: "Users",
-      "composition-requirements": "Requirements",
+      "composition-requirements": "Compositions",
       "coming-soon": "Updates"
     }
   },
@@ -206,8 +206,8 @@ const UI_COPY = Object.freeze({
     tagsMeta: "Manage shared tag definitions and current champion coverage.",
     usersTitle: "Users",
     usersMeta: "Admin-only user directory, permission management, and one-time Riot ID corrections.",
-    compositionRequirementsTitle: "Composition Requirements",
-    compositionRequirementsMeta: "Create and maintain named requirement profiles for Composer.",
+    compositionRequirementsTitle: "Compositions",
+    compositionRequirementsMeta: "Define requirement rules and group them into named composition bundles.",
     teamConfigTitle: "Teams",
     teamConfigMeta: "Lead-only controls are grouped by Create and Manage modes.",
     playerConfigTitle: "Profile",
@@ -306,6 +306,32 @@ function createEmptyCompositionRequirementDraft() {
   };
 }
 
+function createEmptyRequirementDefinitionDraft() {
+  return {
+    name: "",
+    definition: "",
+    rulesText: JSON.stringify(
+      [
+        {
+          expr: { tag: "Frontline" },
+          minCount: 1
+        }
+      ],
+      null,
+      2
+    )
+  };
+}
+
+function createEmptyCompositionBundleDraft() {
+  return {
+    name: "",
+    description: "",
+    requirementIds: [],
+    isActive: false
+  };
+}
+
 function createInitialState() {
   return {
     data: null,
@@ -367,6 +393,16 @@ function createInitialState() {
       compositionRequirementDraft: createEmptyCompositionRequirementDraft(),
       isLoadingCompositionRequirements: false,
       isSavingCompositionRequirement: false,
+      requirementDefinitions: [],
+      selectedRequirementDefinitionId: null,
+      requirementDefinitionDraft: createEmptyRequirementDefinitionDraft(),
+      isLoadingRequirementDefinitions: false,
+      isSavingRequirementDefinition: false,
+      compositionBundles: [],
+      selectedCompositionBundleId: null,
+      compositionBundleDraft: createEmptyCompositionBundleDraft(),
+      isLoadingCompositionBundles: false,
+      isSavingCompositionBundle: false,
       userDetailsById: {},
       userDetailLoadingIds: new Set(),
       userDetailErrors: {}
@@ -502,6 +538,23 @@ function createElements() {
     compositionRequirementsDelete: runtimeDocument.querySelector("#composition-requirements-delete"),
     compositionRequirementsFeedback: runtimeDocument.querySelector("#composition-requirements-feedback"),
     compositionRequirementsList: runtimeDocument.querySelector("#composition-requirements-list"),
+    requirementsName: runtimeDocument.querySelector("#requirements-name"),
+    requirementsDefinition: runtimeDocument.querySelector("#requirements-definition"),
+    requirementsRules: runtimeDocument.querySelector("#requirements-rules"),
+    requirementsSave: runtimeDocument.querySelector("#requirements-save"),
+    requirementsCancel: runtimeDocument.querySelector("#requirements-cancel"),
+    requirementsDelete: runtimeDocument.querySelector("#requirements-delete"),
+    requirementsFeedback: runtimeDocument.querySelector("#requirements-feedback"),
+    requirementsList: runtimeDocument.querySelector("#requirements-list"),
+    compositionsName: runtimeDocument.querySelector("#compositions-name"),
+    compositionsDescription: runtimeDocument.querySelector("#compositions-description"),
+    compositionsIsActive: runtimeDocument.querySelector("#compositions-is-active"),
+    compositionsRequirementOptions: runtimeDocument.querySelector("#compositions-requirement-options"),
+    compositionsSave: runtimeDocument.querySelector("#compositions-save"),
+    compositionsCancel: runtimeDocument.querySelector("#compositions-cancel"),
+    compositionsDelete: runtimeDocument.querySelector("#compositions-delete"),
+    compositionsFeedback: runtimeDocument.querySelector("#compositions-feedback"),
+    compositionsList: runtimeDocument.querySelector("#compositions-list"),
     comingSoonTitle: runtimeDocument.querySelector("#coming-soon-title"),
     comingSoonMeta: runtimeDocument.querySelector("#coming-soon-meta"),
     tabExplorer: runtimeDocument.querySelector("#tab-explorer"),
@@ -835,6 +888,18 @@ function setUsersFeedback(message) {
 function setCompositionRequirementsFeedback(message) {
   if (elements.compositionRequirementsFeedback) {
     elements.compositionRequirementsFeedback.textContent = message;
+  }
+}
+
+function setRequirementsFeedback(message) {
+  if (elements.requirementsFeedback) {
+    elements.requirementsFeedback.textContent = message;
+  }
+}
+
+function setCompositionsFeedback(message) {
+  if (elements.compositionsFeedback) {
+    elements.compositionsFeedback.textContent = message;
   }
 }
 
@@ -1635,12 +1700,24 @@ function clearAuthSession(feedback = "") {
   state.api.compositionRequirementDraft = createEmptyCompositionRequirementDraft();
   state.api.isLoadingCompositionRequirements = false;
   state.api.isSavingCompositionRequirement = false;
+  state.api.requirementDefinitions = [];
+  state.api.selectedRequirementDefinitionId = null;
+  state.api.requirementDefinitionDraft = createEmptyRequirementDefinitionDraft();
+  state.api.isLoadingRequirementDefinitions = false;
+  state.api.isSavingRequirementDefinition = false;
+  state.api.compositionBundles = [];
+  state.api.selectedCompositionBundleId = null;
+  state.api.compositionBundleDraft = createEmptyCompositionBundleDraft();
+  state.api.isLoadingCompositionBundles = false;
+  state.api.isSavingCompositionBundle = false;
   state.playerConfig.dirtyPoolByTeamId = {};
   state.playerConfig.isSavingPool = false;
   clearChampionTagEditorState();
   clearTagsManagerState();
   setUsersFeedback("");
   setCompositionRequirementsFeedback("");
+  setRequirementsFeedback("");
+  setCompositionsFeedback("");
   setTeamJoinFeedback("");
   saveAuthSession();
   setAuthFeedback(feedback);
@@ -2299,6 +2376,12 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
   if (resolvedTab === "composition-requirements") {
     if (isAuthenticated() && state.api.compositionRequirements.length === 0 && !state.api.isLoadingCompositionRequirements) {
       void loadCompositionRequirementsFromApi();
+    }
+    if (isAuthenticated() && state.api.requirementDefinitions.length === 0 && !state.api.isLoadingRequirementDefinitions) {
+      void loadRequirementDefinitionsFromApi();
+    }
+    if (isAuthenticated() && state.api.compositionBundles.length === 0 && !state.api.isLoadingCompositionBundles) {
+      void loadCompositionBundlesFromApi();
     }
     renderCompositionRequirementsWorkspace();
   }
@@ -3561,6 +3644,622 @@ function renderUsersWorkspace() {
   }
 }
 
+function normalizeRequirementDefinition(rawRequirement) {
+  if (!rawRequirement || typeof rawRequirement !== "object" || Array.isArray(rawRequirement)) {
+    return null;
+  }
+  const id = normalizeApiEntityId(rawRequirement.id);
+  if (!id) {
+    return null;
+  }
+  const name = typeof rawRequirement.name === "string" ? rawRequirement.name.trim() : "";
+  if (!name) {
+    return null;
+  }
+  const definition = typeof rawRequirement.definition === "string" ? rawRequirement.definition.trim() : "";
+  const rules = Array.isArray(rawRequirement.rules) ? rawRequirement.rules : [];
+  return {
+    id,
+    name,
+    definition,
+    rules
+  };
+}
+
+function normalizeCompositionBundle(rawComposition) {
+  if (!rawComposition || typeof rawComposition !== "object" || Array.isArray(rawComposition)) {
+    return null;
+  }
+  const id = normalizeApiEntityId(rawComposition.id);
+  if (!id) {
+    return null;
+  }
+  const name = typeof rawComposition.name === "string" ? rawComposition.name.trim() : "";
+  if (!name) {
+    return null;
+  }
+  const description =
+    typeof rawComposition.description === "string" ? rawComposition.description.trim() : "";
+  const requirementIds = normalizeApiTagIdArray(rawComposition.requirement_ids);
+  return {
+    id,
+    name,
+    description,
+    requirement_ids: requirementIds,
+    is_active: rawComposition.is_active === true
+  };
+}
+
+function getSelectedRequirementDefinition() {
+  const selectedId = normalizeApiEntityId(state.api.selectedRequirementDefinitionId);
+  if (!selectedId) {
+    return null;
+  }
+  return state.api.requirementDefinitions.find((requirement) => requirement.id === selectedId) ?? null;
+}
+
+function setRequirementDefinitionDraft(requirement = null) {
+  if (!requirement) {
+    state.api.selectedRequirementDefinitionId = null;
+    state.api.requirementDefinitionDraft = createEmptyRequirementDefinitionDraft();
+    return;
+  }
+
+  state.api.selectedRequirementDefinitionId = requirement.id;
+  state.api.requirementDefinitionDraft = {
+    name: requirement.name,
+    definition: requirement.definition,
+    rulesText: JSON.stringify(requirement.rules, null, 2)
+  };
+}
+
+function syncRequirementDefinitionInputsFromState() {
+  if (elements.requirementsName) {
+    elements.requirementsName.value = state.api.requirementDefinitionDraft.name;
+  }
+  if (elements.requirementsDefinition) {
+    elements.requirementsDefinition.value = state.api.requirementDefinitionDraft.definition;
+  }
+  if (elements.requirementsRules) {
+    elements.requirementsRules.value = state.api.requirementDefinitionDraft.rulesText;
+  }
+}
+
+function parseRequirementRulesFromDraftText() {
+  const rawText = String(state.api.requirementDefinitionDraft.rulesText ?? "").trim();
+  if (!rawText) {
+    throw new Error("Rules JSON is required.");
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch (_error) {
+    throw new Error("Rules JSON is invalid.");
+  }
+  if (!Array.isArray(parsed) || parsed.length < 1) {
+    throw new Error("Rules JSON must be a non-empty array.");
+  }
+  return parsed;
+}
+
+function getSelectedCompositionBundle() {
+  const selectedId = normalizeApiEntityId(state.api.selectedCompositionBundleId);
+  if (!selectedId) {
+    return null;
+  }
+  return state.api.compositionBundles.find((composition) => composition.id === selectedId) ?? null;
+}
+
+function setCompositionBundleDraft(composition = null) {
+  if (!composition) {
+    state.api.selectedCompositionBundleId = null;
+    state.api.compositionBundleDraft = createEmptyCompositionBundleDraft();
+    return;
+  }
+
+  state.api.selectedCompositionBundleId = composition.id;
+  state.api.compositionBundleDraft = {
+    name: composition.name,
+    description: composition.description,
+    requirementIds: [...composition.requirement_ids],
+    isActive: composition.is_active === true
+  };
+}
+
+function syncCompositionBundleInputsFromState() {
+  if (elements.compositionsName) {
+    elements.compositionsName.value = state.api.compositionBundleDraft.name;
+  }
+  if (elements.compositionsDescription) {
+    elements.compositionsDescription.value = state.api.compositionBundleDraft.description;
+  }
+  if (elements.compositionsIsActive) {
+    elements.compositionsIsActive.checked = state.api.compositionBundleDraft.isActive === true;
+  }
+}
+
+function renderCompositionRequirementOptions() {
+  if (!elements.compositionsRequirementOptions) {
+    return;
+  }
+  elements.compositionsRequirementOptions.innerHTML = "";
+
+  const requirements = Array.isArray(state.api.requirementDefinitions) ? state.api.requirementDefinitions : [];
+  if (requirements.length < 1) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "Create at least one requirement definition first.";
+    elements.compositionsRequirementOptions.append(empty);
+    return;
+  }
+
+  const selectedIdSet = new Set(normalizeApiTagIdArray(state.api.compositionBundleDraft.requirementIds));
+  const controlsDisabled =
+    state.api.isSavingCompositionBundle || state.api.isLoadingCompositionBundles || !isAdminUser();
+
+  for (const requirement of requirements) {
+    const label = runtimeDocument.createElement("label");
+    label.className = "selection-option";
+
+    const checkbox = runtimeDocument.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = selectedIdSet.has(requirement.id);
+    checkbox.disabled = controlsDisabled;
+    checkbox.addEventListener("change", () => {
+      const next = new Set(state.api.compositionBundleDraft.requirementIds);
+      if (checkbox.checked) {
+        next.add(requirement.id);
+      } else {
+        next.delete(requirement.id);
+      }
+      state.api.compositionBundleDraft.requirementIds = [...next].sort((left, right) => left - right);
+    });
+
+    const text = runtimeDocument.createElement("span");
+    text.textContent = requirement.name;
+
+    label.append(checkbox, text);
+    elements.compositionsRequirementOptions.append(label);
+  }
+}
+
+function renderRequirementDefinitionsWorkspace() {
+  if (!elements.requirementsList) {
+    return;
+  }
+
+  syncRequirementDefinitionInputsFromState();
+
+  const isEditing = Boolean(normalizeApiEntityId(state.api.selectedRequirementDefinitionId));
+  const controlsDisabled = state.api.isSavingRequirementDefinition || !isAdminUser();
+  if (elements.requirementsName) {
+    elements.requirementsName.disabled = controlsDisabled;
+  }
+  if (elements.requirementsDefinition) {
+    elements.requirementsDefinition.disabled = controlsDisabled;
+  }
+  if (elements.requirementsRules) {
+    elements.requirementsRules.disabled = controlsDisabled;
+  }
+  if (elements.requirementsSave) {
+    elements.requirementsSave.disabled = controlsDisabled;
+    elements.requirementsSave.textContent = isEditing ? "Update Requirement" : "Create Requirement";
+  }
+  if (elements.requirementsCancel) {
+    elements.requirementsCancel.disabled = controlsDisabled;
+  }
+  if (elements.requirementsDelete) {
+    elements.requirementsDelete.hidden = !isEditing;
+    elements.requirementsDelete.disabled = controlsDisabled || !isEditing;
+  }
+
+  elements.requirementsList.innerHTML = "";
+  if (!isAuthenticated()) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "Sign in to load requirement definitions.";
+    elements.requirementsList.append(empty);
+    return;
+  }
+  if (state.api.isLoadingRequirementDefinitions) {
+    const loading = runtimeDocument.createElement("p");
+    loading.className = "meta";
+    loading.textContent = "Loading requirement definitions...";
+    elements.requirementsList.append(loading);
+    return;
+  }
+
+  const requirements = Array.isArray(state.api.requirementDefinitions) ? state.api.requirementDefinitions : [];
+  if (requirements.length < 1) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "No requirement definitions yet.";
+    elements.requirementsList.append(empty);
+    return;
+  }
+
+  for (const requirement of requirements) {
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card";
+
+    const title = runtimeDocument.createElement("strong");
+    title.textContent = requirement.name;
+
+    const definition = runtimeDocument.createElement("p");
+    definition.className = "meta";
+    definition.textContent = requirement.definition || "No definition provided.";
+
+    const ruleCount = runtimeDocument.createElement("p");
+    ruleCount.className = "meta";
+    ruleCount.textContent = `${requirement.rules.length} rule clause${requirement.rules.length === 1 ? "" : "s"}.`;
+
+    card.append(title, definition, ruleCount);
+    if (isAdminUser()) {
+      const edit = runtimeDocument.createElement("button");
+      edit.type = "button";
+      edit.className = "ghost";
+      edit.textContent = "Edit";
+      edit.disabled = state.api.isSavingRequirementDefinition;
+      edit.addEventListener("click", () => {
+        setRequirementDefinitionDraft(requirement);
+        setRequirementsFeedback(`Editing '${requirement.name}'.`);
+        renderRequirementDefinitionsWorkspace();
+      });
+      card.append(edit);
+    }
+    elements.requirementsList.append(card);
+  }
+}
+
+function renderCompositionBundlesWorkspace() {
+  if (!elements.compositionsList) {
+    return;
+  }
+
+  syncCompositionBundleInputsFromState();
+  renderCompositionRequirementOptions();
+
+  const isEditing = Boolean(normalizeApiEntityId(state.api.selectedCompositionBundleId));
+  const controlsDisabled = state.api.isSavingCompositionBundle || !isAdminUser();
+  if (elements.compositionsName) {
+    elements.compositionsName.disabled = controlsDisabled;
+  }
+  if (elements.compositionsDescription) {
+    elements.compositionsDescription.disabled = controlsDisabled;
+  }
+  if (elements.compositionsIsActive) {
+    elements.compositionsIsActive.disabled = controlsDisabled;
+  }
+  if (elements.compositionsSave) {
+    elements.compositionsSave.disabled = controlsDisabled;
+    elements.compositionsSave.textContent = isEditing ? "Update Composition" : "Create Composition";
+  }
+  if (elements.compositionsCancel) {
+    elements.compositionsCancel.disabled = controlsDisabled;
+  }
+  if (elements.compositionsDelete) {
+    elements.compositionsDelete.hidden = !isEditing;
+    elements.compositionsDelete.disabled = controlsDisabled || !isEditing;
+  }
+
+  const compositions = Array.isArray(state.api.compositionBundles) ? state.api.compositionBundles : [];
+  const activeComposition = compositions.find((composition) => composition.is_active) ?? null;
+  if (elements.compositionRequirementsSummary) {
+    elements.compositionRequirementsSummary.textContent = activeComposition
+      ? `Active composition: ${activeComposition.name}`
+      : "No active composition selected.";
+  }
+
+  elements.compositionsList.innerHTML = "";
+  if (!isAuthenticated()) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "Sign in to load compositions.";
+    elements.compositionsList.append(empty);
+    return;
+  }
+  if (state.api.isLoadingCompositionBundles) {
+    const loading = runtimeDocument.createElement("p");
+    loading.className = "meta";
+    loading.textContent = "Loading compositions...";
+    elements.compositionsList.append(loading);
+    return;
+  }
+  if (compositions.length < 1) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "No compositions yet.";
+    elements.compositionsList.append(empty);
+    return;
+  }
+
+  const requirementById = new Map(
+    (Array.isArray(state.api.requirementDefinitions) ? state.api.requirementDefinitions : []).map((requirement) => [
+      requirement.id,
+      requirement
+    ])
+  );
+  for (const composition of compositions) {
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card";
+
+    const title = runtimeDocument.createElement("strong");
+    title.textContent = composition.name;
+
+    const description = runtimeDocument.createElement("p");
+    description.className = "meta";
+    description.textContent = composition.description || "No description provided.";
+
+    const includedRequirementNames = composition.requirement_ids
+      .map((requirementId) => requirementById.get(requirementId)?.name ?? `Requirement ${requirementId}`)
+      .join(", ");
+    const included = runtimeDocument.createElement("p");
+    included.className = "meta";
+    included.textContent = includedRequirementNames
+      ? `Includes: ${includedRequirementNames}`
+      : "Includes: none";
+
+    const activeLabel = runtimeDocument.createElement("p");
+    activeLabel.className = "meta";
+    activeLabel.textContent = composition.is_active ? "Active composition" : "Inactive composition";
+
+    card.append(title, description, included, activeLabel);
+    if (isAdminUser()) {
+      const edit = runtimeDocument.createElement("button");
+      edit.type = "button";
+      edit.className = "ghost";
+      edit.textContent = "Edit";
+      edit.disabled = state.api.isSavingCompositionBundle;
+      edit.addEventListener("click", () => {
+        setCompositionBundleDraft(composition);
+        setCompositionsFeedback(`Editing '${composition.name}'.`);
+        renderCompositionBundlesWorkspace();
+      });
+      card.append(edit);
+    }
+    elements.compositionsList.append(card);
+  }
+}
+
+function renderCompositionsWorkspace() {
+  renderRequirementDefinitionsWorkspace();
+  renderCompositionBundlesWorkspace();
+}
+
+async function loadRequirementDefinitionsFromApi() {
+  if (!isAuthenticated()) {
+    state.api.requirementDefinitions = [];
+    setRequirementDefinitionDraft(null);
+    renderCompositionsWorkspace();
+    return false;
+  }
+
+  state.api.isLoadingRequirementDefinitions = true;
+  renderCompositionsWorkspace();
+  try {
+    const payload = await apiRequest("/requirements", { auth: true });
+    const requirements = Array.isArray(payload?.requirements)
+      ? payload.requirements.map(normalizeRequirementDefinition).filter(Boolean)
+      : [];
+    state.api.requirementDefinitions = requirements;
+    const selectedId = normalizeApiEntityId(state.api.selectedRequirementDefinitionId);
+    const selected =
+      requirements.find((requirement) => requirement.id === selectedId) ??
+      (requirements.length === 1 && !selectedId ? requirements[0] : null);
+    if (selected) {
+      setRequirementDefinitionDraft(selected);
+    }
+    setRequirementsFeedback("");
+    return true;
+  } catch (error) {
+    state.api.requirementDefinitions = [];
+    setRequirementDefinitionDraft(null);
+    setRequirementsFeedback(normalizeApiErrorMessage(error, "Failed to load requirement definitions."));
+    return false;
+  } finally {
+    state.api.isLoadingRequirementDefinitions = false;
+    renderCompositionsWorkspace();
+  }
+}
+
+async function loadCompositionBundlesFromApi() {
+  if (!isAuthenticated()) {
+    state.api.compositionBundles = [];
+    setCompositionBundleDraft(null);
+    renderCompositionsWorkspace();
+    return false;
+  }
+
+  state.api.isLoadingCompositionBundles = true;
+  renderCompositionsWorkspace();
+  try {
+    const payload = await apiRequest("/compositions", { auth: true });
+    const compositions = Array.isArray(payload?.compositions)
+      ? payload.compositions.map(normalizeCompositionBundle).filter(Boolean)
+      : [];
+    state.api.compositionBundles = compositions;
+    const selectedId = normalizeApiEntityId(state.api.selectedCompositionBundleId);
+    const activeId = normalizeApiEntityId(payload?.active_composition_id);
+    const selected =
+      compositions.find((composition) => composition.id === selectedId) ??
+      compositions.find((composition) => composition.id === activeId) ??
+      null;
+    setCompositionBundleDraft(selected);
+    setCompositionsFeedback("");
+    return true;
+  } catch (error) {
+    state.api.compositionBundles = [];
+    setCompositionBundleDraft(null);
+    setCompositionsFeedback(normalizeApiErrorMessage(error, "Failed to load compositions."));
+    return false;
+  } finally {
+    state.api.isLoadingCompositionBundles = false;
+    renderCompositionsWorkspace();
+  }
+}
+
+async function hydrateCompositionsWorkspaceFromApi() {
+  await loadRequirementDefinitionsFromApi();
+  await loadCompositionBundlesFromApi();
+}
+
+async function saveRequirementDefinitionFromWorkspace() {
+  if (!isAuthenticated() || !isAdminUser() || state.api.isSavingRequirementDefinition) {
+    return;
+  }
+
+  const name = String(state.api.requirementDefinitionDraft.name ?? "").trim();
+  if (!name) {
+    setRequirementsFeedback("Requirement name is required.");
+    return;
+  }
+
+  const selectedRequirement = getSelectedRequirementDefinition();
+  const isEditing = Boolean(selectedRequirement);
+  let parsedRules;
+  try {
+    parsedRules = parseRequirementRulesFromDraftText();
+  } catch (error) {
+    setRequirementsFeedback(error instanceof Error ? error.message : "Rules JSON is invalid.");
+    return;
+  }
+
+  const payload = {
+    name,
+    definition: String(state.api.requirementDefinitionDraft.definition ?? "").trim(),
+    rules: parsedRules
+  };
+
+  state.api.isSavingRequirementDefinition = true;
+  setRequirementsFeedback(isEditing ? "Saving requirement..." : "Creating requirement...");
+  renderCompositionsWorkspace();
+  try {
+    const response = await apiRequest(
+      isEditing ? `/requirements/${selectedRequirement.id}` : "/requirements",
+      {
+        method: isEditing ? "PUT" : "POST",
+        auth: true,
+        body: payload
+      }
+    );
+    const saved = normalizeRequirementDefinition(response?.requirement);
+    await hydrateCompositionsWorkspaceFromApi();
+    if (saved) {
+      setRequirementDefinitionDraft(saved);
+    }
+    setRequirementsFeedback(isEditing ? "Requirement updated." : "Requirement created.");
+  } catch (error) {
+    setRequirementsFeedback(normalizeApiErrorMessage(error, "Failed to save requirement."));
+  } finally {
+    state.api.isSavingRequirementDefinition = false;
+    renderCompositionsWorkspace();
+  }
+}
+
+async function deleteRequirementDefinitionFromWorkspace() {
+  if (!isAuthenticated() || !isAdminUser() || state.api.isSavingRequirementDefinition) {
+    return;
+  }
+  const selectedRequirement = getSelectedRequirementDefinition();
+  if (!selectedRequirement) {
+    setRequirementsFeedback("Select a requirement first.");
+    return;
+  }
+
+  state.api.isSavingRequirementDefinition = true;
+  setRequirementsFeedback("Deleting requirement...");
+  renderCompositionsWorkspace();
+  try {
+    await apiRequest(`/requirements/${selectedRequirement.id}`, {
+      method: "DELETE",
+      auth: true
+    });
+    setRequirementDefinitionDraft(null);
+    await hydrateCompositionsWorkspaceFromApi();
+    setRequirementsFeedback("Requirement deleted.");
+  } catch (error) {
+    setRequirementsFeedback(normalizeApiErrorMessage(error, "Failed to delete requirement."));
+  } finally {
+    state.api.isSavingRequirementDefinition = false;
+    renderCompositionsWorkspace();
+  }
+}
+
+async function saveCompositionBundleFromWorkspace() {
+  if (!isAuthenticated() || !isAdminUser() || state.api.isSavingCompositionBundle) {
+    return;
+  }
+
+  const name = String(state.api.compositionBundleDraft.name ?? "").trim();
+  if (!name) {
+    setCompositionsFeedback("Composition name is required.");
+    return;
+  }
+
+  const selectedComposition = getSelectedCompositionBundle();
+  const isEditing = Boolean(selectedComposition);
+  const payload = {
+    name,
+    description: String(state.api.compositionBundleDraft.description ?? "").trim(),
+    requirement_ids: normalizeApiTagIdArray(state.api.compositionBundleDraft.requirementIds),
+    is_active: state.api.compositionBundleDraft.isActive === true
+  };
+
+  state.api.isSavingCompositionBundle = true;
+  setCompositionsFeedback(isEditing ? "Saving composition..." : "Creating composition...");
+  renderCompositionsWorkspace();
+  try {
+    const response = await apiRequest(
+      isEditing ? `/compositions/${selectedComposition.id}` : "/compositions",
+      {
+        method: isEditing ? "PUT" : "POST",
+        auth: true,
+        body: payload
+      }
+    );
+    const saved = normalizeCompositionBundle(response?.composition);
+    await loadCompositionBundlesFromApi();
+    if (saved) {
+      setCompositionBundleDraft(saved);
+    }
+    setCompositionsFeedback(isEditing ? "Composition updated." : "Composition created.");
+  } catch (error) {
+    setCompositionsFeedback(normalizeApiErrorMessage(error, "Failed to save composition."));
+  } finally {
+    state.api.isSavingCompositionBundle = false;
+    renderCompositionsWorkspace();
+  }
+}
+
+async function deleteCompositionBundleFromWorkspace() {
+  if (!isAuthenticated() || !isAdminUser() || state.api.isSavingCompositionBundle) {
+    return;
+  }
+  const selectedComposition = getSelectedCompositionBundle();
+  if (!selectedComposition) {
+    setCompositionsFeedback("Select a composition first.");
+    return;
+  }
+
+  state.api.isSavingCompositionBundle = true;
+  setCompositionsFeedback("Deleting composition...");
+  renderCompositionsWorkspace();
+  try {
+    await apiRequest(`/compositions/${selectedComposition.id}`, {
+      method: "DELETE",
+      auth: true
+    });
+    setCompositionBundleDraft(null);
+    await loadCompositionBundlesFromApi();
+    setCompositionsFeedback("Composition deleted.");
+  } catch (error) {
+    setCompositionsFeedback(normalizeApiErrorMessage(error, "Failed to delete composition."));
+  } finally {
+    state.api.isSavingCompositionBundle = false;
+    renderCompositionsWorkspace();
+  }
+}
+
 function normalizeRequirementToggleMap(rawValue) {
   const source = rawValue && typeof rawValue === "object" && !Array.isArray(rawValue) ? rawValue : {};
   const normalized = {};
@@ -3703,6 +4402,9 @@ function renderCompositionRequirementToggleEditor() {
 }
 
 function renderCompositionRequirementsWorkspace() {
+  if (elements.requirementsList || elements.compositionsList) {
+    renderCompositionsWorkspace();
+  }
   if (!elements.compositionRequirementsList) {
     return;
   }
@@ -8380,6 +9082,7 @@ async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAd
   await loadTagCatalogFromApi();
   await loadCompositionRequirementsFromApi();
   await loadActiveCompositionRequirementFromApi();
+  await hydrateCompositionsWorkspaceFromApi();
   await loadInvitationsForUser();
   if (isAdminUser()) {
     await loadUsersFromApi();
@@ -8933,6 +9636,82 @@ function attachEvents() {
   if (elements.compositionRequirementsDelete) {
     elements.compositionRequirementsDelete.addEventListener("click", () => {
       void deleteSelectedCompositionRequirement();
+    });
+  }
+
+  if (elements.requirementsName) {
+    elements.requirementsName.addEventListener("input", () => {
+      state.api.requirementDefinitionDraft.name = elements.requirementsName.value;
+    });
+  }
+
+  if (elements.requirementsDefinition) {
+    elements.requirementsDefinition.addEventListener("input", () => {
+      state.api.requirementDefinitionDraft.definition = elements.requirementsDefinition.value;
+    });
+  }
+
+  if (elements.requirementsRules) {
+    elements.requirementsRules.addEventListener("input", () => {
+      state.api.requirementDefinitionDraft.rulesText = elements.requirementsRules.value;
+    });
+  }
+
+  if (elements.requirementsSave) {
+    elements.requirementsSave.addEventListener("click", () => {
+      void saveRequirementDefinitionFromWorkspace();
+    });
+  }
+
+  if (elements.requirementsCancel) {
+    elements.requirementsCancel.addEventListener("click", () => {
+      setRequirementDefinitionDraft(null);
+      setRequirementsFeedback("");
+      renderCompositionsWorkspace();
+    });
+  }
+
+  if (elements.requirementsDelete) {
+    elements.requirementsDelete.addEventListener("click", () => {
+      void deleteRequirementDefinitionFromWorkspace();
+    });
+  }
+
+  if (elements.compositionsName) {
+    elements.compositionsName.addEventListener("input", () => {
+      state.api.compositionBundleDraft.name = elements.compositionsName.value;
+    });
+  }
+
+  if (elements.compositionsDescription) {
+    elements.compositionsDescription.addEventListener("input", () => {
+      state.api.compositionBundleDraft.description = elements.compositionsDescription.value;
+    });
+  }
+
+  if (elements.compositionsIsActive) {
+    elements.compositionsIsActive.addEventListener("change", () => {
+      state.api.compositionBundleDraft.isActive = elements.compositionsIsActive.checked;
+    });
+  }
+
+  if (elements.compositionsSave) {
+    elements.compositionsSave.addEventListener("click", () => {
+      void saveCompositionBundleFromWorkspace();
+    });
+  }
+
+  if (elements.compositionsCancel) {
+    elements.compositionsCancel.addEventListener("click", () => {
+      setCompositionBundleDraft(null);
+      setCompositionsFeedback("");
+      renderCompositionsWorkspace();
+    });
+  }
+
+  if (elements.compositionsDelete) {
+    elements.compositionsDelete.addEventListener("click", () => {
+      void deleteCompositionBundleFromWorkspace();
     });
   }
 
@@ -9828,6 +10607,7 @@ async function init() {
       loadedTeamContextFromApi = await loadTeamContextFromApi();
       await loadCompositionRequirementsFromApi();
       await loadActiveCompositionRequirementFromApi();
+      await hydrateCompositionsWorkspaceFromApi();
       if (isAdminUser()) {
         await loadUsersFromApi();
       }
@@ -9839,6 +10619,8 @@ async function init() {
       setProfileRolesFeedback("");
       setUsersFeedback("Sign in as admin to manage users.");
       setCompositionRequirementsFeedback("Sign in to load composition requirements.");
+      setRequirementsFeedback("Sign in to load requirement definitions.");
+      setCompositionsFeedback("Sign in to load compositions.");
     }
     if (!loadedTeamContextFromApi) {
       loadStoredTeamConfig();

@@ -160,6 +160,30 @@ function createFetchHarness({
     }
   ];
   let nextCompositionRequirementId = 2;
+  let requirementDefinitions = [
+    {
+      id: 1,
+      name: "Frontline Anchor",
+      definition: "At least one frontline tag.",
+      rules: [
+        {
+          expr: { tag: "Frontline" },
+          minCount: 1
+        }
+      ]
+    }
+  ];
+  let nextRequirementDefinitionId = 2;
+  let compositions = [
+    {
+      id: 1,
+      name: "Standard Comp",
+      description: "Baseline setup",
+      requirement_ids: [1],
+      is_active: true
+    }
+  ];
+  let nextCompositionId = 2;
   let joinRequestsByTeam = Object.fromEntries(
     Object.entries(teamJoinRequestsByTeam).map(([teamId, requests]) => [String(teamId), [...(requests ?? [])]])
   );
@@ -850,6 +874,162 @@ function createFetchHarness({
       }
       const requirementId = Number(compositionRequirementMatch[1]);
       compositionRequirements = compositionRequirements.filter((candidate) => candidate.id !== requirementId);
+      return createJsonResponse({}, 204);
+    }
+
+    if (path === "/requirements" && method === "GET") {
+      return createJsonResponse({
+        requirements: [...requirementDefinitions]
+      });
+    }
+
+    if (path === "/requirements" && method === "POST") {
+      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
+      if (!isAdmin) {
+        return createJsonResponse(
+          { error: { code: "FORBIDDEN", message: "Only admins can create requirements." } },
+          403
+        );
+      }
+      const created = {
+        id: nextRequirementDefinitionId,
+        name: body?.name ?? "Untitled Requirement",
+        definition: body?.definition ?? "",
+        rules: Array.isArray(body?.rules) ? body.rules : []
+      };
+      nextRequirementDefinitionId += 1;
+      requirementDefinitions.push(created);
+      return createJsonResponse({ requirement: created }, 201);
+    }
+
+    const requirementDefinitionMatch = path.match(/^\/requirements\/(\d+)$/);
+    if (requirementDefinitionMatch && method === "PUT") {
+      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
+      if (!isAdmin) {
+        return createJsonResponse(
+          { error: { code: "FORBIDDEN", message: "Only admins can update requirements." } },
+          403
+        );
+      }
+      const requirementId = Number(requirementDefinitionMatch[1]);
+      const requirement = requirementDefinitions.find((candidate) => candidate.id === requirementId) ?? null;
+      if (!requirement) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "Requirement not found." } }, 404);
+      }
+      if (typeof body?.name === "string") {
+        requirement.name = body.name;
+      }
+      if (typeof body?.definition === "string") {
+        requirement.definition = body.definition;
+      }
+      if (Array.isArray(body?.rules)) {
+        requirement.rules = body.rules;
+      }
+      return createJsonResponse({ requirement });
+    }
+
+    if (requirementDefinitionMatch && method === "DELETE") {
+      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
+      if (!isAdmin) {
+        return createJsonResponse(
+          { error: { code: "FORBIDDEN", message: "Only admins can delete requirements." } },
+          403
+        );
+      }
+      const requirementId = Number(requirementDefinitionMatch[1]);
+      requirementDefinitions = requirementDefinitions.filter((candidate) => candidate.id !== requirementId);
+      compositions = compositions.map((composition) => ({
+        ...composition,
+        requirement_ids: composition.requirement_ids.filter((id) => id !== requirementId)
+      }));
+      return createJsonResponse({}, 204);
+    }
+
+    if (path === "/compositions" && method === "GET") {
+      const active = compositions.find((composition) => composition.is_active) ?? null;
+      return createJsonResponse({
+        compositions: [...compositions],
+        active_composition_id: active ? active.id : null
+      });
+    }
+
+    if (path === "/compositions" && method === "POST") {
+      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
+      if (!isAdmin) {
+        return createJsonResponse(
+          { error: { code: "FORBIDDEN", message: "Only admins can create compositions." } },
+          403
+        );
+      }
+      if (body?.is_active === true) {
+        compositions = compositions.map((composition) => ({ ...composition, is_active: false }));
+      }
+      const created = {
+        id: nextCompositionId,
+        name: body?.name ?? "Untitled Composition",
+        description: body?.description ?? "",
+        requirement_ids: Array.isArray(body?.requirement_ids) ? body.requirement_ids : [],
+        is_active: body?.is_active === true
+      };
+      nextCompositionId += 1;
+      compositions.push(created);
+      return createJsonResponse({ composition: created }, 201);
+    }
+
+    if (path === "/compositions/active" && method === "GET") {
+      const active = compositions.find((composition) => composition.is_active) ?? null;
+      const requirements = active
+        ? active.requirement_ids
+            .map((requirementId) => requirementDefinitions.find((candidate) => candidate.id === requirementId) ?? null)
+            .filter(Boolean)
+        : [];
+      return createJsonResponse({ composition: active, requirements });
+    }
+
+    const compositionMatch = path.match(/^\/compositions\/(\d+)$/);
+    if (compositionMatch && method === "PUT") {
+      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
+      if (!isAdmin) {
+        return createJsonResponse(
+          { error: { code: "FORBIDDEN", message: "Only admins can update compositions." } },
+          403
+        );
+      }
+      const compositionId = Number(compositionMatch[1]);
+      const composition = compositions.find((candidate) => candidate.id === compositionId) ?? null;
+      if (!composition) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "Composition not found." } }, 404);
+      }
+      if (body?.is_active === true) {
+        compositions = compositions.map((candidate) =>
+          candidate.id === compositionId ? candidate : { ...candidate, is_active: false }
+        );
+      }
+      if (typeof body?.name === "string") {
+        composition.name = body.name;
+      }
+      if (typeof body?.description === "string") {
+        composition.description = body.description;
+      }
+      if (Array.isArray(body?.requirement_ids)) {
+        composition.requirement_ids = body.requirement_ids;
+      }
+      if (typeof body?.is_active === "boolean") {
+        composition.is_active = body.is_active;
+      }
+      return createJsonResponse({ composition });
+    }
+
+    if (compositionMatch && method === "DELETE") {
+      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
+      if (!isAdmin) {
+        return createJsonResponse(
+          { error: { code: "FORBIDDEN", message: "Only admins can delete compositions." } },
+          403
+        );
+      }
+      const compositionId = Number(compositionMatch[1]);
+      compositions = compositions.filter((candidate) => candidate.id !== compositionId);
       return createJsonResponse({}, 204);
     }
 
@@ -1888,7 +2068,7 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#users-list").textContent).not.toContain("member@example.com");
   });
 
-  test("composition requirements workspace creates requirement profiles", async () => {
+  test("compositions workspace creates requirement definitions and compositions", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -1904,26 +2084,53 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='composition-requirements']").click();
     await flush();
 
-    doc.querySelector("#composition-requirements-cancel").click();
+    doc.querySelector("#requirements-cancel").click();
     await flush();
 
-    const requirementName = doc.querySelector("#composition-requirements-name");
+    const requirementName = doc.querySelector("#requirements-name");
     requirementName.value = "Aggressive";
     requirementName.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
 
-    const activeCheckbox = doc.querySelector("#composition-requirements-is-active");
+    const definitionInput = doc.querySelector("#requirements-definition");
+    definitionInput.value = "Must have engage and frontline";
+    definitionInput.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+
+    const rulesInput = doc.querySelector("#requirements-rules");
+    rulesInput.value = JSON.stringify([{ expr: { tag: "HardEngage" }, minCount: 1 }], null, 2);
+    rulesInput.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+
+    doc.querySelector("#requirements-save").click();
+    await flush();
+
+    const createRequirementCall = harness.calls.find((call) => call.path === "/requirements" && call.method === "POST");
+    expect(createRequirementCall).toBeTruthy();
+    expect(createRequirementCall.body.name).toBe("Aggressive");
+
+    doc.querySelector("#compositions-cancel").click();
+    await flush();
+
+    const compositionName = doc.querySelector("#compositions-name");
+    compositionName.value = "Aggro Bundle";
+    compositionName.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+
+    const activeCheckbox = doc.querySelector("#compositions-is-active");
     activeCheckbox.checked = true;
     activeCheckbox.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
 
-    doc.querySelector("#composition-requirements-save").click();
+    const requirementOption = [...doc.querySelectorAll("#compositions-requirement-options input[type='checkbox']")].find(
+      (input) => input.parentElement?.textContent?.includes("Aggressive")
+    );
+    expect(requirementOption).toBeTruthy();
+    requirementOption.checked = true;
+    requirementOption.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+    doc.querySelector("#compositions-save").click();
     await flush();
 
-    const createCall = harness.calls.find(
-      (call) => call.path === "/composition-requirements" && call.method === "POST"
-    );
-    expect(createCall).toBeTruthy();
-    expect(createCall.body.name).toBe("Aggressive");
-    expect(createCall.body.is_active).toBe(true);
+    const createCompositionCall = harness.calls.find((call) => call.path === "/compositions" && call.method === "POST");
+    expect(createCompositionCall).toBeTruthy();
+    expect(createCompositionCall.body.name).toBe("Aggro Bundle");
+    expect(createCompositionCall.body.is_active).toBe(true);
   });
 
   test("login routes users without defined roles to My Profile tab", async () => {
