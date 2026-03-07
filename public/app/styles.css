@@ -27,6 +27,15 @@ body {
   color: var(--ink);
   background: radial-gradient(circle at 8% 10%, #fff7de 0%, transparent 36%),
     radial-gradient(circle at 88% 14%, #ffe8dc 0%, transparent 40%), var(--bg);
+  transition: padding-left 180ms ease;
+}
+
+body:has(#app-shell:not([hidden])) {
+  padding-left: 220px;
+}
+
+body:has(#app-shell.is-nav-collapsed:not([hidden])) {
+  padding-left: 3.35rem;
 }
 
 body.nav-open {
@@ -131,12 +140,6 @@ h3 {
 
 .app-shell {
   display: block;
-  margin-left: 220px;
-  transition: margin-left 180ms ease;
-}
-
-.app-shell.is-nav-collapsed {
-  margin-left: 3.35rem;
 }
 
 .app-shell.is-nav-collapsed .nav-drawer {
@@ -150,7 +153,7 @@ h3 {
   bottom: 0;
   width: 220px;
   z-index: 10;
-  overflow-y: auto;
+  overflow: hidden;
   transition: width 180ms ease;
 }
 
@@ -176,7 +179,8 @@ h3 {
 .side-menu {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100%;
+  box-sizing: border-box;
   border-radius: 0;
   margin-bottom: 0;
   border-top: 0;
@@ -262,7 +266,7 @@ h3 {
 
 .report-issue-link {
   display: inline-block;
-  margin-top: 0.7rem;
+  margin-top: 20px;
   color: #7a3419;
   font-weight: 700;
   text-decoration: underline;
@@ -2212,8 +2216,9 @@ button.slot-order-btn:disabled {
     grid-template-columns: 1fr;
   }
 
-  .app-shell {
-    margin-left: 0;
+  body:has(#app-shell:not([hidden])),
+  body:has(#app-shell.is-nav-collapsed:not([hidden])) {
+    padding-left: 0;
   }
 
   .nav-overlay {
@@ -2233,7 +2238,7 @@ button.slot-order-btn:disabled {
   }
 
   .side-menu {
-    min-height: unset;
+    height: auto;
     max-height: calc(100vh - 1.7rem);
     overflow: auto;
     border-radius: 0;
