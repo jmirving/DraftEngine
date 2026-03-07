@@ -1,0 +1,472 @@
+import { BOOLEAN_TAGS, SLOTS, getPickedChampionNames, normalizeTeamState } from "../domain/model.js";
+
+const EFFECTIVENESS_PHASES = Object.freeze(["early", "mid", "late"]);
+const EFFECTIVENESS_RANK = Object.freeze({
+  weak: 1,
+  neutral: 2,
+  strong: 3
+});
+
+function normalizeJoiner(rawJoiner, fallback = "and") {
+  const normalized = typeof rawJoiner === "string" ? rawJoiner.trim().toLowerCase() : "";
+  if (normalized === "and" || normalized === "or") {
+    return normalized;
+  }
+  return fallback;
+}
+
+function normalizeRoleFilter(rawRoleFilter) {
+  if (!Array.isArray(rawRoleFilter) || rawRoleFilter.length < 1) {
+    return [...SLOTS];
+  }
+  const normalized = rawRoleFilter
+    .map((role) => (typeof role === "string" ? role.trim() : ""))
+    .filter((role) => SLOTS.includes(role));
+  return normalized.length > 0 ? normalized : [...SLOTS];
+}
+
+function normalizePrimaryDamageType(rawValue) {
+  const value = typeof rawValue === "string" ? rawValue.trim().toLowerCase() : "";
+  if (value === "ad" || value === "ap" || value === "mixed" || value === "utility") {
+    return value;
+  }
+  if (value === "attackdamage" || value === "physical") {
+    return "ad";
+  }
+  if (value === "abilitypower" || value === "magic") {
+    return "ap";
+  }
+  return "mixed";
+}
+
+function normalizeEffectivenessLevel(rawValue) {
+  const value = typeof rawValue === "string" ? rawValue.trim().toLowerCase() : "";
+  if (value === "weak" || value === "neutral" || value === "strong") {
+    return value;
+  }
+  return "neutral";
+}
+
+function normalizeEffectivenessFocus(rawValue) {
+  const value = typeof rawValue === "string" ? rawValue.trim().toLowerCase() : "";
+  if (value === "early" || value === "mid" || value === "late") {
+    return value;
+  }
+  return "";
+}
+
+function normalizeTagName(rawValue) {
+  return typeof rawValue === "string" ? rawValue.trim().toLowerCase() : "";
+}
+
+const LEGACY_BOOLEAN_TAG_MAP = new Map(
+  BOOLEAN_TAGS.map((tag) => [normalizeTagName(tag), tag])
+);
+
+function resolveChampionRoleProfile(champion, role) {
+  const roleProfiles =
+    champion?.roleProfiles && typeof champion.roleProfiles === "object" && !Array.isArray(champion.roleProfiles)
+      ? champion.roleProfiles
+      : {};
+  const direct = roleProfiles[role];
+  if (direct && typeof direct === "object" && !Array.isArray(direct)) {
+    return direct;
+  }
+  const fallbackRole = Array.isArray(champion?.roles) && champion.roles.length > 0 ? champion.roles[0] : null;
+  const fallback = fallbackRole ? roleProfiles[fallbackRole] : null;
+  if (fallback && typeof fallback === "object" && !Array.isArray(fallback)) {
+    return fallback;
+  }
+  return null;
+}
+
+function resolveChampionDamageType(champion, role) {
+  const profile = resolveChampionRoleProfile(champion, role);
+  if (
+    profile &&
+    Object.prototype.hasOwnProperty.call(profile, "primaryDamageType") &&
+    profile.primaryDamageType !== null &&
+    profile.primaryDamageType !== undefined
+  ) {
+    return normalizePrimaryDamageType(profile.primaryDamageType);
+  }
+  return normalizePrimaryDamageType(champion?.damageType);
+}
+
+function resolveChampionEffectivenessFocus(champion, role) {
+  const profile = resolveChampionRoleProfile(champion, role);
+  const effectiveness =
+    profile?.effectiveness && typeof profile.effectiveness === "object" && !Array.isArray(profile.effectiveness)
+      ? profile.effectiveness
+      : null;
+  if (effectiveness) {
+    let bestPhase = "mid";
+    let bestRank = 0;
+    for (const phase of EFFECTIVENESS_PHASES) {
+      const level = normalizeEffectivenessLevel(effectiveness[phase]);
+      const rank = EFFECTIVENESS_RANK[level] ?? 0;
+      if (rank > bestRank) {
+        bestRank = rank;
+        bestPhase = phase;
+      }
+    }
+    return bestPhase;
+  }
+  const legacyScaling = typeof champion?.scaling === "string" ? champion.scaling.trim().toLowerCase() : "";
+  return normalizeEffectivenessFocus(legacyScaling) || "mid";
+}
+
+function championHasTag(champion, rawTagName, tagById = {}) {
+  const target = normalizeTagName(rawTagName);
+  if (!target) {
+    return false;
+  }
+
+  const tagIds = Array.isArray(champion?.tagIds) ? champion.tagIds : [];
+  for (const tagId of tagIds) {
+    const tag = tagById[String(tagId)];
+    const tagName = normalizeTagName(tag?.name);
+    if (tagName && tagName === target) {
+      return true;
+    }
+  }
+
+  const mappedLegacyTag = LEGACY_BOOLEAN_TAG_MAP.get(target);
+  if (!mappedLegacyTag) {
+    return false;
+  }
+  return champion?.tags?.[mappedLegacyTag] === true;
+}
+
+function evaluateExprForChampion(expr, champion, role, tagById) {
+  if (typeof expr === "string") {
+    const trimmed = expr.trim();
+    if (!trimmed) {
+      return false;
+    }
+    return championHasTag(champion, trimmed, tagById);
+  }
+
+  if (!expr || typeof expr !== "object" || Array.isArray(expr)) {
+    return false;
+  }
+
+  if (Array.isArray(expr.and) && expr.and.length > 0) {
+    return expr.and.every((child) => evaluateExprForChampion(child, champion, role, tagById));
+  }
+
+  if (Array.isArray(expr.or) && expr.or.length > 0) {
+    return expr.or.some((child) => evaluateExprForChampion(child, champion, role, tagById));
+  }
+
+  if (expr.not !== undefined) {
+    return !evaluateExprForChampion(expr.not, champion, role, tagById);
+  }
+
+  const tagValue = typeof expr.tag === "string" ? expr.tag : null;
+  if (tagValue) {
+    return championHasTag(champion, tagValue, tagById);
+  }
+
+  const rawDamageType =
+    typeof expr.damageType === "string"
+      ? expr.damageType
+      : typeof expr.primaryDamageType === "string"
+        ? expr.primaryDamageType
+        : typeof expr.damage_type === "string"
+          ? expr.damage_type
+          : "";
+  if (rawDamageType) {
+    return resolveChampionDamageType(champion, role) === normalizePrimaryDamageType(rawDamageType);
+  }
+
+  const rawEffectivenessFocus =
+    typeof expr.effectivenessFocus === "string"
+      ? expr.effectivenessFocus
+      : typeof expr.effectiveness_focus === "string"
+        ? expr.effectiveness_focus
+        : "";
+  if (rawEffectivenessFocus) {
+    return resolveChampionEffectivenessFocus(champion, role) === normalizeEffectivenessFocus(rawEffectivenessFocus);
+  }
+
+  return false;
+}
+
+function toPositiveInt(rawValue, fallback = 1) {
+  const parsed = Number.parseInt(String(rawValue), 10);
+  if (Number.isInteger(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return fallback;
+}
+
+function toNullableMax(rawValue, minValue) {
+  if (rawValue === null || rawValue === undefined || rawValue === "") {
+    return null;
+  }
+  const parsed = Number.parseInt(String(rawValue), 10);
+  if (!Number.isInteger(parsed) || parsed < minValue) {
+    return null;
+  }
+  return parsed;
+}
+
+function evaluateClause({
+  clause,
+  clauseIndex,
+  teamState,
+  championsByName,
+  tagById,
+  teamPools,
+  teamId,
+  excludedChampions,
+  pickedChampionNames
+}) {
+  const roleFilter = normalizeRoleFilter(clause.roleFilter);
+  const minCount = toPositiveInt(clause.minCount, 1);
+  const maxCount = toNullableMax(clause.maxCount, minCount);
+  const expr = clause.expr;
+  const currentMatchSlots = [];
+
+  for (const role of roleFilter) {
+    const championName = teamState[role];
+    if (!championName) {
+      continue;
+    }
+    const champion = championsByName[championName];
+    if (!champion) {
+      continue;
+    }
+    if (evaluateExprForChampion(expr, champion, role, tagById)) {
+      currentMatchSlots.push(role);
+    }
+  }
+
+  const unresolvedRoles = roleFilter.filter((role) => !teamState[role]);
+  const potentialMatchRoles = [];
+  for (const role of unresolvedRoles) {
+    const rolePool = teamPools?.[teamId]?.[role];
+    if (!Array.isArray(rolePool) || rolePool.length < 1) {
+      // If we do not know future candidates for this role, keep it as potentially satisfiable.
+      potentialMatchRoles.push(role);
+      continue;
+    }
+    let canMatch = false;
+    for (const championName of rolePool) {
+      if (pickedChampionNames.has(championName) || excludedChampions.has(championName)) {
+        continue;
+      }
+      const champion = championsByName[championName];
+      if (!champion) {
+        continue;
+      }
+      if (evaluateExprForChampion(expr, champion, role, tagById)) {
+        canMatch = true;
+        break;
+      }
+    }
+    if (canMatch) {
+      potentialMatchRoles.push(role);
+    }
+  }
+
+  const currentMatches = currentMatchSlots.length;
+  const remainingSlots = potentialMatchRoles.length;
+  const maxPossibleMatches = currentMatches + remainingSlots;
+
+  let status = "pending";
+  let reason = "";
+  let failType = null;
+  if (maxCount !== null && currentMatches > maxCount) {
+    status = "fail";
+    failType = "max_exceeded";
+    reason = `Already exceeded max (${currentMatches}/${maxCount}).`;
+  } else if (maxPossibleMatches < minCount) {
+    status = "fail";
+    failType = "min_unreachable";
+    reason = `Cannot reach min (${currentMatches}/${minCount}); max possible is ${maxPossibleMatches}.`;
+  } else if (currentMatches >= minCount) {
+    status = "pass";
+    reason = `Meets min (${currentMatches}/${minCount})${maxCount === null ? "" : ` and max (${maxCount})`}.`;
+  } else {
+    status = "pending";
+    reason = `Needs ${minCount - currentMatches} more match(es) with ${remainingSlots} eligible open slot(s).`;
+  }
+
+  return {
+    id:
+      typeof clause?.id === "string" && clause.id.trim() !== ""
+        ? clause.id.trim()
+        : `clause-${clauseIndex + 1}`,
+    status,
+    reason,
+    failType,
+    minCount,
+    maxCount,
+    currentMatches,
+    remainingSlots,
+    maxPossibleMatches,
+    currentMatchSlots,
+    potentialMatchRoles
+  };
+}
+
+function combineClauseStatuses(leftStatus, rightStatus, joiner) {
+  if (joiner === "or") {
+    if (leftStatus === "pass" || rightStatus === "pass") {
+      return "pass";
+    }
+    if (leftStatus === "fail" && rightStatus === "fail") {
+      return "fail";
+    }
+    return "pending";
+  }
+
+  // and
+  if (leftStatus === "fail" || rightStatus === "fail") {
+    return "fail";
+  }
+  if (leftStatus === "pass" && rightStatus === "pass") {
+    return "pass";
+  }
+  return "pending";
+}
+
+function evaluateRequirement(requirement, context) {
+  const clauses = Array.isArray(requirement?.rules) ? requirement.rules : [];
+  if (clauses.length < 1) {
+    return {
+      id: Number(requirement?.id ?? 0),
+      name: typeof requirement?.name === "string" ? requirement.name : "Unnamed requirement",
+      definition: typeof requirement?.definition === "string" ? requirement.definition : "",
+      status: "pass",
+      reason: "No clauses defined.",
+      clauses: [],
+      unreachable: false
+    };
+  }
+
+  const clauseResults = clauses.map((clause, clauseIndex) =>
+    evaluateClause({
+      clause,
+      clauseIndex,
+      ...context
+    })
+  );
+  const clauseById = new Map(clauseResults.map((result) => [result.id, result]));
+
+  for (let clauseIndex = 0; clauseIndex < clauses.length; clauseIndex += 1) {
+    const sourceClause = clauses[clauseIndex];
+    const sourceResult = clauseResults[clauseIndex];
+    const separateFrom = Array.isArray(sourceClause?.separateFrom)
+      ? sourceClause.separateFrom
+          .map((value) => (typeof value === "string" ? value.trim() : ""))
+          .filter(Boolean)
+      : [];
+    if (separateFrom.length < 1) {
+      continue;
+    }
+
+    for (const referenceId of separateFrom) {
+      const referenceResult = clauseById.get(referenceId);
+      if (!referenceResult) {
+        continue;
+      }
+      const sourcePossible = new Set([...sourceResult.currentMatchSlots, ...sourceResult.potentialMatchRoles]);
+      const referencePossible = new Set([...referenceResult.currentMatchSlots, ...referenceResult.potentialMatchRoles]);
+      if (sourcePossible.size !== 1 || referencePossible.size !== 1) {
+        continue;
+      }
+      const [sourceOnly] = sourcePossible;
+      const [referenceOnly] = referencePossible;
+      if (sourceOnly !== referenceOnly) {
+        continue;
+      }
+      sourceResult.status = "fail";
+      sourceResult.failType = "separation_unreachable";
+      sourceResult.reason = `Separation from '${referenceId}' is unreachable with remaining slot options.`;
+      break;
+    }
+  }
+
+  let aggregateStatus = clauseResults[0].status;
+  for (let index = 1; index < clauseResults.length; index += 1) {
+    const joiner = normalizeJoiner(clauses[index]?.clauseJoiner, "and");
+    aggregateStatus = combineClauseStatuses(aggregateStatus, clauseResults[index].status, joiner);
+  }
+
+  let reason = "";
+  if (aggregateStatus === "pass") {
+    reason = "All required clause constraints are currently satisfied.";
+  } else if (aggregateStatus === "fail") {
+    const failedClauses = clauseResults
+      .map((clause, index) => ({ clause, index }))
+      .filter(({ clause }) => clause.status === "fail")
+      .map(({ index, clause }) => `Clause ${index + 1}: ${clause.reason}`);
+    reason = failedClauses.join(" ");
+  } else {
+    const pendingClauses = clauseResults
+      .map((clause, index) => ({ clause, index }))
+      .filter(({ clause }) => clause.status !== "pass")
+      .map(({ index, clause }) => `Clause ${index + 1}: ${clause.reason}`);
+    reason = pendingClauses.join(" ");
+  }
+
+  return {
+    id: Number(requirement?.id ?? 0),
+    name: typeof requirement?.name === "string" ? requirement.name : "Unnamed requirement",
+    definition: typeof requirement?.definition === "string" ? requirement.definition : "",
+    status: aggregateStatus,
+    reason,
+    clauses: clauseResults,
+    unreachable: aggregateStatus === "fail"
+  };
+}
+
+export function evaluateCompositionRequirements({
+  teamState,
+  championsByName,
+  requirements = [],
+  teamPools = {},
+  teamId = null,
+  excludedChampions = [],
+  tagById = {}
+}) {
+  const normalizedTeamState = normalizeTeamState(teamState);
+  const pickedChampionNames = getPickedChampionNames(normalizedTeamState);
+  const excludedChampionSet = new Set(
+    Array.isArray(excludedChampions)
+      ? excludedChampions.filter((name) => typeof name === "string" && name.trim() !== "")
+      : []
+  );
+  const normalizedRequirements = Array.isArray(requirements) ? requirements : [];
+
+  const context = {
+    teamState: normalizedTeamState,
+    championsByName: championsByName ?? {},
+    tagById: tagById ?? {},
+    teamPools: teamPools ?? {},
+    teamId,
+    excludedChampions: excludedChampionSet,
+    pickedChampionNames
+  };
+
+  const results = normalizedRequirements.map((requirement) => evaluateRequirement(requirement, context));
+  const requiredTotal = results.length;
+  const requiredPassed = results.filter((result) => result.status === "pass").length;
+  const requiredGaps = requiredTotal - requiredPassed;
+  const unreachableRequirements = results
+    .filter((result) => result.unreachable)
+    .map((result) => result.name);
+
+  return {
+    requirements: results,
+    requiredSummary: {
+      requiredTotal,
+      requiredPassed,
+      requiredGaps
+    },
+    unreachableRequirements
+  };
+}

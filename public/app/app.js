@@ -10,9 +10,8 @@ import {
   isDamageType,
   isScaling,
   isSlot,
-  evaluateCompositionChecks,
+  evaluateCompositionRequirements,
   generatePossibilityTree,
-  scoreNodeFromChecks,
   normalizeTeamState
 } from "../../src/index.js";
 import {
@@ -486,6 +485,7 @@ function createInitialState() {
       stage: "setup",
       showOptionalChecks: BUILDER_DEFAULTS.showOptionalChecksByDefault,
       teamId: "",
+      activeCompositionId: null,
       draftContext: null,
       teamState: createEmptyTeamState(),
       draftOrder: [...SLOTS],
@@ -680,6 +680,8 @@ function createElements() {
     builderSetupFeedback: runtimeDocument.querySelector("#builder-setup-feedback"),
     builderInspectFeedback: runtimeDocument.querySelector("#builder-inspect-feedback"),
     builderActiveTeam: runtimeDocument.querySelector("#builder-active-team"),
+    builderActiveComposition: runtimeDocument.querySelector("#builder-active-composition"),
+    builderCompositionHelp: runtimeDocument.querySelector("#builder-composition-help"),
     builderTeamHelp: runtimeDocument.querySelector("#builder-team-help"),
     builderStageSetupTitle: runtimeDocument.querySelector("#builder-stage-setup-title"),
     builderStageSetupMeta: runtimeDocument.querySelector("#builder-stage-setup-meta"),
@@ -5082,6 +5084,7 @@ async function loadCompositionBundlesFromApi() {
       ? payload.compositions.map(normalizeCompositionBundle).filter(Boolean)
       : [];
     state.api.compositionBundles = compositions;
+    state.builder.activeCompositionId = resolveBuilderActiveCompositionId(state.builder.activeCompositionId);
     const selectedId = normalizeApiEntityId(state.api.selectedCompositionBundleId);
     const activeId = normalizeApiEntityId(payload?.active_composition_id);
     const selected =
@@ -6855,6 +6858,82 @@ function getPoolsForTeam(teamId) {
   return getProfileRolePools();
 }
 
+function getBuilderCompositionOptions() {
+  const compositions = Array.isArray(state.api.compositionBundles) ? state.api.compositionBundles : [];
+  return compositions.map((composition) => ({
+    value: String(composition.id),
+    label: composition.is_active ? `${composition.name} (Active)` : composition.name
+  }));
+}
+
+function resolveBuilderActiveCompositionId(rawId = null) {
+  const compositions = Array.isArray(state.api.compositionBundles) ? state.api.compositionBundles : [];
+  if (compositions.length < 1) {
+    return null;
+  }
+  const parsed = normalizeApiEntityId(rawId);
+  if (parsed && compositions.some((composition) => composition.id === parsed)) {
+    return parsed;
+  }
+  const active = compositions.find((composition) => composition.is_active) ?? null;
+  return active?.id ?? compositions[0].id;
+}
+
+function getBuilderSelectedComposition() {
+  const selectedId = resolveBuilderActiveCompositionId(state.builder.activeCompositionId);
+  if (!selectedId) {
+    return null;
+  }
+  return (
+    (Array.isArray(state.api.compositionBundles) ? state.api.compositionBundles : []).find(
+      (composition) => composition.id === selectedId
+    ) ?? null
+  );
+}
+
+function getBuilderSelectedRequirements() {
+  const selectedComposition = getBuilderSelectedComposition();
+  if (!selectedComposition) {
+    return [];
+  }
+  const requirementById = new Map(
+    (Array.isArray(state.api.requirementDefinitions) ? state.api.requirementDefinitions : []).map((requirement) => [
+      requirement.id,
+      requirement
+    ])
+  );
+  return selectedComposition.requirement_ids
+    .map((requirementId) => requirementById.get(requirementId) ?? null)
+    .filter(Boolean);
+}
+
+function syncBuilderCompositionControls() {
+  const compositionOptions = getBuilderCompositionOptions();
+  state.builder.activeCompositionId = resolveBuilderActiveCompositionId(state.builder.activeCompositionId);
+
+  if (elements.builderActiveComposition) {
+    replaceOptions(elements.builderActiveComposition, compositionOptions, false, "No compositions defined");
+    elements.builderActiveComposition.value = state.builder.activeCompositionId
+      ? String(state.builder.activeCompositionId)
+      : "";
+    elements.builderActiveComposition.disabled = compositionOptions.length < 1;
+  }
+
+  if (elements.builderCompositionHelp) {
+    const selectedComposition = getBuilderSelectedComposition();
+    if (!selectedComposition) {
+      elements.builderCompositionHelp.textContent = "No composition selected. Create one in the Compositions page.";
+      return;
+    }
+    const requirementCount = Array.isArray(selectedComposition.requirement_ids)
+      ? selectedComposition.requirement_ids.length
+      : 0;
+    elements.builderCompositionHelp.textContent = requirementCount > 0
+      ? `Using composition '${selectedComposition.name}' (${requirementCount} requirement${requirementCount === 1 ? "" : "s"}).`
+      : `Using composition '${selectedComposition.name}' (no requirements).`;
+  }
+}
+
 function initializeBuilderControls() {
   const candidateActiveTeamId =
     state.teamConfig.activeTeamId ?? state.teamConfig.defaultTeamId ?? state.data.config.teamDefault ?? null;
@@ -6865,20 +6944,7 @@ function initializeBuilderControls() {
   state.builder.treeDensity = BUILDER_DEFAULTS.defaultTreeDensity;
   replaceOptions(elements.builderActiveTeam, getTeamSelectOptions());
   elements.builderActiveTeam.value = state.builder.teamId;
-
-  elements.builderToggles.innerHTML = "<legend>Required Toggles</legend>";
-  for (const key of Object.keys(DEFAULT_REQUIREMENT_TOGGLES)) {
-    const wrapper = runtimeDocument.createElement("label");
-    wrapper.className = "toggle-item selection-option";
-    const checkbox = runtimeDocument.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = Boolean(state.builder.toggles[key]);
-    checkbox.dataset.toggle = key;
-    const title = runtimeDocument.createElement("span");
-    title.textContent = key;
-    wrapper.append(checkbox, title);
-    elements.builderToggles.append(wrapper);
-  }
+  syncBuilderCompositionControls();
 
   state.builder.maxDepth = getAutoMaxDepth();
   state.builder.maxBranch = state.data.config.treeDefaults.maxBranch;
@@ -6891,6 +6957,9 @@ function initializeBuilderControls() {
 }
 
 function syncBuilderToggleInputs() {
+  if (!elements.builderToggles) {
+    return;
+  }
   const inputs = elements.builderToggles.querySelectorAll("input[data-toggle]");
   for (const input of inputs) {
     const key = input.dataset.toggle;
@@ -8747,7 +8816,9 @@ function resetBuilderToDefaults() {
   elements.builderExcludedSearch.value = "";
   elements.treeSearch.value = "";
   elements.treeMinScore.value = "0";
-  elements.treeMinCandidateScore.value = "1";
+  if (elements.treeMinCandidateScore) {
+    elements.treeMinCandidateScore.value = "1";
+  }
   elements.treeValidLeavesOnly.checked = true;
   elements.treeDensity.value = state.builder.treeDensity;
   syncBuilderToggleInputs();
@@ -8850,6 +8921,7 @@ function generateTreeFromCurrentState({ scrollToResults = true } = {}) {
   try {
     setInspectFeedback("");
     const { teamId, teamPools } = getEnginePoolContext();
+    const requirements = getBuilderSelectedRequirements();
     state.builder.maxDepth = getAutoMaxDepth();
     state.builder.tree = generatePossibilityTree({
       teamState: state.builder.teamState,
@@ -8857,12 +8929,14 @@ function generateTreeFromCurrentState({ scrollToResults = true } = {}) {
       roleOrder: state.builder.draftOrder,
       teamPools,
       championsByName: state.data.championsByName,
-      toggles: state.builder.toggles,
+      requirements,
+      forceRequirementMode: true,
+      tagById: state.api.tagById,
       excludedChampions: state.builder.excludedChampions,
       weights: state.data.config.recommendation.weights,
       maxDepth: state.builder.maxDepth,
       maxBranch: state.builder.maxBranch,
-      minCandidateScore: state.builder.treeMinCandidateScore,
+      minCandidateScore: 0,
       pruneUnreachableRequired: true,
       rankGoal: "valid_end_states"
     });
@@ -9106,89 +9180,65 @@ function renderTeamContext() {
   }
 }
 
-function humanizeCheckName(checkName) {
-  return checkName.replace(/([a-z])([A-Z])/g, "$1 $2");
+function evaluateComposerRequirements() {
+  const selectedRequirements = getBuilderSelectedRequirements();
+  const { teamId, teamPools } = getEnginePoolContext();
+  return evaluateCompositionRequirements({
+    teamState: state.builder.teamState,
+    championsByName: state.data.championsByName,
+    requirements: selectedRequirements,
+    teamPools,
+    teamId,
+    excludedChampions: state.builder.excludedChampions,
+    tagById: state.api.tagById
+  });
 }
 
-function getCheckRemediationHint(checkName, result, checkEvaluation) {
-  if (result.satisfied) {
-    return "";
-  }
-
-  switch (checkName) {
-    case "HasHardEngage":
-      return "Add a champion with HardEngage in an open slot.";
-    case "HasFrontline":
-      return "Prioritize a frontline champion in the next available role.";
-    case "HasWaveclear":
-      return "Add at least one champion with reliable Waveclear.";
-    case "HasDisengage":
-      return "Pick a champion with Disengage to improve reset safety.";
-    case "HasAntiTank":
-      return "Add AntiTank tools for front-to-back consistency.";
-    case "DamageMix": {
-      const needsAD = checkEvaluation.missingNeeds.needsAD;
-      const needsAP = checkEvaluation.missingNeeds.needsAP;
-      if (needsAD && needsAP) {
-        return "Add both AD and AP threats across remaining slots.";
-      }
-      if (needsAD) {
-        return "Add at least one AD or Mixed damage champion.";
-      }
-      if (needsAP) {
-        return "Add at least one AP or Mixed damage champion.";
-      }
-      return "Balance remaining picks across AD and AP damage profiles.";
-    }
-    case "TopMustBeThreat":
-      return result.applicable
-        ? "Top should provide SideLaneThreat or DiveThreat."
-        : "Fill Top with a SideLaneThreat or DiveThreat champion.";
-    default:
-      return "Adjust remaining picks to satisfy this requirement.";
-  }
-}
-
-function buildCheckRow(checkName, result, checkEvaluation) {
-  const required = Boolean(result.required);
-  const passed = Boolean(result.satisfied);
-  const requirementLabel = required ? "Required" : "Optional";
-  const stateLabel = passed ? "Passed" : "Failed";
-
+function buildRequirementStatusRow(requirementResult) {
+  const status = requirementResult.status;
+  const passed = status === "pass";
   const item = runtimeDocument.createElement("li");
-  item.className = `check ${required ? "is-required" : "is-optional"} ${passed ? "is-passed" : "is-failed"}`;
+  item.className = `check is-required ${passed ? "is-passed" : "is-failed"}`;
 
   const titleRow = runtimeDocument.createElement("div");
   titleRow.className = "check-title-row";
-
   const title = runtimeDocument.createElement("strong");
-  title.textContent = humanizeCheckName(checkName);
+  title.textContent = requirementResult.name;
 
   const badgeRow = runtimeDocument.createElement("div");
   badgeRow.className = "check-badges";
-
   const requirementBadge = runtimeDocument.createElement("span");
-  requirementBadge.className = `check-badge ${required ? "is-required" : "is-optional"}`;
-  requirementBadge.textContent = requirementLabel;
-
+  requirementBadge.className = "check-badge is-required";
+  requirementBadge.textContent = "Required";
   const stateBadge = runtimeDocument.createElement("span");
   stateBadge.className = `check-badge ${passed ? "is-passed" : "is-failed"}`;
-  stateBadge.textContent = stateLabel;
-
+  stateBadge.textContent = passed ? "Passed" : status === "pending" ? "Pending" : "Failed";
   badgeRow.append(requirementBadge, stateBadge);
   titleRow.append(title, badgeRow);
 
   const detail = runtimeDocument.createElement("div");
   detail.className = "meta";
-  detail.textContent = result.reason;
-
+  detail.textContent = requirementResult.reason;
   item.append(titleRow, detail);
 
-  if (required && !passed) {
-    const hint = runtimeDocument.createElement("p");
-    hint.className = "check-hint";
-    hint.textContent = `How to satisfy: ${getCheckRemediationHint(checkName, result, checkEvaluation)}`;
-    item.append(hint);
+  if (requirementResult.definition) {
+    const definition = runtimeDocument.createElement("p");
+    definition.className = "meta";
+    definition.textContent = requirementResult.definition;
+    item.append(definition);
+  }
+
+  if (Array.isArray(requirementResult.clauses) && requirementResult.clauses.length > 0) {
+    const clausesMeta = runtimeDocument.createElement("p");
+    clausesMeta.className = "meta";
+    const clauseSummary = requirementResult.clauses
+      .map((clause, index) => {
+        const stateLabel = clause.status === "pass" ? "pass" : clause.status === "pending" ? "pending" : "fail";
+        return `C${index + 1} ${stateLabel} (${clause.currentMatches}/${clause.minCount}, max possible ${clause.maxPossibleMatches})`;
+      })
+      .join(" | ");
+    clausesMeta.textContent = clauseSummary;
+    item.append(clausesMeta);
   }
 
   return item;
@@ -9196,58 +9246,64 @@ function buildCheckRow(checkName, result, checkEvaluation) {
 
 function renderChecks() {
   const completion = getTeamCompletionInfo(state.builder.teamState);
-  if (completion.completionState === "empty") {
-    elements.builderChecksReadiness.textContent = "No champions selected yet. Add at least one pick to start requirement evaluation.";
-    elements.builderRequiredChecks.innerHTML = "";
+  if (elements.builderToggleOptionalChecks) {
+    elements.builderToggleOptionalChecks.hidden = true;
+  }
+  if (elements.builderOptionalChecks) {
     elements.builderOptionalChecks.innerHTML = "";
     elements.builderOptionalChecks.hidden = true;
-    elements.builderToggleOptionalChecks.textContent = "Optional checks available after picks";
-    elements.builderToggleOptionalChecks.disabled = true;
+  }
+  if (completion.completionState === "empty") {
+    elements.builderChecksReadiness.textContent =
+      "No champions selected yet. Add at least one pick to start requirement evaluation.";
+    elements.builderRequiredChecks.innerHTML = "";
 
     const requiredRow = runtimeDocument.createElement("li");
     requiredRow.className = "check is-optional";
-    requiredRow.textContent = "Readiness checks are waiting for your first champion selection.";
+    requiredRow.textContent = "Requirement evaluation is waiting for your first champion selection.";
     elements.builderRequiredChecks.append(requiredRow);
     return;
   }
 
-  elements.builderToggleOptionalChecks.disabled = false;
+  const selectedComposition = getBuilderSelectedComposition();
+  if (!selectedComposition) {
+    elements.builderChecksReadiness.textContent =
+      "Select a composition to evaluate requirement clauses and generate a composition-aware tree.";
+    elements.builderRequiredChecks.innerHTML = "";
+    const empty = runtimeDocument.createElement("li");
+    empty.className = "check is-optional";
+    empty.textContent = "No composition selected.";
+    elements.builderRequiredChecks.append(empty);
+    return;
+  }
 
-  const checkEvaluation = evaluateCompositionChecks(
-    state.builder.teamState,
-    state.data.championsByName,
-    state.builder.toggles
-  );
-  const compositionScore = scoreNodeFromChecks(checkEvaluation);
-  const checkResults = Object.values(checkEvaluation.checks);
-  const requiredResults = checkResults.filter((result) => Boolean(result.required));
-  const requiredPassedCount = requiredResults.filter((result) => Boolean(result.satisfied)).length;
-  const requiredFailedCount = requiredResults.length - requiredPassedCount;
+  const requirementEvaluation = evaluateComposerRequirements();
+  const requiredTotal = requirementEvaluation.requiredSummary.requiredTotal;
+  const requiredPassed = requirementEvaluation.requiredSummary.requiredPassed;
+  const requiredGaps = requirementEvaluation.requiredSummary.requiredGaps;
 
   if (completion.completionState === "partial") {
-    elements.builderChecksReadiness.textContent = `Composition score: ${compositionScore}. ${completion.filledSlots}/${completion.totalSlots} slots filled. Required checks passed: ${requiredPassedCount}/${requiredResults.length}.`;
+    elements.builderChecksReadiness.textContent =
+      `Composition '${selectedComposition.name}': ${completion.filledSlots}/${completion.totalSlots} slots filled. ` +
+      `Requirements passed: ${requiredPassed}/${requiredTotal}.`;
   } else {
-    elements.builderChecksReadiness.textContent = `Composition score: ${compositionScore}. Required checks passed: ${requiredPassedCount}/${requiredResults.length}. ${requiredFailedCount > 0 ? `${requiredFailedCount} required gap(s) remain.` : "No required gaps."}`;
+    elements.builderChecksReadiness.textContent =
+      `Composition '${selectedComposition.name}': Requirements passed ${requiredPassed}/${requiredTotal}. ` +
+      (requiredGaps > 0 ? `${requiredGaps} requirement gap(s) remain.` : "No requirement gaps.");
   }
 
   elements.builderRequiredChecks.innerHTML = "";
-  elements.builderOptionalChecks.innerHTML = "";
-
-  for (const [checkName, result] of Object.entries(checkEvaluation.checks)) {
-    const required = Boolean(result.required);
-    const item = buildCheckRow(checkName, result, checkEvaluation);
-
-    if (required) {
-      elements.builderRequiredChecks.append(item);
-    } else {
-      elements.builderOptionalChecks.append(item);
-    }
+  const requirementResults = requirementEvaluation.requirements;
+  if (!Array.isArray(requirementResults) || requirementResults.length < 1) {
+    const empty = runtimeDocument.createElement("li");
+    empty.className = "check is-optional";
+    empty.textContent = "Selected composition has no requirements.";
+    elements.builderRequiredChecks.append(empty);
+    return;
   }
-
-  elements.builderOptionalChecks.hidden = !state.builder.showOptionalChecks;
-  elements.builderToggleOptionalChecks.textContent = state.builder.showOptionalChecks
-    ? "Hide Optional Checks"
-    : "Show Optional Checks";
+  for (const requirementResult of requirementResults) {
+    elements.builderRequiredChecks.append(buildRequirementStatusRow(requirementResult));
+  }
 }
 
 function renderExcludedPills() {
@@ -9596,10 +9652,6 @@ function getTopCountEntry(map) {
 
 function formatBlockedReason(reason, role) {
   switch (reason) {
-    case "candidate_score_floor":
-      return `most dead-end paths run out at ${role} because all candidates fell below Min Candidate Score (${state.builder.treeMinCandidateScore}).`;
-    case "top_threat_filter":
-      return `most dead-end paths run out at ${role} because top-threat enforcement leaves no legal option.`;
     case "no_eligible_champions_for_role":
       return `most dead-end paths run out at ${role} because no eligible champions remain after pool/exclusion/duplicate constraints.`;
     default:
@@ -9754,21 +9806,6 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
       quickActions.append(clearSearch);
     }
 
-    if (state.builder.treeMinCandidateScore > 0) {
-      const lowerCandidateFloor = runtimeDocument.createElement("button");
-      lowerCandidateFloor.type = "button";
-      lowerCandidateFloor.className = "ghost";
-      lowerCandidateFloor.textContent = "Lower Min Candidate Score to 0";
-      lowerCandidateFloor.addEventListener("click", () => {
-        state.builder.treeMinCandidateScore = 0;
-        elements.treeMinCandidateScore.value = "0";
-        setBuilderStage("setup");
-        resetBuilderTreeState();
-        renderBuilder();
-      });
-      quickActions.append(lowerCandidateFloor);
-    }
-
     if (quickActions.childElementCount > 0) {
       elements.builderTreeSummary.append(quickActions);
     }
@@ -9777,7 +9814,7 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
       const guidance = runtimeDocument.createElement("p");
       guidance.className = "meta";
       guidance.textContent =
-        "No viable branches were generated. Depth is automatic to remaining slots. Lower Min Candidate Score, relax required toggles, or pre-fill key slots.";
+        "No viable branches were generated. Depth is automatic to remaining slots. Adjust slot picks, exclusions, or active composition requirements.";
       elements.builderTreeSummary.append(guidance);
     }
     return;
@@ -10008,12 +10045,12 @@ function renderBuilder() {
   renderBuilderStageGuide();
   replaceOptions(elements.builderActiveTeam, getTeamSelectOptions());
   elements.builderActiveTeam.value = state.builder.teamId;
+  syncBuilderCompositionControls();
   elements.builderMaxDepth.value = String(state.builder.maxDepth);
   elements.builderMaxDepth.disabled = true;
   elements.treeDensity.value = state.builder.treeDensity;
   elements.treeSearch.value = state.builder.treeSearch;
   elements.treeMinScore.value = String(state.builder.treeMinScore);
-  elements.treeMinCandidateScore.value = String(state.builder.treeMinCandidateScore);
   elements.treeValidLeavesOnly.checked = state.builder.treeValidLeavesOnly;
   elements.treeDensity.disabled = !state.builder.tree;
   elements.treeSearch.disabled = !state.builder.tree;
@@ -10196,7 +10233,6 @@ async function handleAuthSubmit(path, mode = "login") {
 
 function attachEvents() {
   const NodeCtor = runtimeWindow.Node ?? globalThis.Node;
-  const InputCtor = runtimeWindow.HTMLInputElement ?? globalThis.HTMLInputElement;
 
   runtimeDocument.querySelectorAll(".password-toggle").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -10825,10 +10861,15 @@ function attachEvents() {
     }
   });
 
-  elements.builderToggleOptionalChecks.addEventListener("click", () => {
-    state.builder.showOptionalChecks = !state.builder.showOptionalChecks;
-    renderChecks();
-  });
+  if (elements.builderActiveComposition) {
+    elements.builderActiveComposition.addEventListener("change", () => {
+      state.builder.activeCompositionId = resolveBuilderActiveCompositionId(elements.builderActiveComposition.value);
+      setBuilderStage("setup");
+      resetBuilderTreeState();
+      clearBuilderFeedback();
+      renderBuilder();
+    });
+  }
 
   elements.treeDensity.addEventListener("change", () => {
     state.builder.treeDensity = elements.treeDensity.value === "detailed" ? "detailed" : "summary";
@@ -10856,28 +10897,33 @@ function attachEvents() {
     renderTreeMap();
   });
 
-  elements.treeMinCandidateScore.addEventListener("change", () => {
-    const parsed = Number.parseInt(elements.treeMinCandidateScore.value, 10);
-    state.builder.treeMinCandidateScore = Number.isFinite(parsed) ? Math.max(0, parsed) : 1;
-    elements.treeMinCandidateScore.value = String(state.builder.treeMinCandidateScore);
-    setBuilderStage("setup");
-    resetBuilderTreeState();
-    renderBuilder();
-  });
+  if (elements.treeMinCandidateScore) {
+    elements.treeMinCandidateScore.addEventListener("change", () => {
+      const parsed = Number.parseInt(elements.treeMinCandidateScore.value, 10);
+      state.builder.treeMinCandidateScore = Number.isFinite(parsed) ? Math.max(0, parsed) : 1;
+      elements.treeMinCandidateScore.value = String(state.builder.treeMinCandidateScore);
+      setBuilderStage("setup");
+      resetBuilderTreeState();
+      renderBuilder();
+    });
+  }
 
-  elements.builderToggles.addEventListener("change", (event) => {
-    const target = event.target;
-    if (!InputCtor || !(target instanceof InputCtor)) {
-      return;
-    }
-    if (!target.dataset.toggle) {
-      return;
-    }
-    state.builder.toggles[target.dataset.toggle] = target.checked;
-    setBuilderStage("setup");
-    resetBuilderTreeState();
-    renderBuilder();
-  });
+  if (elements.builderToggles) {
+    const InputCtor = runtimeWindow.HTMLInputElement ?? globalThis.HTMLInputElement;
+    elements.builderToggles.addEventListener("change", (event) => {
+      const target = event.target;
+      if (!InputCtor || !(target instanceof InputCtor)) {
+        return;
+      }
+      if (!target.dataset.toggle) {
+        return;
+      }
+      state.builder.toggles[target.dataset.toggle] = target.checked;
+      setBuilderStage("setup");
+      resetBuilderTreeState();
+      renderBuilder();
+    });
+  }
 
   elements.builderExcludedSearch.addEventListener("input", () => {
     state.builder.excludedSearch = elements.builderExcludedSearch.value;

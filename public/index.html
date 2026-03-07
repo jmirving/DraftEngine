@@ -263,6 +263,11 @@
                     <select id="builder-active-team"></select>
                   </label>
                   <p id="builder-team-help" class="meta"></p>
+                  <label>
+                    Active Composition
+                    <select id="builder-active-composition"></select>
+                  </label>
+                  <p id="builder-composition-help" class="meta"></p>
                   <div class="panel draft-board-panel">
                     <h3>Pool Snapshot</h3>
                     <p id="team-config-pool-summary" class="meta"></p>
@@ -424,34 +429,31 @@
                       </label>
                     </div>
                   </section>
-                  <p id="builder-setup-feedback" class="error-inline" hidden></p>
-                  <details id="builder-advanced-controls" class="advanced-controls">
-                    <summary>Advanced Controls</summary>
-                    <div class="stack advanced-controls-content">
-                      <fieldset id="builder-toggles" class="toggle-group">
-                        <legend>Required Toggles</legend>
-                      </fieldset>
+                <p id="builder-setup-feedback" class="error-inline" hidden></p>
+                <details id="builder-advanced-controls" class="advanced-controls">
+                  <summary>Advanced Controls</summary>
+                  <div class="stack advanced-controls-content">
+                    <label>
+                      Excluded Champions
+                      <input id="builder-excluded-search" type="search" placeholder="Filter champion list" />
+                    </label>
+                    <div id="builder-excluded-options" class="excluded-options"></div>
+                    <p class="meta">Multi-select checklist. Excluded champions are never offered in selectors or generated tree nodes.</p>
+                    <div id="builder-excluded-pills" class="chip-row"></div>
+                    <div class="grid grid-2">
                       <label>
-                        Excluded Champions
-                        <input id="builder-excluded-search" type="search" placeholder="Filter champion list" />
+                        Auto Depth (remaining slots)
+                        <input id="builder-max-depth" type="number" min="0" max="5" step="1" readonly />
                       </label>
-                      <div id="builder-excluded-options" class="excluded-options"></div>
-                      <p class="meta">Multi-select checklist. Excluded champions are never offered in selectors or generated tree nodes.</p>
-                      <div id="builder-excluded-pills" class="chip-row"></div>
-                      <div class="grid grid-2">
-                        <label>
-                          Auto Depth (remaining slots)
-                          <input id="builder-max-depth" type="number" min="0" max="5" step="1" readonly />
-                        </label>
-                        <label>
-                          maxBranch
-                          <input id="builder-max-branch" type="number" min="1" max="25" step="1" />
-                        </label>
-                      </div>
+                      <label>
+                        maxBranch
+                        <input id="builder-max-branch" type="number" min="1" max="25" step="1" />
+                      </label>
                     </div>
-                  </details>
-                </div>
-              </aside>
+                  </div>
+                </details>
+              </div>
+            </aside>
 
               <section id="builder-stage-inspect" class="panel draft-board-panel stage-panel">
                 <h2 id="builder-stage-inspect-title">Review</h2>
@@ -460,13 +462,8 @@
                 <div id="builder-team-context" class="team-context"></div>
                 <div class="inspect-overview-grid">
                   <section class="inspect-column">
-                    <h3>Required Checks</h3>
+                    <h3>Requirement Status</h3>
                     <ul id="builder-required-checks" class="check-list"></ul>
-                    <div class="optional-checks-header">
-                      <h3>Optional Checks</h3>
-                      <button id="builder-toggle-optional-checks" class="ghost" type="button">Show Optional Checks</button>
-                    </div>
-                    <ul id="builder-optional-checks" class="check-list" hidden></ul>
                   </section>
                 </div>
                 <p id="builder-inspect-feedback" class="error-inline" hidden></p>
@@ -490,10 +487,6 @@
                   <label>
                     Min Score
                     <input id="tree-min-score" type="number" step="1" min="0" value="0" />
-                  </label>
-                  <label>
-                    Min Candidate Score
-                    <input id="tree-min-candidate-score" type="number" step="1" min="0" value="1" />
                   </label>
                   <label class="inline-checkbox">
                     <input id="tree-valid-leaves-only" type="checkbox" checked />
@@ -1102,6 +1095,12 @@
               >
                 <h3>What's New</h3>
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
+                <h4>Version 0.7.0 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>Composer Setup now includes an Active Composition selector populated from created composition bundles.</li>
+                  <li>Composer review and tree generation now evaluate selected composition requirements directly, including clause logic and per-clause constraints.</li>
+                  <li>Legacy hardcoded conditional controls were removed from Composer, including advanced toggle conditionals and optional-check sections.</li>
+                </ul>
                 <h4>Version 0.6.0 (Shipped)</h4>
                 <ul class="coming-soon-list">
                   <li>Requirements and Compositions are now separate workspace pages so definition authoring and bundle management are split into focused flows.</li>
@@ -1152,8 +1151,8 @@
                 </ul>
                 <h4>Composer</h4>
                 <ul class="coming-soon-list">
-                  <li>Composer evaluation still uses the legacy toggle-based check engine; requirement-clause runtime evaluation and pruning integration are deferred.</li>
                   <li>Per-team and per-user composition overlays remain deferred (draftflow-160)</li>
+                  <li>Legacy composition-requirements profile endpoints remain for compatibility and still need cleanup/removal (draftflow-179).</li>
                 </ul>
                 <h4>Teams</h4>
                 <ul class="coming-soon-list">
