@@ -34,6 +34,21 @@ describe("evaluateCompositionRequirements", () => {
           }
         }
       }
+    },
+    Gamma: {
+      name: "Gamma",
+      tagIds: [],
+      roles: ["Jungle"],
+      roleProfiles: {
+        Jungle: {
+          primaryDamageType: "mixed",
+          effectiveness: {
+            early: "neutral",
+            mid: "neutral",
+            late: "neutral"
+          }
+        }
+      }
     }
   };
 
@@ -200,5 +215,39 @@ describe("evaluateCompositionRequirements", () => {
     expect(tree.children[0].addedChampion).toBe("Alpha");
     expect(tree.requiredSummary.requiredGaps).toBe(1);
     expect(tree.children[0].requiredSummary.requiredGaps).toBe(0);
+  });
+
+  test("empty team generation starts from first role in pick order", () => {
+    const tree = generatePossibilityTree({
+      teamState: {
+        Top: null,
+        Jungle: null,
+        Mid: null,
+        ADC: null,
+        Support: null
+      },
+      teamId: "team-a",
+      roleOrder: ["Jungle", "Top", "Mid", "ADC", "Support"],
+      teamPools: {
+        "team-a": {
+          Top: ["Alpha"],
+          Jungle: ["Beta", "Gamma"],
+          Mid: [],
+          ADC: [],
+          Support: []
+        }
+      },
+      championsByName,
+      requirements: [],
+      forceRequirementMode: true,
+      tagById,
+      maxDepth: 1,
+      maxBranch: 10,
+      minCandidateScore: 0
+    });
+
+    expect(tree.children.length).toBe(2);
+    expect(new Set(tree.children.map((child) => child.addedRole))).toEqual(new Set(["Jungle"]));
+    expect(new Set(tree.children.map((child) => child.addedChampion))).toEqual(new Set(["Beta", "Gamma"]));
   });
 });

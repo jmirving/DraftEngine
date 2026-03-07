@@ -2158,7 +2158,8 @@ function renderBuilderStageGuide() {
   } else if (completion.completionState === "full") {
     elements.builderStageGuideMeta.textContent = "Checks evaluate the full composition.";
   } else {
-    elements.builderStageGuideMeta.textContent = "Select champions in Setup, then Generate Tree to inspect options.";
+    elements.builderStageGuideMeta.textContent =
+      "Generate from an empty board or pre-select champions in Setup before inspecting options.";
   }
 
   elements.builderStageSetup.hidden = false;
@@ -8827,6 +8828,36 @@ function resetBuilderToDefaults() {
   return true;
 }
 
+function getDraftContextMemberForLane(ctx, lane) {
+  if (!ctx?.members?.length || !SLOTS.includes(lane)) {
+    return null;
+  }
+  return (
+    ctx.members.find((member) => member?.lane === lane && member?.teamRole === "primary") ??
+    ctx.members.find((member) => member?.lane === lane) ??
+    null
+  );
+}
+
+function getChampionNamesFromDraftContextPool(member, poolName) {
+  if (!member?.pools?.length) {
+    return [];
+  }
+  const normalizedPoolName = normalizeApiSlot(poolName);
+  if (!normalizedPoolName) {
+    return [];
+  }
+  const memberPool =
+    member.pools.find((pool) => normalizeApiSlot(pool?.name) === normalizedPoolName) ?? null;
+  if (!memberPool || !Array.isArray(memberPool.championIds)) {
+    return [];
+  }
+  const names = memberPool.championIds
+    .map((id) => state.data.championNamesById[id])
+    .filter(Boolean);
+  return Array.from(new Set(names));
+}
+
 
 function getEnginePoolContext() {
   if (state.builder.teamId === NONE_TEAM_ID) {
@@ -8841,20 +8872,11 @@ function getEnginePoolContext() {
   const ctx = state.builder.draftContext;
   if (ctx?.members?.length > 0) {
     const rolePools = createEmptyRolePools();
-    for (const member of ctx.members) {
-      if (!member.lane || !SLOTS.includes(member.lane)) {
-        continue;
-      }
-      const names = new Set();
-      for (const pool of member.pools) {
-        for (const id of pool.championIds) {
-          const name = state.data.championNamesById[id];
-          if (name) {
-            names.add(name);
-          }
-        }
-      }
-      rolePools[member.lane] = Array.from(names);
+    for (const lane of SLOTS) {
+      const member = getDraftContextMemberForLane(ctx, lane);
+      rolePools[lane] = member
+        ? getChampionNamesFromDraftContextPool(member, lane)
+        : [];
     }
     return {
       teamId: state.builder.teamId,
@@ -8881,14 +8903,9 @@ function getAutoMaxDepth() {
 function getChampionsForSlotAndRole(slot, poolRole) {
   const ctx = state.builder.draftContext;
   if (ctx?.members?.length > 0) {
-    const ctxMember =
-      ctx.members.find((m) => m.lane === slot && m.teamRole === "primary") ??
-      ctx.members.find((m) => m.lane === slot);
-    if (ctxMember) {
-      const memberPool = ctxMember.pools.find((p) => p.name === poolRole);
-      return memberPool
-        ? memberPool.championIds.map((id) => state.data.championNamesById[id]).filter(Boolean)
-        : [];
+    const member = getDraftContextMemberForLane(ctx, slot);
+    if (member) {
+      return getChampionNamesFromDraftContextPool(member, poolRole);
     }
   }
   const { teamId, teamPools } = getEnginePoolContext();
@@ -8912,12 +8929,6 @@ async function fetchBuilderDraftContext(teamId) {
 }
 
 function generateTreeFromCurrentState({ scrollToResults = true } = {}) {
-  const completion = getTeamCompletionInfo(state.builder.teamState);
-  if (completion.completionState === "empty") {
-    setInspectFeedback("Select at least one champion to generate a tree.");
-    return false;
-  }
-
   try {
     setInspectFeedback("");
     const { teamId, teamPools } = getEnginePoolContext();
@@ -9253,18 +9264,6 @@ function renderChecks() {
     elements.builderOptionalChecks.innerHTML = "";
     elements.builderOptionalChecks.hidden = true;
   }
-  if (completion.completionState === "empty") {
-    elements.builderChecksReadiness.textContent =
-      "No champions selected yet. Add at least one pick to start requirement evaluation.";
-    elements.builderRequiredChecks.innerHTML = "";
-
-    const requiredRow = runtimeDocument.createElement("li");
-    requiredRow.className = "check is-optional";
-    requiredRow.textContent = "Requirement evaluation is waiting for your first champion selection.";
-    elements.builderRequiredChecks.append(requiredRow);
-    return;
-  }
-
   const selectedComposition = getBuilderSelectedComposition();
   if (!selectedComposition) {
     elements.builderChecksReadiness.textContent =
@@ -9282,7 +9281,7 @@ function renderChecks() {
   const requiredPassed = requirementEvaluation.requiredSummary.requiredPassed;
   const requiredGaps = requirementEvaluation.requiredSummary.requiredGaps;
 
-  if (completion.completionState === "partial") {
+  if (completion.completionState === "empty" || completion.completionState === "partial") {
     elements.builderChecksReadiness.textContent =
       `Composition '${selectedComposition.name}': ${completion.filledSlots}/${completion.totalSlots} slots filled. ` +
       `Requirements passed: ${requiredPassed}/${requiredTotal}.`;
