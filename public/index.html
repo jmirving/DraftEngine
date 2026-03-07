@@ -1037,17 +1037,19 @@
               >
                 <h3>What's New</h3>
                 <p class="meta">Shipped updates that are available now (latest two releases).</p>
+                <h4>Version 0.5.2 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>Navigation bar redesigned as a fixed full-height sidebar anchored to the left viewport edge with a smooth collapse/expand toggle; nav stays visible whether logged in or out.</li>
+                  <li>Login, Register, Forgot Password, and Reset Password flows now appear as a centered card modal that overlays the nav layout instead of replacing the full page.</li>
+                  <li>Register form now captures Game Name, Tagline, First Name, and Last Name alongside password; a Re-type Password field with live mismatch validation prevents mismatched submissions.</li>
+                  <li>Change Password is available from the Profile page (Account section) and opens a dedicated modal with New Password and Re-enter New Password confirmation fields; a server-side change-password endpoint was added.</li>
+                  <li>Updates and Report an issue moved to link-style items at the bottom of the nav; Report an issue now shows an external link indicator (↗).</li>
+                  <li>Nav sidebar right-edge border radius removed so the nav sits flush against the left viewport edge.</li>
+                </ul>
                 <h4>Version 0.5.1 (Shipped)</h4>
                 <ul class="coming-soon-list">
                   <li>Champion metadata editing now supports an explicit "All selected roles are the same" option so one primary damage/effectiveness profile can be applied across every selected role.</li>
                   <li>The Tags workspace now stacks each tag row as name, then definition, then champion usage count for faster scanning.</li>
-                </ul>
-                <h4>Version 0.5.0 (Shipped)</h4>
-                <ul class="coming-soon-list">
-                  <li>Tags now use a definition-first model: catalog entries are managed as `name + definition`, and category-based tag organization has been removed.</li>
-                  <li>Champion editing was unified so tag assignment and champion role metadata live in one profile editor flow.</li>
-                  <li>Champion role metadata now supports per-role primary damage type (`ad`, `ap`, `mixed`, `utility`) and per-role effectiveness (early/mid/late as weak/neutral/strong).</li>
-                  <li>`utility` role profiles no longer satisfy damage-mix requirements in composition evaluation logic.</li>
                 </ul>
               </div>
 
@@ -1067,6 +1069,8 @@
                 </ul>
                 <h4>Profile</h4>
                 <ul class="coming-soon-list">
+                  <li>First Name and Last Name are captured in the register form but not yet sent to the server or persisted; backend schema and registration endpoint need updating before these fields are stored.</li>
+                  <li>Change Password does not currently require entry of the existing password before accepting a new one; current-password verification is deferred.</li>
                   <li>Set your champion familiarity level in your personal pool (draftflow-144)</li>
                   <li>Get champion pool suggestions based on your real League match history (draftflow-145)</li>
                   <li>Live Riot champion stats in Profile remain a placeholder until the full implementation is shipped (draftflow-146)</li>
@@ -1112,6 +1116,13 @@
               >
                 <h3>Previous Release Notes</h3>
                 <p class="meta">Historical shipped changes from earlier versions.</p>
+                <h4>Version 0.5.0 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>Tags now use a definition-first model: catalog entries are managed as `name + definition`, and category-based tag organization has been removed.</li>
+                  <li>Champion editing was unified so tag assignment and champion role metadata live in one profile editor flow.</li>
+                  <li>Champion role metadata now supports per-role primary damage type (`ad`, `ap`, `mixed`, `utility`) and per-role effectiveness (early/mid/late as weak/neutral/strong).</li>
+                  <li>`utility` role profiles no longer satisfy damage-mix requirements in composition evaluation logic.</li>
+                </ul>
                 <h4>Version 0.4.3 (Shipped)</h4>
                 <ul class="coming-soon-list">
                   <li>The Champions filter panel was redesigned into a single collapsible section; the Tag Catalog was moved inside the filter grid as a peer field with an overlay panel so it doesn't expand the layout.</li>
