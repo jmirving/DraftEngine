@@ -1032,99 +1032,164 @@
               <p id="coming-soon-meta" class="meta">Latest shipped changes plus known gaps and planned follow-up grouped by workspace page.</p>
             </div>
             <div class="panel draft-board-panel">
-              <h3>What's New</h3>
-              <p class="meta">Shipped updates that are available now.</p>
-              <h4>Version 0.4.3 (Shipped)</h4>
-              <ul class="coming-soon-list">
-                <li>The Champions filter panel was redesigned into a single collapsible section; the Tag Catalog was moved inside the filter grid as a peer field with an overlay panel so it doesn't expand the layout.</li>
-                <li>Active filter pills now appear inline next to the Filters toggle, showing a label per active filter with an instant-display list tooltip on hover and a visual highlight on mouse entry.</li>
-                <li>Filter fields each gained an inline × clear icon; a warning banner surfaces the mutual exclusivity of Include and Exclude tag filters.</li>
-                <li>The champion card grid is capped at three visible rows with vertical scrolling to keep the page compact.</li>
-                <li>Filter field text now uses consistent bold weight across all inputs, selects, and dropdowns.</li>
-              </ul>
-              <h4>Version 0.4.2 (Shipped)</h4>
-              <ul class="coming-soon-list">
-                <li>Player Slots and Pool Snapshot panels in the Composer were overhauled into a unified slot-based workflow; the separate Node Draft Order drag list was removed and replaced with inline ↑↓ reorder buttons on each slot row.</li>
-                <li>Pool Snapshot cards now show per-member, per-role champion lists with a text filter and scrollable view; clicking a champion directly sets it in the corresponding slot.</li>
-                <li>Slot rows detect and flag duplicate role assignments inline, and changing a slot's role resets the champion selection to prevent stale picks.</li>
-                <li>Draft context is now fetched on page load rather than only on team change, ensuring the Composer is always pre-populated without requiring user interaction.</li>
-              </ul>
-              <h4>Version 0.4.1 (Shipped)</h4>
-              <ul class="coming-soon-list">
-                <li>The Teams workspace now splits “Teams I’m On”, “Teams I manage”, and “Create new team” into separate tabs so roster management, invites, requests, and status summaries stay focused.</li>
-                <li>Team invites, join requests, and status feedback are front and center alongside a current-team summary pulled from your roster data.</li>
-                <li>Team name/tag uniqueness is hardened via the latest migration, ensuring no duplicate teams slip through.</li>
-              </ul>
-              <h4>Version 0.4.0 (Shipped)</h4>
-              <ul class="coming-soon-list">
-                <li>Team workspace exposes invitation controls (send/cancel, pending lists, and lead review) alongside existing join-request moderation.</li>
-                <li>Team creation and edits enforce case-insensitive uniqueness for names and tags to prevent duplicates.</li>
-                <li>The Champion Tag editor now understands team scope so team leads can manage team-specific composition metadata.</li>
-              </ul>
-              <h4>Version 0.3.1 (March 2, 2026)</h4>
-              <ul class="coming-soon-list">
-                <li>Aligned the champion tag editor "Human reviewed" checkbox control for consistent label/checkbox layout</li>
-                <li>Aligned the Composition Requirements "Set as active profile" checkbox control with the Requirements editor layout</li>
-                <li>Reorganized this Updates page so shipped changes and roadmap items are split into separate sections</li>
-              </ul>
-              <h4>Version 0.3.0</h4>
-              <ul class="coming-soon-list">
-                <li>Owner admin can now manage team roster actions (including member removal) even when not assigned as a team lead</li>
-                <li>Users workspace now supports one-time admin Riot ID corrections for mistyped Game Name/Tagline entries</li>
-                <li>Added admin-only Users workspace to view all accounts and manage `member` / `global` permissions (draftflow-153)</li>
-                <li>Added Composition Requirements workspace with CRUD profiles and active-profile selection for Composer defaults (draftflow-155, draftflow-156)</li>
-                <li>Added champion composition-tag review flag support in the editor and champion cards (draftflow-154)</li>
-                <li>Global editor role now supports global champion-tag and tag-catalog writes without full admin access (draftflow-153)</li>
-                <li>Users workspace now supports permanent deletion of non-owner accounts for demo-user cleanup</li>
-              </ul>
-              <hr class="updates-divider" />
-              <h3>Coming Soon</h3>
-              <p class="meta">Deferred and planned follow-up work by workspace page.</p>
-              <h4>Version 0.4.4 (Upcoming)</h4>
-              <ul class="coming-soon-list">
-                <li>Team-scoped composition requirement workflows plus promotion moderation for leads are still in flight (draftflow-171).</li>
-                <li>Champion-tag promotion review controls and governance surfaces remain pending (draftflow-170).</li>
-                <li>Invite/request lifecycle polish, including improved lead-review telemetry, is on deck (draftflow-169).</li>
-              </ul>
-              <h4>General</h4>
-              <ul class="coming-soon-list">
-                <li>Champion catalog refresh checks are still manual; automatic release ingestion is not enabled yet (draftflow-129)</li>
-                <li>Admin safeguards and governance guardrails still need hardening for high-impact global edits (draftflow-147)</li>
-              </ul>
-              <h4>Profile</h4>
-              <ul class="coming-soon-list">
-                <li>Set your champion familiarity level in your personal pool (draftflow-144)</li>
-                <li>Get champion pool suggestions based on your real League match history (draftflow-145)</li>
-                <li>Live Riot champion stats in Profile remain a placeholder until the full implementation is shipped (draftflow-146)</li>
-              </ul>
-              <h4>Composer</h4>
-              <ul class="coming-soon-list">
-                <li>Composer currently starts from the active Composition Requirement profile, but per-team and per-user profile overlays are still deferred (draftflow-160)</li>
-              </ul>
-              <h4>Teams</h4>
-              <ul class="coming-soon-list">
-                <li>Teams member actions require exact Riot ID entry (`GameName#Tagline`); search/autocomplete is not implemented yet (draftflow-139)</li>
-                <li>Join request controls currently require manual refresh actions for discover/review lists; live auto-refresh is deferred.</li>
-                <li>Promotion moderation dashboards for team-scoped champion tags and requirement toggles remain in progress (draftflow-170, draftflow-171).</li>
-              </ul>
-              <h4>Champions</h4>
-              <ul class="coming-soon-list">
-                <li>Champion review state currently tracks boolean + reviewer metadata only; audit history and review notes are deferred (draftflow-159)</li>
-                <li>Ship champion auto-ingest now that global champion-tag persistence is in place (draftflow-129)</li>
-              </ul>
-              <h4>Tags</h4>
-              <ul class="coming-soon-list">
-                <li>Global editor permissions currently target tag-catalog and champion-tag writes only; finer-grained policy controls are deferred (draftflow-161)</li>
-              </ul>
-              <h4>Users</h4>
-              <ul class="coming-soon-list">
-                <li>User search, filtering, and bulk permission updates are not implemented yet (draftflow-157)</li>
-                <li>User deletion is currently hard-delete only; restore/undo and deletion audit history are deferred</li>
-              </ul>
-              <h4>Composition Requirements</h4>
-              <ul class="coming-soon-list">
-                <li>Requirement profiles support toggle-based rules today; custom rule definitions and version history are deferred (draftflow-158)</li>
-              </ul>
+              <div class="updates-release-tabs" role="tablist" aria-label="Updates sections">
+                <button
+                  id="updates-release-tab-whats-new"
+                  class="updates-release-tab is-active"
+                  type="button"
+                  role="tab"
+                  aria-selected="true"
+                  aria-controls="updates-release-panel-whats-new"
+                  tabindex="0"
+                  data-updates-release-tab="whats-new"
+                >
+                  What's New
+                </button>
+                <button
+                  id="updates-release-tab-coming-soon"
+                  class="updates-release-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="updates-release-panel-coming-soon"
+                  tabindex="-1"
+                  data-updates-release-tab="coming-soon"
+                >
+                  Coming Soon
+                </button>
+                <button
+                  id="updates-release-tab-previous"
+                  class="updates-release-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="updates-release-panel-previous"
+                  tabindex="-1"
+                  data-updates-release-tab="previous"
+                >
+                  Previous Release Notes
+                </button>
+              </div>
+
+              <div
+                id="updates-release-panel-whats-new"
+                class="updates-release-panel"
+                role="tabpanel"
+                aria-labelledby="updates-release-tab-whats-new"
+              >
+                <h3>What's New</h3>
+                <p class="meta">Shipped updates that are available now (latest two patches).</p>
+                <h4>Version 0.4.3 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>The Champions filter panel was redesigned into a single collapsible section; the Tag Catalog was moved inside the filter grid as a peer field with an overlay panel so it doesn't expand the layout.</li>
+                  <li>Active filter pills now appear inline next to the Filters toggle, showing a label per active filter with an instant-display list tooltip on hover and a visual highlight on mouse entry.</li>
+                  <li>Filter fields each gained an inline × clear icon; a warning banner surfaces the mutual exclusivity of Include and Exclude tag filters.</li>
+                  <li>The champion card grid is capped at three visible rows with vertical scrolling to keep the page compact.</li>
+                  <li>Filter field text now uses consistent bold weight across all inputs, selects, and dropdowns.</li>
+                </ul>
+                <h4>Version 0.4.2 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>Player Slots and Pool Snapshot panels in the Composer were overhauled into a unified slot-based workflow; the separate Node Draft Order drag list was removed and replaced with inline ↑↓ reorder buttons on each slot row.</li>
+                  <li>Pool Snapshot cards now show per-member, per-role champion lists with a text filter and scrollable view; clicking a champion directly sets it in the corresponding slot.</li>
+                  <li>Slot rows detect and flag duplicate role assignments inline, and changing a slot's role resets the champion selection to prevent stale picks.</li>
+                  <li>Draft context is now fetched on page load rather than only on team change, ensuring the Composer is always pre-populated without requiring user interaction.</li>
+                </ul>
+              </div>
+
+              <div
+                id="updates-release-panel-coming-soon"
+                class="updates-release-panel"
+                role="tabpanel"
+                aria-labelledby="updates-release-tab-coming-soon"
+                hidden
+              >
+                <h3>Coming Soon</h3>
+                <p class="meta">Deferred and planned follow-up work by workspace page.</p>
+                <h4>Version 0.4.4 (Upcoming)</h4>
+                <ul class="coming-soon-list">
+                  <li>Team-scoped composition requirement workflows plus promotion moderation for leads are still in flight (draftflow-171).</li>
+                  <li>Champion-tag promotion review controls and governance surfaces remain pending (draftflow-170).</li>
+                  <li>Invite/request lifecycle polish, including improved lead-review telemetry, is on deck (draftflow-169).</li>
+                </ul>
+                <h4>General</h4>
+                <ul class="coming-soon-list">
+                  <li>Champion catalog refresh checks are still manual; automatic release ingestion is not enabled yet (draftflow-129)</li>
+                  <li>Admin safeguards and governance guardrails still need hardening for high-impact global edits (draftflow-147)</li>
+                </ul>
+                <h4>Profile</h4>
+                <ul class="coming-soon-list">
+                  <li>Set your champion familiarity level in your personal pool (draftflow-144)</li>
+                  <li>Get champion pool suggestions based on your real League match history (draftflow-145)</li>
+                  <li>Live Riot champion stats in Profile remain a placeholder until the full implementation is shipped (draftflow-146)</li>
+                </ul>
+                <h4>Composer</h4>
+                <ul class="coming-soon-list">
+                  <li>Composer currently starts from the active Composition Requirement profile, but per-team and per-user profile overlays are still deferred (draftflow-160)</li>
+                </ul>
+                <h4>Teams</h4>
+                <ul class="coming-soon-list">
+                  <li>Teams member actions require exact Riot ID entry (`GameName#Tagline`); search/autocomplete is not implemented yet (draftflow-139)</li>
+                  <li>Join request controls currently require manual refresh actions for discover/review lists; live auto-refresh is deferred.</li>
+                  <li>Promotion moderation dashboards for team-scoped champion tags and requirement toggles remain in progress (draftflow-170, draftflow-171).</li>
+                </ul>
+                <h4>Champions</h4>
+                <ul class="coming-soon-list">
+                  <li>Champion review state currently tracks boolean + reviewer metadata only; audit history and review notes are deferred (draftflow-159)</li>
+                  <li>Ship champion auto-ingest now that global champion-tag persistence is in place (draftflow-129)</li>
+                </ul>
+                <h4>Tags</h4>
+                <ul class="coming-soon-list">
+                  <li>Global editor permissions currently target tag-catalog and champion-tag writes only; finer-grained policy controls are deferred (draftflow-161)</li>
+                </ul>
+                <h4>Users</h4>
+                <ul class="coming-soon-list">
+                  <li>User search, filtering, and bulk permission updates are not implemented yet (draftflow-157)</li>
+                  <li>User deletion is currently hard-delete only; restore/undo and deletion audit history are deferred</li>
+                </ul>
+                <h4>Composition Requirements</h4>
+                <ul class="coming-soon-list">
+                  <li>Requirement profiles support toggle-based rules today; custom rule definitions and version history are deferred (draftflow-158)</li>
+                </ul>
+              </div>
+
+              <div
+                id="updates-release-panel-previous"
+                class="updates-release-panel"
+                role="tabpanel"
+                aria-labelledby="updates-release-tab-previous"
+                hidden
+              >
+                <h3>Previous Release Notes</h3>
+                <p class="meta">Historical shipped changes from earlier versions.</p>
+                <h4>Version 0.4.1 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>The Teams workspace now splits “Teams I’m On”, “Teams I manage”, and “Create new team” into separate tabs so roster management, invites, requests, and status summaries stay focused.</li>
+                  <li>Team invites, join requests, and status feedback are front and center alongside a current-team summary pulled from your roster data.</li>
+                  <li>Team name/tag uniqueness is hardened via the latest migration, ensuring no duplicate teams slip through.</li>
+                </ul>
+                <h4>Version 0.4.0 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>Team workspace exposes invitation controls (send/cancel, pending lists, and lead review) alongside existing join-request moderation.</li>
+                  <li>Team creation and edits enforce case-insensitive uniqueness for names and tags to prevent duplicates.</li>
+                  <li>The Champion Tag editor now understands team scope so team leads can manage team-specific composition metadata.</li>
+                </ul>
+                <h4>Version 0.3.1 (March 2, 2026)</h4>
+                <ul class="coming-soon-list">
+                  <li>Aligned the champion tag editor "Human reviewed" checkbox control for consistent label/checkbox layout</li>
+                  <li>Aligned the Composition Requirements "Set as active profile" checkbox control with the Requirements editor layout</li>
+                  <li>Reorganized this Updates page so shipped changes and roadmap items are split into separate sections</li>
+                </ul>
+                <h4>Version 0.3.0</h4>
+                <ul class="coming-soon-list">
+                  <li>Owner admin can now manage team roster actions (including member removal) even when not assigned as a team lead</li>
+                  <li>Users workspace now supports one-time admin Riot ID corrections for mistyped Game Name/Tagline entries</li>
+                  <li>Added admin-only Users workspace to view all accounts and manage `member` / `global` permissions (draftflow-153)</li>
+                  <li>Added Composition Requirements workspace with CRUD profiles and active-profile selection for Composer defaults (draftflow-155, draftflow-156)</li>
+                  <li>Added champion composition-tag review flag support in the editor and champion cards (draftflow-154)</li>
+                  <li>Global editor role now supports global champion-tag and tag-catalog writes without full admin access (draftflow-153)</li>
+                  <li>Users workspace now supports permanent deletion of non-owner accounts for demo-user cleanup</li>
+                </ul>
+              </div>
             </div>
           </section>
         </div>

@@ -374,7 +374,7 @@ describe("hash navigation routing", () => {
     expect(doc.querySelector("#tags-title").textContent).toBe("Tags");
   });
 
-  test("updates page clearly separates What's New from Coming Soon", async () => {
+  test("updates page provides What's New, Coming Soon, and Previous Release Notes tabs", async () => {
     const harness = createFetchHarness();
     const { dom } = await bootApp({
       url: "http://localhost/public/index.html#workflow",
@@ -385,14 +385,29 @@ describe("hash navigation routing", () => {
 
     doc.querySelector(".side-menu-link[data-tab='coming-soon']").click();
 
-    const primaryHeadings = Array.from(
-      doc.querySelectorAll("#tab-coming-soon .panel.draft-board-panel h3"),
+    const updateTabs = Array.from(
+      doc.querySelectorAll("#tab-coming-soon button[data-updates-release-tab]"),
       (node) => node.textContent.trim()
     );
-    expect(primaryHeadings).toEqual(["What's New", "Coming Soon"]);
+    expect(updateTabs).toEqual(["What's New", "Coming Soon", "Previous Release Notes"]);
+
+    expect(doc.querySelector("#updates-release-panel-whats-new").hidden).toBe(false);
+    expect(doc.querySelector("#updates-release-panel-coming-soon").hidden).toBe(true);
+    expect(doc.querySelector("#updates-release-panel-previous").hidden).toBe(true);
+
+    const whatsNewVersions = Array.from(
+      doc.querySelectorAll("#updates-release-panel-whats-new h4"),
+      (node) => node.textContent.trim()
+    );
+    expect(whatsNewVersions).toEqual(["Version 0.4.3 (Shipped)", "Version 0.4.2 (Shipped)"]);
+    expect(whatsNewVersions.includes("Version 0.4.1 (Shipped)")).toBe(false);
+
+    doc.querySelector("#updates-release-tab-coming-soon").click();
+    expect(doc.querySelector("#updates-release-panel-whats-new").hidden).toBe(true);
+    expect(doc.querySelector("#updates-release-panel-coming-soon").hidden).toBe(false);
 
     const comingSoonCategories = Array.from(
-      doc.querySelectorAll("#tab-coming-soon .panel.draft-board-panel h4"),
+      doc.querySelectorAll("#updates-release-panel-coming-soon h4"),
       (node) => node.textContent.trim()
     ).filter((heading) => !heading.startsWith("Version "));
     expect(comingSoonCategories).toEqual([
@@ -405,6 +420,10 @@ describe("hash navigation routing", () => {
       "Users",
       "Composition Requirements"
     ]);
+
+    doc.querySelector("#updates-release-tab-previous").click();
+    expect(doc.querySelector("#updates-release-panel-coming-soon").hidden).toBe(true);
+    expect(doc.querySelector("#updates-release-panel-previous").hidden).toBe(false);
   });
 
   test("mobile nav toggle still controls drawer open state", async () => {

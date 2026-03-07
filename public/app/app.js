@@ -55,6 +55,15 @@ const TEAM_WORKSPACE_TAB_SET = new Set([
   TEAM_WORKSPACE_TAB_CREATE
 ]);
 const TEAM_WORKSPACE_TAB_DEFAULT = TEAM_WORKSPACE_TAB_MEMBER;
+const UPDATES_RELEASE_TAB_WHATS_NEW = "whats-new";
+const UPDATES_RELEASE_TAB_COMING_SOON = "coming-soon";
+const UPDATES_RELEASE_TAB_PREVIOUS = "previous";
+const UPDATES_RELEASE_TAB_SET = new Set([
+  UPDATES_RELEASE_TAB_WHATS_NEW,
+  UPDATES_RELEASE_TAB_COMING_SOON,
+  UPDATES_RELEASE_TAB_PREVIOUS
+]);
+const UPDATES_RELEASE_TAB_DEFAULT = UPDATES_RELEASE_TAB_WHATS_NEW;
 const BUILDER_PROFILE_POOL_CONTEXT_ID = "__PROFILE_POOL_CONTEXT__";
 const TEAM_MANAGE_ACTION_TEAM_SETTINGS = "team-settings";
 const TEAM_MANAGE_ACTION_ADD_MEMBER = "add-member";
@@ -291,6 +300,7 @@ function createInitialState() {
       isNavOpen: false,
       isNavCollapsed: false,
       teamWorkspaceTab: TEAM_WORKSPACE_TAB_DEFAULT,
+      updatesReleaseTab: UPDATES_RELEASE_TAB_DEFAULT,
       teamManageAction: null,
       teamManageActionContext: null
     },
@@ -576,6 +586,10 @@ function createElements() {
     teamWorkspaceMemberPanel: runtimeDocument.querySelector("#team-workspace-member"),
     teamWorkspaceManagePanel: runtimeDocument.querySelector("#team-workspace-manage"),
     teamWorkspaceCreatePanel: runtimeDocument.querySelector("#team-workspace-create"),
+    updatesReleaseTabButtons: Array.from(runtimeDocument.querySelectorAll("button[data-updates-release-tab]")),
+    updatesReleaseWhatsNewPanel: runtimeDocument.querySelector("#updates-release-panel-whats-new"),
+    updatesReleaseComingSoonPanel: runtimeDocument.querySelector("#updates-release-panel-coming-soon"),
+    updatesReleasePreviousPanel: runtimeDocument.querySelector("#updates-release-panel-previous"),
     teamManageActionButtons: Array.from(runtimeDocument.querySelectorAll("button[data-team-manage-action]")),
     teamManageActionPanels: Array.from(runtimeDocument.querySelectorAll("[data-team-manage-panel]")),
     teamManageActionHelp: runtimeDocument.querySelector("#team-manage-action-help"),
@@ -2005,6 +2019,9 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
       void loadCompositionRequirementsFromApi();
     }
     renderCompositionRequirementsWorkspace();
+  }
+  if (resolvedTab === "coming-soon") {
+    renderUpdatesReleaseTabs();
   }
 
   if ((tabChanged || syncRoute) && isCompactNavViewport()) {
@@ -4791,6 +4808,36 @@ function renderTeamWorkspaceTabs() {
 function setTeamWorkspaceTab(tab) {
   state.ui.teamWorkspaceTab = TEAM_WORKSPACE_TAB_SET.has(tab) ? tab : TEAM_WORKSPACE_TAB_DEFAULT;
   renderTeamWorkspaceTabs();
+}
+
+function renderUpdatesReleaseTabs() {
+  const activeTab = UPDATES_RELEASE_TAB_SET.has(state.ui.updatesReleaseTab)
+    ? state.ui.updatesReleaseTab
+    : UPDATES_RELEASE_TAB_DEFAULT;
+  state.ui.updatesReleaseTab = activeTab;
+
+  for (const button of elements.updatesReleaseTabButtons) {
+    const tab = button.dataset.updatesReleaseTab;
+    const selected = tab === activeTab;
+    button.classList.toggle("is-active", selected);
+    button.setAttribute("aria-selected", String(selected));
+    button.setAttribute("tabindex", selected ? "0" : "-1");
+  }
+
+  if (elements.updatesReleaseWhatsNewPanel) {
+    elements.updatesReleaseWhatsNewPanel.hidden = activeTab !== UPDATES_RELEASE_TAB_WHATS_NEW;
+  }
+  if (elements.updatesReleaseComingSoonPanel) {
+    elements.updatesReleaseComingSoonPanel.hidden = activeTab !== UPDATES_RELEASE_TAB_COMING_SOON;
+  }
+  if (elements.updatesReleasePreviousPanel) {
+    elements.updatesReleasePreviousPanel.hidden = activeTab !== UPDATES_RELEASE_TAB_PREVIOUS;
+  }
+}
+
+function setUpdatesReleaseTab(tab) {
+  state.ui.updatesReleaseTab = UPDATES_RELEASE_TAB_SET.has(tab) ? tab : UPDATES_RELEASE_TAB_DEFAULT;
+  renderUpdatesReleaseTabs();
 }
 
 function resolveTeamManageActionTitle(action, context) {
@@ -8614,6 +8661,12 @@ function attachEvents() {
     });
   }
 
+  for (const button of elements.updatesReleaseTabButtons) {
+    button.addEventListener("click", () => {
+      setUpdatesReleaseTab(button.dataset.updatesReleaseTab);
+    });
+  }
+
   for (const button of elements.teamManageActionButtons) {
     button.addEventListener("click", () => {
       setTeamManageAction(button.dataset.teamManageAction);
@@ -9240,6 +9293,7 @@ async function init() {
     initializeBuilderControls();
     initializeTeamConfigControls();
     initializePlayerConfigControls();
+    renderUpdatesReleaseTabs();
     resetBuilderToDefaults();
 
     attachEvents();

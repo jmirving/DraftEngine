@@ -277,6 +277,39 @@ h3 {
   margin: 1rem 0 0.9rem;
 }
 
+.updates-release-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.55rem;
+}
+
+.updates-release-tab {
+  width: auto;
+  margin-top: 0;
+  border-radius: 999px;
+  border: 1px solid var(--accent-soft);
+  background: transparent;
+  color: var(--accent);
+  font-weight: 700;
+  padding: 0.32rem 0.78rem;
+}
+
+.updates-release-tab.is-active {
+  background: var(--accent);
+  color: #fff7f2;
+  border-color: transparent;
+}
+
+.updates-release-panel {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.updates-release-panel[hidden] {
+  display: none;
+}
+
 .tab-panel {
   display: none;
 }
