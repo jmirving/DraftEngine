@@ -99,6 +99,7 @@ function getPoolForRole(teamPools, teamId, role) {
 }
 
 function scoreCandidate({
+  role,
   champion,
   currentEvaluation,
   weights
@@ -119,12 +120,12 @@ function scoreCandidate({
     }
   }
 
-  if (currentEvaluation.missingNeeds.needsAD && (champion.damageType === "AD" || champion.damageType === "Mixed")) {
+  if (currentEvaluation.missingNeeds.needsAD && isDamageTypeOption(champion, "AD", role)) {
     score += 6;
     rationale.push("improves damage mix with AD (+6)");
   }
 
-  if (currentEvaluation.missingNeeds.needsAP && (champion.damageType === "AP" || champion.damageType === "Mixed")) {
+  if (currentEvaluation.missingNeeds.needsAP && isDamageTypeOption(champion, "AP", role)) {
     score += 6;
     rationale.push("improves damage mix with AP (+6)");
   }
@@ -300,14 +301,48 @@ function hasReachableChampionAcrossRoles({
   return false;
 }
 
-function isDamageTypeOption(champion, damageType) {
+function resolveChampionDamageTypeForRole(champion, role) {
+  const roleProfiles =
+    champion?.roleProfiles && typeof champion.roleProfiles === "object" && !Array.isArray(champion.roleProfiles)
+      ? champion.roleProfiles
+      : {};
+  const scopedProfile =
+    role && roleProfiles[role] && typeof roleProfiles[role] === "object" && !Array.isArray(roleProfiles[role])
+      ? roleProfiles[role]
+      : null;
+  const fallbackRole = Array.isArray(champion?.roles) ? champion.roles[0] : null;
+  const fallbackProfile =
+    fallbackRole &&
+    roleProfiles[fallbackRole] &&
+    typeof roleProfiles[fallbackRole] === "object" &&
+    !Array.isArray(roleProfiles[fallbackRole])
+      ? roleProfiles[fallbackRole]
+      : null;
+  const effectivePrimary = String(
+    (scopedProfile ?? fallbackProfile)?.primaryDamageType ?? champion?.damageType ?? "Mixed"
+  ).toLowerCase();
+
+  if (effectivePrimary === "ad") {
+    return "AD";
+  }
+  if (effectivePrimary === "ap") {
+    return "AP";
+  }
+  if (effectivePrimary === "utility") {
+    return "Utility";
+  }
+  return "Mixed";
+}
+
+function isDamageTypeOption(champion, damageType, role = null) {
+  const effectiveDamageType = resolveChampionDamageTypeForRole(champion, role);
   if (damageType === "AD") {
-    return champion.damageType === "AD" || champion.damageType === "Mixed";
+    return effectiveDamageType === "AD" || effectiveDamageType === "Mixed";
   }
   if (damageType === "AP") {
-    return champion.damageType === "AP" || champion.damageType === "Mixed";
+    return effectiveDamageType === "AP" || effectiveDamageType === "Mixed";
   }
-  return champion.damageType === "Mixed";
+  return effectiveDamageType === "Mixed";
 }
 
 export function evaluateRequiredReachability({
@@ -382,7 +417,7 @@ export function evaluateRequiredReachability({
           if (role === "Top" && evaluation.toggles.topMustBeThreat && !isTopThreatChampion(champion)) {
             return false;
           }
-          return isDamageTypeOption(champion, "AD");
+          return isDamageTypeOption(champion, "AD", role);
         }
       });
       const apReachable = hasReachableChampionAcrossRoles({
@@ -396,7 +431,7 @@ export function evaluateRequiredReachability({
           if (role === "Top" && evaluation.toggles.topMustBeThreat && !isTopThreatChampion(champion)) {
             return false;
           }
-          return isDamageTypeOption(champion, "AP");
+          return isDamageTypeOption(champion, "AP", role);
         }
       });
       const mixedReachable = hasReachableChampionAcrossRoles({
@@ -410,7 +445,7 @@ export function evaluateRequiredReachability({
           if (role === "Top" && evaluation.toggles.topMustBeThreat && !isTopThreatChampion(champion)) {
             return false;
           }
-          return isDamageTypeOption(champion, "Mixed");
+          return isDamageTypeOption(champion, "Mixed", role);
         }
       });
 
@@ -520,6 +555,7 @@ export function generateNextCandidates({
 
     eligibleBeforeScoreCount += 1;
     const candidateScore = scoreCandidate({
+      role,
       champion,
       currentEvaluation,
       weights: mergedWeights

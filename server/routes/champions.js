@@ -13,15 +13,17 @@ import {
   parseScope,
   resolveScopedTeamId
 } from "../scope-authorization.js";
-import { DAMAGE_TYPES, SCALING_VALUES, SLOTS } from "../../src/domain/model.js";
+import { SLOTS } from "../../src/domain/model.js";
 
 const CHAMPION_TAG_SCOPE_SET = new Set(["all", "team"]);
 const MAX_CHAMPION_TAGS_PER_SCOPE = 64;
 const SLOT_SET = new Set(SLOTS);
-const DAMAGE_TYPE_SET = new Set(DAMAGE_TYPES);
-const SCALING_SET = new Set(SCALING_VALUES);
+const PRIMARY_DAMAGE_TYPE_VALUES = Object.freeze(["ad", "ap", "mixed", "utility"]);
+const PRIMARY_DAMAGE_TYPE_SET = new Set(PRIMARY_DAMAGE_TYPE_VALUES);
+const EFFECTIVENESS_LEVEL_VALUES = Object.freeze(["weak", "neutral", "strong"]);
+const EFFECTIVENESS_LEVEL_SET = new Set(EFFECTIVENESS_LEVEL_VALUES);
 const MAX_TAG_NAME_LENGTH = 64;
-const MAX_TAG_CATEGORY_LENGTH = 48;
+const MAX_TAG_DEFINITION_LENGTH = 280;
 
 function normalizeTagIds(tagIds) {
   const deduplicated = Array.from(new Set(tagIds));
@@ -52,24 +54,26 @@ function normalizeMetadataRoles(rawRoles) {
   return Array.from(new Set(normalized));
 }
 
-function normalizeMetadataDamageType(rawValue) {
+function normalizeMetadataPrimaryDamageType(rawValue) {
   if (typeof rawValue !== "string") {
-    throw badRequest("Expected 'damage_type' to be a string.");
+    throw badRequest("Expected 'primary_damage_type' to be a string.");
   }
-  const normalized = rawValue.trim();
-  if (!DAMAGE_TYPE_SET.has(normalized)) {
-    throw badRequest(`Expected 'damage_type' to be one of: ${DAMAGE_TYPES.join(", ")}.`);
+  const normalized = rawValue.trim().toLowerCase();
+  if (!PRIMARY_DAMAGE_TYPE_SET.has(normalized)) {
+    throw badRequest(`Expected 'primary_damage_type' to be one of: ${PRIMARY_DAMAGE_TYPE_VALUES.join(", ")}.`);
   }
   return normalized;
 }
 
-function normalizeMetadataScaling(rawValue) {
+function normalizeMetadataEffectivenessLevel(rawValue, fieldName) {
   if (typeof rawValue !== "string") {
-    throw badRequest("Expected 'scaling' to be a string.");
+    throw badRequest(`Expected '${fieldName}' to be a string.`);
   }
-  const normalized = rawValue.trim();
-  if (!SCALING_SET.has(normalized)) {
-    throw badRequest(`Expected 'scaling' to be one of: ${SCALING_VALUES.join(", ")}.`);
+  const normalized = rawValue.trim().toLowerCase();
+  if (!EFFECTIVENESS_LEVEL_SET.has(normalized)) {
+    throw badRequest(
+      `Expected '${fieldName}' to be one of: ${EFFECTIVENESS_LEVEL_VALUES.join(", ")}.`
+    );
   }
   return normalized;
 }
@@ -82,12 +86,45 @@ function normalizeTagName(rawValue) {
   return normalized;
 }
 
-function normalizeTagCategory(rawValue) {
-  const normalized = requireNonEmptyString(rawValue, "category").toLowerCase();
-  if (normalized.length > MAX_TAG_CATEGORY_LENGTH) {
-    throw badRequest(`Expected 'category' to be ${MAX_TAG_CATEGORY_LENGTH} characters or fewer.`);
+function normalizeTagDefinition(rawValue) {
+  const normalized = requireNonEmptyString(rawValue, "definition");
+  if (normalized.length > MAX_TAG_DEFINITION_LENGTH) {
+    throw badRequest(`Expected 'definition' to be ${MAX_TAG_DEFINITION_LENGTH} characters or fewer.`);
   }
   return normalized;
+}
+
+function normalizeMetadataRoleProfiles(rawValue, roles) {
+  if (!rawValue || typeof rawValue !== "object" || Array.isArray(rawValue)) {
+    throw badRequest("Expected 'role_profiles' to be an object keyed by role.");
+  }
+
+  const nextProfiles = {};
+  for (const role of roles) {
+    const rawRoleProfile = rawValue[role] ?? rawValue[String(role).toLowerCase()];
+    if (!rawRoleProfile || typeof rawRoleProfile !== "object" || Array.isArray(rawRoleProfile)) {
+      throw badRequest(`Expected 'role_profiles.${role}' to be an object.`);
+    }
+
+    const rawPrimaryDamageType = rawRoleProfile.primary_damage_type ?? rawRoleProfile.primaryDamageType;
+    const primaryDamageType = normalizeMetadataPrimaryDamageType(rawPrimaryDamageType);
+
+    const rawEffectiveness = rawRoleProfile.effectiveness;
+    if (!rawEffectiveness || typeof rawEffectiveness !== "object" || Array.isArray(rawEffectiveness)) {
+      throw badRequest(`Expected 'role_profiles.${role}.effectiveness' to be an object.`);
+    }
+
+    nextProfiles[role] = {
+      primaryDamageType,
+      effectiveness: {
+        early: normalizeMetadataEffectivenessLevel(rawEffectiveness.early, `role_profiles.${role}.effectiveness.early`),
+        mid: normalizeMetadataEffectivenessLevel(rawEffectiveness.mid, `role_profiles.${role}.effectiveness.mid`),
+        late: normalizeMetadataEffectivenessLevel(rawEffectiveness.late, `role_profiles.${role}.effectiveness.late`)
+      }
+    };
+  }
+
+  return nextProfiles;
 }
 
 function isUniqueViolation(error) {
@@ -126,7 +163,7 @@ export function createChampionsRouter({
     const body = requireObject(request.body);
     const userId = request.user.userId;
     const name = normalizeTagName(body.name);
-    const category = normalizeTagCategory(body.category);
+    const definition = normalizeTagDefinition(body.definition);
 
     await assertScopeWriteAuthorization({
       scope: "all",
@@ -142,7 +179,7 @@ export function createChampionsRouter({
     });
 
     try {
-      const tag = await tagsRepository.createTag({ name, category });
+      const tag = await tagsRepository.createTag({ name, definition });
       response.status(201).json({ tag });
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -157,7 +194,7 @@ export function createChampionsRouter({
     const body = requireObject(request.body);
     const userId = request.user.userId;
     const name = normalizeTagName(body.name);
-    const category = normalizeTagCategory(body.category);
+    const definition = normalizeTagDefinition(body.definition);
 
     await assertScopeWriteAuthorization({
       scope: "all",
@@ -173,7 +210,7 @@ export function createChampionsRouter({
     });
 
     try {
-      const tag = await tagsRepository.updateTag(tagId, { name, category });
+      const tag = await tagsRepository.updateTag(tagId, { name, definition });
       if (!tag) {
         throw notFound("Tag not found.");
       }
@@ -339,8 +376,10 @@ export function createChampionsRouter({
     const userId = request.user.userId;
 
     const roles = normalizeMetadataRoles(body.roles);
-    const damageType = normalizeMetadataDamageType(body.damage_type ?? body.damageType);
-    const scaling = normalizeMetadataScaling(body.scaling);
+    const roleProfiles = normalizeMetadataRoleProfiles(
+      body.role_profiles ?? body.roleProfiles,
+      roles
+    );
 
     const championExists = await championsRepository.championExists(championId);
     if (!championExists) {
@@ -361,8 +400,7 @@ export function createChampionsRouter({
 
     const champion = await championsRepository.updateChampionMetadata(championId, {
       roles,
-      damageType,
-      scaling
+      roleProfiles
     });
     if (!champion) {
       throw notFound("Champion not found.");

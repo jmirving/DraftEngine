@@ -37,6 +37,38 @@ export function isTopThreatChampion(champion) {
   return champion.tags.SideLaneThreat || champion.tags.DiveThreat;
 }
 
+function resolveChampionPrimaryDamageType(champion, slot) {
+  const roleProfiles =
+    champion?.roleProfiles && typeof champion.roleProfiles === "object" && !Array.isArray(champion.roleProfiles)
+      ? champion.roleProfiles
+      : {};
+  const scopedProfile =
+    roleProfiles[slot] && typeof roleProfiles[slot] === "object" && !Array.isArray(roleProfiles[slot])
+      ? roleProfiles[slot]
+      : null;
+  const fallbackRole = Array.isArray(champion?.roles) ? champion.roles[0] : null;
+  const fallbackProfile =
+    fallbackRole &&
+    roleProfiles[fallbackRole] &&
+    typeof roleProfiles[fallbackRole] === "object" &&
+    !Array.isArray(roleProfiles[fallbackRole])
+      ? roleProfiles[fallbackRole]
+      : null;
+  const primary = String(
+    (scopedProfile ?? fallbackProfile)?.primaryDamageType ?? champion?.damageType ?? "Mixed"
+  ).toLowerCase();
+  if (primary === "ad") {
+    return "AD";
+  }
+  if (primary === "ap") {
+    return "AP";
+  }
+  if (primary === "utility") {
+    return "Utility";
+  }
+  return "Mixed";
+}
+
 export function computeTeamHelpers(teamState, championsByName) {
   const normalized = normalizeTeamState(teamState);
   const filledTags = createFilledTagCounts();
@@ -60,10 +92,11 @@ export function computeTeamHelpers(teamState, championsByName) {
       champion
     });
 
-    if (champion.damageType === "AD" || champion.damageType === "Mixed") {
+    const primaryDamageType = resolveChampionPrimaryDamageType(champion, slot);
+    if (primaryDamageType === "AD" || primaryDamageType === "Mixed") {
       hasAD = true;
     }
-    if (champion.damageType === "AP" || champion.damageType === "Mixed") {
+    if (primaryDamageType === "AP" || primaryDamageType === "Mixed") {
       hasAP = true;
     }
 

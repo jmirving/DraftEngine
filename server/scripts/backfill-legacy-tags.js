@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 import { BOOLEAN_TAGS } from "../../src/domain/model.js";
 import { createDbPool } from "../db/pool.js";
 
-const DEFAULT_TAG_CATEGORY = "composition";
+const DEFAULT_TAG_DEFINITION = "Definition pending.";
 
 dotenv.config({ quiet: true });
 
@@ -84,7 +84,7 @@ function parseCliArgs(argv) {
 async function queryAllTags(client) {
   const result = await client.query(
     `
-      SELECT id, name, category
+      SELECT id, name, definition
       FROM tags
       ORDER BY id ASC
     `
@@ -92,7 +92,7 @@ async function queryAllTags(client) {
   return result.rows.map((row) => ({
     id: Number(row.id),
     name: row.name,
-    category: row.category
+    definition: row.definition
   }));
 }
 
@@ -105,15 +105,15 @@ async function ensureLegacyTagsExist(client, { dryRun }) {
 
   let createdCount = 0;
   if (!dryRun && missingLegacyTagNames.length > 0) {
-    const categories = missingLegacyTagNames.map(() => DEFAULT_TAG_CATEGORY);
+    const definitions = missingLegacyTagNames.map(() => DEFAULT_TAG_DEFINITION);
     const result = await client.query(
       `
-        INSERT INTO tags (name, category)
-        SELECT seeded.name, seeded.category
-        FROM unnest($1::text[], $2::text[]) AS seeded(name, category)
+        INSERT INTO tags (name, definition)
+        SELECT seeded.name, seeded.definition
+        FROM unnest($1::text[], $2::text[]) AS seeded(name, definition)
         ON CONFLICT (name) DO NOTHING
       `,
-      [missingLegacyTagNames, categories]
+      [missingLegacyTagNames, definitions]
     );
     createdCount = result.rowCount ?? 0;
   }

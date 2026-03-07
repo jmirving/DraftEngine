@@ -399,8 +399,8 @@ describe("hash navigation routing", () => {
       doc.querySelectorAll("#updates-release-panel-whats-new h4"),
       (node) => node.textContent.trim()
     );
-    expect(whatsNewVersions).toEqual(["Version 0.4.3 (Shipped)", "Version 0.4.2 (Shipped)"]);
-    expect(whatsNewVersions.includes("Version 0.4.1 (Shipped)")).toBe(false);
+    expect(whatsNewVersions).toEqual(["Version 0.5.0 (Shipped)", "Version 0.4.3 (Shipped)"]);
+    expect(whatsNewVersions.includes("Version 0.4.2 (Shipped)")).toBe(false);
 
     doc.querySelector("#updates-release-tab-coming-soon").click();
     expect(doc.querySelector("#updates-release-panel-whats-new").hidden).toBe(true);

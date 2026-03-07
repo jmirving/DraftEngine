@@ -1,11 +1,11 @@
 /**
  * @typedef {"Top"|"Jungle"|"Mid"|"ADC"|"Support"} Slot
- * @typedef {"AD"|"AP"|"Mixed"} DamageType
+ * @typedef {"AD"|"AP"|"Mixed"|"Utility"} DamageType
  * @typedef {"Early"|"Mid"|"Late"} Scaling
  */
 
 export const SLOTS = Object.freeze(["Top", "Jungle", "Mid", "ADC", "Support"]);
-export const DAMAGE_TYPES = Object.freeze(["AD", "AP", "Mixed"]);
+export const DAMAGE_TYPES = Object.freeze(["AD", "AP", "Mixed", "Utility"]);
 export const SCALING_VALUES = Object.freeze(["Early", "Mid", "Late"]);
 
 export const BOOLEAN_TAGS = Object.freeze([

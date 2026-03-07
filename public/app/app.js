@@ -163,7 +163,7 @@ const UI_COPY = Object.freeze({
       },
       tags: {
         title: "Tags",
-        subtitle: "Review tag categories and current champion coverage."
+        subtitle: "Manage shared tag definitions and champion coverage."
       },
       users: {
         title: "Users",
@@ -203,7 +203,7 @@ const UI_COPY = Object.freeze({
     explorerTitle: "Champions",
     explorerMeta: "Filter and sort champion cards.",
     tagsTitle: "Tags",
-    tagsMeta: "Review tag categories and current champion coverage.",
+    tagsMeta: "Manage shared tag definitions and current champion coverage.",
     usersTitle: "Users",
     usersMeta: "Admin-only user directory, permission management, and one-time Riot ID corrections.",
     compositionRequirementsTitle: "Composition Requirements",
@@ -271,14 +271,27 @@ const SCALING_ALIASES = Object.freeze({
   MID: "Mid",
   LATE: "Late"
 });
+const PRIMARY_DAMAGE_TYPE_OPTIONS = Object.freeze([
+  { value: "ad", label: "AD" },
+  { value: "ap", label: "AP" },
+  { value: "mixed", label: "Mixed" },
+  { value: "utility", label: "Utility" }
+]);
+const PRIMARY_DAMAGE_TYPE_VALUE_SET = new Set(PRIMARY_DAMAGE_TYPE_OPTIONS.map((option) => option.value));
+const EFFECTIVENESS_LEVEL_OPTIONS = Object.freeze([
+  { value: "weak", label: "Weak" },
+  { value: "neutral", label: "Neutral" },
+  { value: "strong", label: "Strong" }
+]);
+const EFFECTIVENESS_LEVEL_VALUE_SET = new Set(EFFECTIVENESS_LEVEL_OPTIONS.map((option) => option.value));
+const EFFECTIVENESS_PHASES = Object.freeze(["early", "mid", "late"]);
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
 
 function createEmptyChampionMetadataDraft() {
   return {
     roles: [],
-    damageType: "",
-    scaling: ""
+    roleProfiles: {}
   };
 }
 
@@ -452,7 +465,7 @@ function createElements() {
     tagsMeta: runtimeDocument.querySelector("#tags-meta"),
     tagsManageAccess: runtimeDocument.querySelector("#tags-manage-access"),
     tagsManageName: runtimeDocument.querySelector("#tags-manage-name"),
-    tagsManageCategory: runtimeDocument.querySelector("#tags-manage-category"),
+    tagsManageDefinition: runtimeDocument.querySelector("#tags-manage-definition"),
     tagsManageSave: runtimeDocument.querySelector("#tags-manage-save"),
     tagsManageCancel: runtimeDocument.querySelector("#tags-manage-cancel"),
     tagsManageFeedback: runtimeDocument.querySelector("#tags-manage-feedback"),
@@ -522,8 +535,7 @@ function createElements() {
     championTagEditorTags: runtimeDocument.querySelector("#champion-tag-editor-tags"),
     championTagEditorReviewed: runtimeDocument.querySelector("#champion-tag-editor-reviewed"),
     championMetadataEditorRoles: runtimeDocument.querySelector("#champion-metadata-editor-roles"),
-    championMetadataEditorDamageType: runtimeDocument.querySelector("#champion-metadata-editor-damage-type"),
-    championMetadataEditorScaling: runtimeDocument.querySelector("#champion-metadata-editor-scaling"),
+    championMetadataRoleProfiles: runtimeDocument.querySelector("#champion-metadata-role-profiles"),
     championTagEditorSave: runtimeDocument.querySelector("#champion-tag-editor-save"),
     championTagEditorClear: runtimeDocument.querySelector("#champion-tag-editor-clear"),
     championTagEditorFeedback: runtimeDocument.querySelector("#champion-tag-editor-feedback"),
@@ -850,17 +862,169 @@ function normalizeChampionMetadataRoles(roles) {
   return SLOTS.filter((slot) => normalized.includes(slot));
 }
 
+function createDefaultRoleProfileDraft() {
+  return {
+    primaryDamageType: "mixed",
+    effectiveness: {
+      early: "neutral",
+      mid: "neutral",
+      late: "neutral"
+    }
+  };
+}
+
+function normalizeApiPrimaryDamageType(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (PRIMARY_DAMAGE_TYPE_VALUE_SET.has(normalized)) {
+    return normalized;
+  }
+  if (normalized === "ad") {
+    return "ad";
+  }
+  if (normalized === "ap") {
+    return "ap";
+  }
+  return null;
+}
+
+function normalizeApiEffectivenessLevel(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (EFFECTIVENESS_LEVEL_VALUE_SET.has(normalized)) {
+    return normalized;
+  }
+  return null;
+}
+
+function normalizeRoleProfilesFromMetadata(rawRoleProfiles, roles) {
+  const source =
+    rawRoleProfiles && typeof rawRoleProfiles === "object" && !Array.isArray(rawRoleProfiles)
+      ? rawRoleProfiles
+      : {};
+  const profiles = {};
+  for (const role of roles) {
+    const rawProfile = source[role] ?? source[role.toLowerCase()];
+    const profile =
+      rawProfile && typeof rawProfile === "object" && !Array.isArray(rawProfile)
+        ? rawProfile
+        : createDefaultRoleProfileDraft();
+    const normalizedPrimaryDamageType = normalizeApiPrimaryDamageType(
+      profile.primaryDamageType ?? profile.primary_damage_type
+    ) ?? "mixed";
+    const rawEffectiveness =
+      profile.effectiveness && typeof profile.effectiveness === "object" && !Array.isArray(profile.effectiveness)
+        ? profile.effectiveness
+        : {};
+    profiles[role] = {
+      primaryDamageType: normalizedPrimaryDamageType,
+      effectiveness: {
+        early: normalizeApiEffectivenessLevel(rawEffectiveness.early) ?? "neutral",
+        mid: normalizeApiEffectivenessLevel(rawEffectiveness.mid) ?? "neutral",
+        late: normalizeApiEffectivenessLevel(rawEffectiveness.late) ?? "neutral"
+      }
+    };
+  }
+  return profiles;
+}
+
+function ensureChampionMetadataRoleProfiles() {
+  const selectedRoles = normalizeChampionMetadataRoles(state.api.championMetadataDraft.roles);
+  state.api.championMetadataDraft.roles = selectedRoles;
+  const nextProfiles = {};
+  for (const role of selectedRoles) {
+    const existing = state.api.championMetadataDraft.roleProfiles?.[role];
+    const normalizedExisting =
+      existing && typeof existing === "object" && !Array.isArray(existing)
+        ? normalizeRoleProfilesFromMetadata({ [role]: existing }, [role])[role]
+        : createDefaultRoleProfileDraft();
+    nextProfiles[role] = normalizedExisting;
+  }
+  state.api.championMetadataDraft.roleProfiles = nextProfiles;
+}
+
+function getChampionRoleProfile(champion, role) {
+  const roleProfiles =
+    champion?.roleProfiles && typeof champion.roleProfiles === "object" && !Array.isArray(champion.roleProfiles)
+      ? champion.roleProfiles
+      : {};
+  const fromRole = roleProfiles[role];
+  if (fromRole && typeof fromRole === "object" && !Array.isArray(fromRole)) {
+    return fromRole;
+  }
+  const fallbackRole = Array.isArray(champion?.roles) ? champion.roles[0] : null;
+  if (!fallbackRole) {
+    return null;
+  }
+  const fromFallback = roleProfiles[fallbackRole];
+  if (fromFallback && typeof fromFallback === "object" && !Array.isArray(fromFallback)) {
+    return fromFallback;
+  }
+  return null;
+}
+
+function deriveDisplayDamageTypeFromProfile(profile) {
+  const value = normalizeApiPrimaryDamageType(profile?.primaryDamageType);
+  if (value === "ad") {
+    return "AD";
+  }
+  if (value === "ap") {
+    return "AP";
+  }
+  if (value === "mixed") {
+    return "Mixed";
+  }
+  if (value === "utility") {
+    return "Utility";
+  }
+  return "Mixed";
+}
+
+function deriveLegacyScalingFromProfile(profile) {
+  const effectiveness =
+    profile?.effectiveness && typeof profile.effectiveness === "object" && !Array.isArray(profile.effectiveness)
+      ? profile.effectiveness
+      : {};
+  const ranking = {
+    weak: 1,
+    neutral: 2,
+    strong: 3
+  };
+  let bestPhase = "mid";
+  let bestRank = 0;
+  for (const phase of EFFECTIVENESS_PHASES) {
+    const rank = ranking[normalizeApiEffectivenessLevel(effectiveness[phase]) ?? "weak"] ?? 0;
+    if (rank > bestRank) {
+      bestRank = rank;
+      bestPhase = phase;
+    }
+  }
+  if (bestPhase === "early") {
+    return "Early";
+  }
+  if (bestPhase === "late") {
+    return "Late";
+  }
+  return "Mid";
+}
+
 function initializeChampionMetadataDraft(champion) {
   if (!champion) {
     state.api.championMetadataDraft = createEmptyChampionMetadataDraft();
     state.api.championReviewedDraft = false;
     return;
   }
+  const roles = normalizeChampionMetadataRoles(champion.roles);
+  const roleProfiles = normalizeRoleProfilesFromMetadata(champion.roleProfiles, roles);
   state.api.championMetadataDraft = {
-    roles: normalizeChampionMetadataRoles(champion.roles),
-    damageType: normalizeApiDamageType(champion.damageType) ?? "",
-    scaling: normalizeApiScaling(champion.scaling) ?? ""
+    roles,
+    roleProfiles
   };
+  ensureChampionMetadataRoleProfiles();
   state.api.championReviewedDraft = champion.reviewed === true;
 }
 
@@ -878,19 +1042,21 @@ function syncChampionMetadataDraftToState(championId, championPayload) {
       ? championPayload.metadata
       : {};
   const nextRoles = normalizeChampionMetadataRoles(metadata.roles);
-  const nextDamageType = normalizeApiDamageType(metadata.damageType);
-  const nextScaling = normalizeApiScaling(metadata.scaling);
+  const nextRoleProfiles = normalizeRoleProfilesFromMetadata(metadata.roleProfiles, nextRoles);
   if (nextRoles.length > 0) {
     champion.roles = nextRoles;
   }
-  if (nextDamageType) {
-    champion.damageType = nextDamageType;
+  champion.roleProfiles = nextRoleProfiles;
+  const previewProfile = getChampionRoleProfile(champion, champion.roles[0]);
+  champion.damageType = deriveDisplayDamageTypeFromProfile(previewProfile);
+  champion.scaling = deriveLegacyScalingFromProfile(previewProfile);
+  const payloadTagIds = championPayload.tagIds ?? championPayload.tag_ids;
+  if (payloadTagIds !== undefined) {
+    champion.tagIds = normalizeChampionTagIdArray(payloadTagIds);
   }
-  if (nextScaling) {
-    champion.scaling = nextScaling;
+  if (championPayload.reviewed !== undefined) {
+    champion.reviewed = championPayload.reviewed === true;
   }
-  champion.tagIds = normalizeChampionTagIdArray(championPayload.tagIds ?? championPayload.tag_ids);
-  champion.reviewed = championPayload.reviewed === true;
   initializeChampionMetadataDraft(champion);
 }
 
@@ -915,8 +1081,8 @@ function clearTagsManagerState({ clearInputs = true } = {}) {
     if (elements.tagsManageName) {
       elements.tagsManageName.value = "";
     }
-    if (elements.tagsManageCategory) {
-      elements.tagsManageCategory.value = "";
+    if (elements.tagsManageDefinition) {
+      elements.tagsManageDefinition.value = "";
     }
   }
 }
@@ -2124,6 +2290,9 @@ function normalizeApiDamageType(value) {
   if (isDamageType(trimmed)) {
     return trimmed;
   }
+  if (trimmed.toUpperCase() === "UTILITY") {
+    return "Utility";
+  }
   if (trimmed.toUpperCase() === "MIXED") {
     return "Mixed";
   }
@@ -2249,15 +2418,34 @@ function buildChampionFromApiRecord(rawChampion, index) {
     throw new DataValidationError(`Champion '${name}' is missing valid role metadata.`);
   }
 
-  const damageType = normalizeApiDamageType(metadata.damageType);
-  if (!damageType) {
-    throw new DataValidationError(`Champion '${name}' is missing a valid damage type in metadata.`);
+  const roleProfiles = normalizeRoleProfilesFromMetadata(metadata.roleProfiles, normalizedRoles);
+  if (Object.keys(roleProfiles).length === 0) {
+    const fallbackDamageType = normalizeApiDamageType(metadata.damageType) ?? "Mixed";
+    const fallbackScaling = normalizeApiScaling(metadata.scaling) ?? "Mid";
+    const fallbackPrimaryDamageType = fallbackDamageType === "AD"
+      ? "ad"
+      : fallbackDamageType === "AP"
+        ? "ap"
+        : fallbackDamageType === "Utility"
+          ? "utility"
+          : "mixed";
+    const fallbackEffectiveness = {
+      early: fallbackScaling === "Early" ? "strong" : "neutral",
+      mid: fallbackScaling === "Mid" ? "strong" : "neutral",
+      late: fallbackScaling === "Late" ? "strong" : "neutral"
+    };
+    for (const role of normalizedRoles) {
+      roleProfiles[role] = {
+        primaryDamageType: fallbackPrimaryDamageType,
+        effectiveness: {
+          ...fallbackEffectiveness
+        }
+      };
+    }
   }
-
-  const scaling = normalizeApiScaling(metadata.scaling);
-  if (!scaling) {
-    throw new DataValidationError(`Champion '${name}' is missing a valid scaling value in metadata.`);
-  }
+  const previewProfile = getChampionRoleProfile({ roles: normalizedRoles, roleProfiles }, normalizedRoles[0]);
+  const damageType = deriveDisplayDamageTypeFromProfile(previewProfile);
+  const scaling = deriveLegacyScalingFromProfile(previewProfile);
 
   const tagIds = normalizeChampionTagIdArray(rawChampion.tagIds ?? rawChampion.tag_ids);
   const reviewed = rawChampion.reviewed === true || metadata.reviewed === true;
@@ -2268,6 +2456,7 @@ function buildChampionFromApiRecord(rawChampion, index) {
     roles: normalizedRoles,
     damageType,
     scaling,
+    roleProfiles,
     tags: deriveApiTagsFromTagIds(tagIds),
     tagIds,
     reviewed
@@ -2369,11 +2558,11 @@ function normalizeTagCatalogEntry(rawTag) {
     return null;
   }
   const name = typeof rawTag.name === "string" ? rawTag.name.trim() : "";
-  const category = typeof rawTag.category === "string" ? rawTag.category.trim() : "";
-  if (!name || !category) {
+  const definition = typeof rawTag.definition === "string" ? rawTag.definition.trim() : "";
+  if (!name) {
     return null;
   }
-  return { id, name, category };
+  return { id, name, definition };
 }
 
 async function loadTagCatalogFromApi() {
@@ -2410,25 +2599,27 @@ function renderChampionTagCatalog() {
   }
 
   const query = elements.explorerCatalogSearch?.value.trim().toLowerCase() ?? "";
-  const visible = query ? tags.filter((tag) => tag.name.toLowerCase().includes(query) || tag.category.toLowerCase().includes(query)) : tags;
+  const visible = query
+    ? tags.filter(
+        (tag) =>
+          tag.name.toLowerCase().includes(query) ||
+          String(tag.definition ?? "").toLowerCase().includes(query)
+      )
+    : tags;
 
   elements.championTagCatalogMeta.textContent = query
     ? `${visible.length} of ${tags.length} tags match.`
-    : `${tags.length} tags available across champion metadata categories.`;
+    : `${tags.length} tags available in the catalog.`;
 
   for (const tag of visible) {
     const chip = runtimeDocument.createElement("span");
     chip.className = "chip";
-    chip.textContent = `${tag.name} (${tag.category})`;
+    chip.textContent = tag.name;
+    if (tag.definition) {
+      chip.title = tag.definition;
+    }
     elements.championTagCatalogList.append(chip);
   }
-}
-
-function normalizeTagCategoryLabel(value) {
-  if (typeof value !== "string" || value.trim() === "") {
-    return "uncategorized";
-  }
-  return value.trim();
 }
 
 function normalizeManagedTagName(value) {
@@ -2438,11 +2629,11 @@ function normalizeManagedTagName(value) {
   return value.trim();
 }
 
-function normalizeManagedTagCategory(value) {
+function normalizeManagedTagDefinition(value) {
   if (typeof value !== "string" || value.trim() === "") {
     return "";
   }
-  return value.trim().toLowerCase();
+  return value.trim();
 }
 
 function getManagedTagById(tagId) {
@@ -2454,14 +2645,14 @@ function getManagedTagById(tagId) {
 
 function readManagedTagDraftFromInputs() {
   const name = normalizeManagedTagName(elements.tagsManageName?.value ?? "");
-  const category = normalizeManagedTagCategory(elements.tagsManageCategory?.value ?? "");
+  const definition = normalizeManagedTagDefinition(elements.tagsManageDefinition?.value ?? "");
   if (!name) {
     throw new Error("Tag name is required.");
   }
-  if (!category) {
-    throw new Error("Tag category is required.");
+  if (!definition) {
+    throw new Error("Tag definition is required.");
   }
-  return { name, category };
+  return { name, definition };
 }
 
 function beginManagedTagEdit(tagId) {
@@ -2474,8 +2665,8 @@ function beginManagedTagEdit(tagId) {
   if (elements.tagsManageName) {
     elements.tagsManageName.value = tag.name;
   }
-  if (elements.tagsManageCategory) {
-    elements.tagsManageCategory.value = normalizeTagCategoryLabel(tag.category).toLowerCase();
+  if (elements.tagsManageDefinition) {
+    elements.tagsManageDefinition.value = String(tag.definition ?? "");
   }
   setTagsManageFeedback(`Editing '${tag.name}'.`);
   renderTagsWorkspace();
@@ -2508,8 +2699,8 @@ function renderTagsManagerControls() {
   if (elements.tagsManageName) {
     elements.tagsManageName.disabled = controlsDisabled;
   }
-  if (elements.tagsManageCategory) {
-    elements.tagsManageCategory.disabled = controlsDisabled;
+  if (elements.tagsManageDefinition) {
+    elements.tagsManageDefinition.disabled = controlsDisabled;
   }
   if (elements.tagsManageSave) {
     elements.tagsManageSave.disabled = controlsDisabled;
@@ -2566,8 +2757,8 @@ async function saveManagedTag() {
         if (elements.tagsManageName) {
           elements.tagsManageName.value = savedTag.name;
         }
-        if (elements.tagsManageCategory) {
-          elements.tagsManageCategory.value = normalizeTagCategoryLabel(savedTag.category).toLowerCase();
+        if (elements.tagsManageDefinition) {
+          elements.tagsManageDefinition.value = String(savedTag.definition ?? "");
         }
       }
       setTagsManageFeedback("Tag updated.");
@@ -2657,77 +2848,58 @@ function renderTagsWorkspace() {
     return;
   }
 
-  const groupedByCategory = new Map();
-  for (const tag of tags) {
-    const category = normalizeTagCategoryLabel(tag.category).toLowerCase();
-    if (!groupedByCategory.has(category)) {
-      groupedByCategory.set(category, []);
+  const sortedTags = [...tags].sort((left, right) => left.name.localeCompare(right.name));
+  elements.tagsWorkspaceSummary.textContent = `${tags.length} tags in the shared catalog.`;
+
+  const list = runtimeDocument.createElement("ul");
+  list.className = "tags-workspace-list";
+  for (const tag of sortedTags) {
+    const item = runtimeDocument.createElement("li");
+    item.className = "tags-workspace-item";
+
+    const chip = runtimeDocument.createElement("span");
+    chip.className = "chip";
+    chip.textContent = tag.name;
+
+    const usageCount = (usageByTagId.get(tag.id) ?? []).length;
+    const usage = runtimeDocument.createElement("span");
+    usage.className = "meta";
+    usage.textContent = usageCount === 1 ? "Used by 1 champion" : `Used by ${usageCount} champions`;
+
+    const definition = runtimeDocument.createElement("p");
+    definition.className = "meta";
+    definition.textContent = String(tag.definition ?? "").trim() || "No definition set.";
+
+    item.append(chip, usage, definition);
+
+    if (isAuthenticated() && isGlobalTagEditorUser()) {
+      const actions = runtimeDocument.createElement("div");
+      actions.className = "tags-workspace-actions";
+
+      const editButton = runtimeDocument.createElement("button");
+      editButton.className = "ghost";
+      editButton.type = "button";
+      editButton.textContent = "Edit";
+      editButton.disabled = state.api.isSavingTagCatalog;
+      editButton.addEventListener("click", () => {
+        beginManagedTagEdit(tag.id);
+      });
+
+      const deleteButton = runtimeDocument.createElement("button");
+      deleteButton.className = "ghost";
+      deleteButton.type = "button";
+      deleteButton.textContent = "Delete";
+      deleteButton.disabled = state.api.isSavingTagCatalog;
+      deleteButton.addEventListener("click", () => {
+        void deleteManagedTag(tag.id);
+      });
+
+      actions.append(editButton, deleteButton);
+      item.append(actions);
     }
-    groupedByCategory.get(category).push(tag);
+    list.append(item);
   }
-
-  const sortedCategories = [...groupedByCategory.keys()].sort((left, right) => left.localeCompare(right));
-  elements.tagsWorkspaceSummary.textContent = `${tags.length} tags across ${sortedCategories.length} categories.`;
-
-  for (const category of sortedCategories) {
-    const categoryTags = groupedByCategory.get(category).slice().sort((left, right) => left.name.localeCompare(right.name));
-
-    const card = runtimeDocument.createElement("section");
-    card.className = "tags-category-card";
-
-    const heading = runtimeDocument.createElement("h3");
-    heading.textContent = category;
-    const meta = runtimeDocument.createElement("p");
-    meta.className = "meta";
-    meta.textContent = `${categoryTags.length} tags`;
-
-    const list = runtimeDocument.createElement("ul");
-    list.className = "tags-workspace-list";
-    for (const tag of categoryTags) {
-      const item = runtimeDocument.createElement("li");
-      item.className = "tags-workspace-item";
-
-      const chip = runtimeDocument.createElement("span");
-      chip.className = "chip";
-      chip.textContent = tag.name;
-
-      const usageCount = (usageByTagId.get(tag.id) ?? []).length;
-      const usage = runtimeDocument.createElement("span");
-      usage.className = "meta";
-      usage.textContent = usageCount === 1 ? "Used by 1 champion" : `Used by ${usageCount} champions`;
-      item.append(chip, usage);
-
-      if (isAuthenticated() && isGlobalTagEditorUser()) {
-        const actions = runtimeDocument.createElement("div");
-        actions.className = "tags-workspace-actions";
-
-        const editButton = runtimeDocument.createElement("button");
-        editButton.className = "ghost";
-        editButton.type = "button";
-        editButton.textContent = "Edit";
-        editButton.disabled = state.api.isSavingTagCatalog;
-        editButton.addEventListener("click", () => {
-          beginManagedTagEdit(tag.id);
-        });
-
-        const deleteButton = runtimeDocument.createElement("button");
-        deleteButton.className = "ghost";
-        deleteButton.type = "button";
-        deleteButton.textContent = "Delete";
-        deleteButton.disabled = state.api.isSavingTagCatalog;
-        deleteButton.addEventListener("click", () => {
-          void deleteManagedTag(tag.id);
-        });
-
-        actions.append(editButton, deleteButton);
-        item.append(actions);
-      }
-      list.append(item);
-    }
-
-    card.append(heading, meta, list);
-    elements.tagsWorkspaceCategories.append(card);
-  }
+  elements.tagsWorkspaceCategories.append(list);
 }
 
 function normalizeApiUserRole(value) {
@@ -3616,10 +3788,7 @@ function renderChampionTagEditorTagOptions() {
         .filter(Boolean)
     : [];
   const allTagsById = new Map(allTags.map((tag) => [tag.id, tag]));
-  const compositionTags = allTags.filter(
-    (tag) => typeof tag.category === "string" && tag.category.trim().toLowerCase() === "composition"
-  );
-  const tags = compositionTags.length > 0 ? [...compositionTags] : [...allTags];
+  const tags = [...allTags];
   const renderedTagIds = new Set(tags.map((tag) => tag.id));
 
   for (const selectedTagId of selectedTagIds) {
@@ -3631,7 +3800,7 @@ function renderChampionTagEditorTagOptions() {
       assignedTag ?? {
         id: selectedTagId,
         name: `Tag ${selectedTagId}`,
-        category: "assigned"
+        definition: ""
       }
     );
     renderedTagIds.add(selectedTagId);
@@ -3668,37 +3837,20 @@ function renderChampionTagEditorTagOptions() {
     });
 
     const text = runtimeDocument.createElement("span");
-    const category = typeof tag.category === "string" ? tag.category.trim() : "";
-    text.textContent = category.toLowerCase() === "composition" ? tag.name : `${tag.name} (${category})`;
-    label.append(checkbox, text);
+    text.textContent = tag.name;
+
+    const definition = runtimeDocument.createElement("small");
+    definition.className = "meta";
+    const definitionText = typeof tag.definition === "string" ? tag.definition.trim() : "";
+    definition.textContent = definitionText || "No definition set.";
+
+    label.append(checkbox, text, definition);
     elements.championTagEditorTags.append(label);
   }
 }
 
 function renderChampionEditorTabs() {
-  const activeTab = normalizeChampionEditorTab(state.api.championEditorTab);
-  state.api.championEditorTab = activeTab;
-
-  for (const button of elements.championEditorTabButtons) {
-    const tab = button.dataset.championEditorTab;
-    const selected = tab === activeTab;
-    button.classList.toggle("is-active", selected);
-    button.setAttribute("aria-selected", selected ? "true" : "false");
-    button.setAttribute("tabindex", selected ? "0" : "-1");
-  }
-
-  if (elements.championEditorPanelComposition) {
-    elements.championEditorPanelComposition.hidden = activeTab !== CHAMPION_EDITOR_TAB_COMPOSITION;
-  }
-  if (elements.championEditorPanelRoles) {
-    elements.championEditorPanelRoles.hidden = activeTab !== CHAMPION_EDITOR_TAB_ROLES;
-  }
-  if (elements.championEditorPanelDamage) {
-    elements.championEditorPanelDamage.hidden = activeTab !== CHAMPION_EDITOR_TAB_DAMAGE;
-  }
-  if (elements.championEditorPanelScaling) {
-    elements.championEditorPanelScaling.hidden = activeTab !== CHAMPION_EDITOR_TAB_SCALING;
-  }
+  // Legacy no-op: editor tabs were replaced by a unified metadata surface.
 }
 
 function renderChampionMetadataRoleOptions() {
@@ -3725,6 +3877,8 @@ function renderChampionMetadataRoleOptions() {
         next.delete(role);
       }
       state.api.championMetadataDraft.roles = normalizeChampionMetadataRoles([...next]);
+      ensureChampionMetadataRoleProfiles();
+      renderChampionTagEditor();
     });
 
     const text = runtimeDocument.createElement("span");
@@ -3734,26 +3888,101 @@ function renderChampionMetadataRoleOptions() {
   }
 }
 
+function renderChampionMetadataRoleProfileEditors() {
+  if (!elements.championMetadataRoleProfiles) {
+    return;
+  }
+  elements.championMetadataRoleProfiles.innerHTML = "";
+
+  const selectedRoles = normalizeChampionMetadataRoles(state.api.championMetadataDraft.roles);
+  if (selectedRoles.length === 0) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "Select at least one role to configure damage type and effectiveness.";
+    elements.championMetadataRoleProfiles.append(empty);
+    return;
+  }
+
+  for (const role of selectedRoles) {
+    const profile = state.api.championMetadataDraft.roleProfiles?.[role] ?? createDefaultRoleProfileDraft();
+    const card = runtimeDocument.createElement("section");
+    card.className = "panel draft-board-panel champion-role-profile-card";
+
+    const title = runtimeDocument.createElement("h4");
+    title.textContent = `${role} Profile`;
+    card.append(title);
+
+    const damageLabel = runtimeDocument.createElement("label");
+    damageLabel.textContent = "Primary Damage Type";
+    const damageSelect = runtimeDocument.createElement("select");
+    replaceOptions(damageSelect, PRIMARY_DAMAGE_TYPE_OPTIONS);
+    damageSelect.value = normalizeApiPrimaryDamageType(profile.primaryDamageType) ?? "mixed";
+    damageSelect.disabled = state.api.isSavingChampionTags;
+    damageSelect.addEventListener("change", () => {
+      state.api.championMetadataDraft.roleProfiles[role] = {
+        ...state.api.championMetadataDraft.roleProfiles[role],
+        primaryDamageType: normalizeApiPrimaryDamageType(damageSelect.value) ?? "mixed"
+      };
+      renderChampionTagEditor();
+    });
+    damageLabel.append(damageSelect);
+    card.append(damageLabel);
+
+    const grid = runtimeDocument.createElement("div");
+    grid.className = "grid grid-3";
+    for (const phase of EFFECTIVENESS_PHASES) {
+      const phaseLabel = runtimeDocument.createElement("label");
+      phaseLabel.textContent = `${phase[0].toUpperCase()}${phase.slice(1)} Effectiveness`;
+      const phaseSelect = runtimeDocument.createElement("select");
+      replaceOptions(phaseSelect, EFFECTIVENESS_LEVEL_OPTIONS);
+      phaseSelect.value = normalizeApiEffectivenessLevel(profile.effectiveness?.[phase]) ?? "neutral";
+      phaseSelect.disabled = state.api.isSavingChampionTags;
+      phaseSelect.addEventListener("change", () => {
+        const roleProfile = state.api.championMetadataDraft.roleProfiles[role] ?? createDefaultRoleProfileDraft();
+        state.api.championMetadataDraft.roleProfiles[role] = {
+          ...roleProfile,
+          effectiveness: {
+            ...(roleProfile.effectiveness ?? {}),
+            [phase]: normalizeApiEffectivenessLevel(phaseSelect.value) ?? "neutral"
+          }
+        };
+        renderChampionTagEditor();
+      });
+      phaseLabel.append(phaseSelect);
+      grid.append(phaseLabel);
+    }
+
+    card.append(grid);
+    elements.championMetadataRoleProfiles.append(card);
+  }
+}
+
+function championMetadataDraftIsComplete() {
+  const selectedRoles = normalizeChampionMetadataRoles(state.api.championMetadataDraft.roles);
+  if (selectedRoles.length === 0) {
+    return false;
+  }
+  for (const role of selectedRoles) {
+    const roleProfile = state.api.championMetadataDraft.roleProfiles?.[role];
+    if (!roleProfile || typeof roleProfile !== "object" || Array.isArray(roleProfile)) {
+      return false;
+    }
+    if (!normalizeApiPrimaryDamageType(roleProfile.primaryDamageType)) {
+      return false;
+    }
+    for (const phase of EFFECTIVENESS_PHASES) {
+      if (!normalizeApiEffectivenessLevel(roleProfile.effectiveness?.[phase])) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 function renderChampionMetadataEditors() {
+  ensureChampionMetadataRoleProfiles();
   renderChampionMetadataRoleOptions();
-
-  if (elements.championMetadataEditorDamageType) {
-    replaceOptions(
-      elements.championMetadataEditorDamageType,
-      DAMAGE_TYPES.map((value) => ({ value, label: value }))
-    );
-    elements.championMetadataEditorDamageType.value = state.api.championMetadataDraft.damageType;
-    elements.championMetadataEditorDamageType.disabled = state.api.isSavingChampionTags;
-  }
-
-  if (elements.championMetadataEditorScaling) {
-    replaceOptions(
-      elements.championMetadataEditorScaling,
-      SCALING_VALUES.map((value) => ({ value, label: value }))
-    );
-    elements.championMetadataEditorScaling.value = state.api.championMetadataDraft.scaling;
-    elements.championMetadataEditorScaling.disabled = state.api.isSavingChampionTags;
-  }
+  renderChampionMetadataRoleProfileEditors();
 }
 
 function renderChampionTagEditor() {
@@ -3790,7 +4019,7 @@ function renderChampionTagEditor() {
   }
 
   if (elements.championTagEditorTitle) {
-    elements.championTagEditorTitle.textContent = `Edit ${champion.name} Tags`;
+    elements.championTagEditorTitle.textContent = `Edit ${champion.name} Profile`;
   }
 
   if (elements.championTagEditorScope) {
@@ -3827,20 +4056,15 @@ function renderChampionTagEditor() {
     elements.championTagEditorReviewed.disabled = state.api.isSavingChampionTags || state.api.isLoadingChampionTags;
   }
 
-  const activeTab = normalizeChampionEditorTab(state.api.championEditorTab);
-  const metadataDraftComplete =
-    state.api.championMetadataDraft.roles.length > 0 &&
-    Boolean(state.api.championMetadataDraft.damageType) &&
-    Boolean(state.api.championMetadataDraft.scaling);
+  const metadataDraftComplete = championMetadataDraftIsComplete();
 
   if (elements.championTagEditorSave) {
-    elements.championTagEditorSave.textContent =
-      activeTab === CHAMPION_EDITOR_TAB_COMPOSITION ? "Save Composition" : "Save Metadata";
-    const compositionSaveBlocked = activeTab === CHAMPION_EDITOR_TAB_COMPOSITION && state.api.isLoadingChampionTags;
+    elements.championTagEditorSave.textContent = canEditGlobal ? "Save Tags + Metadata" : "Save Tags";
+    const compositionSaveBlocked = state.api.isLoadingChampionTags;
     elements.championTagEditorSave.disabled =
       state.api.isSavingChampionTags ||
       compositionSaveBlocked ||
-      (activeTab !== CHAMPION_EDITOR_TAB_COMPOSITION && !metadataDraftComplete);
+      (canEditGlobal && !metadataDraftComplete);
   }
   if (elements.championTagEditorClear) {
     elements.championTagEditorClear.disabled = state.api.isSavingChampionTags;
@@ -3912,7 +4136,6 @@ async function openChampionTagEditor(championId) {
   } else {
     state.api.championTagTeamId = "";
   }
-  state.api.championEditorTab = CHAMPION_EDITOR_TAB_COMPOSITION;
   initializeChampionMetadataDraft(champion);
   setChampionTagEditorFeedback("Loading champion tags...");
   renderChampionTagEditor();
@@ -3956,10 +4179,22 @@ async function saveChampionCompositionTab(championId) {
 }
 
 async function saveChampionMetadataTab(championId) {
+  ensureChampionMetadataRoleProfiles();
+  const roleProfilesPayload = {};
+  for (const role of state.api.championMetadataDraft.roles) {
+    const profile = state.api.championMetadataDraft.roleProfiles?.[role] ?? createDefaultRoleProfileDraft();
+    roleProfilesPayload[role] = {
+      primary_damage_type: normalizeApiPrimaryDamageType(profile.primaryDamageType) ?? "mixed",
+      effectiveness: {
+        early: normalizeApiEffectivenessLevel(profile.effectiveness?.early) ?? "neutral",
+        mid: normalizeApiEffectivenessLevel(profile.effectiveness?.mid) ?? "neutral",
+        late: normalizeApiEffectivenessLevel(profile.effectiveness?.late) ?? "neutral"
+      }
+    };
+  }
   const payload = {
     roles: [...state.api.championMetadataDraft.roles],
-    damage_type: state.api.championMetadataDraft.damageType,
-    scaling: state.api.championMetadataDraft.scaling
+    role_profiles: roleProfilesPayload
   };
 
   const response = await apiRequest(`/champions/${championId}/metadata`, {
@@ -3974,46 +4209,33 @@ async function saveChampionTagEditor() {
   const championId = state.api.selectedChampionTagEditorId;
   if (
     !isAuthenticated() ||
-    !isGlobalTagEditorUser() ||
     !Number.isInteger(championId) ||
     championId <= 0 ||
     state.api.isSavingChampionTags
   ) {
     return;
   }
-  const activeTab = normalizeChampionEditorTab(state.api.championEditorTab);
-  if (activeTab === CHAMPION_EDITOR_TAB_COMPOSITION && state.api.isLoadingChampionTags) {
+  if (state.api.isLoadingChampionTags) {
     setChampionTagEditorFeedback("Wait for champion tags to finish loading before saving.");
     renderChampionTagEditor();
     return;
   }
+  const canEditGlobal = isGlobalTagEditorUser();
 
   state.api.isSavingChampionTags = true;
-  setChampionTagEditorFeedback(
-    activeTab === CHAMPION_EDITOR_TAB_COMPOSITION
-      ? "Saving composition tags..."
-      : "Saving champion metadata..."
-  );
+  setChampionTagEditorFeedback("Saving champion tags...");
   renderChampionTagEditor();
 
   try {
-    if (activeTab === CHAMPION_EDITOR_TAB_COMPOSITION) {
-      await saveChampionCompositionTab(championId);
-      setChampionTagEditorFeedback("Composition tags saved.");
-    } else {
+    await saveChampionCompositionTab(championId);
+    if (canEditGlobal) {
+      setChampionTagEditorFeedback("Saving champion metadata...");
       await saveChampionMetadataTab(championId);
-      setChampionTagEditorFeedback("Champion metadata saved.");
     }
+    setChampionTagEditorFeedback(canEditGlobal ? "Tags and metadata saved." : "Tags saved.");
     renderExplorer();
   } catch (error) {
-    setChampionTagEditorFeedback(
-      normalizeApiErrorMessage(
-        error,
-        activeTab === CHAMPION_EDITOR_TAB_COMPOSITION
-          ? "Failed to save composition tags."
-          : "Failed to save champion metadata."
-      )
-    );
+    setChampionTagEditorFeedback(normalizeApiErrorMessage(error, "Failed to save champion updates."));
   } finally {
     state.api.isSavingChampionTags = false;
     renderChampionTagEditor();
@@ -4493,7 +4715,7 @@ function initializeExplorerControls() {
     elements.explorerScaling,
     SCALING_VALUES.map((value) => ({ value, label: value })),
     true,
-    "Any Scaling"
+    "Any Effectiveness Focus"
   );
 
   replaceOptions(
@@ -4580,7 +4802,7 @@ function renderActivePills() {
     pills.push({ label: "Damage Type", values: state.explorer.damageTypes });
   }
   if (state.explorer.scaling) {
-    pills.push({ label: "Scaling", values: [state.explorer.scaling] });
+    pills.push({ label: "Effectiveness", values: [state.explorer.scaling] });
   }
   if (state.explorer.sortBy !== "alpha-asc") {
     const sortLabels = { "alpha-desc": "Alphabetical (Z-A)", role: "Primary Role, then Name" };
@@ -6919,10 +7141,10 @@ function renderExplorer() {
     const summary = runtimeDocument.createElement("p");
     summary.className = "meta";
     summary.textContent = `${champion.roles.join(" / ")} | ${champion.damageType} | ${champion.scaling}`;
-    summary.title = "Roles | Damage Type | Scaling";
+    summary.title = "Roles | Damage Type | Effectiveness Focus";
     summary.setAttribute(
       "aria-label",
-      `Roles: ${champion.roles.join(" / ")}. Damage Type: ${champion.damageType}. Scaling: ${champion.scaling}.`
+      `Roles: ${champion.roles.join(" / ")}. Damage Type: ${champion.damageType}. Effectiveness focus: ${champion.scaling}.`
     );
 
     heading.append(name, summary);
@@ -8401,26 +8623,6 @@ function attachEvents() {
   for (const button of elements.championEditorTabButtons) {
     button.addEventListener("click", () => {
       setChampionEditorTab(button.dataset.championEditorTab);
-    });
-  }
-
-  if (elements.championMetadataEditorDamageType) {
-    elements.championMetadataEditorDamageType.addEventListener("change", () => {
-      const normalized = normalizeApiDamageType(elements.championMetadataEditorDamageType.value);
-      if (normalized) {
-        state.api.championMetadataDraft.damageType = normalized;
-      }
-      renderChampionTagEditor();
-    });
-  }
-
-  if (elements.championMetadataEditorScaling) {
-    elements.championMetadataEditorScaling.addEventListener("change", () => {
-      const normalized = normalizeApiScaling(elements.championMetadataEditorScaling.value);
-      if (normalized) {
-        state.api.championMetadataDraft.scaling = normalized;
-      }
-      renderChampionTagEditor();
     });
   }
 

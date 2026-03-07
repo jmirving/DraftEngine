@@ -134,7 +134,7 @@
                       <div id="explorer-damage"></div>
                     </label>
                     <label>
-                      <span class="filter-label-header">Scaling <button id="explorer-clear-scaling" class="filter-clear-btn" type="button" aria-label="Clear scaling">×</button></span>
+                      <span class="filter-label-header">Effectiveness Focus <button id="explorer-clear-scaling" class="filter-clear-btn" type="button" aria-label="Clear effectiveness focus">×</button></span>
                       <select id="explorer-scaling"></select>
                     </label>
                     <label>
@@ -168,108 +168,31 @@
                   </div>
                 </div>
               </div>
-              <p id="explorer-indicator-legend" class="meta">Card indicator order: Roles | Damage Type | Scaling.</p>
+              <p id="explorer-indicator-legend" class="meta">Card indicator order: Roles | Damage Type | Effectiveness Focus.</p>
               <p id="explorer-count" class="meta"></p>
               <div id="explorer-results" class="card-grid"></div>
               <div id="champion-tag-editor" class="champion-tag-editor" hidden>
                 <p class="panel-kicker">Tag Editor</p>
-                <h3 id="champion-tag-editor-title">Edit Champion Tags</h3>
+                <h3 id="champion-tag-editor-title">Edit Champion Profile</h3>
                 <p id="champion-tag-editor-meta" class="meta"></p>
-                <div class="champion-editor-tabs" role="tablist" aria-label="Champion editor tabs">
-                  <button
-                    id="champion-editor-tab-composition"
-                    class="champion-editor-tab is-active"
-                    type="button"
-                    role="tab"
-                    aria-selected="true"
-                    aria-controls="champion-editor-panel-composition"
-                    data-champion-editor-tab="composition"
-                  >
-                    Composition
-                  </button>
-                  <button
-                    id="champion-editor-tab-roles"
-                    class="champion-editor-tab"
-                    type="button"
-                    role="tab"
-                    aria-selected="false"
-                    aria-controls="champion-editor-panel-roles"
-                    data-champion-editor-tab="roles"
-                  >
-                    Roles
-                  </button>
-                  <button
-                    id="champion-editor-tab-damage"
-                    class="champion-editor-tab"
-                    type="button"
-                    role="tab"
-                    aria-selected="false"
-                    aria-controls="champion-editor-panel-damage"
-                    data-champion-editor-tab="damage"
-                  >
-                    Damage Type
-                  </button>
-                  <button
-                    id="champion-editor-tab-scaling"
-                    class="champion-editor-tab"
-                    type="button"
-                    role="tab"
-                    aria-selected="false"
-                    aria-controls="champion-editor-panel-scaling"
-                    data-champion-editor-tab="scaling"
-                  >
-                    Scaling
-                  </button>
-                </div>
                 <div
                   id="champion-editor-panel-composition"
                   class="champion-editor-panel"
-                  role="tabpanel"
-                  aria-labelledby="champion-editor-tab-composition"
                 >
                   <label class="inline-checkbox champion-review-toggle">
                     <input id="champion-tag-editor-reviewed" type="checkbox" />
                     Human reviewed
                   </label>
-                  <p class="meta">Mark this when a human has reviewed and approved the current global composition tags.</p>
+                  <p class="meta">Mark this when a human has reviewed and approved the current global composition tags. Tag definitions are shown inline below.</p>
                   <div id="champion-tag-editor-tags" class="excluded-options"></div>
                 </div>
-                <div
-                  id="champion-editor-panel-roles"
-                  class="champion-editor-panel"
-                  role="tabpanel"
-                  aria-labelledby="champion-editor-tab-roles"
-                  hidden
-                >
-                  <p class="meta">Choose one or more valid roles for this champion.</p>
+                <div id="champion-editor-panel-roles" class="champion-editor-panel">
+                  <p class="meta">Choose one or more valid roles, then configure per-role primary damage type and effectiveness profile.</p>
                   <div id="champion-metadata-editor-roles" class="excluded-options"></div>
-                </div>
-                <div
-                  id="champion-editor-panel-damage"
-                  class="champion-editor-panel"
-                  role="tabpanel"
-                  aria-labelledby="champion-editor-tab-damage"
-                  hidden
-                >
-                  <label>
-                    Damage Type
-                    <select id="champion-metadata-editor-damage-type"></select>
-                  </label>
-                </div>
-                <div
-                  id="champion-editor-panel-scaling"
-                  class="champion-editor-panel"
-                  role="tabpanel"
-                  aria-labelledby="champion-editor-tab-scaling"
-                  hidden
-                >
-                  <label>
-                    Scaling
-                    <select id="champion-metadata-editor-scaling"></select>
-                  </label>
+                  <div id="champion-metadata-role-profiles" class="champion-role-profile-list"></div>
                 </div>
                 <div class="button-row">
-                  <button id="champion-tag-editor-save" type="button">Save Champion Tags</button>
+                  <button id="champion-tag-editor-save" type="button">Save Champion Profile</button>
                   <button id="champion-tag-editor-clear" class="ghost" type="button">Close Editor</button>
                 </div>
                 <p id="champion-tag-editor-feedback" class="meta"></p>
@@ -554,7 +477,7 @@
           <section id="tab-tags" class="tab-panel tab-surface">
             <div class="panel draft-board-panel">
               <h2 id="tags-title">Tags</h2>
-              <p id="tags-meta" class="meta">Review tag categories and current champion coverage.</p>
+              <p id="tags-meta" class="meta">Manage shared tag definitions and current champion coverage.</p>
               <p class="meta">MVP editing remains in Champions; this page adds catalog governance and CRUD foundations.</p>
               <p id="tags-workspace-summary" class="meta"></p>
             </div>
@@ -567,8 +490,8 @@
                   <input id="tags-manage-name" type="text" placeholder="e.g. splitpush" />
                 </label>
                 <label>
-                  Category
-                  <input id="tags-manage-category" type="text" placeholder="e.g. macro" />
+                  Definition
+                  <textarea id="tags-manage-definition" rows="3" placeholder="Describe exactly when this tag should be used."></textarea>
                 </label>
               </div>
               <div class="button-row">
@@ -1079,7 +1002,14 @@
                 aria-labelledby="updates-release-tab-whats-new"
               >
                 <h3>What's New</h3>
-                <p class="meta">Shipped updates that are available now (latest two patches).</p>
+                <p class="meta">Shipped updates that are available now (latest two releases).</p>
+                <h4>Version 0.5.0 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>Tags now use a definition-first model: catalog entries are managed as `name + definition`, and category-based tag organization has been removed.</li>
+                  <li>Champion editing was unified so tag assignment and champion role metadata live in one profile editor flow.</li>
+                  <li>Champion role metadata now supports per-role primary damage type (`ad`, `ap`, `mixed`, `utility`) and per-role effectiveness (early/mid/late as weak/neutral/strong).</li>
+                  <li>`utility` role profiles no longer satisfy damage-mix requirements in composition evaluation logic.</li>
+                </ul>
                 <h4>Version 0.4.3 (Shipped)</h4>
                 <ul class="coming-soon-list">
                   <li>The Champions filter panel was redesigned into a single collapsible section; the Tag Catalog was moved inside the filter grid as a peer field with an overlay panel so it doesn't expand the layout.</li>
@@ -1087,13 +1017,6 @@
                   <li>Filter fields each gained an inline × clear icon; a warning banner surfaces the mutual exclusivity of Include and Exclude tag filters.</li>
                   <li>The champion card grid is capped at three visible rows with vertical scrolling to keep the page compact.</li>
                   <li>Filter field text now uses consistent bold weight across all inputs, selects, and dropdowns.</li>
-                </ul>
-                <h4>Version 0.4.2 (Shipped)</h4>
-                <ul class="coming-soon-list">
-                  <li>Player Slots and Pool Snapshot panels in the Composer were overhauled into a unified slot-based workflow; the separate Node Draft Order drag list was removed and replaced with inline ↑↓ reorder buttons on each slot row.</li>
-                  <li>Pool Snapshot cards now show per-member, per-role champion lists with a text filter and scrollable view; clicking a champion directly sets it in the corresponding slot.</li>
-                  <li>Slot rows detect and flag duplicate role assignments inline, and changing a slot's role resets the champion selection to prevent stale picks.</li>
-                  <li>Draft context is now fetched on page load rather than only on team change, ensuring the Composer is always pre-populated without requiring user interaction.</li>
                 </ul>
               </div>
 
@@ -1162,6 +1085,13 @@
               >
                 <h3>Previous Release Notes</h3>
                 <p class="meta">Historical shipped changes from earlier versions.</p>
+                <h4>Version 0.4.2 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>Player Slots and Pool Snapshot panels in the Composer were overhauled into a unified slot-based workflow; the separate Node Draft Order drag list was removed and replaced with inline ↑↓ reorder buttons on each slot row.</li>
+                  <li>Pool Snapshot cards now show per-member, per-role champion lists with a text filter and scrollable view; clicking a champion directly sets it in the corresponding slot.</li>
+                  <li>Slot rows detect and flag duplicate role assignments inline, and changing a slot's role resets the champion selection to prevent stale picks.</li>
+                  <li>Draft context is now fetched on page load rather than only on team change, ensuring the Composer is always pre-populated without requiring user interaction.</li>
+                </ul>
                 <h4>Version 0.4.1 (Shipped)</h4>
                 <ul class="coming-soon-list">
                   <li>The Teams workspace now splits “Teams I’m On”, “Teams I manage”, and “Create new team” into separate tabs so roster management, invites, requests, and status summaries stay focused.</li>

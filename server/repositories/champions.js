@@ -21,6 +21,47 @@ function mapChampionRow(row) {
   };
 }
 
+function mapPrimaryDamageTypeToLegacyValue(primaryDamageType) {
+  if (primaryDamageType === "ad") {
+    return "AD";
+  }
+  if (primaryDamageType === "ap") {
+    return "AP";
+  }
+  if (primaryDamageType === "mixed") {
+    return "Mixed";
+  }
+  if (primaryDamageType === "utility") {
+    return "Utility";
+  }
+  return "Mixed";
+}
+
+function deriveLegacyScalingFromEffectiveness(effectiveness = {}) {
+  const levels = {
+    weak: 1,
+    neutral: 2,
+    strong: 3
+  };
+  const phases = ["early", "mid", "late"];
+  let bestPhase = "mid";
+  let bestLevel = 0;
+  for (const phase of phases) {
+    const level = levels[String(effectiveness?.[phase] ?? "").toLowerCase()] ?? 0;
+    if (level > bestLevel) {
+      bestLevel = level;
+      bestPhase = phase;
+    }
+  }
+  if (bestPhase === "early") {
+    return "Early";
+  }
+  if (bestPhase === "late") {
+    return "Late";
+  }
+  return "Mid";
+}
+
 export function createChampionsRepository(pool) {
   return {
     async listChampions() {
@@ -83,7 +124,7 @@ export function createChampionsRepository(pool) {
       return result.rowCount > 0;
     },
 
-    async updateChampionMetadata(championId, { roles, damageType, scaling }) {
+    async updateChampionMetadata(championId, { roles, roleProfiles }) {
       const currentResult = await pool.query(
         `
           SELECT metadata_json
@@ -105,11 +146,25 @@ export function createChampionsRepository(pool) {
           ? currentMetadata.tags
           : {};
 
+      const normalizedRoleProfiles =
+        roleProfiles && typeof roleProfiles === "object" && !Array.isArray(roleProfiles)
+          ? roleProfiles
+          : {};
+      const primaryRole = roles[0];
+      const primaryRoleProfile =
+        primaryRole &&
+        normalizedRoleProfiles[primaryRole] &&
+        typeof normalizedRoleProfiles[primaryRole] === "object" &&
+        !Array.isArray(normalizedRoleProfiles[primaryRole])
+          ? normalizedRoleProfiles[primaryRole]
+          : null;
+
       const nextMetadata = {
         ...currentMetadata,
         roles: [...roles],
-        damageType,
-        scaling,
+        roleProfiles: normalizedRoleProfiles,
+        damageType: mapPrimaryDamageTypeToLegacyValue(primaryRoleProfile?.primaryDamageType),
+        scaling: deriveLegacyScalingFromEffectiveness(primaryRoleProfile?.effectiveness),
         tags: currentTags
       };
 

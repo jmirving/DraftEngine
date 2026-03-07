@@ -45,6 +45,17 @@ function tagsFalse() {
   return Object.fromEntries(BOOLEAN_TAGS.map((tag) => [tag, false]));
 }
 
+function createRoleProfile(primaryDamageType, early = "neutral", mid = "neutral", late = "neutral") {
+  return {
+    primaryDamageType,
+    effectiveness: {
+      early,
+      mid,
+      late
+    }
+  };
+}
+
 function createJsonResponse(body, status = 200) {
   return {
     ok: status >= 200 && status < 300,
@@ -72,15 +83,49 @@ function createFetchHarness({
   const calls = [];
   let nextPoolId = pools.length + 1;
   const tags = [
-    { id: 1, name: "engage", category: "utility" },
-    { id: 2, name: "frontline", category: "utility" },
-    { id: 3, name: "burst", category: "damage" }
+    { id: 1, name: "engage", definition: "Helps your comp start fights." },
+    { id: 2, name: "frontline", definition: "Adds durable front line presence." },
+    { id: 3, name: "burst", definition: "Adds fast pick damage windows." }
   ];
   let nextTagId = 4;
   const championMetadataById = new Map([
-    [1, { roles: ["Mid"], damageType: "AP", scaling: "Mid", tags: tagsFalse() }],
-    [2, { roles: ["ADC", "Support"], damageType: "AD", scaling: "Late", tags: tagsFalse() }],
-    [3, { roles: ["Support"], damageType: "AD", scaling: "Mid", tags: tagsFalse() }]
+    [
+      1,
+      {
+        roles: ["Mid"],
+        roleProfiles: {
+          Mid: createRoleProfile("ap", "neutral", "strong", "neutral")
+        },
+        damageType: "AP",
+        scaling: "Mid",
+        tags: tagsFalse()
+      }
+    ],
+    [
+      2,
+      {
+        roles: ["ADC", "Support"],
+        roleProfiles: {
+          ADC: createRoleProfile("ad", "neutral", "strong", "strong"),
+          Support: createRoleProfile("ap", "neutral", "strong", "weak")
+        },
+        damageType: "AD",
+        scaling: "Late",
+        tags: tagsFalse()
+      }
+    ],
+    [
+      3,
+      {
+        roles: ["Support"],
+        roleProfiles: {
+          Support: createRoleProfile("utility", "neutral", "strong", "weak")
+        },
+        damageType: "Utility",
+        scaling: "Mid",
+        tags: tagsFalse()
+      }
+    ]
   ]);
   const championReviewedById = new Map([
     [1, false],
@@ -382,15 +427,15 @@ function createFetchHarness({
 
     if (path === "/tags" && method === "POST") {
       const name = typeof body?.name === "string" ? body.name.trim() : "";
-      const category = typeof body?.category === "string" ? body.category.trim().toLowerCase() : "";
-      if (!name || !category) {
-        return createJsonResponse({ error: { code: "BAD_REQUEST", message: "Expected name/category." } }, 400);
+      const definition = typeof body?.definition === "string" ? body.definition.trim() : "";
+      if (!name || !definition) {
+        return createJsonResponse({ error: { code: "BAD_REQUEST", message: "Expected name/definition." } }, 400);
       }
       const duplicate = tags.some((tag) => tag.name === name);
       if (duplicate) {
         return createJsonResponse({ error: { code: "CONFLICT", message: "Tag name already exists." } }, 409);
       }
-      const created = { id: nextTagId, name, category };
+      const created = { id: nextTagId, name, definition };
       nextTagId += 1;
       tags.push(created);
       return createJsonResponse({ tag: created }, 201);
@@ -400,7 +445,7 @@ function createFetchHarness({
     if (tagMutationMatch && method === "PUT") {
       const tagId = Number(tagMutationMatch[1]);
       const name = typeof body?.name === "string" ? body.name.trim() : "";
-      const category = typeof body?.category === "string" ? body.category.trim().toLowerCase() : "";
+      const definition = typeof body?.definition === "string" ? body.definition.trim() : "";
       const existing = tags.find((tag) => tag.id === tagId) ?? null;
       if (!existing) {
         return createJsonResponse({ error: { code: "NOT_FOUND", message: "Tag not found." } }, 404);
@@ -410,7 +455,7 @@ function createFetchHarness({
         return createJsonResponse({ error: { code: "CONFLICT", message: "Tag name already exists." } }, 409);
       }
       existing.name = name;
-      existing.category = category;
+      existing.definition = definition;
       return createJsonResponse({ tag: existing });
     }
 
@@ -466,15 +511,44 @@ function createFetchHarness({
       const championId = Number(championMetadataMatch[1]);
       const existing = championMetadataById.get(championId) ?? {
         roles: ["Mid"],
+        roleProfiles: {
+          Mid: createRoleProfile("ap", "neutral", "strong", "neutral")
+        },
         damageType: "AP",
         scaling: "Mid",
         tags: tagsFalse()
       };
+      const nextRoles = Array.isArray(body?.roles) ? [...body.roles] : [...existing.roles];
+      const nextRoleProfiles =
+        body?.role_profiles && typeof body.role_profiles === "object" && !Array.isArray(body.role_profiles)
+          ? body.role_profiles
+          : { ...(existing.roleProfiles ?? {}) };
+      const firstRole = nextRoles[0];
+      const firstRoleProfile = firstRole && nextRoleProfiles[firstRole] ? nextRoleProfiles[firstRole] : null;
+      const nextDamageType = String(firstRoleProfile?.primary_damage_type ?? "").toLowerCase() === "ad"
+        ? "AD"
+        : String(firstRoleProfile?.primary_damage_type ?? "").toLowerCase() === "ap"
+          ? "AP"
+          : String(firstRoleProfile?.primary_damage_type ?? "").toLowerCase() === "utility"
+            ? "Utility"
+            : "Mixed";
       const nextMetadata = {
         ...existing,
-        roles: Array.isArray(body?.roles) ? [...body.roles] : [...existing.roles],
-        damageType: typeof body?.damage_type === "string" ? body.damage_type : existing.damageType,
-        scaling: typeof body?.scaling === "string" ? body.scaling : existing.scaling
+        roles: nextRoles,
+        roleProfiles: Object.fromEntries(
+          Object.entries(nextRoleProfiles).map(([role, profile]) => [
+            role,
+            {
+              primaryDamageType: profile?.primaryDamageType ?? profile?.primary_damage_type ?? "mixed",
+              effectiveness: {
+                early: profile?.effectiveness?.early ?? "neutral",
+                mid: profile?.effectiveness?.mid ?? "neutral",
+                late: profile?.effectiveness?.late ?? "neutral"
+              }
+            }
+          ])
+        ),
+        damageType: nextDamageType
       };
       championMetadataById.set(championId, nextMetadata);
       return createJsonResponse({
@@ -1397,7 +1471,7 @@ describe("auth + pools + team management", () => {
     expect(saveCall.body.tag_ids).toEqual([1]);
   });
 
-  test("champion editor shows assigned non-composition tags when composition category exists", async () => {
+  test("champion editor keeps assigned tags visible even with mixed catalog definitions", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -1412,9 +1486,9 @@ describe("auth + pools + team management", () => {
         await harness.impl(url, init);
         return createJsonResponse({
           tags: [
-            { id: 1, name: "engage", category: "utility" },
-            { id: 2, name: "frontline", category: "utility" },
-            { id: 10, name: "teamfight", category: "composition" }
+            { id: 1, name: "engage", definition: "Helps your comp start fights." },
+            { id: 2, name: "frontline", definition: "Adds durable front line presence." },
+            { id: 10, name: "teamfight", definition: "Shines in 5v5 grouped fights." }
           ]
         });
       }
@@ -1458,9 +1532,9 @@ describe("auth + pools + team management", () => {
     const labels = [...doc.querySelectorAll("#champion-tag-editor-tags .selection-option span")]
       .map((node) => node.textContent.trim());
     expect(labels).toEqual([
-      "burst (damage)",
-      "engage (utility)",
-      "frontline (utility)"
+      "burst",
+      "engage",
+      "frontline"
     ]);
   });
 
@@ -1483,9 +1557,9 @@ describe("auth + pools + team management", () => {
       if (method === "GET" && parsedUrl.pathname === "/tags") {
         return createJsonResponse({
           tags: [
-            { id: 11, name: "Hard Engage", category: "composition" },
-            { id: 12, name: "Frontline", category: "composition" },
-            { id: 13, name: "Disengage", category: "composition" }
+            { id: 11, name: "Hard Engage", definition: "Hard engage options." },
+            { id: 12, name: "Frontline", definition: "Frontline options." },
+            { id: 13, name: "Disengage", definition: "Disengage options." }
           ]
         });
       }
@@ -1618,24 +1692,19 @@ describe("auth + pools + team management", () => {
     editButton.click();
     await flush();
 
-    doc.querySelector("#champion-editor-tab-roles").click();
-    await flush();
     const topRoleCheckbox = doc.querySelector("#champion-metadata-editor-roles input[value='Top']");
     expect(topRoleCheckbox).toBeTruthy();
     topRoleCheckbox.checked = true;
     topRoleCheckbox.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
 
-    doc.querySelector("#champion-editor-tab-damage").click();
     await flush();
-    const damageTypeSelect = doc.querySelector("#champion-metadata-editor-damage-type");
-    damageTypeSelect.value = "Mixed";
-    damageTypeSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-
-    doc.querySelector("#champion-editor-tab-scaling").click();
-    await flush();
-    const scalingSelect = doc.querySelector("#champion-metadata-editor-scaling");
-    scalingSelect.value = "Late";
-    scalingSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    const topProfileCard = Array.from(doc.querySelectorAll(".champion-role-profile-card")).find((node) =>
+      node.textContent.includes("Top Profile")
+    );
+    expect(topProfileCard).toBeTruthy();
+    const topDamageSelect = topProfileCard.querySelector("select");
+    topDamageSelect.value = "mixed";
+    topDamageSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
 
     doc.querySelector("#champion-tag-editor-save").click();
     await flush();
@@ -1644,13 +1713,12 @@ describe("auth + pools + team management", () => {
       (call) => /^\/champions\/\d+\/metadata$/.test(call.path) && call.method === "PUT"
     );
     expect(metadataSaveCall).toBeTruthy();
-    expect(metadataSaveCall.body.damage_type).toBe("Mixed");
-    expect(metadataSaveCall.body.scaling).toBe("Late");
+    expect(metadataSaveCall.body.role_profiles.Top.primary_damage_type).toBe("mixed");
     expect(new Set(metadataSaveCall.body.roles)).toEqual(new Set(["Top", "Mid"]));
     expect(doc.querySelector("#champion-tag-editor-feedback").textContent).toContain("saved");
   });
 
-  test("tags workspace renders grouped categories from API catalog", async () => {
+  test("tags workspace renders flat definition-based catalog", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -1667,11 +1735,11 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#hero-title").textContent).toBe("Tags");
     expect(doc.querySelector("#tags-workspace-summary").textContent).toContain("3 tags");
 
-    const headings = Array.from(
-      doc.querySelectorAll("#tags-workspace-categories .tags-category-card h3"),
+    const tagLabels = Array.from(
+      doc.querySelectorAll("#tags-workspace-categories .tags-workspace-item .chip"),
       (node) => node.textContent.trim()
     );
-    expect(headings).toEqual(["damage", "utility"]);
+    expect(tagLabels).toEqual(["burst", "engage", "frontline"]);
   });
 
   test("tags workspace supports admin CRUD operations", async () => {
@@ -1689,7 +1757,7 @@ describe("auth + pools + team management", () => {
     await flush();
 
     doc.querySelector("#tags-manage-name").value = "splitpush";
-    doc.querySelector("#tags-manage-category").value = "Macro";
+    doc.querySelector("#tags-manage-definition").value = "Strong side lane and map pressure pick.";
     doc.querySelector("#tags-manage-save").click();
     await flush();
     await flush();
@@ -1697,7 +1765,7 @@ describe("auth + pools + team management", () => {
     const createCall = harness.calls.find((call) => call.path === "/tags" && call.method === "POST");
     expect(createCall).toBeTruthy();
     expect(createCall.body.name).toBe("splitpush");
-    expect(createCall.body.category).toBe("macro");
+    expect(createCall.body.definition).toContain("map pressure");
     expect(doc.querySelector("#tags-workspace-summary").textContent).toContain("4 tags");
 
     const createdRow = Array.from(doc.querySelectorAll(".tags-workspace-item")).find((node) =>
@@ -1708,7 +1776,7 @@ describe("auth + pools + team management", () => {
     await flush();
 
     doc.querySelector("#tags-manage-name").value = "splitpush-priority";
-    doc.querySelector("#tags-manage-category").value = "macro";
+    doc.querySelector("#tags-manage-definition").value = "Priority split pressure with objective threat.";
     doc.querySelector("#tags-manage-save").click();
     await flush();
     await flush();

@@ -116,8 +116,8 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       }
     ],
     tags: [
-      { id: 1, name: "engage", category: "utility" },
-      { id: 2, name: "frontline", category: "utility" }
+      { id: 1, name: "engage", definition: "Helps a team start fights decisively." },
+      { id: 2, name: "frontline", definition: "Provides durable front-to-back pressure." }
     ],
     userChampionTagIds: new Map([
       ["2:1", new Set([2])]
@@ -321,17 +321,26 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
     async championExists(championId) {
       return state.champions.some((champion) => champion.id === championId);
     },
-    async updateChampionMetadata(championId, { roles, damageType, scaling }) {
+    async updateChampionMetadata(championId, { roles, roleProfiles }) {
       const champion = state.champions.find((item) => item.id === championId);
       if (!champion) {
         return null;
       }
       champion.role = roles[0];
+      const primaryRoleProfile = roleProfiles[roles[0]] ?? null;
+      const primaryDamageType = String(primaryRoleProfile?.primaryDamageType ?? "").toLowerCase();
       champion.metadata = {
         ...(champion.metadata && typeof champion.metadata === "object" ? champion.metadata : {}),
         roles: [...roles],
-        damageType,
-        scaling
+        roleProfiles: { ...roleProfiles },
+        damageType: primaryDamageType === "ad"
+          ? "AD"
+          : primaryDamageType === "ap"
+            ? "AP"
+            : primaryDamageType === "utility"
+              ? "Utility"
+              : "Mixed",
+        scaling: "Mid"
       };
       return champion;
     },
@@ -360,7 +369,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       return [...state.tags];
     },
 
-    async createTag({ name, category }) {
+    async createTag({ name, definition }) {
       const duplicate = state.tags.some((tag) => tag.name === name);
       if (duplicate) {
         const error = new Error("duplicate");
@@ -370,14 +379,14 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       const created = {
         id: nextTagId,
         name,
-        category
+        definition
       };
       nextTagId += 1;
       state.tags.push(created);
       return created;
     },
 
-    async updateTag(tagId, { name, category }) {
+    async updateTag(tagId, { name, definition }) {
       const existing = state.tags.find((tag) => tag.id === tagId) ?? null;
       if (!existing) {
         return null;
@@ -389,7 +398,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         throw error;
       }
       existing.name = name;
-      existing.category = category;
+      existing.definition = definition;
       return existing;
     },
 
@@ -1552,11 +1561,16 @@ describe("API routes", () => {
 
   it("updates champion metadata with admin-only global permissions", async () => {
     const { app, config } = createMockContext();
+    const roleProfilesPayload = {
+      Top: {
+        primary_damage_type: "ad",
+        effectiveness: { early: "strong", mid: "neutral", late: "weak" }
+      }
+    };
 
     const unauthorizedWrite = await request(app).put("/champions/1/metadata").send({
       roles: ["Top"],
-      damage_type: "AD",
-      scaling: "Early"
+      role_profiles: roleProfilesPayload
     });
     expect(unauthorizedWrite.status).toBe(401);
 
@@ -1565,8 +1579,7 @@ describe("API routes", () => {
       .set("Authorization", buildAuthHeader(2, config))
       .send({
         roles: ["Top"],
-        damage_type: "AD",
-        scaling: "Early"
+        role_profiles: roleProfilesPayload
       });
     expect(memberForbiddenWrite.status).toBe(403);
 
@@ -1575,8 +1588,7 @@ describe("API routes", () => {
       .set("Authorization", buildAuthHeader(1, config))
       .send({
         roles: ["InvalidRole"],
-        damage_type: "AD",
-        scaling: "Early"
+        role_profiles: roleProfilesPayload
       });
     expect(invalidPayload.status).toBe(400);
 
@@ -1585,14 +1597,22 @@ describe("API routes", () => {
       .set("Authorization", buildAuthHeader(1, config))
       .send({
         roles: ["Top", "Jungle"],
-        damage_type: "AD",
-        scaling: "Late"
+        role_profiles: {
+          Top: {
+            primary_damage_type: "ad",
+            effectiveness: { early: "strong", mid: "neutral", late: "weak" }
+          },
+          Jungle: {
+            primary_damage_type: "utility",
+            effectiveness: { early: "neutral", mid: "strong", late: "weak" }
+          }
+        }
       });
     expect(adminWrite.status).toBe(200);
     expect(adminWrite.body.champion.role).toBe("Top");
     expect(adminWrite.body.champion.metadata.roles).toEqual(["Top", "Jungle"]);
-    expect(adminWrite.body.champion.metadata.damageType).toBe("AD");
-    expect(adminWrite.body.champion.metadata.scaling).toBe("Late");
+    expect(adminWrite.body.champion.metadata.roleProfiles.Top.primaryDamageType).toBe("ad");
+    expect(adminWrite.body.champion.metadata.roleProfiles.Jungle.primaryDamageType).toBe("utility");
   });
 
   it("allows member global metadata edits when no admins exist", async () => {
@@ -1604,14 +1624,22 @@ describe("API routes", () => {
       .set("Authorization", buildAuthHeader(2, config))
       .send({
         roles: ["Top", "Jungle"],
-        damage_type: "AD",
-        scaling: "Late"
+        role_profiles: {
+          Top: {
+            primary_damage_type: "ad",
+            effectiveness: { early: "strong", mid: "neutral", late: "weak" }
+          },
+          Jungle: {
+            primary_damage_type: "mixed",
+            effectiveness: { early: "weak", mid: "strong", late: "strong" }
+          }
+        }
       });
     expect(memberWrite.status).toBe(200);
     expect(memberWrite.body.champion.role).toBe("Top");
     expect(memberWrite.body.champion.metadata.roles).toEqual(["Top", "Jungle"]);
-    expect(memberWrite.body.champion.metadata.damageType).toBe("AD");
-    expect(memberWrite.body.champion.metadata.scaling).toBe("Late");
+    expect(memberWrite.body.champion.metadata.roleProfiles.Top.primaryDamageType).toBe("ad");
+    expect(memberWrite.body.champion.metadata.roleProfiles.Jungle.primaryDamageType).toBe("mixed");
   });
 
   it("supports admin-only tag catalog CRUD", async () => {
@@ -1619,48 +1647,48 @@ describe("API routes", () => {
 
     const unauthorizedCreate = await request(app)
       .post("/tags")
-      .send({ name: "pick", category: "tempo" });
+      .send({ name: "pick", definition: "Creates pick threat around fog and setups." });
     expect(unauthorizedCreate.status).toBe(401);
 
     const memberForbiddenCreate = await request(app)
       .post("/tags")
       .set("Authorization", buildAuthHeader(2, config))
-      .send({ name: "pick", category: "tempo" });
+      .send({ name: "pick", definition: "Creates pick threat around fog and setups." });
     expect(memberForbiddenCreate.status).toBe(403);
 
     const adminCreate = await request(app)
       .post("/tags")
       .set("Authorization", buildAuthHeader(1, config))
-      .send({ name: "pick", category: "Tempo" });
+      .send({ name: "pick", definition: "Creates pick threat around fog and setups." });
     expect(adminCreate.status).toBe(201);
     expect(adminCreate.body.tag.name).toBe("pick");
-    expect(adminCreate.body.tag.category).toBe("tempo");
+    expect(adminCreate.body.tag.definition).toContain("pick threat");
 
     const duplicateCreate = await request(app)
       .post("/tags")
       .set("Authorization", buildAuthHeader(1, config))
-      .send({ name: "pick", category: "tempo" });
+      .send({ name: "pick", definition: "Creates pick threat around fog and setups." });
     expect(duplicateCreate.status).toBe(409);
 
     const memberForbiddenUpdate = await request(app)
       .put(`/tags/${adminCreate.body.tag.id}`)
       .set("Authorization", buildAuthHeader(2, config))
-      .send({ name: "pick-priority", category: "tempo" });
+      .send({ name: "pick-priority", definition: "Prioritized pick pressure." });
     expect(memberForbiddenUpdate.status).toBe(403);
 
     const duplicateUpdate = await request(app)
       .put(`/tags/${adminCreate.body.tag.id}`)
       .set("Authorization", buildAuthHeader(1, config))
-      .send({ name: "engage", category: "utility" });
+      .send({ name: "engage", definition: "Duplicate name should fail." });
     expect(duplicateUpdate.status).toBe(409);
 
     const adminUpdate = await request(app)
       .put(`/tags/${adminCreate.body.tag.id}`)
       .set("Authorization", buildAuthHeader(1, config))
-      .send({ name: "pick-priority", category: "macro" });
+      .send({ name: "pick-priority", definition: "Improves map pressure and picks." });
     expect(adminUpdate.status).toBe(200);
     expect(adminUpdate.body.tag.name).toBe("pick-priority");
-    expect(adminUpdate.body.tag.category).toBe("macro");
+    expect(adminUpdate.body.tag.definition).toContain("map pressure");
 
     const inUseDeleteConflict = await request(app)
       .delete("/tags/1")
@@ -1684,15 +1712,15 @@ describe("API routes", () => {
     const memberCreate = await request(app)
       .post("/tags")
       .set("Authorization", buildAuthHeader(2, config))
-      .send({ name: "pick", category: "Tempo" });
+      .send({ name: "pick", definition: "Creates pick threat around fog and setups." });
     expect(memberCreate.status).toBe(201);
     expect(memberCreate.body.tag.name).toBe("pick");
-    expect(memberCreate.body.tag.category).toBe("tempo");
+    expect(memberCreate.body.tag.definition).toContain("pick threat");
 
     const memberUpdate = await request(app)
       .put(`/tags/${memberCreate.body.tag.id}`)
       .set("Authorization", buildAuthHeader(2, config))
-      .send({ name: "pick-priority", category: "macro" });
+      .send({ name: "pick-priority", definition: "Prioritized pick pressure." });
     expect(memberUpdate.status).toBe(200);
     expect(memberUpdate.body.tag.name).toBe("pick-priority");
 
@@ -1772,7 +1800,7 @@ describe("API routes", () => {
     const globalCanCreateTag = await request(app)
       .post("/tags")
       .set("Authorization", buildAuthHeader(2, config))
-      .send({ name: "tempo-tag", category: "tempo" });
+      .send({ name: "tempo-tag", definition: "Supports tempo-focused map rotations." });
     expect(globalCanCreateTag.status).toBe(201);
 
     const globalCanWriteTags = await request(app)

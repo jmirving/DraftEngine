@@ -15,9 +15,9 @@ describe("tags repository bootstrap", () => {
             rowCount: 1
           };
         }
-        if (sql.includes("SELECT id, name, category")) {
+        if (sql.includes("SELECT id, name, definition")) {
           return {
-            rows: [{ id: 1, name: "HardEngage", category: "composition" }]
+            rows: [{ id: 1, name: "HardEngage", definition: "Definition pending." }]
           };
         }
         return { rows: [], rowCount: 0 };
@@ -32,7 +32,7 @@ describe("tags repository bootstrap", () => {
     expect(queries[1].sql).toContain("INSERT INTO tags");
     expect(queries[1].params[0]).toHaveLength(BOOLEAN_TAGS.length);
     expect(queries[1].params[1]).toHaveLength(BOOLEAN_TAGS.length);
-    expect(queries[2].sql).toContain("SELECT id, name, category");
+    expect(queries[2].sql).toContain("SELECT id, name, definition");
   });
 
   it("bootstraps default tag catalog before allTagIdsExist checks", async () => {
@@ -61,8 +61,8 @@ describe("tags repository bootstrap", () => {
       if (sql.includes("SELECT COUNT(*) AS tag_count")) {
         return { rows: [{ tag_count: "2" }], rowCount: 1 };
       }
-      if (sql.includes("SELECT id, name, category")) {
-        return { rows: [{ id: 9, name: "my-tag", category: "custom" }], rowCount: 1 };
+      if (sql.includes("SELECT id, name, definition")) {
+        return { rows: [{ id: 9, name: "my-tag", definition: "My custom tag." }], rowCount: 1 };
       }
       return { rows: [], rowCount: 0 };
     });
@@ -74,6 +74,6 @@ describe("tags repository bootstrap", () => {
     expect(tags).toHaveLength(1);
     expect(query.mock.calls).toHaveLength(2);
     expect(query.mock.calls[0][0]).toContain("SELECT COUNT(*) AS tag_count");
-    expect(query.mock.calls[1][0]).toContain("SELECT id, name, category");
+    expect(query.mock.calls[1][0]).toContain("SELECT id, name, definition");
   });
 });

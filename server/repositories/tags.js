@@ -1,7 +1,7 @@
 import { BOOLEAN_TAGS } from "../../src/domain/model.js";
 
-const DEFAULT_TAG_CATEGORY = "composition";
 const DEFAULT_TAG_NAMES = Object.freeze([...BOOLEAN_TAGS]);
+const DEFAULT_TAG_DEFINITION = "Definition pending.";
 
 function normalizeTagIds(rows) {
   return rows.map((row) => Number(row.tag_id));
@@ -95,15 +95,15 @@ export function createTagsRepository(pool) {
     if (Number.isInteger(tagCount) && tagCount > 0) {
       return;
     }
-    const defaultCategories = DEFAULT_TAG_NAMES.map(() => DEFAULT_TAG_CATEGORY);
+    const defaultDefinitions = DEFAULT_TAG_NAMES.map(() => DEFAULT_TAG_DEFINITION);
     await pool.query(
       `
-        INSERT INTO tags (name, category)
-        SELECT seeded.name, seeded.category
-        FROM unnest($1::text[], $2::text[]) AS seeded(name, category)
+        INSERT INTO tags (name, definition)
+        SELECT seeded.name, seeded.definition
+        FROM unnest($1::text[], $2::text[]) AS seeded(name, definition)
         ON CONFLICT (name) DO NOTHING
       `,
-      [DEFAULT_TAG_NAMES, defaultCategories]
+      [DEFAULT_TAG_NAMES, defaultDefinitions]
     );
   }
 
@@ -150,9 +150,9 @@ export function createTagsRepository(pool) {
       await ensureDefaultTagCatalog();
       const result = await pool.query(
         `
-          SELECT id, name, category
+          SELECT id, name, definition
           FROM tags
-          ORDER BY category ASC, name ASC
+          ORDER BY name ASC
         `
       );
       return result.rows;
@@ -192,28 +192,28 @@ export function createTagsRepository(pool) {
       });
     },
 
-    async createTag({ name, category }) {
+    async createTag({ name, definition }) {
       const result = await pool.query(
         `
-          INSERT INTO tags (name, category)
+          INSERT INTO tags (name, definition)
           VALUES ($1, $2)
-          RETURNING id, name, category
+          RETURNING id, name, definition
         `,
-        [name, category]
+        [name, definition]
       );
       return result.rows[0] ?? null;
     },
 
-    async updateTag(tagId, { name, category }) {
+    async updateTag(tagId, { name, definition }) {
       const result = await pool.query(
         `
           UPDATE tags
           SET name = $2,
-              category = $3
+              definition = $3
           WHERE id = $1
-          RETURNING id, name, category
+          RETURNING id, name, definition
         `,
-        [tagId, name, category]
+        [tagId, name, definition]
       );
       return result.rows[0] ?? null;
     },
@@ -237,7 +237,7 @@ export function createTagsRepository(pool) {
         `
           DELETE FROM tags
           WHERE id = $1
-          RETURNING id, name, category
+          RETURNING id, name, definition
         `,
         [tagId]
       );
