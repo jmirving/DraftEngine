@@ -1120,6 +1120,7 @@
                 <p class="meta">Deferred and planned follow-up work by workspace page.</p>
                 <h4>General</h4>
                 <ul class="coming-soon-list">
+                  <li>In-app issue reporting: replace the external GitHub link with an on-site form (title, description, type) that submits directly to the repo via the GitHub API using a server-stored PAT, so users without a GitHub account can report issues. Requires a GitHub PAT with Issues: Read and write scope stored as GITHUB_ISSUES_TOKEN in the server environment. The nav "Report an issue" link should open this form instead of redirecting externally. Falls back to the external GitHub link if the token is not configured. Submitted issues should include the reporter's email or game name in the issue body.</li>
                   <li>Champion catalog refresh checks are still manual; automatic release ingestion is not enabled yet (draftflow-129)</li>
                   <li>Admin safeguards and governance guardrails still need hardening for high-impact global edits (draftflow-147)</li>
                 </ul>
