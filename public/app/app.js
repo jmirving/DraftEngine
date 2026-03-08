@@ -12144,6 +12144,18 @@ async function init() {
     loadStoredAuthSession();
     renderAuthGate();
     const initialRoute = parseTabRouteHash(runtimeWindow.location.hash);
+    // Apply the correct initial tab before any awaits so the browser never
+    // paints the default Composer tab when the user was on a different page.
+    const initialTab =
+      initialRoute.status === "valid"
+        ? initialRoute.tab
+        : initialRoute.status === "invalid"
+          ? DEFAULT_TAB_ROUTE
+          : state.activeTab;
+    setTab(initialTab, {
+      syncRoute: true,
+      replaceRoute: initialRoute.status !== "valid" || initialRoute.shouldNormalize
+    });
     await loadMvpData();
     await loadTagCatalogFromApi();
     let loadedTeamContextFromApi = false;
@@ -12180,12 +12192,6 @@ async function init() {
     resetBuilderToDefaults();
 
     attachEvents();
-    const initialTab =
-      initialRoute.status === "valid"
-        ? initialRoute.tab
-        : initialRoute.status === "invalid"
-          ? DEFAULT_TAB_ROUTE
-          : state.activeTab;
     setTab(initialTab, {
       syncRoute: true,
       replaceRoute: initialRoute.status !== "valid" || initialRoute.shouldNormalize

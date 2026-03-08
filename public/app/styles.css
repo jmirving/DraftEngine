@@ -16,6 +16,11 @@
   box-sizing: border-box;
 }
 
+/* Suppress auth screen flash for already-authenticated users on page load */
+html.js-authed .auth-screen {
+  display: none;
+}
+
 [hidden] {
   display: none !important;
 }

@@ -5,6 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>DraftEngine</title>
     <link rel="stylesheet" href="./app/styles.css" />
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem("draftflow.authSession.v1");
+          if (raw) {
+            var session = JSON.parse(raw);
+            if (session && typeof session.token === "string" && session.token.trim() !== "") {
+              document.documentElement.classList.add("js-authed");
+            }
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div class="bg-shape bg-shape-a"></div>
