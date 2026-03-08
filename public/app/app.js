@@ -10480,6 +10480,10 @@ function attachEvents() {
   });
 
   elements.authLogin.addEventListener("click", () => {
+    if (isAuthenticated()) {
+      renderAuth();
+      return;
+    }
     setAuthMode("login");
     void handleAuthSubmit("/auth/login", "login").catch((error) => {
       setAuthFeedback(normalizeApiErrorMessage(error, "Login failed."));
@@ -11887,6 +11891,7 @@ async function init() {
     loadStoredUiState();
     syncNavLayout();
     loadStoredAuthSession();
+    renderAuthGate();
     const initialRoute = parseTabRouteHash(runtimeWindow.location.hash);
     await loadMvpData();
     await loadTagCatalogFromApi();
