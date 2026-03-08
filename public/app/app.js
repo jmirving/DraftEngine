@@ -11278,12 +11278,6 @@ function attachEvents() {
     });
   }
 
-  for (const button of elements.championEditorTabButtons) {
-    button.addEventListener("click", () => {
-      setChampionEditorTab(button.dataset.championEditorTab);
-    });
-  }
-
   if (elements.championTagEditorReviewed) {
     elements.championTagEditorReviewed.addEventListener("change", () => {
       state.api.championReviewedDraft = elements.championTagEditorReviewed.checked;
