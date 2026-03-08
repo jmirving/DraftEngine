@@ -432,6 +432,7 @@ function createInitialState() {
       championEditorTab: CHAMPION_EDITOR_TAB_COMPOSITION,
       championMetadataDraft: createEmptyChampionMetadataDraft(),
       championReviewedDraft: false,
+      championEditorSavedSnapshot: null,
       isLoadingChampionTags: false,
       isSavingChampionTags: false,
       selectedTagManagerId: null,
@@ -1254,6 +1255,21 @@ function syncChampionMetadataDraftToState(championId, championPayload) {
   initializeChampionMetadataDraft(champion);
 }
 
+function getChampionEditorSnapshot() {
+  return JSON.stringify({
+    tagIds: [...(state.api.selectedChampionTagIds ?? [])].sort((a, b) => a - b),
+    roles: [...(state.api.championMetadataDraft?.roles ?? [])],
+    roleProfiles: state.api.championMetadataDraft?.roleProfiles ?? {},
+    reviewed: state.api.championReviewedDraft
+  });
+}
+
+function hasChampionEditorUnsavedChanges() {
+  if (!state.api.selectedChampionTagEditorId) return false;
+  if (!state.api.championEditorSavedSnapshot) return false;
+  return state.api.championEditorSavedSnapshot !== getChampionEditorSnapshot();
+}
+
 function clearChampionTagEditorState() {
   state.api.selectedChampionTagEditorId = null;
   state.api.selectedChampionTagIds = [];
@@ -1262,6 +1278,7 @@ function clearChampionTagEditorState() {
   state.api.championEditorTab = CHAMPION_EDITOR_TAB_COMPOSITION;
   state.api.championMetadataDraft = createEmptyChampionMetadataDraft();
   state.api.championReviewedDraft = false;
+  state.api.championEditorSavedSnapshot = null;
   state.api.isLoadingChampionTags = false;
   state.api.isSavingChampionTags = false;
   setChampionTagEditorFeedback("");
@@ -6087,6 +6104,7 @@ async function openChampionTagEditor(championId) {
 
   renderChampionTagEditor();
   await loadChampionScopedTags(championId);
+  state.api.championEditorSavedSnapshot = getChampionEditorSnapshot();
   renderChampionTagEditor();
 }
 
@@ -6244,7 +6262,7 @@ async function saveChampionTagEditor() {
     }
     setChampionTagEditorFeedback(canEditGlobal ? "Tags and metadata saved." : "Tags saved.");
     renderExplorer();
-    clearChampionTagEditorState();
+    state.api.championEditorSavedSnapshot = getChampionEditorSnapshot();
   } catch (error) {
     setChampionTagEditorFeedback(normalizeApiErrorMessage(error, "Failed to save champion updates."));
   } finally {
@@ -10729,12 +10747,15 @@ function attachEvents() {
         return;
       }
       const targetTab = button.dataset.tab;
-      if (state.api.selectedChampionTagEditorId !== null) {
+      if (hasChampionEditorUnsavedChanges()) {
         showNavWarning(() => {
           clearChampionTagEditorState();
           setTab(targetTab, { syncRoute: true });
         });
         return;
+      }
+      if (state.api.selectedChampionTagEditorId !== null) {
+        clearChampionTagEditorState();
       }
       setTab(targetTab, { syncRoute: true });
     });
@@ -11017,7 +11038,11 @@ function attachEvents() {
 
   if (elements.championTagEditorClear) {
     elements.championTagEditorClear.addEventListener("click", () => {
-      clearChampionTagEditorState();
+      if (hasChampionEditorUnsavedChanges()) {
+        showNavWarning(() => clearChampionTagEditorState());
+      } else {
+        clearChampionTagEditorState();
+      }
     });
   }
 
