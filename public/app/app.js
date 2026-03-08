@@ -9152,12 +9152,10 @@ function renderExplorer() {
     const card = runtimeDocument.createElement("article");
     card.className = "champ-card";
 
-    // ── Top row: image + heading + pencil ───────────────────────────────
-    const cardTop = runtimeDocument.createElement("div");
-    cardTop.className = "champ-card-top";
+    // ── Header: image + name/badge row + pencil ──────────────────────────
+    const cardHeader = runtimeDocument.createElement("div");
+    cardHeader.className = "champ-card-header";
 
-    const header = runtimeDocument.createElement("div");
-    header.className = "champ-header";
     const image = runtimeDocument.createElement("img");
     image.className = "champ-thumb";
     image.alt = `${champion.name} portrait`;
@@ -9171,58 +9169,23 @@ function renderExplorer() {
       { once: true }
     );
 
-    const heading = runtimeDocument.createElement("div");
+    const nameWrap = runtimeDocument.createElement("div");
+    nameWrap.className = "champ-card-name-wrap";
+
     const name = runtimeDocument.createElement("p");
     name.className = "champ-name";
     name.textContent = champion.name;
+    nameWrap.append(name);
 
-    // ── Grouped meta: roles, damage, scaling ────────────────────────────
-    const metaGroup = runtimeDocument.createElement("div");
-    metaGroup.className = "champ-meta-group";
-
-    const rolesRow = runtimeDocument.createElement("div");
-    rolesRow.className = "champ-meta-row";
-    const rolesLabel = runtimeDocument.createElement("span");
-    rolesLabel.className = "champ-meta-label";
-    rolesLabel.textContent = "Role";
-    const rolesPills = runtimeDocument.createElement("span");
-    rolesPills.className = "champ-meta-pills";
-    for (const role of champion.roles) {
-      const pill = runtimeDocument.createElement("span");
-      pill.className = "champ-meta-pill";
-      pill.textContent = role;
-      rolesPills.append(pill);
+    if (champion.reviewed === true) {
+      const badge = runtimeDocument.createElement("span");
+      badge.className = "champ-reviewed-badge";
+      badge.title = "Human reviewed";
+      badge.textContent = "✓";
+      nameWrap.append(badge);
     }
-    rolesRow.append(rolesLabel, rolesPills);
 
-    const damageRow = runtimeDocument.createElement("div");
-    damageRow.className = "champ-meta-row";
-    const damageLabel = runtimeDocument.createElement("span");
-    damageLabel.className = "champ-meta-label";
-    damageLabel.textContent = "Damage";
-    const damagePill = runtimeDocument.createElement("span");
-    damagePill.className = `champ-meta-pill champ-damage-${(champion.damageType ?? "").toLowerCase()}`;
-    damagePill.textContent = champion.damageType;
-    damageRow.append(damageLabel, damagePill);
-
-    const scalingRow = runtimeDocument.createElement("div");
-    scalingRow.className = "champ-meta-row";
-    const scalingLabel = runtimeDocument.createElement("span");
-    scalingLabel.className = "champ-meta-label";
-    scalingLabel.textContent = "Timing";
-    const scalingPill = runtimeDocument.createElement("span");
-    scalingPill.className = "champ-meta-pill";
-    scalingPill.textContent = champion.scaling;
-    scalingRow.append(scalingLabel, scalingPill);
-
-    const reviewRow = runtimeDocument.createElement("p");
-    reviewRow.className = "meta champ-review-status";
-    reviewRow.textContent = champion.reviewed === true ? "✓ Human reviewed" : "Not reviewed";
-
-    metaGroup.append(rolesRow, damageRow, scalingRow, reviewRow);
-    heading.append(name, metaGroup);
-    header.append(image, heading);
-    cardTop.append(header);
+    cardHeader.append(image, nameWrap);
 
     // ── Pencil edit button ───────────────────────────────────────────────
     const canEdit =
@@ -9240,8 +9203,44 @@ function renderExplorer() {
       editBtn.addEventListener("click", () => {
         void openChampionTagEditor(champion.id);
       });
-      cardTop.append(editBtn);
+      cardHeader.append(editBtn);
     }
+
+    // ── Meta section: Role(s) / Damage Type / Power Spike ───────────────
+    const metaSection = runtimeDocument.createElement("div");
+    metaSection.className = "champ-card-meta";
+
+    const makeMetaSection = (labelText, pills) => {
+      const section = runtimeDocument.createElement("div");
+      section.className = "champ-meta-section";
+      const label = runtimeDocument.createElement("p");
+      label.className = "champ-meta-label";
+      label.textContent = labelText;
+      const pillRow = runtimeDocument.createElement("div");
+      pillRow.className = "champ-meta-pills";
+      pillRow.append(...pills);
+      section.append(label, pillRow);
+      return section;
+    };
+
+    const makePill = (text, extraClass = "") => {
+      const pill = runtimeDocument.createElement("span");
+      pill.className = ("champ-meta-pill" + (extraClass ? " " + extraClass : "")).trim();
+      pill.textContent = text;
+      return pill;
+    };
+
+    const rolePills = (champion.roles ?? []).map((r) => makePill(r, "champ-role-pill"));
+    const damagePills = champion.damageType
+      ? [makePill(champion.damageType, `champ-damage-${(champion.damageType).toLowerCase()}`)]
+      : [];
+    const scalingPills = champion.scaling ? [makePill(champion.scaling)] : [];
+
+    metaSection.append(
+      makeMetaSection("Role(s)", rolePills),
+      makeMetaSection("Damage Type", damagePills),
+      makeMetaSection("Power Spike", scalingPills)
+    );
 
     // ── Champion Tags collapsible ────────────────────────────────────────
     const tagDetails = runtimeDocument.createElement("details");
@@ -9294,7 +9293,7 @@ function renderExplorer() {
       }
     });
 
-    card.append(cardTop, tagDetails);
+    card.append(cardHeader, metaSection, tagDetails);
     elements.explorerResults.append(card);
   }
 }
