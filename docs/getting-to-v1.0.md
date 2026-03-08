@@ -39,7 +39,7 @@ clearly represents constraints → checks → tree flow.
 
 # Phase 2 -- Tag-Driven Requirements System
 
-**Goal:** Replace toggle-based checks with composable tag clauses.
+**Goal:** Expand composable tag clauses and requirement authoring depth.
 
 ### Requirement Model
 

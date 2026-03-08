@@ -40,7 +40,7 @@
 ### Phase 2 — Tag-Driven Requirements System
 **Bead:** draft-engine-rdb | **Priority:** High
 
-Replace toggle-based checks with composable tag clauses.
+Expand composable tag-clause requirements and tree evaluation depth.
 
 - Requirement model: TagClause with `expr` (AND/OR/NOT), `minCount`, optional `maxCount`, optional `roleFilter`
 - Evaluation engine: per-clause pass/fail with explanation

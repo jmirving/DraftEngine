@@ -7,9 +7,7 @@ import { ApiError, badRequest, formatErrorResponse } from "./errors.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createAdminUsersRouter } from "./routes/admin-users.js";
 import { createChampionsRouter } from "./routes/champions.js";
-import { createChecksRouter } from "./routes/checks.js";
 import { createCompositionsCatalogRouter } from "./routes/compositions-catalog.js";
-import { createCompositionRequirementsRouter } from "./routes/composition-requirements.js";
 import { createProfileRouter } from "./routes/profile.js";
 import { createPoolsRouter } from "./routes/pools.js";
 import { createTeamsRouter } from "./routes/teams.js";
@@ -30,9 +28,7 @@ export function createApp({
   usersRepository,
   championsRepository,
   tagsRepository,
-  checksRepository,
   compositionsCatalogRepository,
-  compositionRequirementsRepository,
   promotionRequestsRepository,
   poolsRepository,
   teamsRepository,
@@ -42,9 +38,7 @@ export function createApp({
   requireDependency(usersRepository, "usersRepository");
   requireDependency(championsRepository, "championsRepository");
   requireDependency(tagsRepository, "tagsRepository");
-  requireDependency(checksRepository, "checksRepository");
   requireDependency(compositionsCatalogRepository, "compositionsCatalogRepository");
-  requireDependency(compositionRequirementsRepository, "compositionRequirementsRepository");
   requireDependency(promotionRequestsRepository, "promotionRequestsRepository");
   requireDependency(poolsRepository, "poolsRepository");
   requireDependency(teamsRepository, "teamsRepository");
@@ -112,26 +106,8 @@ export function createApp({
   );
   app.use(
     "/",
-    createChecksRouter({
-      checksRepository,
-      promotionRequestsRepository,
-      usersRepository,
-      teamsRepository,
-      requireAuth
-    })
-  );
-  app.use(
-    "/",
     createCompositionsCatalogRouter({
       compositionsCatalogRepository,
-      usersRepository,
-      requireAuth
-    })
-  );
-  app.use(
-    "/",
-    createCompositionRequirementsRouter({
-      compositionRequirementsRepository,
       usersRepository,
       requireAuth
     })

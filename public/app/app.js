@@ -254,9 +254,6 @@ const TAB_ROUTES = Object.freeze([
   "coming-soon"
 ]);
 const TAB_ROUTE_SET = new Set(TAB_ROUTES);
-const LEGACY_TAB_ROUTE_ALIASES = Object.freeze({
-  "composition-requirements": "requirements"
-});
 const LANE_ORDER = Object.freeze(["Top", "Jungle", "Mid", "ADC", "Support"]);
 
 let runtimeWindow = null;
@@ -927,12 +924,6 @@ function setTagsManageFeedback(message) {
 function setUsersFeedback(message) {
   if (elements.usersFeedback) {
     elements.usersFeedback.textContent = message;
-  }
-}
-
-function setCompositionRequirementsFeedback(message) {
-  if (elements.compositionRequirementsFeedback) {
-    elements.compositionRequirementsFeedback.textContent = message;
   }
 }
 
@@ -1760,11 +1751,6 @@ function clearAuthSession(feedback = "") {
   state.api.isLoadingAuthorizationMatrix = false;
   state.api.savingUserRoleId = null;
   state.api.savingUserRiotIdId = null;
-  state.api.compositionRequirements = [];
-  state.api.selectedCompositionRequirementId = null;
-  state.api.compositionRequirementDraft = createEmptyCompositionRequirementDraft();
-  state.api.isLoadingCompositionRequirements = false;
-  state.api.isSavingCompositionRequirement = false;
   state.api.requirementDefinitions = [];
   state.api.selectedRequirementDefinitionId = null;
   state.api.requirementDefinitionDraft = createEmptyRequirementDefinitionDraft();
@@ -1780,7 +1766,6 @@ function clearAuthSession(feedback = "") {
   clearChampionTagEditorState();
   clearTagsManagerState();
   setUsersFeedback("");
-  setCompositionRequirementsFeedback("");
   setRequirementsFeedback("");
   setCompositionsFeedback("");
   setTeamJoinFeedback("");
@@ -2391,8 +2376,7 @@ function resolveTabRoute(tab) {
   if (!rawTab) {
     return DEFAULT_TAB_ROUTE;
   }
-  const mapped = LEGACY_TAB_ROUTE_ALIASES[rawTab] ?? rawTab;
-  return TAB_ROUTE_SET.has(mapped) ? mapped : DEFAULT_TAB_ROUTE;
+  return TAB_ROUTE_SET.has(rawTab) ? rawTab : DEFAULT_TAB_ROUTE;
 }
 
 function updateLocationHashForTab(tab, { replace = false } = {}) {
@@ -5726,316 +5710,6 @@ async function deleteCompositionBundleFromWorkspace() {
   }
 }
 
-function normalizeRequirementToggleMap(rawValue) {
-  const source = rawValue && typeof rawValue === "object" && !Array.isArray(rawValue) ? rawValue : {};
-  const normalized = {};
-  for (const key of COMPOSITION_REQUIREMENT_TOGGLE_KEYS) {
-    normalized[key] = typeof source[key] === "boolean" ? source[key] : DEFAULT_REQUIREMENT_TOGGLES[key] === true;
-  }
-  return normalized;
-}
-
-function normalizeCompositionRequirement(rawRequirement) {
-  if (!rawRequirement || typeof rawRequirement !== "object" || Array.isArray(rawRequirement)) {
-    return null;
-  }
-  const id = normalizeApiEntityId(rawRequirement.id);
-  if (!id) {
-    return null;
-  }
-  const name = typeof rawRequirement.name === "string" ? rawRequirement.name.trim() : "";
-  if (!name) {
-    return null;
-  }
-  return {
-    id,
-    name,
-    toggles: normalizeRequirementToggleMap(rawRequirement.toggles),
-    is_active: rawRequirement.is_active === true
-  };
-}
-
-function getSelectedCompositionRequirement() {
-  const selectedId = normalizeApiEntityId(state.api.selectedCompositionRequirementId);
-  if (!selectedId) {
-    return null;
-  }
-  return state.api.compositionRequirements.find((requirement) => requirement.id === selectedId) ?? null;
-}
-
-function setCompositionRequirementDraft(requirement = null) {
-  if (!requirement) {
-    state.api.selectedCompositionRequirementId = null;
-    state.api.compositionRequirementDraft = createEmptyCompositionRequirementDraft();
-    return;
-  }
-  state.api.selectedCompositionRequirementId = requirement.id;
-  state.api.compositionRequirementDraft = {
-    name: requirement.name,
-    toggles: {
-      ...requirement.toggles
-    },
-    isActive: requirement.is_active === true
-  };
-}
-
-function syncCompositionRequirementInputsFromState() {
-  if (elements.compositionRequirementsName) {
-    elements.compositionRequirementsName.value = state.api.compositionRequirementDraft.name;
-  }
-  if (elements.compositionRequirementsIsActive) {
-    elements.compositionRequirementsIsActive.checked = state.api.compositionRequirementDraft.isActive === true;
-  }
-}
-
-async function loadActiveCompositionRequirementFromApi() {
-  if (!isAuthenticated()) {
-    return false;
-  }
-  try {
-    const payload = await apiRequest("/composition-requirements/active", { auth: true });
-    const toggles = normalizeRequirementToggleMap(payload?.toggles);
-    state.builder.toggles = {
-      ...toggles
-    };
-    syncBuilderToggleInputs();
-    return true;
-  } catch (_error) {
-    return false;
-  }
-}
-
-async function loadCompositionRequirementsFromApi() {
-  if (!isAuthenticated()) {
-    state.api.compositionRequirements = [];
-    state.api.selectedCompositionRequirementId = null;
-    state.api.compositionRequirementDraft = createEmptyCompositionRequirementDraft();
-    return false;
-  }
-
-  state.api.isLoadingCompositionRequirements = true;
-  renderCompositionRequirementsWorkspace();
-  try {
-    const payload = await apiRequest("/composition-requirements", { auth: true });
-    const requirements = Array.isArray(payload?.requirements)
-      ? payload.requirements.map(normalizeCompositionRequirement).filter(Boolean)
-      : [];
-    state.api.compositionRequirements = requirements;
-
-    const activeRequirementId = normalizeApiEntityId(payload?.active_requirement_id);
-    const selectedRequirementId = normalizeApiEntityId(state.api.selectedCompositionRequirementId);
-    const nextSelected =
-      requirements.find((requirement) => requirement.id === selectedRequirementId) ??
-      requirements.find((requirement) => requirement.id === activeRequirementId) ??
-      null;
-    setCompositionRequirementDraft(nextSelected);
-    setCompositionRequirementsFeedback("");
-    return true;
-  } catch (error) {
-    state.api.compositionRequirements = [];
-    setCompositionRequirementDraft(null);
-    setCompositionRequirementsFeedback(normalizeApiErrorMessage(error, "Failed to load composition requirements."));
-    return false;
-  } finally {
-    state.api.isLoadingCompositionRequirements = false;
-    renderCompositionRequirementsWorkspace();
-  }
-}
-
-function renderCompositionRequirementToggleEditor() {
-  if (!elements.compositionRequirementsToggles) {
-    return;
-  }
-  elements.compositionRequirementsToggles.innerHTML = "";
-
-  for (const key of COMPOSITION_REQUIREMENT_TOGGLE_KEYS) {
-    const label = runtimeDocument.createElement("label");
-    label.className = "selection-option";
-
-    const checkbox = runtimeDocument.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = state.api.compositionRequirementDraft.toggles[key] === true;
-    checkbox.disabled = state.api.isSavingCompositionRequirement || !isAdminUser();
-    checkbox.addEventListener("change", () => {
-      state.api.compositionRequirementDraft.toggles[key] = checkbox.checked;
-    });
-
-    const text = runtimeDocument.createElement("span");
-    text.textContent = key;
-    label.append(checkbox, text);
-    elements.compositionRequirementsToggles.append(label);
-  }
-}
-
-function renderCompositionRequirementsWorkspace() {
-  if (elements.requirementsList || elements.compositionsList) {
-    renderCompositionsWorkspace();
-  }
-  if (!elements.compositionRequirementsList) {
-    return;
-  }
-  const requirements = Array.isArray(state.api.compositionRequirements) ? state.api.compositionRequirements : [];
-  const activeRequirement = requirements.find((requirement) => requirement.is_active) ?? null;
-  if (elements.compositionRequirementsSummary) {
-    elements.compositionRequirementsSummary.textContent = activeRequirement
-      ? `Active profile: ${activeRequirement.name}`
-      : "No active profile. Composer uses built-in default toggles.";
-  }
-
-  syncCompositionRequirementInputsFromState();
-  renderCompositionRequirementToggleEditor();
-
-  const isEditing = Number.isInteger(normalizeApiEntityId(state.api.selectedCompositionRequirementId));
-  const controlsDisabled = state.api.isSavingCompositionRequirement || !isAdminUser();
-  if (elements.compositionRequirementsName) {
-    elements.compositionRequirementsName.disabled = controlsDisabled;
-  }
-  if (elements.compositionRequirementsIsActive) {
-    elements.compositionRequirementsIsActive.disabled = controlsDisabled;
-  }
-  if (elements.compositionRequirementsSave) {
-    elements.compositionRequirementsSave.disabled = controlsDisabled;
-    elements.compositionRequirementsSave.textContent = isEditing ? "Update Requirement" : "Create Requirement";
-  }
-  if (elements.compositionRequirementsCancel) {
-    elements.compositionRequirementsCancel.disabled = controlsDisabled;
-  }
-  if (elements.compositionRequirementsDelete) {
-    elements.compositionRequirementsDelete.hidden = !isEditing;
-    elements.compositionRequirementsDelete.disabled = controlsDisabled || !isEditing;
-  }
-
-  elements.compositionRequirementsList.innerHTML = "";
-  if (!isAuthenticated()) {
-    const empty = runtimeDocument.createElement("p");
-    empty.className = "meta";
-    empty.textContent = "Sign in to load composition requirements.";
-    elements.compositionRequirementsList.append(empty);
-    return;
-  }
-  if (state.api.isLoadingCompositionRequirements) {
-    const loading = runtimeDocument.createElement("p");
-    loading.className = "meta";
-    loading.textContent = "Loading composition requirements...";
-    elements.compositionRequirementsList.append(loading);
-    return;
-  }
-  if (requirements.length === 0) {
-    const empty = runtimeDocument.createElement("p");
-    empty.className = "meta";
-    empty.textContent = "No composition requirements defined yet.";
-    elements.compositionRequirementsList.append(empty);
-    return;
-  }
-
-  for (const requirement of requirements) {
-    const card = runtimeDocument.createElement("article");
-    card.className = "summary-card";
-
-    const title = runtimeDocument.createElement("strong");
-    title.textContent = requirement.name;
-
-    const meta = runtimeDocument.createElement("p");
-    meta.className = "meta";
-    meta.textContent = requirement.is_active ? "Active profile" : "Inactive profile";
-
-    card.append(title, meta);
-    if (isAdminUser()) {
-      const edit = runtimeDocument.createElement("button");
-      edit.type = "button";
-      edit.className = "ghost";
-      edit.textContent = "Edit";
-      edit.disabled = state.api.isSavingCompositionRequirement;
-      edit.addEventListener("click", () => {
-        setCompositionRequirementDraft(requirement);
-        setCompositionRequirementsFeedback(`Editing '${requirement.name}'.`);
-        renderCompositionRequirementsWorkspace();
-      });
-      card.append(edit);
-    }
-
-    elements.compositionRequirementsList.append(card);
-  }
-}
-
-async function saveCompositionRequirementFromWorkspace() {
-  if (!isAuthenticated() || !isAdminUser() || state.api.isSavingCompositionRequirement) {
-    return;
-  }
-
-  const name = String(state.api.compositionRequirementDraft.name ?? "").trim();
-  if (!name) {
-    setCompositionRequirementsFeedback("Requirement name is required.");
-    return;
-  }
-
-  const selectedRequirement = getSelectedCompositionRequirement();
-  const isEditing = Boolean(selectedRequirement);
-  const payload = {
-    name,
-    toggles: {
-      ...state.api.compositionRequirementDraft.toggles
-    },
-    is_active: state.api.compositionRequirementDraft.isActive === true
-  };
-
-  state.api.isSavingCompositionRequirement = true;
-  setCompositionRequirementsFeedback(isEditing ? "Saving requirement..." : "Creating requirement...");
-  renderCompositionRequirementsWorkspace();
-  try {
-    const response = await apiRequest(
-      isEditing ? `/composition-requirements/${selectedRequirement.id}` : "/composition-requirements",
-      {
-        method: isEditing ? "PUT" : "POST",
-        auth: true,
-        body: payload
-      }
-    );
-    const saved = normalizeCompositionRequirement(response?.requirement);
-    await loadCompositionRequirementsFromApi();
-    if (saved) {
-      setCompositionRequirementDraft(saved);
-    }
-    await loadActiveCompositionRequirementFromApi();
-    setCompositionRequirementsFeedback(isEditing ? "Requirement updated." : "Requirement created.");
-  } catch (error) {
-    setCompositionRequirementsFeedback(normalizeApiErrorMessage(error, "Failed to save composition requirement."));
-  } finally {
-    state.api.isSavingCompositionRequirement = false;
-    renderCompositionRequirementsWorkspace();
-  }
-}
-
-async function deleteSelectedCompositionRequirement() {
-  if (!isAuthenticated() || !isAdminUser() || state.api.isSavingCompositionRequirement) {
-    return;
-  }
-  const selectedRequirement = getSelectedCompositionRequirement();
-  if (!selectedRequirement) {
-    setCompositionRequirementsFeedback("Select a requirement first.");
-    return;
-  }
-
-  state.api.isSavingCompositionRequirement = true;
-  setCompositionRequirementsFeedback("Deleting requirement...");
-  renderCompositionRequirementsWorkspace();
-  try {
-    await apiRequest(`/composition-requirements/${selectedRequirement.id}`, {
-      method: "DELETE",
-      auth: true
-    });
-    setCompositionRequirementDraft(null);
-    await loadCompositionRequirementsFromApi();
-    await loadActiveCompositionRequirementFromApi();
-    setCompositionRequirementsFeedback("Requirement deleted.");
-  } catch (error) {
-    setCompositionRequirementsFeedback(normalizeApiErrorMessage(error, "Failed to delete requirement."));
-  } finally {
-    state.api.isSavingCompositionRequirement = false;
-    renderCompositionRequirementsWorkspace();
-  }
-}
-
 function normalizeApiTagIdArray(values) {
   if (!Array.isArray(values)) {
     return [];
@@ -7525,20 +7199,6 @@ function initializeBuilderControls() {
   elements.builderMaxBranch.value = String(state.builder.maxBranch);
 
   updateTeamHelpAndSlotLabels();
-}
-
-function syncBuilderToggleInputs() {
-  if (!elements.builderToggles) {
-    return;
-  }
-  const inputs = elements.builderToggles.querySelectorAll("input[data-toggle]");
-  for (const input of inputs) {
-    const key = input.dataset.toggle;
-    if (!key) {
-      continue;
-    }
-    input.checked = Boolean(state.builder.toggles[key]);
-  }
 }
 
 function renderTeamWorkspaceTabs() {
@@ -9363,7 +9023,6 @@ function resetBuilderToDefaults() {
   state.builder.teamState = createEmptyTeamState();
   state.builder.draftOrder = [...SLOTS];
   state.builder.slotPoolRole = Object.fromEntries(SLOTS.map((s) => [s, s]));
-  state.builder.toggles = { ...DEFAULT_REQUIREMENT_TOGGLES };
   state.builder.showOptionalChecks = BUILDER_DEFAULTS.showOptionalChecksByDefault;
   state.builder.excludedChampions = [];
   state.builder.excludedSearch = "";
@@ -9392,7 +9051,6 @@ function resetBuilderToDefaults() {
   }
   elements.treeValidLeavesOnly.checked = true;
   elements.treeDensity.value = state.builder.treeDensity;
-  syncBuilderToggleInputs();
 
   saveTeamConfig();
   return true;
@@ -9511,10 +9169,8 @@ function generateTreeFromCurrentState({ scrollToResults = true } = {}) {
       teamPools,
       championsByName: state.data.championsByName,
       requirements,
-      forceRequirementMode: true,
       tagById: state.api.tagById,
       excludedChampions: state.builder.excludedChampions,
-      weights: state.data.config.recommendation.weights,
       maxDepth: state.builder.maxDepth,
       maxBranch: state.builder.maxBranch,
       minCandidateScore: 0,
@@ -9949,9 +9605,6 @@ function buildRequirementStatusRow(requirementResult) {
 
 function renderChecks() {
   const completion = getTeamCompletionInfo(state.builder.teamState);
-  if (elements.builderToggleOptionalChecks) {
-    elements.builderToggleOptionalChecks.hidden = true;
-  }
   if (elements.builderOptionalChecks) {
     elements.builderOptionalChecks.innerHTML = "";
     elements.builderOptionalChecks.hidden = true;
@@ -10814,8 +10467,6 @@ async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAd
   await loadTeamsFromApi(preferredAdminTeamId);
   await loadTeamContextFromApi();
   await loadTagCatalogFromApi();
-  await loadCompositionRequirementsFromApi();
-  await loadActiveCompositionRequirementFromApi();
   await hydrateCompositionsWorkspaceFromApi();
   await loadInvitationsForUser();
   if (isAdminUser()) {
@@ -11084,7 +10735,7 @@ function attachEvents() {
     setProfileRolesFeedback("");
     renderBuilder();
     renderUsersWorkspace();
-    renderCompositionRequirementsWorkspace();
+    renderCompositionsWorkspace();
     renderAuth();
   });
 
@@ -11355,38 +11006,6 @@ function attachEvents() {
     });
   }
 
-  if (elements.compositionRequirementsName) {
-    elements.compositionRequirementsName.addEventListener("input", () => {
-      state.api.compositionRequirementDraft.name = elements.compositionRequirementsName.value;
-    });
-  }
-
-  if (elements.compositionRequirementsIsActive) {
-    elements.compositionRequirementsIsActive.addEventListener("change", () => {
-      state.api.compositionRequirementDraft.isActive = elements.compositionRequirementsIsActive.checked;
-    });
-  }
-
-  if (elements.compositionRequirementsSave) {
-    elements.compositionRequirementsSave.addEventListener("click", () => {
-      void saveCompositionRequirementFromWorkspace();
-    });
-  }
-
-  if (elements.compositionRequirementsCancel) {
-    elements.compositionRequirementsCancel.addEventListener("click", () => {
-      setCompositionRequirementDraft(null);
-      setCompositionRequirementsFeedback("");
-      renderCompositionRequirementsWorkspace();
-    });
-  }
-
-  if (elements.compositionRequirementsDelete) {
-    elements.compositionRequirementsDelete.addEventListener("click", () => {
-      void deleteSelectedCompositionRequirement();
-    });
-  }
-
   if (elements.requirementsName) {
     elements.requirementsName.addEventListener("input", () => {
       state.api.requirementDefinitionDraft.name = elements.requirementsName.value;
@@ -11617,23 +11236,6 @@ function attachEvents() {
       const parsed = Number.parseInt(elements.treeMinCandidateScore.value, 10);
       state.builder.treeMinCandidateScore = Number.isFinite(parsed) ? Math.max(0, parsed) : 1;
       elements.treeMinCandidateScore.value = String(state.builder.treeMinCandidateScore);
-      setBuilderStage("setup");
-      resetBuilderTreeState();
-      renderBuilder();
-    });
-  }
-
-  if (elements.builderToggles) {
-    const InputCtor = runtimeWindow.HTMLInputElement ?? globalThis.HTMLInputElement;
-    elements.builderToggles.addEventListener("change", (event) => {
-      const target = event.target;
-      if (!InputCtor || !(target instanceof InputCtor)) {
-        return;
-      }
-      if (!target.dataset.toggle) {
-        return;
-      }
-      state.builder.toggles[target.dataset.toggle] = target.checked;
       setBuilderStage("setup");
       resetBuilderTreeState();
       renderBuilder();
@@ -12403,8 +12005,6 @@ async function init() {
       await loadPoolsFromApi();
       await loadTeamsFromApi();
       loadedTeamContextFromApi = await loadTeamContextFromApi();
-      await loadCompositionRequirementsFromApi();
-      await loadActiveCompositionRequirementFromApi();
       await hydrateCompositionsWorkspaceFromApi();
       if (isAdminUser()) {
         await loadUsersFromApi();
@@ -12416,7 +12016,6 @@ async function init() {
       setTeamJoinFeedback("Sign in to request or review team join requests.");
       setProfileRolesFeedback("");
       setUsersFeedback("Sign in as admin to manage users.");
-      setCompositionRequirementsFeedback("Sign in to load composition requirements.");
       setRequirementsFeedback("Sign in to load requirement definitions.");
       setCompositionsFeedback("Sign in to load compositions.");
     }

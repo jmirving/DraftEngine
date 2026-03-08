@@ -134,52 +134,12 @@ const PERMISSIONS = Object.freeze([
     description: "Edit global champion role/damage/effectiveness metadata."
   },
   {
-    id: "checks.settings.read.self",
-    description: "Read self-scoped required-check settings."
-  },
-  {
-    id: "checks.settings.read.team",
-    description: "Read team-scoped required-check settings for member teams."
-  },
-  {
-    id: "checks.settings.read.global",
-    description: "Read global required-check settings."
-  },
-  {
-    id: "checks.settings.write.self",
-    description: "Edit self-scoped required-check settings."
-  },
-  {
-    id: "checks.settings.write.team",
-    description: "Edit team-scoped required-check settings where you are a lead."
-  },
-  {
-    id: "checks.settings.write.global",
-    description: "Edit global required-check settings."
-  },
-  {
-    id: "checks.promotions.request.self_to_team",
-    description: "Request promotion of self-scoped checks to team scope."
-  },
-  {
-    id: "checks.promotions.request.team_to_global",
-    description: "Request promotion of team-scoped checks to global scope where you are a lead."
-  },
-  {
     id: "requirements.read.global",
     description: "Read requirement definitions and compositions catalog."
   },
   {
     id: "requirements.write.global",
     description: "Create/update/delete requirement definitions and compositions."
-  },
-  {
-    id: "composition_requirements.read.global",
-    description: "Read composition requirement profiles."
-  },
-  {
-    id: "composition_requirements.write.global",
-    description: "Create/update/delete composition requirement profiles."
   },
   {
     id: "admin.users.read",
@@ -211,13 +171,7 @@ const GLOBAL_ROLE_ASSIGNMENTS = Object.freeze({
     "tags.catalog.read",
     "champion_tags.read.global",
     "champion_tags.read.team",
-    "checks.settings.read.self",
-    "checks.settings.read.team",
-    "checks.settings.read.global",
-    "checks.settings.write.self",
-    "checks.promotions.request.self_to_team",
-    "requirements.read.global",
-    "composition_requirements.read.global",
+    "requirements.read.global"
   ]),
   [USER_ROLE_GLOBAL]: Object.freeze([
     "profile.read.self",
@@ -237,16 +191,8 @@ const GLOBAL_ROLE_ASSIGNMENTS = Object.freeze({
     "champion_tags.write.global",
     "tags.catalog.write.global",
     "champion_metadata.write.global",
-    "checks.settings.read.self",
-    "checks.settings.read.team",
-    "checks.settings.read.global",
-    "checks.settings.write.self",
-    "checks.settings.write.global",
-    "checks.promotions.request.self_to_team",
     "requirements.read.global",
-    "requirements.write.global",
-    "composition_requirements.read.global",
-    "composition_requirements.write.global"
+    "requirements.write.global"
   ]),
   [USER_ROLE_ADMIN]: Object.freeze([
     "profile.read.self",
@@ -266,16 +212,8 @@ const GLOBAL_ROLE_ASSIGNMENTS = Object.freeze({
     "champion_tags.write.global",
     "tags.catalog.write.global",
     "champion_metadata.write.global",
-    "checks.settings.read.self",
-    "checks.settings.read.team",
-    "checks.settings.read.global",
-    "checks.settings.write.self",
-    "checks.settings.write.global",
-    "checks.promotions.request.self_to_team",
     "requirements.read.global",
     "requirements.write.global",
-    "composition_requirements.read.global",
-    "composition_requirements.write.global",
     "admin.users.read",
     "admin.users.write",
     "admin.users.delete"
@@ -285,8 +223,7 @@ const GLOBAL_ROLE_ASSIGNMENTS = Object.freeze({
 const TEAM_MEMBERSHIP_ROLE_ASSIGNMENTS = Object.freeze({
   member: Object.freeze([
     "teams.read.member",
-    "champion_tags.read.team",
-    "checks.settings.read.team"
+    "champion_tags.read.team"
   ]),
   lead: Object.freeze([
     "teams.read.member",
@@ -295,10 +232,7 @@ const TEAM_MEMBERSHIP_ROLE_ASSIGNMENTS = Object.freeze({
     "teams.join_requests.review.lead",
     "teams.invitations.manage.lead",
     "champion_tags.read.team",
-    "champion_tags.write.team",
-    "checks.settings.read.team",
-    "checks.settings.write.team",
-    "checks.promotions.request.team_to_global"
+    "champion_tags.write.team"
   ])
 });
 

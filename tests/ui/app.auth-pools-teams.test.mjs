@@ -141,26 +141,7 @@ function createFetchHarness({
     defaultTeamId: null,
     activeTeamId: null,
     ...(teamContext && typeof teamContext === "object" ? teamContext : {})
-  };
-  let compositionRequirements = [
-    {
-      id: 1,
-      name: "Standard 5v5",
-      toggles: {
-        requireHardEngage: true,
-        requireFrontline: true,
-        requireWaveclear: true,
-        requireDamageMix: true,
-        requireAntiTank: false,
-        requireDisengage: false,
-        requirePrimaryCarry: true,
-        topMustBeThreat: true
-      },
-      is_active: true
-    }
-  ];
-  let nextCompositionRequirementId = 2;
-  let requirementDefinitions = [
+  };  let requirementDefinitions = [
     {
       id: 1,
       name: "Frontline Anchor",
@@ -831,94 +812,6 @@ function createFetchHarness({
           }
         }
       });
-    }
-
-    if (path === "/composition-requirements" && method === "GET") {
-      const active = compositionRequirements.find((requirement) => requirement.is_active) ?? null;
-      return createJsonResponse({
-        requirements: [...compositionRequirements],
-        active_requirement_id: active ? active.id : null
-      });
-    }
-
-    if (path === "/composition-requirements/active" && method === "GET") {
-      const active = compositionRequirements.find((requirement) => requirement.is_active) ?? null;
-      const fallbackToggles = {
-        requireHardEngage: true,
-        requireFrontline: true,
-        requireWaveclear: true,
-        requireDamageMix: true,
-        requireAntiTank: false,
-        requireDisengage: false,
-        requirePrimaryCarry: true,
-        topMustBeThreat: true
-      };
-      return createJsonResponse({
-        requirement: active,
-        toggles: active?.toggles ?? fallbackToggles
-      });
-    }
-
-    if (path === "/composition-requirements" && method === "POST") {
-      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
-      if (!isAdmin) {
-        return createJsonResponse(
-          { error: { code: "FORBIDDEN", message: "Only admins can create composition requirements." } },
-          403
-        );
-      }
-      if (body?.is_active === true) {
-        compositionRequirements = compositionRequirements.map((requirement) => ({ ...requirement, is_active: false }));
-      }
-      const created = {
-        id: nextCompositionRequirementId,
-        name: body?.name ?? "Untitled",
-        toggles: body?.toggles ?? {},
-        is_active: body?.is_active === true
-      };
-      nextCompositionRequirementId += 1;
-      compositionRequirements.push(created);
-      return createJsonResponse({ requirement: created }, 201);
-    }
-
-    const compositionRequirementMatch = path.match(/^\/composition-requirements\/(\d+)$/);
-    if (compositionRequirementMatch && method === "PUT") {
-      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
-      if (!isAdmin) {
-        return createJsonResponse(
-          { error: { code: "FORBIDDEN", message: "Only admins can update composition requirements." } },
-          403
-        );
-      }
-      const requirementId = Number(compositionRequirementMatch[1]);
-      const requirement = compositionRequirements.find((candidate) => candidate.id === requirementId) ?? null;
-      if (!requirement) {
-        return createJsonResponse({ error: { code: "NOT_FOUND", message: "Not found." } }, 404);
-      }
-      if (body?.is_active === true) {
-        compositionRequirements = compositionRequirements.map((candidate) =>
-          candidate.id === requirementId ? candidate : { ...candidate, is_active: false }
-        );
-      }
-      requirement.name = body?.name ?? requirement.name;
-      requirement.toggles = body?.toggles ?? requirement.toggles;
-      if (typeof body?.is_active === "boolean") {
-        requirement.is_active = body.is_active;
-      }
-      return createJsonResponse({ requirement });
-    }
-
-    if (compositionRequirementMatch && method === "DELETE") {
-      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
-      if (!isAdmin) {
-        return createJsonResponse(
-          { error: { code: "FORBIDDEN", message: "Only admins can delete composition requirements." } },
-          403
-        );
-      }
-      const requirementId = Number(compositionRequirementMatch[1]);
-      compositionRequirements = compositionRequirements.filter((candidate) => candidate.id !== requirementId);
-      return createJsonResponse({}, 204);
     }
 
     if (path === "/requirements" && method === "GET") {

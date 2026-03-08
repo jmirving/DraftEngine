@@ -203,7 +203,6 @@ describe("evaluateCompositionRequirements", () => {
           ]
         }
       ],
-      forceRequirementMode: true,
       tagById,
       maxDepth: 1,
       maxBranch: 3,
@@ -239,7 +238,6 @@ describe("evaluateCompositionRequirements", () => {
       },
       championsByName,
       requirements: [],
-      forceRequirementMode: true,
       tagById,
       maxDepth: 1,
       maxBranch: 10,

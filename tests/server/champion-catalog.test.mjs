@@ -8,10 +8,10 @@ import { parseChampionsCsv } from "../../src/data/loaders.js";
 
 describe("full champion catalog artifact", () => {
   it("matches manifest checksum/count and includes required metadata", () => {
-    const manifestPath = resolve("docs/champion-catalog/manifest.json");
+    const manifestPath = resolve("docs/deprecated/champion-catalog/manifest.json");
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 
-    const csvPath = resolve(manifest.outputPath);
+    const csvPath = resolve("docs/deprecated/champion-catalog/champions.full.csv");
     const csvText = readFileSync(csvPath, "utf8");
     const digest = crypto.createHash("sha256").update(csvText).digest("hex");
 
@@ -31,10 +31,12 @@ describe("full champion catalog artifact", () => {
   });
 
   it("keeps the visible public champion dataset aligned with the full catalog", () => {
-    const manifestPath = resolve("docs/champion-catalog/manifest.json");
+    const manifestPath = resolve("docs/deprecated/champion-catalog/manifest.json");
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 
-    const fullCatalog = parseChampionsCsv(readFileSync(resolve(manifest.outputPath), "utf8"));
+    const fullCatalog = parseChampionsCsv(
+      readFileSync(resolve("docs/deprecated/champion-catalog/champions.full.csv"), "utf8")
+    );
     const publicCatalog = parseChampionsCsv(readFileSync(resolve("public/data/champions.csv"), "utf8"));
 
     expect(publicCatalog.champions.length).toBe(manifest.expectedChampionCount);

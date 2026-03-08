@@ -5,9 +5,9 @@ import { resolve } from "node:path";
 import { DataValidationError, buildDraftflowData, parseChampionsCsv, parseConfigJson, parseTeamPoolsCsv } from "../src/data/loaders.js";
 import { BOOLEAN_TAGS } from "../src/domain/model.js";
 
-const championsCsv = readFileSync(resolve("docs/DraftFlow_champions.csv"), "utf8");
-const teamPoolsCsv = readFileSync(resolve("docs/DraftFlow_team_pools.csv"), "utf8");
-const configJson = readFileSync(resolve("docs/DraftFlow_config.json"), "utf8");
+const championsCsv = readFileSync(resolve("docs/deprecated/DraftFlow_champions.csv"), "utf8");
+const teamPoolsCsv = readFileSync(resolve("docs/deprecated/DraftFlow_team_pools.csv"), "utf8");
+const configJson = readFileSync(resolve("docs/deprecated/DraftFlow_config.json"), "utf8");
 
 test("parseChampionsCsv parses champions and tag fields", () => {
   const parsed = parseChampionsCsv(championsCsv);

@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../../server/app.js";
 import { signAccessToken } from "../../server/auth/tokens.js";
-import { DEFAULT_REQUIREMENT_TOGGLES } from "../../src/domain/model.js";
 
 function createMockContext({ riotChampionStatsService = null } = {}) {
   function makeLogoDataUrl(logoBlob, logoMimeType) {
@@ -87,18 +86,6 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         created_at: "2026-01-01T00:00:00.000Z"
       }
     ],
-    compositionRequirements: [
-      {
-        id: 1,
-        name: "Standard 5v5",
-        toggles: { ...DEFAULT_REQUIREMENT_TOGGLES, requireDisengage: true },
-        is_active: true,
-        created_by_user_id: 1,
-        updated_by_user_id: 1,
-        created_at: "2026-01-01T00:00:00.000Z",
-        updated_at: "2026-01-01T00:00:00.000Z"
-      }
-    ],
     requirementDefinitions: [
       {
         id: 1,
@@ -155,11 +142,6 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
     teamChampionTagIds: new Map([
       ["1:1", new Set([1])]
     ]),
-    userCheckSettings: new Map(),
-    teamCheckSettings: new Map([
-      [1, { ...DEFAULT_REQUIREMENT_TOGGLES, requireDisengage: true }]
-    ]),
-    globalCheckSettings: { ...DEFAULT_REQUIREMENT_TOGGLES, requireFrontline: false },
     promotionRequests: [],
     pools: [
       { id: 1, user_id: 1, name: "Main", created_at: "2026-01-01T00:00:00.000Z" },
@@ -197,7 +179,6 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
   let nextJoinRequestId = 1;
   let nextMemberInvitationId = 1;
   let nextTagId = 3;
-  let nextCompositionRequirementId = 2;
   let nextRequirementDefinitionId = 2;
   let nextCompositionId = 2;
 
@@ -509,122 +490,6 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         tagIds,
         scope: "all"
       });
-    }
-  };
-
-  const checksRepository = {
-    async listRequirementSettingsForScope({ scope, userId, teamId }) {
-      if (scope === "all") {
-        return state.globalCheckSettings ? { ...state.globalCheckSettings } : null;
-      }
-      if (scope === "self") {
-        const settings = state.userCheckSettings.get(userId);
-        return settings ? { ...settings } : null;
-      }
-      if (scope === "team") {
-        const settings = state.teamCheckSettings.get(teamId);
-        return settings ? { ...settings } : null;
-      }
-      return null;
-    },
-    async replaceRequirementSettingsForScope({ scope, userId, teamId, toggles }) {
-      const next = { ...toggles };
-      if (scope === "all") {
-        state.globalCheckSettings = next;
-        return next;
-      }
-      if (scope === "self") {
-        state.userCheckSettings.set(userId, next);
-        return next;
-      }
-      if (scope === "team") {
-        state.teamCheckSettings.set(teamId, next);
-        return next;
-      }
-      return next;
-    }
-  };
-
-  const compositionRequirementsRepository = {
-    async listRequirements() {
-      return [...state.compositionRequirements].map((requirement) => ({
-        ...requirement,
-        toggles: { ...requirement.toggles }
-      }));
-    },
-    async getActiveRequirement() {
-      const active = state.compositionRequirements.find((requirement) => requirement.is_active) ?? null;
-      return active
-        ? {
-            ...active,
-            toggles: { ...active.toggles }
-          }
-        : null;
-    },
-    async createRequirement({ name, toggles, isActive, actorUserId }) {
-      if (state.compositionRequirements.some((requirement) => requirement.name.toLowerCase() === name.toLowerCase())) {
-        const error = new Error("duplicate");
-        error.code = "23505";
-        throw error;
-      }
-      if (isActive) {
-        for (const requirement of state.compositionRequirements) {
-          requirement.is_active = false;
-        }
-      }
-      const created = {
-        id: nextCompositionRequirementId,
-        name,
-        toggles: { ...toggles },
-        is_active: isActive === true,
-        created_by_user_id: actorUserId ?? null,
-        updated_by_user_id: actorUserId ?? null,
-        created_at: "2026-01-01T00:00:00.000Z",
-        updated_at: "2026-01-01T00:00:00.000Z"
-      };
-      nextCompositionRequirementId += 1;
-      state.compositionRequirements.push(created);
-      return { ...created, toggles: { ...created.toggles } };
-    },
-    async updateRequirement(requirementId, { name, toggles, isActive, actorUserId }) {
-      const requirement = state.compositionRequirements.find((candidate) => candidate.id === requirementId) ?? null;
-      if (!requirement) {
-        return null;
-      }
-      if (name && state.compositionRequirements.some(
-        (candidate) => candidate.id !== requirementId && candidate.name.toLowerCase() === name.toLowerCase()
-      )) {
-        const error = new Error("duplicate");
-        error.code = "23505";
-        throw error;
-      }
-      if (typeof isActive === "boolean" && isActive) {
-        for (const candidate of state.compositionRequirements) {
-          if (candidate.id !== requirementId) {
-            candidate.is_active = false;
-          }
-        }
-      }
-      if (typeof name === "string" && name.trim() !== "") {
-        requirement.name = name.trim();
-      }
-      if (toggles && typeof toggles === "object") {
-        requirement.toggles = { ...toggles };
-      }
-      if (typeof isActive === "boolean") {
-        requirement.is_active = isActive;
-      }
-      requirement.updated_by_user_id = actorUserId ?? null;
-      requirement.updated_at = "2026-01-01T00:00:00.000Z";
-      return { ...requirement, toggles: { ...requirement.toggles } };
-    },
-    async deleteRequirement(requirementId) {
-      const index = state.compositionRequirements.findIndex((candidate) => candidate.id === requirementId);
-      if (index < 0) {
-        return null;
-      }
-      const [deleted] = state.compositionRequirements.splice(index, 1);
-      return { ...deleted, toggles: { ...deleted.toggles } };
     }
   };
 
@@ -1425,9 +1290,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
     usersRepository,
     championsRepository,
     tagsRepository,
-    checksRepository,
     compositionsCatalogRepository,
-    compositionRequirementsRepository,
     promotionRequestsRepository,
     poolsRepository,
     teamsRepository,
@@ -2094,93 +1957,6 @@ describe("API routes", () => {
     expect(adminListAfterDelete.body.users.some((user) => Number(user.id) === 2)).toBe(false);
   });
 
-  it("supports composition requirements CRUD and active profile reads", async () => {
-    const { app, config } = createMockContext();
-
-    const activeAsMember = await request(app)
-      .get("/composition-requirements/active")
-      .set("Authorization", buildAuthHeader(2, config));
-    expect(activeAsMember.status).toBe(200);
-    expect(activeAsMember.body.requirement.name).toBe("Standard 5v5");
-    expect(activeAsMember.body.toggles.requireDisengage).toBe(true);
-
-    const memberCreateDenied = await request(app)
-      .post("/composition-requirements")
-      .set("Authorization", buildAuthHeader(2, config))
-      .send({
-        name: "Member Profile",
-        toggles: {
-          requireDisengage: false
-        },
-        is_active: false
-      });
-    expect(memberCreateDenied.status).toBe(403);
-
-    const globalCreate = await request(app)
-      .post("/composition-requirements")
-      .set("Authorization", buildAuthHeader(5, config))
-      .send({
-        name: "Global Editor Profile",
-        toggles: {
-          requireDisengage: false
-        },
-        is_active: false
-      });
-    expect(globalCreate.status).toBe(201);
-
-    const adminCreate = await request(app)
-      .post("/composition-requirements")
-      .set("Authorization", buildAuthHeader(1, config))
-      .send({
-        name: "Aggressive",
-        toggles: {
-          requireFrontline: false,
-          requireDisengage: false
-        },
-        is_active: true
-      });
-    expect(adminCreate.status).toBe(201);
-    expect(adminCreate.body.requirement.name).toBe("Aggressive");
-    expect(adminCreate.body.requirement.is_active).toBe(true);
-
-    const listAfterCreate = await request(app)
-      .get("/composition-requirements")
-      .set("Authorization", buildAuthHeader(2, config));
-    expect(listAfterCreate.status).toBe(200);
-    expect(listAfterCreate.body.active_requirement_id).toBe(adminCreate.body.requirement.id);
-
-    const adminUpdate = await request(app)
-      .put(`/composition-requirements/${adminCreate.body.requirement.id}`)
-      .set("Authorization", buildAuthHeader(1, config))
-      .send({
-        name: "Aggressive v2",
-        toggles: {
-          requireFrontline: true
-        },
-        is_active: false
-      });
-    expect(adminUpdate.status).toBe(200);
-    expect(adminUpdate.body.requirement.name).toBe("Aggressive v2");
-    expect(adminUpdate.body.requirement.is_active).toBe(false);
-
-    const activeAfterDeactivate = await request(app)
-      .get("/composition-requirements/active")
-      .set("Authorization", buildAuthHeader(2, config));
-    expect(activeAfterDeactivate.status).toBe(200);
-    expect(activeAfterDeactivate.body.requirement).toBeNull();
-    expect(activeAfterDeactivate.body.toggles.requireFrontline).toBe(true);
-
-    const deleteResponse = await request(app)
-      .delete(`/composition-requirements/${adminCreate.body.requirement.id}`)
-      .set("Authorization", buildAuthHeader(1, config));
-    expect(deleteResponse.status).toBe(204);
-
-    const globalDeleteResponse = await request(app)
-      .delete(`/composition-requirements/${globalCreate.body.requirement.id}`)
-      .set("Authorization", buildAuthHeader(5, config));
-    expect(globalDeleteResponse.status).toBe(204);
-  });
-
   it("supports requirement definition and composition CRUD", async () => {
     const { app, config } = createMockContext();
 
@@ -2334,149 +2110,6 @@ describe("API routes", () => {
       (composition) => composition.name === "Siege Setup"
     );
     expect(siege.requirement_ids).toEqual([1]);
-  });
-
-  it("enforces scoped required-check settings auth and promotion requests", async () => {
-    const { app, config, state } = createMockContext();
-
-    const readGlobalDefault = await request(app)
-      .get("/checks/settings?scope=all")
-      .set("Authorization", buildAuthHeader(2, config));
-    expect(readGlobalDefault.status).toBe(200);
-    expect(readGlobalDefault.body.toggles.requireFrontline).toBe(false);
-
-    const readTeamAsMember = await request(app)
-      .get("/checks/settings?scope=team&team_id=1")
-      .set("Authorization", buildAuthHeader(2, config));
-    expect(readTeamAsMember.status).toBe(200);
-    expect(readTeamAsMember.body.toggles.requireDisengage).toBe(true);
-
-    const outsiderCannotReadTeam = await request(app)
-      .get("/checks/settings?scope=team&team_id=1")
-      .set("Authorization", buildAuthHeader(3, config));
-    expect(outsiderCannotReadTeam.status).toBe(403);
-
-    const memberCanWriteSelf = await request(app)
-      .put("/checks/settings")
-      .set("Authorization", buildAuthHeader(2, config))
-      .send({
-        scope: "self",
-        toggles: {
-          requireFrontline: true,
-          requireAntiTank: true
-        }
-      });
-    expect(memberCanWriteSelf.status).toBe(200);
-    expect(memberCanWriteSelf.body.toggles.requireAntiTank).toBe(true);
-
-    const memberCannotWriteTeam = await request(app)
-      .put("/checks/settings")
-      .set("Authorization", buildAuthHeader(2, config))
-      .send({
-        scope: "team",
-        team_id: 1,
-        toggles: {
-          requireFrontline: true
-        }
-      });
-    expect(memberCannotWriteTeam.status).toBe(403);
-
-    const leadCanWriteTeam = await request(app)
-      .put("/checks/settings")
-      .set("Authorization", buildAuthHeader(1, config))
-      .send({
-        scope: "team",
-        team_id: 1,
-        toggles: {
-          requireFrontline: true,
-          requireDisengage: false
-        }
-      });
-    expect(leadCanWriteTeam.status).toBe(200);
-    expect(leadCanWriteTeam.body.toggles.requireFrontline).toBe(true);
-    expect(leadCanWriteTeam.body.toggles.requireDisengage).toBe(false);
-
-    const memberCannotWriteGlobal = await request(app)
-      .put("/checks/settings")
-      .set("Authorization", buildAuthHeader(2, config))
-      .send({
-        scope: "all",
-        toggles: {
-          requireFrontline: true
-        }
-      });
-    expect(memberCannotWriteGlobal.status).toBe(403);
-
-    const globalCanWriteGlobal = await request(app)
-      .put("/checks/settings")
-      .set("Authorization", buildAuthHeader(5, config))
-      .send({
-        scope: "all",
-        toggles: {
-          requireFrontline: true,
-          topMustBeThreat: true
-        }
-      });
-    expect(globalCanWriteGlobal.status).toBe(200);
-    expect(globalCanWriteGlobal.body.toggles.topMustBeThreat).toBe(true);
-
-    const adminCanWriteGlobal = await request(app)
-      .put("/checks/settings")
-      .set("Authorization", buildAuthHeader(1, config))
-      .send({
-        scope: "all",
-        toggles: {
-          requireFrontline: true,
-          topMustBeThreat: false
-        }
-      });
-    expect(adminCanWriteGlobal.status).toBe(200);
-    expect(adminCanWriteGlobal.body.toggles.topMustBeThreat).toBe(false);
-
-    const selfToTeamPromotion = await request(app)
-      .post("/checks/promotion-requests")
-      .set("Authorization", buildAuthHeader(2, config))
-      .send({
-        source_scope: "self",
-        target_scope: "team",
-        target_team_id: 1
-      });
-    expect(selfToTeamPromotion.status).toBe(201);
-    expect(selfToTeamPromotion.body.promotion_request.entity_type).toBe("checks");
-    expect(selfToTeamPromotion.body.promotion_request.target_scope).toBe("team");
-
-    const outsiderSelfToTeamDenied = await request(app)
-      .post("/checks/promotion-requests")
-      .set("Authorization", buildAuthHeader(3, config))
-      .send({
-        source_scope: "self",
-        target_scope: "team",
-        target_team_id: 1
-      });
-    expect(outsiderSelfToTeamDenied.status).toBe(403);
-
-    const memberTeamToGlobalDenied = await request(app)
-      .post("/checks/promotion-requests")
-      .set("Authorization", buildAuthHeader(2, config))
-      .send({
-        source_scope: "team",
-        team_id: 1,
-        target_scope: "all"
-      });
-    expect(memberTeamToGlobalDenied.status).toBe(403);
-
-    const leadTeamToGlobal = await request(app)
-      .post("/checks/promotion-requests")
-      .set("Authorization", buildAuthHeader(1, config))
-      .send({
-        source_scope: "team",
-        team_id: 1,
-        target_scope: "all"
-      });
-    expect(leadTeamToGlobal.status).toBe(201);
-    expect(leadTeamToGlobal.body.promotion_request.target_scope).toBe("all");
-
-    expect(state.promotionRequests).toHaveLength(2);
   });
 
   it("enforces per-user pool isolation and idempotent membership updates", async () => {

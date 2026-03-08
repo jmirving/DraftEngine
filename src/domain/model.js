@@ -31,28 +31,6 @@ export const BOOLEAN_TAGS = Object.freeze([
   "UtilityCarry"
 ]);
 
-export const REQUIREMENT_CHECKS = Object.freeze([
-  "HasHardEngage",
-  "HasFrontline",
-  "HasWaveclear",
-  "HasDisengage",
-  "HasAntiTank",
-  "HasPrimaryCarry",
-  "DamageMix",
-  "TopMustBeThreat"
-]);
-
-export const DEFAULT_REQUIREMENT_TOGGLES = Object.freeze({
-  requireHardEngage: true,
-  requireFrontline: true,
-  requireWaveclear: true,
-  requireDamageMix: true,
-  requireAntiTank: false,
-  requireDisengage: false,
-  requirePrimaryCarry: true,
-  topMustBeThreat: true
-});
-
 export const DEFAULT_RECOMMENDATION_WEIGHTS = Object.freeze({
   HardEngage: 10,
   Frontline: 8,
@@ -128,11 +106,4 @@ export function getPickedChampionNames(teamState = {}) {
 export function isTeamComplete(teamState = {}) {
   const normalized = normalizeTeamState(teamState);
   return SLOTS.every((slot) => normalized[slot] !== null);
-}
-
-export function mergeRequirementToggles(overrides = {}) {
-  return {
-    ...DEFAULT_REQUIREMENT_TOGGLES,
-    ...overrides
-  };
 }
