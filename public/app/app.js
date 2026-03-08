@@ -2,7 +2,6 @@ import {
   BOOLEAN_TAGS,
   DAMAGE_TYPES,
   DEFAULT_RECOMMENDATION_WEIGHTS,
-  DEFAULT_REQUIREMENT_TOGGLES,
   SCALING_VALUES,
   SLOTS,
   DataValidationError,
@@ -99,7 +98,6 @@ const MAX_TEAM_LOGO_BYTES = 512 * 1024;
 const PREFILLED_RECOMMENDATION_LIMIT = 3;
 const HIGH_SIGNAL_MASTERY_LEVEL = 6;
 const HIGH_SIGNAL_CHAMPION_POINTS = 100000;
-const COMPOSITION_REQUIREMENT_TOGGLE_KEYS = Object.freeze(Object.keys(DEFAULT_REQUIREMENT_TOGGLES));
 
 const FAMILIARITY_LEVEL_LABELS = Object.freeze({
   1: "I know all the intricacies and how to use them",
@@ -358,16 +356,6 @@ function createEmptyChampionMetadataDraft() {
   };
 }
 
-function createEmptyCompositionRequirementDraft() {
-  return {
-    name: "",
-    toggles: {
-      ...DEFAULT_REQUIREMENT_TOGGLES
-    },
-    isActive: false
-  };
-}
-
 function createEmptyRequirementDefinitionDraft() {
   return {
     name: "",
@@ -445,11 +433,6 @@ function createInitialState() {
       savingUserRoleId: null,
       savingUserRiotIdId: null,
       deletingUserId: null,
-      compositionRequirements: [],
-      selectedCompositionRequirementId: null,
-      compositionRequirementDraft: createEmptyCompositionRequirementDraft(),
-      isLoadingCompositionRequirements: false,
-      isSavingCompositionRequirement: false,
       requirementDefinitions: [],
       selectedRequirementDefinitionId: null,
       requirementDefinitionDraft: createEmptyRequirementDefinitionDraft(),
@@ -495,9 +478,6 @@ function createInitialState() {
       teamState: createEmptyTeamState(),
       draftOrder: [...SLOTS],
       slotPoolRole: Object.fromEntries(SLOTS.map((s) => [s, s])),
-      toggles: {
-        ...DEFAULT_REQUIREMENT_TOGGLES
-      },
       excludedChampions: [],
       excludedSearch: "",
       maxDepth: 4,
@@ -598,14 +578,6 @@ function createElements() {
     compositionsTitle: runtimeDocument.querySelector("#compositions-title"),
     compositionsMeta: runtimeDocument.querySelector("#compositions-meta"),
     compositionsSummary: runtimeDocument.querySelector("#compositions-summary"),
-    compositionRequirementsName: runtimeDocument.querySelector("#composition-requirements-name"),
-    compositionRequirementsIsActive: runtimeDocument.querySelector("#composition-requirements-is-active"),
-    compositionRequirementsToggles: runtimeDocument.querySelector("#composition-requirements-toggles"),
-    compositionRequirementsSave: runtimeDocument.querySelector("#composition-requirements-save"),
-    compositionRequirementsCancel: runtimeDocument.querySelector("#composition-requirements-cancel"),
-    compositionRequirementsDelete: runtimeDocument.querySelector("#composition-requirements-delete"),
-    compositionRequirementsFeedback: runtimeDocument.querySelector("#composition-requirements-feedback"),
-    compositionRequirementsList: runtimeDocument.querySelector("#composition-requirements-list"),
     requirementsName: runtimeDocument.querySelector("#requirements-name"),
     requirementsDefinition: runtimeDocument.querySelector("#requirements-definition"),
     requirementsEditor: runtimeDocument.querySelector("#requirements-editor"),
@@ -701,8 +673,6 @@ function createElements() {
     builderStageSetup: runtimeDocument.querySelector("#builder-stage-setup"),
     builderStageInspect: runtimeDocument.querySelector("#builder-stage-inspect"),
     builderAdvancedControls: runtimeDocument.querySelector("#builder-advanced-controls"),
-    builderToggles: runtimeDocument.querySelector("#builder-toggles"),
-    builderToggleOptionalChecks: runtimeDocument.querySelector("#builder-toggle-optional-checks"),
     builderExcludedSearch: runtimeDocument.querySelector("#builder-excluded-search"),
     builderExcludedOptions: runtimeDocument.querySelector("#builder-excluded-options"),
     builderExcludedPills: runtimeDocument.querySelector("#builder-excluded-pills"),
@@ -3774,7 +3744,6 @@ function renderUsersAuthorizationWorkspace() {
 
   const globalRoles = Array.isArray(matrix.global_roles) ? matrix.global_roles : [];
   const teamMembershipRoles = Array.isArray(matrix.team_membership_roles) ? matrix.team_membership_roles : [];
-  const teamRosterRoles = Array.isArray(matrix.team_roster_roles) ? matrix.team_roster_roles : [];
   const permissions = Array.isArray(matrix.permissions) ? matrix.permissions : [];
   const globalAssignments =
     matrix.assignments && typeof matrix.assignments.global_roles === "object"
@@ -3783,10 +3752,6 @@ function renderUsersAuthorizationWorkspace() {
   const teamMembershipAssignments =
     matrix.assignments && typeof matrix.assignments.team_membership_roles === "object"
       ? matrix.assignments.team_membership_roles
-      : {};
-  const teamRosterAssignments =
-    matrix.assignments && typeof matrix.assignments.team_roster_roles === "object"
-      ? matrix.assignments.team_roster_roles
       : {};
   const permissionById = new Map(permissions.map((permission) => [permission.id, permission]));
 
@@ -3863,8 +3828,7 @@ function renderUsersAuthorizationWorkspace() {
 
   elements.usersAuthorizationRoles.append(
     createRoleCard("Global Roles", globalRoles, globalAssignments),
-    createRoleCard("Team Membership Roles", teamMembershipRoles, teamMembershipAssignments),
-    createRoleCard("Team Roster Roles", teamRosterRoles, teamRosterAssignments)
+    createRoleCard("Team Membership Roles", teamMembershipRoles, teamMembershipAssignments)
   );
 
   const normalizePermissionDomainLabel = (domain) => {
@@ -4080,8 +4044,7 @@ function renderUsersAuthorizationWorkspace() {
 
   elements.usersAuthorizationAssignments.append(
     createAssignmentCard("Global Role Assignments", globalRoles, globalAssignments),
-    createAssignmentCard("Team Membership Assignments", teamMembershipRoles, teamMembershipAssignments),
-    createAssignmentCard("Team Roster Assignments", teamRosterRoles, teamRosterAssignments)
+    createAssignmentCard("Team Membership Assignments", teamMembershipRoles, teamMembershipAssignments)
   );
 }
 
