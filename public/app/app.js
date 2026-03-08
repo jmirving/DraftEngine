@@ -210,7 +210,7 @@ const UI_COPY = Object.freeze({
     tagsTitle: "Tags",
     tagsMeta: "Manage shared tag definitions and current champion coverage.",
     usersTitle: "Users",
-    usersMeta: "Admin-only user directory, permission management, and one-time Riot ID corrections.",
+    usersMeta: "Admin-only user directory, permission management, one-time Riot ID corrections, and authorization matrix visibility.",
     requirementsTitle: "Requirements",
     requirementsMeta: "Define reusable requirement rules and clause logic.",
     compositionsTitle: "Compositions",
@@ -439,6 +439,8 @@ function createInitialState() {
       isSavingTagCatalog: false,
       users: [],
       isLoadingUsers: false,
+      authorizationMatrix: null,
+      isLoadingAuthorizationMatrix: false,
       savingUserRoleId: null,
       savingUserRiotIdId: null,
       deletingUserId: null,
@@ -584,6 +586,10 @@ function createElements() {
     usersMeta: runtimeDocument.querySelector("#users-meta"),
     usersAccess: runtimeDocument.querySelector("#users-access"),
     usersList: runtimeDocument.querySelector("#users-list"),
+    usersAuthorizationAccess: runtimeDocument.querySelector("#users-authorization-access"),
+    usersAuthorizationRoles: runtimeDocument.querySelector("#users-authorization-roles"),
+    usersAuthorizationPermissions: runtimeDocument.querySelector("#users-authorization-permissions"),
+    usersAuthorizationAssignments: runtimeDocument.querySelector("#users-authorization-assignments"),
     usersFeedback: runtimeDocument.querySelector("#users-feedback"),
     requirementsTitle: runtimeDocument.querySelector("#requirements-title"),
     requirementsMeta: runtimeDocument.querySelector("#requirements-meta"),
@@ -1777,6 +1783,8 @@ function clearAuthSession(feedback = "") {
   state.api.selectedDiscoverTeamId = "";
   state.api.users = [];
   state.api.isLoadingUsers = false;
+  state.api.authorizationMatrix = null;
+  state.api.isLoadingAuthorizationMatrix = false;
   state.api.savingUserRoleId = null;
   state.api.savingUserRiotIdId = null;
   state.api.compositionRequirements = [];
@@ -2482,6 +2490,9 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
   if (resolvedTab === "users") {
     if (isAdminUser() && state.api.users.length === 0 && !state.api.isLoadingUsers) {
       void loadUsersFromApi();
+    }
+    if (isAdminUser() && !state.api.authorizationMatrix && !state.api.isLoadingAuthorizationMatrix) {
+      void loadAuthorizationMatrixFromApi();
     }
     renderUsersWorkspace();
   }
@@ -3260,6 +3271,90 @@ function normalizeApiAdminUser(rawUser) {
   };
 }
 
+function normalizeAuthorizationRoleDefinition(rawRole) {
+  if (!rawRole || typeof rawRole !== "object" || Array.isArray(rawRole)) {
+    return null;
+  }
+  const id = typeof rawRole.id === "string" ? rawRole.id.trim() : "";
+  const label = typeof rawRole.label === "string" ? rawRole.label.trim() : id;
+  const description = typeof rawRole.description === "string" ? rawRole.description.trim() : "";
+  if (!id) {
+    return null;
+  }
+  return {
+    id,
+    label: label || id,
+    description
+  };
+}
+
+function normalizeAuthorizationPermissionDefinition(rawPermission) {
+  if (!rawPermission || typeof rawPermission !== "object" || Array.isArray(rawPermission)) {
+    return null;
+  }
+  const id = typeof rawPermission.id === "string" ? rawPermission.id.trim() : "";
+  const description = typeof rawPermission.description === "string" ? rawPermission.description.trim() : "";
+  if (!id) {
+    return null;
+  }
+  return {
+    id,
+    description
+  };
+}
+
+function normalizePermissionAssignmentsByRole(rawAssignments) {
+  if (!rawAssignments || typeof rawAssignments !== "object" || Array.isArray(rawAssignments)) {
+    return {};
+  }
+  const entries = Object.entries(rawAssignments).map(([roleId, permissionIds]) => {
+    const normalizedRoleId = typeof roleId === "string" ? roleId.trim() : "";
+    if (!normalizedRoleId) {
+      return null;
+    }
+    const normalizedPermissions = Array.isArray(permissionIds)
+      ? permissionIds
+        .map((permissionId) => (typeof permissionId === "string" ? permissionId.trim() : ""))
+        .filter(Boolean)
+      : [];
+    return [normalizedRoleId, normalizedPermissions];
+  }).filter(Boolean);
+  return Object.fromEntries(entries);
+}
+
+function normalizeAuthorizationMatrix(rawAuthorization) {
+  if (!rawAuthorization || typeof rawAuthorization !== "object" || Array.isArray(rawAuthorization)) {
+    return null;
+  }
+
+  const globalRoles = Array.isArray(rawAuthorization.global_roles)
+    ? rawAuthorization.global_roles.map(normalizeAuthorizationRoleDefinition).filter(Boolean)
+    : [];
+  const teamMembershipRoles = Array.isArray(rawAuthorization.team_membership_roles)
+    ? rawAuthorization.team_membership_roles.map(normalizeAuthorizationRoleDefinition).filter(Boolean)
+    : [];
+  const teamRosterRoles = Array.isArray(rawAuthorization.team_roster_roles)
+    ? rawAuthorization.team_roster_roles.map(normalizeAuthorizationRoleDefinition).filter(Boolean)
+    : [];
+  const permissions = Array.isArray(rawAuthorization.permissions)
+    ? rawAuthorization.permissions.map(normalizeAuthorizationPermissionDefinition).filter(Boolean)
+    : [];
+  const assignments = rawAuthorization.assignments && typeof rawAuthorization.assignments === "object"
+    ? rawAuthorization.assignments
+    : {};
+
+  return {
+    global_roles: globalRoles,
+    team_membership_roles: teamMembershipRoles,
+    team_roster_roles: teamRosterRoles,
+    permissions,
+    assignments: {
+      global_roles: normalizePermissionAssignmentsByRole(assignments.global_roles),
+      team_membership_roles: normalizePermissionAssignmentsByRole(assignments.team_membership_roles)
+    }
+  };
+}
+
 function resetAdminUserDetailCache() {
   if (!state) {
     return;
@@ -3481,6 +3576,35 @@ async function loadUsersFromApi() {
   }
 }
 
+async function loadAuthorizationMatrixFromApi() {
+  if (!isAuthenticated() || !isAdminUser()) {
+    state.api.authorizationMatrix = null;
+    state.api.isLoadingAuthorizationMatrix = false;
+    return false;
+  }
+
+  state.api.isLoadingAuthorizationMatrix = true;
+  renderUsersWorkspace();
+  try {
+    const payload = await apiRequest("/admin/authorization", { auth: true });
+    const matrix = normalizeAuthorizationMatrix(payload?.authorization);
+    if (!matrix) {
+      state.api.authorizationMatrix = null;
+      setUsersFeedback("Authorization matrix payload was invalid.");
+      return false;
+    }
+    state.api.authorizationMatrix = matrix;
+    return true;
+  } catch (error) {
+    state.api.authorizationMatrix = null;
+    setUsersFeedback(normalizeApiErrorMessage(error, "Failed to load authorization matrix."));
+    return false;
+  } finally {
+    state.api.isLoadingAuthorizationMatrix = false;
+    renderUsersWorkspace();
+  }
+}
+
 async function loadUserDetail(userId) {
   if (!isAuthenticated() || !isAdminUser()) {
     return false;
@@ -3612,12 +3736,145 @@ async function deleteUserFromWorkspace(userId, email) {
   }
 }
 
+function renderUsersAuthorizationWorkspace() {
+  if (
+    !elements.usersAuthorizationAccess ||
+    !elements.usersAuthorizationRoles ||
+    !elements.usersAuthorizationPermissions ||
+    !elements.usersAuthorizationAssignments
+  ) {
+    return;
+  }
+
+  elements.usersAuthorizationRoles.innerHTML = "";
+  elements.usersAuthorizationPermissions.innerHTML = "";
+  elements.usersAuthorizationAssignments.innerHTML = "";
+
+  if (!isAuthenticated()) {
+    elements.usersAuthorizationAccess.textContent = "Sign in as admin to view roles and permissions.";
+    return;
+  }
+  if (!isAdminUser()) {
+    elements.usersAuthorizationAccess.textContent = "Roles and permissions matrix is admin-only.";
+    return;
+  }
+  if (state.api.isLoadingAuthorizationMatrix) {
+    elements.usersAuthorizationAccess.textContent = "Loading roles and permissions...";
+    return;
+  }
+
+  const matrix = state.api.authorizationMatrix;
+  if (!matrix) {
+    elements.usersAuthorizationAccess.textContent = "Roles and permissions are unavailable.";
+    return;
+  }
+
+  const globalRoles = Array.isArray(matrix.global_roles) ? matrix.global_roles : [];
+  const teamMembershipRoles = Array.isArray(matrix.team_membership_roles) ? matrix.team_membership_roles : [];
+  const teamRosterRoles = Array.isArray(matrix.team_roster_roles) ? matrix.team_roster_roles : [];
+  const permissions = Array.isArray(matrix.permissions) ? matrix.permissions : [];
+  const globalAssignments =
+    matrix.assignments && typeof matrix.assignments.global_roles === "object"
+      ? matrix.assignments.global_roles
+      : {};
+  const teamMembershipAssignments =
+    matrix.assignments && typeof matrix.assignments.team_membership_roles === "object"
+      ? matrix.assignments.team_membership_roles
+      : {};
+
+  elements.usersAuthorizationAccess.textContent = [
+    `${globalRoles.length} global role${globalRoles.length === 1 ? "" : "s"}`,
+    `${teamMembershipRoles.length} team membership role${teamMembershipRoles.length === 1 ? "" : "s"}`,
+    `${permissions.length} permission${permissions.length === 1 ? "" : "s"}`
+  ].join(" • ");
+
+  const createRoleCard = (title, roles) => {
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card";
+    const heading = runtimeDocument.createElement("strong");
+    heading.textContent = title;
+    card.append(heading);
+    if (!Array.isArray(roles) || roles.length === 0) {
+      card.append(createMetaParagraph("No roles defined."));
+      return card;
+    }
+    const list = runtimeDocument.createElement("ul");
+    list.className = "user-detail-list";
+    for (const role of roles) {
+      const item = runtimeDocument.createElement("li");
+      item.textContent = role.description
+        ? `${role.label} (${role.id}): ${role.description}`
+        : `${role.label} (${role.id})`;
+      list.append(item);
+    }
+    card.append(list);
+    return card;
+  };
+
+  elements.usersAuthorizationRoles.append(
+    createRoleCard("Global Roles", globalRoles),
+    createRoleCard("Team Membership Roles", teamMembershipRoles),
+    createRoleCard("Team Roster Roles", teamRosterRoles)
+  );
+
+  const permissionsCard = runtimeDocument.createElement("article");
+  permissionsCard.className = "summary-card";
+  const permissionsHeading = runtimeDocument.createElement("strong");
+  permissionsHeading.textContent = "Permission Catalog";
+  permissionsCard.append(permissionsHeading);
+  if (permissions.length === 0) {
+    permissionsCard.append(createMetaParagraph("No permissions defined."));
+  } else {
+    const list = runtimeDocument.createElement("ul");
+    list.className = "user-detail-list";
+    for (const permission of permissions) {
+      const item = runtimeDocument.createElement("li");
+      item.textContent = permission.description
+        ? `${permission.id}: ${permission.description}`
+        : permission.id;
+      list.append(item);
+    }
+    permissionsCard.append(list);
+  }
+  elements.usersAuthorizationPermissions.append(permissionsCard);
+
+  const createAssignmentCard = (title, roles, assignments) => {
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card";
+    const heading = runtimeDocument.createElement("strong");
+    heading.textContent = title;
+    card.append(heading);
+    if (!Array.isArray(roles) || roles.length === 0) {
+      card.append(createMetaParagraph("No roles defined."));
+      return card;
+    }
+    const list = runtimeDocument.createElement("ul");
+    list.className = "user-detail-list";
+    for (const role of roles) {
+      const assignedPermissionIds = Array.isArray(assignments[role.id]) ? assignments[role.id] : [];
+      const item = runtimeDocument.createElement("li");
+      item.textContent = `${role.label}: ${
+        assignedPermissionIds.length > 0 ? assignedPermissionIds.join(", ") : "No assigned permissions."
+      }`;
+      list.append(item);
+    }
+    card.append(list);
+    return card;
+  };
+
+  elements.usersAuthorizationAssignments.append(
+    createAssignmentCard("Global Role Assignments", globalRoles, globalAssignments),
+    createAssignmentCard("Team Membership Assignments", teamMembershipRoles, teamMembershipAssignments)
+  );
+}
+
 function renderUsersWorkspace() {
   if (!elements.usersList || !elements.usersAccess) {
     return;
   }
 
   elements.usersList.innerHTML = "";
+  renderUsersAuthorizationWorkspace();
   if (!isAuthenticated()) {
     elements.usersAccess.textContent = "Sign in to access users.";
     const empty = runtimeDocument.createElement("p");

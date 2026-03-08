@@ -979,6 +979,11 @@
             <div class="panel draft-board-panel">
               <p id="users-access" class="meta"></p>
               <div id="users-list" class="summary-card-list"></div>
+              <p class="panel-kicker">Roles &amp; Permissions</p>
+              <p id="users-authorization-access" class="meta"></p>
+              <div id="users-authorization-roles" class="summary-card-list"></div>
+              <div id="users-authorization-permissions" class="summary-card-list"></div>
+              <div id="users-authorization-assignments" class="summary-card-list"></div>
               <p id="users-feedback" class="meta"></p>
             </div>
           </section>
@@ -1123,6 +1128,7 @@
                   <li>Composer can now generate trees from an empty setup; you no longer need a preselected champion to start expansion.</li>
                   <li>Empty-start generation now branches from the first role in your current pick order, creating root candidates from that role's available pool (subject to normal branch thinning).</li>
                   <li>Draft-context tree candidates are now role-exact per lane member: secondary-role pools are no longer mixed into future node options.</li>
+                  <li>Users workspace now includes an admin-only Roles &amp; Permissions matrix that lists current global/team roles, the permission catalog, and role-to-permission assignments from server policy.</li>
                 </ul>
                 <h4>Version 0.7.0 (Shipped)</h4>
                 <ul class="coming-soon-list">

@@ -78,6 +78,7 @@ MVP API routes:
 - `PUT /teams/:id/members/:user_id/role` (auth + lead required)
 - `PUT /teams/:id/members/:user_id/team-role` (auth + lead required)
 - `GET /admin/users` (auth + admin required)
+- `GET /admin/authorization` (auth + admin required)
 - `PUT /admin/users/:id/role` (auth + admin required)
 - `PUT /admin/users/:id/riot-id` (auth + admin required)
 - `DELETE /admin/users/:id` (auth + admin required)

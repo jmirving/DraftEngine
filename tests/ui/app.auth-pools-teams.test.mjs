@@ -662,6 +662,50 @@ function createFetchHarness({
       return createJsonResponse({ users: [...adminUsers] });
     }
 
+    if (path === "/admin/authorization" && method === "GET") {
+      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
+      if (!isAdmin) {
+        return createJsonResponse(
+          { error: { code: "FORBIDDEN", message: "Only admins can view authorization configuration." } },
+          403
+        );
+      }
+      return createJsonResponse({
+        authorization: {
+          global_roles: [
+            { id: "member", label: "member", description: "Default authenticated role." },
+            { id: "global", label: "global", description: "Global editor role." },
+            { id: "admin", label: "admin", description: "Administrator role." }
+          ],
+          team_membership_roles: [
+            { id: "member", label: "member", description: "Standard team membership role." },
+            { id: "lead", label: "lead", description: "Team management role." }
+          ],
+          team_roster_roles: [
+            { id: "primary", label: "primary", description: "Primary roster designation." },
+            { id: "substitute", label: "substitute", description: "Substitute roster designation." }
+          ],
+          permissions: [
+            { id: "admin.users.read", description: "Read admin users directory." },
+            { id: "admin.users.write", description: "Update user role and Riot ID correction." },
+            { id: "admin.users.delete", description: "Delete non-owner user accounts." },
+            { id: "champion_tags.write.global", description: "Edit global champion tags." }
+          ],
+          assignments: {
+            global_roles: {
+              member: ["admin.users.read"],
+              global: ["admin.users.read", "champion_tags.write.global"],
+              admin: ["admin.users.read", "admin.users.write", "admin.users.delete", "champion_tags.write.global"]
+            },
+            team_membership_roles: {
+              member: [],
+              lead: ["champion_tags.write.global"]
+            }
+          }
+        }
+      });
+    }
+
     const adminUserRoleMatch = path.match(/^\/admin\/users\/(\d+)\/role$/);
     if (adminUserRoleMatch && method === "PUT") {
       const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
@@ -2012,6 +2056,12 @@ describe("auth + pools + team management", () => {
     await flush();
 
     expect(doc.querySelector("#users-access").textContent).toContain("users loaded");
+    expect(doc.querySelector("#users-authorization-access").textContent).toContain("global roles");
+    expect(doc.querySelector("#users-authorization-roles").textContent).toContain("Global Roles");
+    expect(doc.querySelector("#users-authorization-permissions").textContent).toContain("Permission Catalog");
+    expect(doc.querySelector("#users-authorization-assignments").textContent).toContain("Global Role Assignments");
+    const matrixCall = harness.calls.find((call) => call.path === "/admin/authorization" && call.method === "GET");
+    expect(matrixCall).toBeTruthy();
     const roleSelects = [...doc.querySelectorAll("#users-list select")];
     const memberRoleSelect = roleSelects.find((select) => select.value === "member");
     expect(memberRoleSelect).toBeTruthy();

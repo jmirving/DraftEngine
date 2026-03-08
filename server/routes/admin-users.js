@@ -3,6 +3,7 @@ import { Router } from "express";
 import { badRequest, notFound } from "../errors.js";
 import { parsePositiveInteger, requireGameName, requireObject, requireTagline } from "../http/validation.js";
 import { assertAdminAuthorization } from "../scope-authorization.js";
+import { getAuthorizationMatrix } from "../authorization-matrix.js";
 import {
   USER_ROLE_ADMIN,
   USER_ROLE_GLOBAL,
@@ -58,6 +59,7 @@ export function createAdminUsersRouter({
 }) {
   const router = Router();
   router.use("/admin/users", requireAuth);
+  router.use("/admin/authorization", requireAuth);
 
   router.get("/admin/users", async (request, response) => {
     const userId = request.user.userId;
@@ -70,6 +72,19 @@ export function createAdminUsersRouter({
     const users = await usersRepository.listUsersForAdmin();
     response.json({
       users: users.map(serializeAdminUser)
+    });
+  });
+
+  router.get("/admin/authorization", async (request, response) => {
+    const userId = request.user.userId;
+    await assertAdminAuthorization({
+      userId,
+      usersRepository,
+      message: "Only admins can view authorization configuration."
+    });
+
+    response.json({
+      authorization: getAuthorizationMatrix()
     });
   });
 

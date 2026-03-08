@@ -1961,6 +1961,11 @@ describe("API routes", () => {
       .set("Authorization", buildAuthHeader(2, config));
     expect(memberDenied.status).toBe(403);
 
+    const memberDeniedAuthorizationMatrix = await request(app)
+      .get("/admin/authorization")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(memberDeniedAuthorizationMatrix.status).toBe(403);
+
     const memberDeniedRiotIdUpdate = await request(app)
       .put("/admin/users/2/riot-id")
       .set("Authorization", buildAuthHeader(2, config))
@@ -1977,6 +1982,14 @@ describe("API routes", () => {
       .set("Authorization", buildAuthHeader(1, config));
     expect(adminList.status).toBe(200);
     expect(adminList.body.users).toHaveLength(5);
+
+    const adminAuthorizationMatrix = await request(app)
+      .get("/admin/authorization")
+      .set("Authorization", buildAuthHeader(1, config));
+    expect(adminAuthorizationMatrix.status).toBe(200);
+    expect(Array.isArray(adminAuthorizationMatrix.body.authorization.global_roles)).toBe(true);
+    expect(Array.isArray(adminAuthorizationMatrix.body.authorization.permissions)).toBe(true);
+    expect(adminAuthorizationMatrix.body.authorization.assignments.global_roles.admin).toContain("admin.users.read");
 
     const memberDetailDenied = await request(app)
       .get("/admin/users/3/details")
