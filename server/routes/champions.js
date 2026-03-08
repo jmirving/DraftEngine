@@ -394,7 +394,8 @@ export function createChampionsRouter({
       usersRepository,
       teamWriteMessage: "You must be on the selected team to edit team champion metadata.",
       teamLeadMessage: "Only team leads can edit team champion metadata.",
-      globalWriteMessage: "Only admins can edit global champion metadata.",
+      globalWriteMessage: "Only admins or global editors can edit global champion metadata.",
+      allowGlobalRoleWrite: true,
       allowGlobalWriteWhenNoAdmins: true
     });
 

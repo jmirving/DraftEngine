@@ -3,7 +3,7 @@ import { Router } from "express";
 import { SLOTS } from "../../src/domain/model.js";
 import { badRequest, conflict, notFound } from "../errors.js";
 import { parsePositiveInteger, requireObject } from "../http/validation.js";
-import { assertAdminAuthorization } from "../scope-authorization.js";
+import { assertScopeWriteAuthorization } from "../scope-authorization.js";
 
 const SLOT_SET = new Set(SLOTS);
 const MAX_REQUIREMENT_NAME_LENGTH = 80;
@@ -320,10 +320,17 @@ export function createCompositionsCatalogRouter({
 
   router.post("/requirements", async (request, response) => {
     const userId = request.user.userId;
-    await assertAdminAuthorization({
+    await assertScopeWriteAuthorization({
+      scope: "all",
       userId,
+      teamId: null,
+      teamsRepository: null,
       usersRepository,
-      message: "Only admins can create requirements."
+      teamWriteMessage: "You must be on the selected team to create requirements.",
+      teamLeadMessage: "Only team leads can create team-scoped requirements.",
+      globalWriteMessage: "Only admins or global editors can create requirements.",
+      allowGlobalRoleWrite: true,
+      allowGlobalWriteWhenNoAdmins: true
     });
 
     const body = requireObject(request.body);
@@ -351,10 +358,17 @@ export function createCompositionsCatalogRouter({
 
   router.put("/requirements/:id", async (request, response) => {
     const userId = request.user.userId;
-    await assertAdminAuthorization({
+    await assertScopeWriteAuthorization({
+      scope: "all",
       userId,
+      teamId: null,
+      teamsRepository: null,
       usersRepository,
-      message: "Only admins can update requirements."
+      teamWriteMessage: "You must be on the selected team to update requirements.",
+      teamLeadMessage: "Only team leads can update team-scoped requirements.",
+      globalWriteMessage: "Only admins or global editors can update requirements.",
+      allowGlobalRoleWrite: true,
+      allowGlobalWriteWhenNoAdmins: true
     });
 
     const requirementId = parsePositiveInteger(request.params.id, "id");
@@ -392,10 +406,17 @@ export function createCompositionsCatalogRouter({
 
   router.delete("/requirements/:id", async (request, response) => {
     const userId = request.user.userId;
-    await assertAdminAuthorization({
+    await assertScopeWriteAuthorization({
+      scope: "all",
       userId,
+      teamId: null,
+      teamsRepository: null,
       usersRepository,
-      message: "Only admins can delete requirements."
+      teamWriteMessage: "You must be on the selected team to delete requirements.",
+      teamLeadMessage: "Only team leads can delete team-scoped requirements.",
+      globalWriteMessage: "Only admins or global editors can delete requirements.",
+      allowGlobalRoleWrite: true,
+      allowGlobalWriteWhenNoAdmins: true
     });
 
     const requirementId = parsePositiveInteger(request.params.id, "id");
@@ -439,10 +460,17 @@ export function createCompositionsCatalogRouter({
 
   router.post("/compositions", async (request, response) => {
     const userId = request.user.userId;
-    await assertAdminAuthorization({
+    await assertScopeWriteAuthorization({
+      scope: "all",
       userId,
+      teamId: null,
+      teamsRepository: null,
       usersRepository,
-      message: "Only admins can create compositions."
+      teamWriteMessage: "You must be on the selected team to create compositions.",
+      teamLeadMessage: "Only team leads can create team-scoped compositions.",
+      globalWriteMessage: "Only admins or global editors can create compositions.",
+      allowGlobalRoleWrite: true,
+      allowGlobalWriteWhenNoAdmins: true
     });
 
     const body = requireObject(request.body);
@@ -475,10 +503,17 @@ export function createCompositionsCatalogRouter({
 
   router.put("/compositions/:id", async (request, response) => {
     const userId = request.user.userId;
-    await assertAdminAuthorization({
+    await assertScopeWriteAuthorization({
+      scope: "all",
       userId,
+      teamId: null,
+      teamsRepository: null,
       usersRepository,
-      message: "Only admins can update compositions."
+      teamWriteMessage: "You must be on the selected team to update compositions.",
+      teamLeadMessage: "Only team leads can update team-scoped compositions.",
+      globalWriteMessage: "Only admins or global editors can update compositions.",
+      allowGlobalRoleWrite: true,
+      allowGlobalWriteWhenNoAdmins: true
     });
 
     const compositionId = parsePositiveInteger(request.params.id, "id");
@@ -523,10 +558,17 @@ export function createCompositionsCatalogRouter({
 
   router.delete("/compositions/:id", async (request, response) => {
     const userId = request.user.userId;
-    await assertAdminAuthorization({
+    await assertScopeWriteAuthorization({
+      scope: "all",
       userId,
+      teamId: null,
+      teamsRepository: null,
       usersRepository,
-      message: "Only admins can delete compositions."
+      teamWriteMessage: "You must be on the selected team to delete compositions.",
+      teamLeadMessage: "Only team leads can delete team-scoped compositions.",
+      globalWriteMessage: "Only admins or global editors can delete compositions.",
+      allowGlobalRoleWrite: true,
+      allowGlobalWriteWhenNoAdmins: true
     });
 
     const compositionId = parsePositiveInteger(request.params.id, "id");

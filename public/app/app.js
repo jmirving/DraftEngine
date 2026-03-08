@@ -3878,8 +3878,16 @@ function renderUsersAuthorizationWorkspace() {
       .join(" ");
   };
 
+  const normalizePermissionDomain = (permissionId) => {
+    const rawDomain = String(permissionId ?? "").split(".")[0] || "general";
+    if (rawDomain === "champion_tags" || rawDomain === "champion_metadata") {
+      return "champions";
+    }
+    return rawDomain;
+  };
+
   const groupedPermissions = permissions.reduce((acc, permission) => {
-    const domain = String(permission.id ?? "").split(".")[0] || "general";
+    const domain = normalizePermissionDomain(permission.id);
     if (!acc.has(domain)) {
       acc.set(domain, []);
     }
@@ -3981,7 +3989,7 @@ function renderUsersAuthorizationWorkspace() {
     card.append(legend);
 
     const groupedPermissionRows = permissions.reduce((acc, permission) => {
-      const domain = String(permission.id ?? "").split(".")[0] || "general";
+      const domain = normalizePermissionDomain(permission.id);
       if (!acc.has(domain)) {
         acc.set(domain, []);
       }

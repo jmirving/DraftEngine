@@ -136,7 +136,8 @@ export function createChecksRouter({
       usersRepository,
       teamWriteMessage: "You must be on the selected team to edit team check settings.",
       teamLeadMessage: "Only team leads can edit team check settings.",
-      globalWriteMessage: "Only admins can edit global check settings."
+      globalWriteMessage: "Only admins or global editors can edit global check settings.",
+      allowGlobalRoleWrite: true
     });
 
     const toggles = normalizeRequirementToggles(body.toggles);

@@ -1782,7 +1782,7 @@ describe("API routes", () => {
     expect(globalRead.body.tag_ids).toEqual([2]);
   });
 
-  it("updates champion metadata with admin-only global permissions", async () => {
+  it("updates champion metadata with global or admin global permissions", async () => {
     const { app, config } = createMockContext();
     const roleProfilesPayload = {
       Top: {
@@ -1805,6 +1805,16 @@ describe("API routes", () => {
         role_profiles: roleProfilesPayload
       });
     expect(memberForbiddenWrite.status).toBe(403);
+
+    const globalWrite = await request(app)
+      .put("/champions/1/metadata")
+      .set("Authorization", buildAuthHeader(5, config))
+      .send({
+        roles: ["Top"],
+        role_profiles: roleProfilesPayload
+      });
+    expect(globalWrite.status).toBe(200);
+    expect(globalWrite.body.champion.metadata.roleProfiles.Top.primaryDamageType).toBe("ad");
 
     const invalidPayload = await request(app)
       .put("/champions/1/metadata")
@@ -1990,6 +2000,14 @@ describe("API routes", () => {
     expect(Array.isArray(adminAuthorizationMatrix.body.authorization.global_roles)).toBe(true);
     expect(Array.isArray(adminAuthorizationMatrix.body.authorization.permissions)).toBe(true);
     expect(adminAuthorizationMatrix.body.authorization.assignments.global_roles.admin).toContain("admin.users.read");
+    const permissionsWithGlobal = adminAuthorizationMatrix.body.authorization.permissions
+      .map((permission) => permission.id)
+      .filter((permissionId) => String(permissionId).includes(".global"));
+    const globalAssignments = adminAuthorizationMatrix.body.authorization.assignments.global_roles.global;
+    expect(Array.isArray(globalAssignments)).toBe(true);
+    for (const permissionId of permissionsWithGlobal) {
+      expect(globalAssignments).toContain(permissionId);
+    }
 
     const memberDetailDenied = await request(app)
       .get("/admin/users/3/details")
@@ -2098,6 +2116,18 @@ describe("API routes", () => {
       });
     expect(memberCreateDenied.status).toBe(403);
 
+    const globalCreate = await request(app)
+      .post("/composition-requirements")
+      .set("Authorization", buildAuthHeader(5, config))
+      .send({
+        name: "Global Editor Profile",
+        toggles: {
+          requireDisengage: false
+        },
+        is_active: false
+      });
+    expect(globalCreate.status).toBe(201);
+
     const adminCreate = await request(app)
       .post("/composition-requirements")
       .set("Authorization", buildAuthHeader(1, config))
@@ -2144,6 +2174,11 @@ describe("API routes", () => {
       .delete(`/composition-requirements/${adminCreate.body.requirement.id}`)
       .set("Authorization", buildAuthHeader(1, config));
     expect(deleteResponse.status).toBe(204);
+
+    const globalDeleteResponse = await request(app)
+      .delete(`/composition-requirements/${globalCreate.body.requirement.id}`)
+      .set("Authorization", buildAuthHeader(5, config));
+    expect(globalDeleteResponse.status).toBe(204);
   });
 
   it("supports requirement definition and composition CRUD", async () => {
@@ -2169,6 +2204,22 @@ describe("API routes", () => {
         ]
       });
     expect(memberCreateDenied.status).toBe(403);
+
+    const globalCreateRequirement = await request(app)
+      .post("/requirements")
+      .set("Authorization", buildAuthHeader(5, config))
+      .send({
+        name: "Global Editor Requirement",
+        definition: "Created by global editor.",
+        rules: [
+          {
+            id: "global-editor-clause",
+            expr: { tag: "Frontline" },
+            minCount: 1
+          }
+        ]
+      });
+    expect(globalCreateRequirement.status).toBe(201);
 
     const invalidSeparation = await request(app)
       .post("/requirements")
@@ -2251,6 +2302,17 @@ describe("API routes", () => {
       adminCreateRequirement.body.requirement.id
     );
     expect(adminCreateComposition.body.composition.is_active).toBe(true);
+
+    const globalCreateComposition = await request(app)
+      .post("/compositions")
+      .set("Authorization", buildAuthHeader(5, config))
+      .send({
+        name: "Global Editor Composition",
+        description: "Created by global editor.",
+        requirement_ids: [1, globalCreateRequirement.body.requirement.id],
+        is_active: false
+      });
+    expect(globalCreateComposition.status).toBe(201);
 
     const activeComposition = await request(app)
       .get("/compositions/active")
@@ -2344,6 +2406,19 @@ describe("API routes", () => {
         }
       });
     expect(memberCannotWriteGlobal.status).toBe(403);
+
+    const globalCanWriteGlobal = await request(app)
+      .put("/checks/settings")
+      .set("Authorization", buildAuthHeader(5, config))
+      .send({
+        scope: "all",
+        toggles: {
+          requireFrontline: true,
+          topMustBeThreat: true
+        }
+      });
+    expect(globalCanWriteGlobal.status).toBe(200);
+    expect(globalCanWriteGlobal.body.toggles.topMustBeThreat).toBe(true);
 
     const adminCanWriteGlobal = await request(app)
       .put("/checks/settings")

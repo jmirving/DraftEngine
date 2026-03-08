@@ -4,7 +4,7 @@ import { DEFAULT_REQUIREMENT_TOGGLES } from "../../src/domain/model.js";
 import { badRequest, conflict, notFound } from "../errors.js";
 import { parsePositiveInteger, requireObject } from "../http/validation.js";
 import { REQUIREMENT_TOGGLE_KEYS } from "../repositories/checks.js";
-import { assertAdminAuthorization } from "../scope-authorization.js";
+import { assertScopeWriteAuthorization } from "../scope-authorization.js";
 
 const REQUIREMENT_TOGGLE_KEY_SET = new Set(REQUIREMENT_TOGGLE_KEYS);
 const MAX_REQUIREMENT_NAME_LENGTH = 80;
@@ -105,10 +105,17 @@ export function createCompositionRequirementsRouter({
 
   router.post("/composition-requirements", async (request, response) => {
     const userId = request.user.userId;
-    await assertAdminAuthorization({
+    await assertScopeWriteAuthorization({
+      scope: "all",
       userId,
+      teamId: null,
+      teamsRepository: null,
       usersRepository,
-      message: "Only admins can create composition requirements."
+      teamWriteMessage: "You must be on the selected team to create composition requirements.",
+      teamLeadMessage: "Only team leads can create team-scoped composition requirements.",
+      globalWriteMessage: "Only admins or global editors can create composition requirements.",
+      allowGlobalRoleWrite: true,
+      allowGlobalWriteWhenNoAdmins: true
     });
 
     const body = requireObject(request.body);
@@ -136,10 +143,17 @@ export function createCompositionRequirementsRouter({
 
   router.put("/composition-requirements/:id", async (request, response) => {
     const userId = request.user.userId;
-    await assertAdminAuthorization({
+    await assertScopeWriteAuthorization({
+      scope: "all",
       userId,
+      teamId: null,
+      teamsRepository: null,
       usersRepository,
-      message: "Only admins can update composition requirements."
+      teamWriteMessage: "You must be on the selected team to update composition requirements.",
+      teamLeadMessage: "Only team leads can update team-scoped composition requirements.",
+      globalWriteMessage: "Only admins or global editors can update composition requirements.",
+      allowGlobalRoleWrite: true,
+      allowGlobalWriteWhenNoAdmins: true
     });
 
     const requirementId = parsePositiveInteger(request.params.id, "id");
@@ -175,10 +189,17 @@ export function createCompositionRequirementsRouter({
 
   router.delete("/composition-requirements/:id", async (request, response) => {
     const userId = request.user.userId;
-    await assertAdminAuthorization({
+    await assertScopeWriteAuthorization({
+      scope: "all",
       userId,
+      teamId: null,
+      teamsRepository: null,
       usersRepository,
-      message: "Only admins can delete composition requirements."
+      teamWriteMessage: "You must be on the selected team to delete composition requirements.",
+      teamLeadMessage: "Only team leads can delete team-scoped composition requirements.",
+      globalWriteMessage: "Only admins or global editors can delete composition requirements.",
+      allowGlobalRoleWrite: true,
+      allowGlobalWriteWhenNoAdmins: true
     });
     const requirementId = parsePositiveInteger(request.params.id, "id");
     const deleted = await compositionRequirementsRepository.deleteRequirement(requirementId);

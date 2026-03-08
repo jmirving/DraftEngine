@@ -217,7 +217,7 @@ const GLOBAL_ROLE_ASSIGNMENTS = Object.freeze({
     "checks.settings.write.self",
     "checks.promotions.request.self_to_team",
     "requirements.read.global",
-    "composition_requirements.read.global"
+    "composition_requirements.read.global",
   ]),
   [USER_ROLE_GLOBAL]: Object.freeze([
     "profile.read.self",
@@ -236,13 +236,17 @@ const GLOBAL_ROLE_ASSIGNMENTS = Object.freeze({
     "champion_tags.read.team",
     "champion_tags.write.global",
     "tags.catalog.write.global",
+    "champion_metadata.write.global",
     "checks.settings.read.self",
     "checks.settings.read.team",
     "checks.settings.read.global",
     "checks.settings.write.self",
+    "checks.settings.write.global",
     "checks.promotions.request.self_to_team",
     "requirements.read.global",
-    "composition_requirements.read.global"
+    "requirements.write.global",
+    "composition_requirements.read.global",
+    "composition_requirements.write.global"
   ]),
   [USER_ROLE_ADMIN]: Object.freeze([
     "profile.read.self",
