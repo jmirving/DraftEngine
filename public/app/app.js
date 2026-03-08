@@ -433,6 +433,7 @@ function createInitialState() {
       championMetadataDraft: createEmptyChampionMetadataDraft(),
       championReviewedDraft: false,
       championEditorSavedSnapshot: null,
+      championProfileActiveRole: null,
       isLoadingChampionTags: false,
       isSavingChampionTags: false,
       selectedTagManagerId: null,
@@ -472,7 +473,8 @@ function createInitialState() {
       includeTags: [],
       excludeTags: [],
       sortBy: "alpha-asc",
-      filtersOpen: true
+      filtersOpen: true,
+      activeCardRole: {}
     },
     teamConfig: {
       defaultTeamId: null,
@@ -1285,6 +1287,7 @@ function clearChampionTagEditorState() {
   state.api.championMetadataDraft = createEmptyChampionMetadataDraft();
   state.api.championReviewedDraft = false;
   state.api.championEditorSavedSnapshot = null;
+  state.api.championProfileActiveRole = null;
   state.api.isLoadingChampionTags = false;
   state.api.isSavingChampionTags = false;
   setChampionTagEditorFeedback("");
@@ -6213,21 +6216,17 @@ function renderChampionMetadataRoleProfileEditors() {
 
   const effLevelValues = ["weak", "neutral", "strong"];
 
-  const renderRoleProfileCard = (titleText, profile, onDamageChange, onEffectivenessChange) => {
-    const card = runtimeDocument.createElement("section");
-    card.className = "panel draft-board-panel champion-role-profile-card";
+  const renderProfileCols = (profile, onDamageChange, onEffectivenessChange) => {
+    const cols = runtimeDocument.createElement("div");
+    cols.className = "ced-profile-cols";
 
-    const title = runtimeDocument.createElement("h4");
-    title.textContent = titleText;
-    card.append(title);
-
-    // Damage type toggle buttons
-    const damageGroup = runtimeDocument.createElement("div");
-    damageGroup.className = "ced-damage-group";
+    // Damage type column
+    const damageCol = runtimeDocument.createElement("div");
+    damageCol.className = "ced-damage-col";
     const damageSectionLabel = runtimeDocument.createElement("p");
     damageSectionLabel.className = "ced-section-label";
     damageSectionLabel.textContent = "Damage Type";
-    damageGroup.append(damageSectionLabel);
+    damageCol.append(damageSectionLabel);
     const damageButtons = runtimeDocument.createElement("div");
     damageButtons.className = "ced-damage-buttons";
     const currentDamage = normalizeApiPrimaryDamageType(profile.primaryDamageType) ?? "mixed";
@@ -6240,16 +6239,16 @@ function renderChampionMetadataRoleProfileEditors() {
       btn.addEventListener("click", () => onDamageChange(opt.value));
       damageButtons.append(btn);
     }
-    damageGroup.append(damageButtons);
-    card.append(damageGroup);
+    damageCol.append(damageButtons);
+    cols.append(damageCol);
 
-    // Effectiveness sliders
-    const effGroup = runtimeDocument.createElement("div");
-    effGroup.className = "ced-effectiveness-group";
+    // Effectiveness column
+    const effCol = runtimeDocument.createElement("div");
+    effCol.className = "ced-effectiveness-col";
     const effSectionLabel = runtimeDocument.createElement("p");
     effSectionLabel.className = "ced-section-label";
     effSectionLabel.textContent = "Effectiveness";
-    effGroup.append(effSectionLabel);
+    effCol.append(effSectionLabel);
     const effGrid = runtimeDocument.createElement("div");
     effGrid.className = "ced-effectiveness-grid";
     for (const phase of EFFECTIVENESS_PHASES) {
@@ -6259,71 +6258,89 @@ function renderChampionMetadataRoleProfileEditors() {
       phaseLabel.className = "ced-phase-label";
       phaseLabel.textContent = `${phase[0].toUpperCase()}${phase.slice(1)}`;
       const currentLevel = normalizeApiEffectivenessLevel(profile.effectiveness?.[phase]) ?? "neutral";
-      const currentIndex = effLevelValues.indexOf(currentLevel);
-      const slider = runtimeDocument.createElement("input");
-      slider.type = "range";
-      slider.min = "0";
-      slider.max = "2";
-      slider.step = "1";
-      slider.value = String(currentIndex >= 0 ? currentIndex : 1);
-      slider.className = "ced-effectiveness-slider";
-      slider.disabled = state.api.isSavingChampionTags;
-      slider.addEventListener("input", () => {
-        const idx = Number.parseInt(slider.value, 10);
-        onEffectivenessChange(phase, effLevelValues[idx]);
-      });
-      const sliderLabels = runtimeDocument.createElement("div");
-      sliderLabels.className = "ced-slider-labels";
+      const pillRow = runtimeDocument.createElement("div");
+      pillRow.className = "ced-eff-pill-row";
       for (const lvl of effLevelValues) {
-        const lbl = runtimeDocument.createElement("span");
-        lbl.textContent = lvl[0].toUpperCase() + lvl.slice(1);
-        sliderLabels.append(lbl);
+        const btn = runtimeDocument.createElement("button");
+        btn.type = "button";
+        btn.className = `ced-eff-pill ced-eff-pill--${lvl}${currentLevel === lvl ? " is-active" : ""}`;
+        btn.textContent = lvl[0].toUpperCase() + lvl.slice(1);
+        btn.disabled = state.api.isSavingChampionTags;
+        btn.addEventListener("click", () => onEffectivenessChange(phase, lvl));
+        pillRow.append(btn);
       }
-      phaseDiv.append(phaseLabel, slider, sliderLabels);
+      phaseDiv.append(phaseLabel, pillRow);
       effGrid.append(phaseDiv);
     }
-    effGroup.append(effGrid);
-    card.append(effGroup);
-    return card;
+    effCol.append(effGrid);
+    cols.append(effCol);
+
+    return cols;
   };
 
+  // Resolve active role tab
+  const validActiveRole = selectedRoles.includes(state.api.championProfileActiveRole)
+    ? state.api.championProfileActiveRole
+    : selectedRoles[0];
+  state.api.championProfileActiveRole = validActiveRole;
+
+  const useSharedRoleProfile = state.api.championMetadataDraft.useSharedRoleProfile === true && selectedRoles.length > 1;
+
+  // Role tab row (shown when multiple roles)
   if (selectedRoles.length > 1) {
+    const tabRow = runtimeDocument.createElement("div");
+    tabRow.className = "ced-role-tab-row";
+
+    if (!useSharedRoleProfile) {
+      const tabLabel = runtimeDocument.createElement("span");
+      tabLabel.className = "ced-role-tab-label";
+      tabLabel.textContent = "Profile for:";
+      tabRow.append(tabLabel);
+      for (const role of selectedRoles) {
+        const tab = runtimeDocument.createElement("button");
+        tab.type = "button";
+        tab.className = `ced-role-tab${role === validActiveRole ? " is-active" : ""}`;
+        tab.textContent = role;
+        tab.disabled = state.api.isSavingChampionTags;
+        tab.addEventListener("click", () => {
+          state.api.championProfileActiveRole = role;
+          renderChampionTagEditor();
+        });
+        tabRow.append(tab);
+      }
+    }
+
     const shareToggleLabel = runtimeDocument.createElement("label");
     shareToggleLabel.className = "inline-checkbox champion-role-profile-sync-toggle";
-
     const shareToggle = runtimeDocument.createElement("input");
     shareToggle.id = "champion-metadata-share-role-profile";
     shareToggle.type = "checkbox";
-    shareToggle.checked = state.api.championMetadataDraft.useSharedRoleProfile === true;
+    shareToggle.checked = useSharedRoleProfile;
     shareToggle.disabled = state.api.isSavingChampionTags;
     shareToggle.addEventListener("change", () => {
       state.api.championMetadataDraft.useSharedRoleProfile = shareToggle.checked;
       ensureChampionMetadataRoleProfiles();
       renderChampionTagEditor();
     });
-
     const shareToggleText = runtimeDocument.createElement("span");
-    shareToggleText.textContent = "All selected roles are the same";
-
+    shareToggleText.textContent = "All roles same";
     shareToggleLabel.append(shareToggle, shareToggleText);
-    elements.championMetadataRoleProfiles.append(shareToggleLabel);
+    tabRow.append(shareToggleLabel);
+
+    elements.championMetadataRoleProfiles.append(tabRow);
   }
 
-  const useSharedRoleProfile = state.api.championMetadataDraft.useSharedRoleProfile === true && selectedRoles.length > 1;
+  // Render profile cols for the active/shared role
   if (useSharedRoleProfile) {
     const anchorRole = selectedRoles[0];
     const profile = state.api.championMetadataDraft.roleProfiles?.[anchorRole] ?? createDefaultRoleProfileDraft();
-    const sharedCard = renderRoleProfileCard(
-      "All Selected Roles Profile",
+    const cols = renderProfileCols(
       profile,
       (nextDamageType) => {
         const normalizedDamageType = normalizeApiPrimaryDamageType(nextDamageType) ?? "mixed";
         for (const role of selectedRoles) {
           const roleProfile = state.api.championMetadataDraft.roleProfiles?.[role] ?? createDefaultRoleProfileDraft();
-          state.api.championMetadataDraft.roleProfiles[role] = {
-            ...roleProfile,
-            primaryDamageType: normalizedDamageType
-          };
+          state.api.championMetadataDraft.roleProfiles[role] = { ...roleProfile, primaryDamageType: normalizedDamageType };
         }
         renderChampionTagEditor();
       },
@@ -6333,34 +6350,27 @@ function renderChampionMetadataRoleProfileEditors() {
           const roleProfile = state.api.championMetadataDraft.roleProfiles?.[role] ?? createDefaultRoleProfileDraft();
           state.api.championMetadataDraft.roleProfiles[role] = {
             ...roleProfile,
-            effectiveness: {
-              ...(roleProfile.effectiveness ?? {}),
-              [phase]: normalizedLevel
-            }
+            effectiveness: { ...(roleProfile.effectiveness ?? {}), [phase]: normalizedLevel }
           };
         }
         renderChampionTagEditor();
       }
     );
-    elements.championMetadataRoleProfiles.append(sharedCard);
-    return;
-  }
-
-  for (const role of selectedRoles) {
-    const profile = state.api.championMetadataDraft.roleProfiles?.[role] ?? createDefaultRoleProfileDraft();
-    const card = renderRoleProfileCard(
-      `${role} Profile`,
+    elements.championMetadataRoleProfiles.append(cols);
+  } else {
+    const profile = state.api.championMetadataDraft.roleProfiles?.[validActiveRole] ?? createDefaultRoleProfileDraft();
+    const cols = renderProfileCols(
       profile,
       (nextDamageType) => {
-        state.api.championMetadataDraft.roleProfiles[role] = {
-          ...state.api.championMetadataDraft.roleProfiles[role],
+        state.api.championMetadataDraft.roleProfiles[validActiveRole] = {
+          ...state.api.championMetadataDraft.roleProfiles[validActiveRole],
           primaryDamageType: normalizeApiPrimaryDamageType(nextDamageType) ?? "mixed"
         };
         renderChampionTagEditor();
       },
       (phase, nextLevel) => {
-        const roleProfile = state.api.championMetadataDraft.roleProfiles[role] ?? createDefaultRoleProfileDraft();
-        state.api.championMetadataDraft.roleProfiles[role] = {
+        const roleProfile = state.api.championMetadataDraft.roleProfiles[validActiveRole] ?? createDefaultRoleProfileDraft();
+        state.api.championMetadataDraft.roleProfiles[validActiveRole] = {
           ...roleProfile,
           effectiveness: {
             ...(roleProfile.effectiveness ?? {}),
@@ -6370,7 +6380,7 @@ function renderChampionMetadataRoleProfileEditors() {
         renderChampionTagEditor();
       }
     );
-    elements.championMetadataRoleProfiles.append(card);
+    elements.championMetadataRoleProfiles.append(cols);
   }
 }
 
@@ -9749,9 +9759,6 @@ function renderExplorer() {
     }
 
     // ── Meta section: Role(s) / Damage Type / Power Spike ───────────────
-    const metaSection = runtimeDocument.createElement("div");
-    metaSection.className = "champ-card-meta";
-
     const makeMetaSection = (labelText, pills) => {
       const section = runtimeDocument.createElement("div");
       section.className = "champ-meta-section";
@@ -9772,17 +9779,72 @@ function renderExplorer() {
       return pill;
     };
 
-    const rolePills = (champion.roles ?? []).map((r) => makePill(r, "champ-role-pill"));
-    const damagePills = champion.damageType
-      ? [makePill(champion.damageType, `champ-damage-${(champion.damageType).toLowerCase()}`)]
-      : [];
-    const scalingPills = champion.scaling ? [makePill(champion.scaling)] : [];
+    // Detect whether all role profiles are identical (shared profile scenario)
+    const champRoles = champion.roles ?? [];
+    const allRoleProfilesSame = (() => {
+      if (champRoles.length <= 1) return false;
+      const profiles = champRoles.map((r) => champion.roleProfiles?.[r]);
+      if (profiles.some((p) => !p)) return false;
+      const first = JSON.stringify(profiles[0]);
+      return profiles.every((p) => JSON.stringify(p) === first);
+    })();
 
-    metaSection.append(
-      makeMetaSection("Role(s)", rolePills),
-      makeMetaSection("Damage Type", damagePills),
-      makeMetaSection("Power Spike", scalingPills)
-    );
+    const buildCardMeta = (activeRoleKey) => {
+      const meta = runtimeDocument.createElement("div");
+      meta.className = "champ-card-meta";
+
+      // Role pills — clickable if more than one role and profiles differ
+      const roleBtns = champRoles.map((r) => {
+        const btn = runtimeDocument.createElement("button");
+        btn.type = "button";
+        const isActive = allRoleProfilesSame || r === activeRoleKey;
+        btn.className = isActive ? "champ-role-pill is-active" : "champ-role-pill is-inactive";
+        btn.textContent = r;
+        if (champRoles.length > 1 && !allRoleProfilesSame) {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            state.explorer.activeCardRole[champion.id] = r;
+            const newMeta = buildCardMeta(r);
+            meta.replaceWith(newMeta);
+          });
+        }
+        return btn;
+      });
+
+      // Profile data for active role
+      const profile = champion.roleProfiles?.[activeRoleKey];
+      const damageType = profile
+        ? deriveDisplayDamageTypeFromProfile(profile)
+        : champion.damageType;
+
+      // Power spike: show "Phase: Level" pills for non-neutral phases only
+      const spikePills = [];
+      if (profile?.effectiveness) {
+        for (const phase of EFFECTIVENESS_PHASES) {
+          const level = profile.effectiveness[phase];
+          if (level && level !== "neutral") {
+            const label = `${phase[0].toUpperCase()}${phase.slice(1)}: ${level[0].toUpperCase()}${level.slice(1)}`;
+            spikePills.push(makePill(label, `champ-spike-${level}`));
+          }
+        }
+      } else if (champion.scaling) {
+        spikePills.push(makePill(champion.scaling));
+      }
+
+      const damagePills = damageType
+        ? [makePill(damageType, `champ-damage-${damageType.toLowerCase()}`)]
+        : [];
+
+      meta.append(
+        makeMetaSection("Role(s)", roleBtns),
+        makeMetaSection("Damage Type", damagePills),
+        makeMetaSection("Power Spike", spikePills)
+      );
+      return meta;
+    };
+
+    const activeCardRole = state.explorer.activeCardRole[champion.id] ?? champRoles[0];
+    const metaSection = buildCardMeta(activeCardRole);
 
     // ── Champion Tags collapsible ────────────────────────────────────────
     const tagDetails = runtimeDocument.createElement("details");

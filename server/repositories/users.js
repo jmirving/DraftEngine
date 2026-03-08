@@ -1,4 +1,4 @@
-import { OWNER_ADMIN_EMAIL } from "../user-roles.js";
+import { OWNER_ADMIN_EMAILS } from "../user-roles.js";
 
 export function createUsersRepository(pool) {
   return {
@@ -54,14 +54,15 @@ export function createUsersRepository(pool) {
     },
 
     async countAdmins() {
+      const emailList = [...OWNER_ADMIN_EMAILS].map(e => e.toLowerCase());
       const result = await pool.query(
         `
           SELECT COUNT(*)::int AS admin_count
           FROM users
           WHERE lower(role) = 'admin'
-            AND lower(email) = lower($1)
+            AND lower(email) = ANY($1)
         `,
-        [OWNER_ADMIN_EMAIL]
+        [emailList]
       );
       return result.rows[0]?.admin_count ?? 0;
     },

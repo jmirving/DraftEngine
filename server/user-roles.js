@@ -3,7 +3,10 @@ export const USER_ROLE_GLOBAL = "global";
 export const USER_ROLE_ADMIN = "admin";
 export const USER_ROLES = Object.freeze([USER_ROLE_MEMBER, USER_ROLE_GLOBAL, USER_ROLE_ADMIN]);
 
-export const OWNER_ADMIN_EMAIL = "jirving0311@gmail.com";
+export const OWNER_ADMIN_EMAILS = Object.freeze(new Set([
+  "jirving0311@gmail.com",
+  "tylerjtriplett@gmail.com"
+]));
 
 const USER_ROLE_SET = new Set(USER_ROLES);
 
@@ -23,7 +26,7 @@ export function normalizeUserEmail(rawEmail) {
 }
 
 export function isOwnerAdminEmail(rawEmail) {
-  return normalizeUserEmail(rawEmail) === OWNER_ADMIN_EMAIL;
+  return OWNER_ADMIN_EMAILS.has(normalizeUserEmail(rawEmail));
 }
 
 export function resolveAuthorizationRole(user) {
