@@ -6093,6 +6093,64 @@ async function openChampionTagEditor(championId) {
 function closeChampionTagEditor() {
   if (elements.championTagEditor) elements.championTagEditor.hidden = true;
   if (elements.championGridPanel) elements.championGridPanel.hidden = false;
+  if (state.data) renderExplorer();
+}
+
+let _navWarningPendingAction = null;
+
+function showNavWarning(onLeave) {
+  _navWarningPendingAction = onLeave;
+  let toast = runtimeDocument.getElementById("nav-warning-toast");
+  if (!toast) {
+    toast = runtimeDocument.createElement("div");
+    toast.id = "nav-warning-toast";
+    toast.className = "nav-warning-toast";
+
+    const box = runtimeDocument.createElement("div");
+    box.className = "nav-warning-box";
+
+    const title = runtimeDocument.createElement("p");
+    title.className = "nav-warning-title";
+    title.textContent = "Unsaved Changes";
+
+    const body = runtimeDocument.createElement("p");
+    body.className = "nav-warning-body";
+    body.textContent = "The Champion editor has unsaved changes. Leaving now will discard them.";
+
+    const btnRow = runtimeDocument.createElement("div");
+    btnRow.className = "button-row";
+
+    const leaveBtn = runtimeDocument.createElement("button");
+    leaveBtn.type = "button";
+    leaveBtn.id = "nav-warning-leave";
+    leaveBtn.textContent = "Leave Anyway";
+
+    const stayBtn = runtimeDocument.createElement("button");
+    stayBtn.type = "button";
+    stayBtn.className = "ghost";
+    stayBtn.id = "nav-warning-stay";
+    stayBtn.textContent = "Stay";
+
+    leaveBtn.addEventListener("click", () => {
+      const action = _navWarningPendingAction;
+      hideNavWarning();
+      if (action) action();
+    });
+    stayBtn.addEventListener("click", hideNavWarning);
+    toast.addEventListener("click", (e) => { if (e.target === toast) hideNavWarning(); });
+
+    btnRow.append(leaveBtn, stayBtn);
+    box.append(title, body, btnRow);
+    toast.append(box);
+    runtimeDocument.body.append(toast);
+  }
+  toast.hidden = false;
+}
+
+function hideNavWarning() {
+  _navWarningPendingAction = null;
+  const toast = runtimeDocument.getElementById("nav-warning-toast");
+  if (toast) toast.hidden = true;
 }
 
 function setChampionEditorTab(tab) {
@@ -9178,11 +9236,14 @@ function renderExplorer() {
     nameWrap.append(name);
 
     if (champion.reviewed === true) {
-      const badge = runtimeDocument.createElement("span");
-      badge.className = "champ-reviewed-badge";
-      badge.title = "Human reviewed";
-      badge.textContent = "✓";
-      nameWrap.append(badge);
+      const indicator = runtimeDocument.createElement("span");
+      indicator.className = "champ-reviewed-indicator";
+      const check = runtimeDocument.createElement("span");
+      check.className = "champ-reviewed-check";
+      check.setAttribute("aria-hidden", "true");
+      check.textContent = "✓";
+      indicator.append(check, " Human reviewed");
+      nameWrap.append(indicator);
     }
 
     cardHeader.append(image, nameWrap);
@@ -10667,7 +10728,15 @@ function attachEvents() {
         setAuthFeedback("Login/Registration required to proceed.");
         return;
       }
-      setTab(button.dataset.tab, { syncRoute: true });
+      const targetTab = button.dataset.tab;
+      if (state.api.selectedChampionTagEditorId !== null) {
+        showNavWarning(() => {
+          clearChampionTagEditorState();
+          setTab(targetTab, { syncRoute: true });
+        });
+        return;
+      }
+      setTab(targetTab, { syncRoute: true });
     });
   }
 
