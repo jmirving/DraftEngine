@@ -7,6 +7,7 @@ export const OWNER_ADMIN_EMAILS = Object.freeze(new Set([
   "jirving0311@gmail.com",
   "tylerjtriplett@gmail.com"
 ]));
+export const OWNER_ADMIN_EMAIL = [...OWNER_ADMIN_EMAILS][0];
 
 const USER_ROLE_SET = new Set(USER_ROLES);
 

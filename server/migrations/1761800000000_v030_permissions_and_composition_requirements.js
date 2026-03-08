@@ -1,4 +1,4 @@
-import { OWNER_ADMIN_EMAIL } from "../user-roles.js";
+const OWNER_ADMIN_EMAIL = "jirving0311@gmail.com";
 
 export function up(pgm) {
   pgm.dropConstraint("users", "users_role_check", { ifExists: true });

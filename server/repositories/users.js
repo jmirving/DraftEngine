@@ -54,7 +54,7 @@ export function createUsersRepository(pool) {
     },
 
     async countAdmins() {
-      const emailList = [...OWNER_ADMIN_EMAILS].map(e => e.toLowerCase());
+      const emailList = [...OWNER_ADMIN_EMAILS].map((email) => email.toLowerCase());
       const result = await pool.query(
         `
           SELECT COUNT(*)::int AS admin_count
