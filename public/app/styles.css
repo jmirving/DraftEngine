@@ -2217,6 +2217,234 @@ button.slot-order-btn:disabled {
   padding-bottom: 0;
 }
 
+.users-authz-block {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.65rem 0.7rem;
+  background: linear-gradient(165deg, #fffdf8 0%, #fff7ef 100%);
+}
+
+.users-authz-block-header {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.users-authz-block-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.users-authz-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.8rem;
+  border-radius: 999px;
+  border: 1px solid rgba(115, 93, 74, 0.28);
+  background: #fff3e7;
+  color: #8a4a2f;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.2rem 0.45rem;
+}
+
+.users-authz-role-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.45rem;
+}
+
+.users-authz-role-card {
+  border: 1px solid rgba(118, 98, 74, 0.22);
+  border-radius: 12px;
+  background: #fffef9;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  padding: 0.45rem 0.5rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.users-authz-role-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.users-authz-role-id {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(118, 98, 74, 0.34);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--muted);
+  font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  line-height: 1.25;
+  padding: 0.08rem 0.42rem;
+  white-space: nowrap;
+}
+
+.users-authz-permission-domain-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.5rem;
+}
+
+.users-authz-permission-group {
+  border: 1px solid rgba(118, 98, 74, 0.2);
+  border-radius: 12px;
+  background: #fffef9;
+  padding: 0.45rem 0.5rem;
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+}
+
+.users-authz-permission-heading {
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #4c5d67;
+}
+
+.users-authz-permission-list {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.users-authz-permission-row {
+  border: 1px solid rgba(118, 98, 74, 0.16);
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 0.32rem 0.38rem;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.users-authz-code {
+  font-family: "Space Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.71rem;
+  line-height: 1.35;
+  word-break: break-word;
+  color: #3d4c56;
+}
+
+.users-authz-assignment-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.users-authz-matrix-domain {
+  display: grid;
+  gap: 0.32rem;
+}
+
+.users-authz-matrix-wrap {
+  overflow-x: auto;
+  border: 1px solid rgba(118, 98, 74, 0.2);
+  border-radius: 11px;
+  background: #fffef8;
+}
+
+.users-authz-matrix {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 620px;
+}
+
+.users-authz-matrix th,
+.users-authz-matrix td {
+  border-top: 1px solid rgba(118, 98, 74, 0.16);
+  border-right: 1px solid rgba(118, 98, 74, 0.1);
+  padding: 0.4rem 0.45rem;
+  vertical-align: middle;
+  text-align: center;
+  background: #fffef9;
+}
+
+.users-authz-matrix thead th {
+  border-top: none;
+  font-size: 0.71rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #4f5f68;
+  background: #fff4ea;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.users-authz-matrix th:first-child,
+.users-authz-matrix td:first-child {
+  text-align: left;
+}
+
+.users-authz-matrix th:last-child,
+.users-authz-matrix td:last-child {
+  border-right: none;
+}
+
+.users-authz-matrix-role {
+  min-width: 92px;
+}
+
+.users-authz-matrix-role span:first-child {
+  display: block;
+}
+
+.users-authz-matrix-role .users-authz-role-id {
+  margin-top: 0.15rem;
+}
+
+.users-authz-matrix-permission {
+  min-width: 260px;
+}
+
+.users-authz-matrix-permission .meta {
+  margin: 0.15rem 0 0;
+  line-height: 1.3;
+}
+
+.users-authz-matrix-cell {
+  min-width: 92px;
+}
+
+.users-authz-assignment-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(107, 120, 128, 0.32);
+  background: #f2f5f8;
+  color: #4f616c;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  padding: 0.12rem 0.46rem;
+}
+
+.users-authz-assignment-pill.is-granted {
+  border-color: rgba(35, 109, 63, 0.45);
+  background: #eaf7ee;
+  color: #1f6a3b;
+}
+
 .tags-workspace-categories {
   display: block;
 }
@@ -3024,5 +3252,26 @@ button.slot-order-btn:disabled {
 
   .inspect-generate-row button {
     width: 100%;
+  }
+
+  .users-authz-role-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .users-authz-permission-domain-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .users-authz-matrix {
+    min-width: 520px;
+  }
+
+  .users-authz-matrix th,
+  .users-authz-matrix td {
+    padding: 0.34rem 0.34rem;
+  }
+
+  .users-authz-matrix-permission {
+    min-width: 220px;
   }
 }

@@ -3781,6 +3781,11 @@ function renderUsersAuthorizationWorkspace() {
     matrix.assignments && typeof matrix.assignments.team_membership_roles === "object"
       ? matrix.assignments.team_membership_roles
       : {};
+  const teamRosterAssignments =
+    matrix.assignments && typeof matrix.assignments.team_roster_roles === "object"
+      ? matrix.assignments.team_roster_roles
+      : {};
+  const permissionById = new Map(permissions.map((permission) => [permission.id, permission]));
 
   elements.usersAuthorizationAccess.textContent = [
     `${globalRoles.length} global role${globalRoles.length === 1 ? "" : "s"}`,
@@ -3788,83 +3793,284 @@ function renderUsersAuthorizationWorkspace() {
     `${permissions.length} permission${permissions.length === 1 ? "" : "s"}`
   ].join(" • ");
 
-  const createRoleCard = (title, roles) => {
-    const card = runtimeDocument.createElement("article");
-    card.className = "summary-card";
+  const createBlockHeader = (title, count, subtitle) => {
+    const header = runtimeDocument.createElement("div");
+    header.className = "users-authz-block-header";
+    const titleRow = runtimeDocument.createElement("div");
+    titleRow.className = "users-authz-block-title-row";
     const heading = runtimeDocument.createElement("strong");
     heading.textContent = title;
-    card.append(heading);
-    if (!Array.isArray(roles) || roles.length === 0) {
-      card.append(createMetaParagraph("No roles defined."));
+    titleRow.append(heading);
+    if (Number.isInteger(count)) {
+      const countBadge = runtimeDocument.createElement("span");
+      countBadge.className = "users-authz-count-badge";
+      countBadge.textContent = `${count}`;
+      titleRow.append(countBadge);
+    }
+    header.append(titleRow);
+    if (typeof subtitle === "string" && subtitle.trim() !== "") {
+      header.append(createMetaParagraph(subtitle));
+    }
+    return header;
+  };
+
+  const createRoleCard = (title, roles, assignments = null, { emptyMessage = "No roles defined." } = {}) => {
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card users-authz-block";
+    const normalizedRoles = Array.isArray(roles) ? roles : [];
+    card.append(
+      createBlockHeader(
+        title,
+        normalizedRoles.length,
+        "Role id and human label are shown together for quick policy auditing."
+      )
+    );
+    if (normalizedRoles.length === 0) {
+      card.append(createMetaParagraph(emptyMessage));
       return card;
     }
-    const list = runtimeDocument.createElement("ul");
-    list.className = "user-detail-list";
-    for (const role of roles) {
-      const item = runtimeDocument.createElement("li");
-      item.textContent = role.description
-        ? `${role.label} (${role.id}): ${role.description}`
-        : `${role.label} (${role.id})`;
-      list.append(item);
+    const grid = runtimeDocument.createElement("div");
+    grid.className = "users-authz-role-grid";
+    for (const role of normalizedRoles) {
+      const roleCard = runtimeDocument.createElement("article");
+      roleCard.className = "users-authz-role-card";
+      const roleHeader = runtimeDocument.createElement("div");
+      roleHeader.className = "users-authz-role-header";
+      const roleLabel = runtimeDocument.createElement("strong");
+      roleLabel.textContent = role.label || role.id;
+      const roleId = runtimeDocument.createElement("span");
+      roleId.className = "users-authz-role-id";
+      roleId.textContent = role.id;
+      roleHeader.append(roleLabel, roleId);
+      roleCard.append(roleHeader);
+      if (assignments && typeof assignments === "object") {
+        const assignmentCount = Array.isArray(assignments[role.id]) ? assignments[role.id].length : 0;
+        roleCard.append(
+          createMetaParagraph(`${assignmentCount} permission${assignmentCount === 1 ? "" : "s"} assigned`)
+        );
+      }
+      if (role.description) {
+        roleCard.append(createMetaParagraph(role.description));
+      }
+      grid.append(roleCard);
     }
-    card.append(list);
+    card.append(grid);
     return card;
   };
 
   elements.usersAuthorizationRoles.append(
-    createRoleCard("Global Roles", globalRoles),
-    createRoleCard("Team Membership Roles", teamMembershipRoles),
-    createRoleCard("Team Roster Roles", teamRosterRoles)
+    createRoleCard("Global Roles", globalRoles, globalAssignments),
+    createRoleCard("Team Membership Roles", teamMembershipRoles, teamMembershipAssignments),
+    createRoleCard("Team Roster Roles", teamRosterRoles, teamRosterAssignments)
   );
 
+  const normalizePermissionDomainLabel = (domain) => {
+    const normalized = typeof domain === "string" ? domain.trim() : "";
+    if (!normalized) {
+      return "General";
+    }
+    return normalized
+      .split("_")
+      .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+      .join(" ");
+  };
+
+  const groupedPermissions = permissions.reduce((acc, permission) => {
+    const domain = String(permission.id ?? "").split(".")[0] || "general";
+    if (!acc.has(domain)) {
+      acc.set(domain, []);
+    }
+    acc.get(domain).push(permission);
+    return acc;
+  }, new Map());
+
   const permissionsCard = runtimeDocument.createElement("article");
-  permissionsCard.className = "summary-card";
-  const permissionsHeading = runtimeDocument.createElement("strong");
-  permissionsHeading.textContent = "Permission Catalog";
-  permissionsCard.append(permissionsHeading);
+  permissionsCard.className = "summary-card users-authz-block";
+  permissionsCard.append(
+    createBlockHeader(
+      "Permission Catalog",
+      permissions.length,
+      "Grouped by policy namespace so related controls are easy to scan."
+    )
+  );
   if (permissions.length === 0) {
     permissionsCard.append(createMetaParagraph("No permissions defined."));
   } else {
-    const list = runtimeDocument.createElement("ul");
-    list.className = "user-detail-list";
-    for (const permission of permissions) {
-      const item = runtimeDocument.createElement("li");
-      item.textContent = permission.description
-        ? `${permission.id}: ${permission.description}`
-        : permission.id;
-      list.append(item);
+    const sortedDomains = [...groupedPermissions.keys()].sort((left, right) => left.localeCompare(right));
+    const domainGrid = runtimeDocument.createElement("div");
+    domainGrid.className = "users-authz-permission-domain-grid";
+    for (const domain of sortedDomains) {
+      const group = runtimeDocument.createElement("section");
+      group.className = "users-authz-permission-group";
+      const domainHeading = runtimeDocument.createElement("h4");
+      domainHeading.className = "users-authz-permission-heading";
+      const domainPermissions = groupedPermissions.get(domain) ?? [];
+      domainHeading.textContent = `${normalizePermissionDomainLabel(domain)} (${domainPermissions.length})`;
+      group.append(domainHeading);
+      const list = runtimeDocument.createElement("div");
+      list.className = "users-authz-permission-list";
+      domainPermissions.sort((left, right) => String(left.id ?? "").localeCompare(String(right.id ?? "")));
+      for (const permission of domainPermissions) {
+        const row = runtimeDocument.createElement("div");
+        row.className = "users-authz-permission-row";
+        const code = runtimeDocument.createElement("span");
+        code.className = "users-authz-code";
+        code.textContent = permission.id;
+        row.append(code);
+        if (permission.description) {
+          row.append(createMetaParagraph(permission.description));
+        }
+        list.append(row);
+      }
+      group.append(list);
+      domainGrid.append(group);
     }
-    permissionsCard.append(list);
+    permissionsCard.append(domainGrid);
   }
   elements.usersAuthorizationPermissions.append(permissionsCard);
 
   const createAssignmentCard = (title, roles, assignments) => {
     const card = runtimeDocument.createElement("article");
-    card.className = "summary-card";
-    const heading = runtimeDocument.createElement("strong");
-    heading.textContent = title;
-    card.append(heading);
+    card.className = "summary-card users-authz-block";
     if (!Array.isArray(roles) || roles.length === 0) {
+      card.append(createBlockHeader(title, 0, "No roles are available for this assignment scope."));
       card.append(createMetaParagraph("No roles defined."));
       return card;
     }
-    const list = runtimeDocument.createElement("ul");
-    list.className = "user-detail-list";
-    for (const role of roles) {
-      const assignedPermissionIds = Array.isArray(assignments[role.id]) ? assignments[role.id] : [];
-      const item = runtimeDocument.createElement("li");
-      item.textContent = `${role.label}: ${
-        assignedPermissionIds.length > 0 ? assignedPermissionIds.join(", ") : "No assigned permissions."
-      }`;
-      list.append(item);
+    card.append(
+      createBlockHeader(
+        title,
+        roles.length,
+        "Rows are permissions, columns are roles. Use this matrix to verify grants quickly."
+      )
+    );
+    if (permissions.length === 0) {
+      card.append(createMetaParagraph("No permissions defined."));
+      return card;
     }
-    card.append(list);
+
+    const rolePermissionSets = new Map(
+      roles.map((role) => [role.id, new Set(Array.isArray(assignments[role.id]) ? assignments[role.id] : [])])
+    );
+    const unknownPermissionIds = [...new Set([...rolePermissionSets.values()].flatMap((set) => [...set]))]
+      .filter((permissionId) => !permissionById.has(permissionId))
+      .sort((left, right) => left.localeCompare(right));
+    if (unknownPermissionIds.length > 0) {
+      card.append(
+        createMetaParagraph(
+          `Warning: ${unknownPermissionIds.length} assigned permission id${unknownPermissionIds.length === 1 ? "" : "s"} not present in catalog.`
+        )
+      );
+    }
+
+    const legend = runtimeDocument.createElement("div");
+    legend.className = "users-authz-assignment-legend";
+    const yesPill = runtimeDocument.createElement("span");
+    yesPill.className = "users-authz-assignment-pill is-granted";
+    yesPill.textContent = "Yes";
+    const noPill = runtimeDocument.createElement("span");
+    noPill.className = "users-authz-assignment-pill";
+    noPill.textContent = "No";
+    const legendText = runtimeDocument.createElement("span");
+    legendText.className = "meta";
+    legendText.textContent = "Cell value indicates whether that role grants that permission.";
+    legend.append(yesPill, noPill, legendText);
+    card.append(legend);
+
+    const groupedPermissionRows = permissions.reduce((acc, permission) => {
+      const domain = String(permission.id ?? "").split(".")[0] || "general";
+      if (!acc.has(domain)) {
+        acc.set(domain, []);
+      }
+      acc.get(domain).push(permission);
+      return acc;
+    }, new Map());
+
+    const sortedDomains = [...groupedPermissionRows.keys()].sort((left, right) => left.localeCompare(right));
+    for (const role of roles) {
+      if (!rolePermissionSets.has(role.id)) {
+        rolePermissionSets.set(role.id, new Set());
+      }
+    }
+
+    for (const domain of sortedDomains) {
+      const domainSection = runtimeDocument.createElement("section");
+      domainSection.className = "users-authz-matrix-domain";
+      const domainHeader = runtimeDocument.createElement("h4");
+      domainHeader.className = "users-authz-permission-heading";
+      domainHeader.textContent = normalizePermissionDomainLabel(domain);
+      domainSection.append(domainHeader);
+
+      const matrixWrap = runtimeDocument.createElement("div");
+      matrixWrap.className = "users-authz-matrix-wrap";
+      const matrixTable = runtimeDocument.createElement("table");
+      matrixTable.className = "users-authz-matrix";
+      const head = runtimeDocument.createElement("thead");
+      const headRow = runtimeDocument.createElement("tr");
+      const permissionHead = runtimeDocument.createElement("th");
+      permissionHead.scope = "col";
+      permissionHead.textContent = "Permission";
+      headRow.append(permissionHead);
+      for (const role of roles) {
+        const roleHead = runtimeDocument.createElement("th");
+        roleHead.scope = "col";
+        roleHead.className = "users-authz-matrix-role";
+        const roleLabel = runtimeDocument.createElement("span");
+        roleLabel.textContent = role.label || role.id;
+        const roleId = runtimeDocument.createElement("span");
+        roleId.className = "users-authz-role-id";
+        roleId.textContent = role.id;
+        roleHead.append(roleLabel, roleId);
+        headRow.append(roleHead);
+      }
+      head.append(headRow);
+      matrixTable.append(head);
+
+      const body = runtimeDocument.createElement("tbody");
+      const domainPermissions = groupedPermissionRows.get(domain) ?? [];
+      domainPermissions.sort((left, right) => String(left.id ?? "").localeCompare(String(right.id ?? "")));
+      for (const permission of domainPermissions) {
+        const permissionRow = runtimeDocument.createElement("tr");
+        const permissionCell = runtimeDocument.createElement("th");
+        permissionCell.scope = "row";
+        permissionCell.className = "users-authz-matrix-permission";
+        const code = runtimeDocument.createElement("span");
+        code.className = "users-authz-code";
+        code.textContent = permission.id;
+        permissionCell.append(code);
+        if (permission.description) {
+          permissionCell.append(createMetaParagraph(permission.description));
+        }
+        permissionRow.append(permissionCell);
+
+        for (const role of roles) {
+          const rolePermissionSet = rolePermissionSets.get(role.id) ?? new Set();
+          const granted = rolePermissionSet.has(permission.id);
+          const cell = runtimeDocument.createElement("td");
+          cell.className = "users-authz-matrix-cell";
+          const pill = runtimeDocument.createElement("span");
+          pill.className = granted ? "users-authz-assignment-pill is-granted" : "users-authz-assignment-pill";
+          pill.textContent = granted ? "Yes" : "No";
+          pill.title = granted
+            ? `${role.label || role.id} grants ${permission.id}`
+            : `${role.label || role.id} does not grant ${permission.id}`;
+          cell.append(pill);
+          permissionRow.append(cell);
+        }
+        body.append(permissionRow);
+      }
+      matrixTable.append(body);
+      matrixWrap.append(matrixTable);
+      domainSection.append(matrixWrap);
+      card.append(domainSection);
+    }
     return card;
   };
 
   elements.usersAuthorizationAssignments.append(
     createAssignmentCard("Global Role Assignments", globalRoles, globalAssignments),
-    createAssignmentCard("Team Membership Assignments", teamMembershipRoles, teamMembershipAssignments)
+    createAssignmentCard("Team Membership Assignments", teamMembershipRoles, teamMembershipAssignments),
+    createAssignmentCard("Team Roster Assignments", teamRosterRoles, teamRosterAssignments)
   );
 }
 
