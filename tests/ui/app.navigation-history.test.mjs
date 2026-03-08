@@ -61,7 +61,6 @@ function createFetchHarness({
 } = {}) {
   const calls = [];
   let teamContext = {
-    defaultTeamId: null,
     activeTeamId: null
   };
   const resolvedLoginUser = loginUser ?? {
@@ -141,7 +140,6 @@ function createFetchHarness({
 
     if (path === "/me/team-context" && method === "PUT") {
       teamContext = {
-        defaultTeamId: body?.defaultTeamId ?? null,
         activeTeamId: body?.activeTeamId ?? null
       };
       return createJsonResponse({ teamContext });

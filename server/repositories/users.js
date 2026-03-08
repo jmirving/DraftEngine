@@ -29,7 +29,7 @@ export function createUsersRepository(pool) {
     async findById(userId) {
       const result = await pool.query(
         `
-          SELECT id, email, password_hash, game_name, tagline, first_name, last_name, role, primary_role, secondary_roles, riot_id_correction_count, created_at
+          SELECT id, email, password_hash, game_name, tagline, first_name, last_name, role, primary_role, secondary_roles, active_team_id, riot_id_correction_count, created_at
           FROM users
           WHERE id = $1
         `,
@@ -133,7 +133,7 @@ export function createUsersRepository(pool) {
     async findTeamContextById(userId) {
       const result = await pool.query(
         `
-          SELECT id, default_team_id, active_team_id
+          SELECT id, active_team_id
           FROM users
           WHERE id = $1
         `,
@@ -156,16 +156,15 @@ export function createUsersRepository(pool) {
       return result.rows[0] ?? null;
     },
 
-    async updateTeamContext(userId, { defaultTeamId, activeTeamId }) {
+    async updateTeamContext(userId, { activeTeamId }) {
       const result = await pool.query(
         `
           UPDATE users
-          SET default_team_id = $2,
-              active_team_id = $3
+          SET active_team_id = $2
           WHERE id = $1
-          RETURNING id, default_team_id, active_team_id
+          RETURNING id, active_team_id
         `,
-        [userId, defaultTeamId, activeTeamId]
+        [userId, activeTeamId]
       );
       return result.rows[0] ?? null;
     },

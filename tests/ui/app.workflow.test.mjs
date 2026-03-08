@@ -53,7 +53,6 @@ function createFetchImpl() {
               : []
   }));
   let teamContext = {
-    defaultTeamId: null,
     activeTeamId: null
   };
 
@@ -99,7 +98,6 @@ function createFetchImpl() {
     }
     if (path === "/me/team-context" && method === "PUT") {
       teamContext = {
-        defaultTeamId: body?.defaultTeamId ?? null,
         activeTeamId: body?.activeTeamId ?? null
       };
       return {

@@ -74,10 +74,6 @@ function parseNullableTeamId(rawValue, fieldName) {
 
 function serializeTeamContext(teamContext) {
   return {
-    defaultTeamId:
-      teamContext.default_team_id === null || teamContext.default_team_id === undefined
-        ? null
-        : Number(teamContext.default_team_id),
     activeTeamId:
       teamContext.active_team_id === null || teamContext.active_team_id === undefined
         ? null
@@ -138,15 +134,7 @@ export function createProfileRouter({ usersRepository, teamsRepository, requireA
     }
 
     const current = serializeTeamContext(storedContext);
-    let defaultTeamId = current.defaultTeamId;
     let activeTeamId = current.activeTeamId;
-
-    if (defaultTeamId !== null) {
-      const membership = await teamsRepository.getMembership(defaultTeamId, userId);
-      if (!membership) {
-        defaultTeamId = null;
-      }
-    }
 
     if (activeTeamId !== null) {
       const membership = await teamsRepository.getMembership(activeTeamId, userId);
@@ -155,9 +143,8 @@ export function createProfileRouter({ usersRepository, teamsRepository, requireA
       }
     }
 
-    if (defaultTeamId !== current.defaultTeamId || activeTeamId !== current.activeTeamId) {
+    if (activeTeamId !== current.activeTeamId) {
       const persisted = await usersRepository.updateTeamContext(userId, {
-        defaultTeamId,
         activeTeamId
       });
       if (!persisted) {
@@ -171,7 +158,6 @@ export function createProfileRouter({ usersRepository, teamsRepository, requireA
 
     response.json({
       teamContext: {
-        defaultTeamId,
         activeTeamId
       }
     });
@@ -180,14 +166,11 @@ export function createProfileRouter({ usersRepository, teamsRepository, requireA
   router.put("/me/team-context", async (request, response) => {
     const userId = request.user.userId;
     const body = requireObject(request.body);
-    const defaultTeamId = parseNullableTeamId(body.defaultTeamId, "defaultTeamId");
     const activeTeamId = parseNullableTeamId(body.activeTeamId, "activeTeamId");
 
-    await assertTeamMembershipOrNull(defaultTeamId, userId, teamsRepository, "defaultTeamId");
     await assertTeamMembershipOrNull(activeTeamId, userId, teamsRepository, "activeTeamId");
 
     const updated = await usersRepository.updateTeamContext(userId, {
-      defaultTeamId,
       activeTeamId
     });
     if (!updated) {

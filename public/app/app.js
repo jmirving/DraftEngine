@@ -457,7 +457,6 @@ function createInitialState() {
       activeCardRole: {}
     },
     teamConfig: {
-      defaultTeamId: null,
       activeTeamId: null
     },
     playerConfig: {
@@ -700,9 +699,7 @@ function createElements() {
     treeExpandAll: runtimeDocument.querySelector("#tree-expand-all"),
     treeCollapseAll: runtimeDocument.querySelector("#tree-collapse-all"),
     teamConfigActiveTeam: runtimeDocument.querySelector("#team-config-active-team"),
-    teamConfigDefaultTeam: runtimeDocument.querySelector("#team-config-default-team"),
     teamConfigContextHelp: runtimeDocument.querySelector("#team-config-context-help"),
-    teamConfigDefaultHelp: runtimeDocument.querySelector("#team-config-default-help"),
     teamConfigActiveHelp: runtimeDocument.querySelector("#team-config-active-help"),
     teamConfigPoolSummary: runtimeDocument.querySelector("#team-config-pool-summary"),
     teamConfigPoolGrid: runtimeDocument.querySelector("#team-config-pool-grid"),
@@ -3373,7 +3370,6 @@ function normalizeApiUserDetail(rawDetail) {
   const secondaryRoles = Array.isArray(rawDetail.secondary_roles)
     ? rawDetail.secondary_roles.filter((value) => typeof value === "string")
     : [];
-  const defaultTeam = normalizeTeamDetail(rawDetail.default_team);
   const activeTeam = normalizeTeamDetail(rawDetail.active_team);
   const championPools = Array.isArray(rawDetail.champion_pools)
     ? rawDetail.champion_pools.map(normalizePoolDetail).filter(Boolean)
@@ -3399,7 +3395,6 @@ function normalizeApiUserDetail(rawDetail) {
     user_id: userId,
     primary_role: primaryRole,
     secondary_roles: secondaryRoles,
-    default_team: defaultTeam,
     active_team: activeTeam,
     champion_pools: championPools,
     team_memberships: teamMemberships,
@@ -3441,11 +3436,6 @@ function renderUserDetailContent(userId, container) {
       detail.secondary_roles.length > 0
         ? `Secondary roles: ${detail.secondary_roles.join(", ")}`
         : "Secondary roles: none"
-    ),
-    createMetaParagraph(
-      detail.default_team
-        ? `Default team: ${detail.default_team.name || `Team ${detail.default_team.team_id}`} (${detail.default_team.tag ?? "TBD"})`
-        : "Default team: None"
     ),
     createMetaParagraph(
       detail.active_team
@@ -6718,16 +6708,13 @@ async function loadTeamsFromApi(preferredTeamId = null) {
 
 async function loadTeamContextFromApi() {
   if (!isAuthenticated()) {
-    state.teamConfig.defaultTeamId = NONE_TEAM_ID;
     state.teamConfig.activeTeamId = NONE_TEAM_ID;
     return false;
   }
 
   try {
     const payload = await apiRequest("/me/team-context", { auth: true });
-    const apiDefaultTeamId = normalizeTeamEntityId(payload?.teamContext?.defaultTeamId);
     const apiActiveTeamId = normalizeTeamEntityId(payload?.teamContext?.activeTeamId);
-    state.teamConfig.defaultTeamId = apiDefaultTeamId ?? NONE_TEAM_ID;
     state.teamConfig.activeTeamId = apiActiveTeamId ?? NONE_TEAM_ID;
     return true;
   } catch (error) {
@@ -6742,19 +6729,15 @@ async function saveTeamContextToApi() {
   }
 
   try {
-    const defaultTeamId = toApiTeamContextId(state.teamConfig.defaultTeamId);
     const activeTeamId = toApiTeamContextId(state.teamConfig.activeTeamId);
     const payload = await apiRequest("/me/team-context", {
       method: "PUT",
       auth: true,
       body: {
-        defaultTeamId,
         activeTeamId
       }
     });
-    const persistedDefaultTeamId = normalizeTeamEntityId(payload?.teamContext?.defaultTeamId);
     const persistedActiveTeamId = normalizeTeamEntityId(payload?.teamContext?.activeTeamId);
-    state.teamConfig.defaultTeamId = persistedDefaultTeamId ?? NONE_TEAM_ID;
     state.teamConfig.activeTeamId = persistedActiveTeamId ?? NONE_TEAM_ID;
     return true;
   } catch (error) {
@@ -7080,7 +7063,6 @@ function resolveConfiguredTeamSelection(teamId) {
 }
 
 function syncConfiguredTeamSelection() {
-  state.teamConfig.defaultTeamId = resolveConfiguredTeamSelection(state.teamConfig.defaultTeamId);
   state.teamConfig.activeTeamId = resolveConfiguredTeamSelection(state.teamConfig.activeTeamId);
   state.builder.teamId = state.teamConfig.activeTeamId;
 }
@@ -7180,10 +7162,8 @@ function syncBuilderCompositionControls() {
 }
 
 function initializeBuilderControls() {
-  const candidateActiveTeamId =
-    state.teamConfig.activeTeamId ?? state.teamConfig.defaultTeamId ?? state.data.config.teamDefault ?? null;
+  const candidateActiveTeamId = state.teamConfig.activeTeamId ?? state.data.config.teamDefault ?? null;
   state.teamConfig.activeTeamId = resolveConfiguredTeamSelection(candidateActiveTeamId);
-  state.teamConfig.defaultTeamId = resolveConfiguredTeamSelection(state.teamConfig.defaultTeamId);
   state.builder.teamId = state.teamConfig.activeTeamId;
   state.builder.showOptionalChecks = BUILDER_DEFAULTS.showOptionalChecksByDefault;
   state.builder.treeDensity = BUILDER_DEFAULTS.defaultTreeDensity;
@@ -7351,17 +7331,8 @@ function openTeamManageAction(action, context = null) {
 
 function renderTeamConfig() {
   syncConfiguredTeamSelection();
-  if (elements.teamConfigDefaultTeam) {
-    elements.teamConfigDefaultTeam.value = state.teamConfig.defaultTeamId;
-  }
   if (elements.teamConfigActiveTeam) {
     elements.teamConfigActiveTeam.value = state.teamConfig.activeTeamId;
-  }
-
-  if (elements.teamConfigDefaultHelp) {
-    elements.teamConfigDefaultHelp.textContent = state.teamConfig.defaultTeamId === NONE_TEAM_ID
-      ? "Default team: None (new sessions start in global context)."
-      : `Default team: ${getTeamDisplayLabel(state.teamConfig.defaultTeamId)}.`;
   }
 
   const activeTeam = findTeamById(state.teamConfig.activeTeamId);
@@ -8426,9 +8397,6 @@ function renderTeamAdmin() {
 
 function initializeTeamConfigControls() {
   const options = getTeamSelectOptions();
-  if (elements.teamConfigDefaultTeam) {
-    replaceOptions(elements.teamConfigDefaultTeam, options);
-  }
   if (elements.teamConfigActiveTeam) {
     replaceOptions(elements.teamConfigActiveTeam, options);
   }
@@ -8889,13 +8857,6 @@ function tryWriteJsonStorage(key, value) {
 
 function loadStoredTeamConfig() {
   const stored = tryReadJsonStorage(TEAM_CONFIG_STORAGE_KEY, {});
-  if (stored.defaultTeamId === NONE_TEAM_ID) {
-    state.teamConfig.defaultTeamId = NONE_TEAM_ID;
-  } else {
-    const defaultTeamId = normalizeTeamEntityId(stored.defaultTeamId);
-    state.teamConfig.defaultTeamId = defaultTeamId ?? NONE_TEAM_ID;
-  }
-
   if (stored.activeTeamId === NONE_TEAM_ID) {
     state.teamConfig.activeTeamId = NONE_TEAM_ID;
     return;
@@ -8906,12 +8867,11 @@ function loadStoredTeamConfig() {
     state.teamConfig.activeTeamId = activeTeamId;
     return;
   }
-  state.teamConfig.activeTeamId = state.teamConfig.defaultTeamId ?? NONE_TEAM_ID;
+  state.teamConfig.activeTeamId = NONE_TEAM_ID;
 }
 
 function saveTeamConfig() {
   tryWriteJsonStorage(TEAM_CONFIG_STORAGE_KEY, {
-    defaultTeamId: state.teamConfig.defaultTeamId,
     activeTeamId: state.teamConfig.activeTeamId
   });
 }
@@ -11339,20 +11299,6 @@ function attachEvents() {
   elements.treeCollapseAll.addEventListener("click", () => {
     setAllTreeDetails(false);
   });
-
-  if (elements.teamConfigDefaultTeam) {
-    elements.teamConfigDefaultTeam.addEventListener("change", () => {
-      state.teamConfig.defaultTeamId = resolveConfiguredTeamSelection(elements.teamConfigDefaultTeam.value);
-      saveTeamConfig();
-      renderTeamConfig();
-      if (isAuthenticated()) {
-        void saveTeamContextToApi().then(() => {
-          saveTeamConfig();
-          renderTeamConfig();
-        });
-      }
-    });
-  }
 
   if (elements.teamConfigActiveTeam) {
     elements.teamConfigActiveTeam.addEventListener("change", () => {

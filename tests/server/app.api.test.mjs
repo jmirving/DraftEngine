@@ -304,21 +304,18 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       }
       return {
         id: user.id,
-        default_team_id: user.default_team_id ?? null,
         active_team_id: user.active_team_id ?? null
       };
     },
 
-    async updateTeamContext(userId, { defaultTeamId, activeTeamId }) {
+    async updateTeamContext(userId, { activeTeamId }) {
       const user = state.users.find((candidate) => candidate.id === userId) ?? null;
       if (!user) {
         return null;
       }
-      user.default_team_id = defaultTeamId;
       user.active_team_id = activeTeamId;
       return {
         id: user.id,
-        default_team_id: user.default_team_id,
         active_team_id: user.active_team_id
       };
     }
@@ -1476,53 +1473,47 @@ describe("API routes", () => {
     });
   });
 
-  it("reads and updates team-context preferences with membership validation", async () => {
+  it("reads and updates active team-context with membership validation", async () => {
     const { app, config, state } = createMockContext();
     const leadAuth = buildAuthHeader(1, config);
 
     const initial = await request(app).get("/me/team-context").set("Authorization", leadAuth);
     expect(initial.status).toBe(200);
     expect(initial.body.teamContext).toEqual({
-      defaultTeamId: null,
       activeTeamId: null
     });
 
     const updated = await request(app)
       .put("/me/team-context")
       .set("Authorization", leadAuth)
-      .send({ defaultTeamId: 1, activeTeamId: 1 });
+      .send({ activeTeamId: 1 });
     expect(updated.status).toBe(200);
     expect(updated.body.teamContext).toEqual({
-      defaultTeamId: 1,
       activeTeamId: 1
     });
 
     const persisted = await request(app).get("/me/team-context").set("Authorization", leadAuth);
     expect(persisted.status).toBe(200);
     expect(persisted.body.teamContext).toEqual({
-      defaultTeamId: 1,
       activeTeamId: 1
     });
 
     const invalidMembership = await request(app)
       .put("/me/team-context")
       .set("Authorization", leadAuth)
-      .send({ defaultTeamId: 999, activeTeamId: 1 });
+      .send({ activeTeamId: 999 });
     expect(invalidMembership.status).toBe(400);
     expect(invalidMembership.body.error.code).toBe("BAD_REQUEST");
 
     const leadUser = state.users.find((candidate) => candidate.id === 1);
-    leadUser.default_team_id = 999;
-    leadUser.active_team_id = 1;
+    leadUser.active_team_id = 999;
 
     const normalized = await request(app).get("/me/team-context").set("Authorization", leadAuth);
     expect(normalized.status).toBe(200);
     expect(normalized.body.teamContext).toEqual({
-      defaultTeamId: null,
-      activeTeamId: 1
+      activeTeamId: null
     });
-    expect(leadUser.default_team_id).toBe(null);
-    expect(leadUser.active_team_id).toBe(1);
+    expect(leadUser.active_team_id).toBe(null);
   });
 
   it("sets CORS headers and handles preflight requests", async () => {

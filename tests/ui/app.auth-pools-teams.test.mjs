@@ -138,10 +138,10 @@ function createFetchHarness({
     [3, new Set([])]
   ]);
   let persistedTeamContext = {
-    defaultTeamId: null,
     activeTeamId: null,
     ...(teamContext && typeof teamContext === "object" ? teamContext : {})
-  };  let requirementDefinitions = [
+  };
+  let requirementDefinitions = [
     {
       id: 1,
       name: "Frontline Anchor",
@@ -627,7 +627,6 @@ function createFetchHarness({
 
     if (path === "/me/team-context" && method === "PUT") {
       persistedTeamContext = {
-        defaultTeamId: body.defaultTeamId ?? null,
         activeTeamId: body.activeTeamId ?? null
       };
       return createJsonResponse({
@@ -801,7 +800,6 @@ function createFetchHarness({
           user_id: targetUserId,
           primary_role: user.primary_role ?? null,
           secondary_roles: Array.isArray(user.secondary_roles) ? [...user.secondary_roles] : [],
-          default_team: null,
           active_team: null,
           champion_pools: poolSummaries,
           team_memberships: teamMemberships,
@@ -2850,7 +2848,6 @@ describe("auth + pools + team management", () => {
         "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "lead@example.com" }]
       },
       teamContext: {
-        defaultTeamId: null,
         activeTeamId: null
       }
     });
@@ -2915,7 +2912,6 @@ describe("auth + pools + team management", () => {
         "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "adc@example.com" }]
       },
       teamContext: {
-        defaultTeamId: null,
         activeTeamId: 1
       }
     });
@@ -2961,7 +2957,6 @@ describe("auth + pools + team management", () => {
         "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "adc@example.com" }]
       },
       teamContext: {
-        defaultTeamId: null,
         activeTeamId: 1
       }
     });

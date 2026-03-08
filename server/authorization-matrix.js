@@ -55,11 +55,11 @@ const PERMISSIONS = Object.freeze([
   },
   {
     id: "team_context.read.self",
-    description: "Read your own default/active team context."
+    description: "Read your own active team context."
   },
   {
     id: "team_context.write.self",
-    description: "Update your own default/active team context."
+    description: "Update your own active team context."
   },
   {
     id: "pools.read.self",

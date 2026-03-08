@@ -108,10 +108,6 @@ export function createAdminUsersRouter({
       promotionRequestsRepository.countChampionTagPromotionsByRequester(targetUserId)
     ]);
 
-    const defaultTeam =
-      Number.isInteger(targetUser.default_team_id) && targetUser.default_team_id > 0
-        ? await teamsRepository.getTeamById(targetUser.default_team_id)
-        : null;
     const activeTeam =
       Number.isInteger(targetUser.active_team_id) && targetUser.active_team_id > 0
         ? await teamsRepository.getTeamById(targetUser.active_team_id)
@@ -122,13 +118,6 @@ export function createAdminUsersRouter({
         user_id: targetUserId,
         primary_role: typeof targetUser.primary_role === "string" ? targetUser.primary_role : null,
         secondary_roles: Array.isArray(targetUser.secondary_roles) ? targetUser.secondary_roles : [],
-        default_team: defaultTeam
-          ? {
-              team_id: Number(defaultTeam.id),
-              name: defaultTeam.name,
-              tag: defaultTeam.tag
-            }
-          : null,
         active_team: activeTeam
           ? {
               team_id: Number(activeTeam.id),
