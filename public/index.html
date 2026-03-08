@@ -155,7 +155,7 @@
       <div id="app-shell" class="app-shell" hidden>
         <div class="main-content">
           <section id="tab-explorer" class="tab-panel tab-surface">
-            <div class="panel draft-board-panel">
+            <div id="champion-grid-panel" class="panel draft-board-panel">
               <h2 id="explorer-title">Champions</h2>
               <div class="explorer-filter-section">
                 <div class="explorer-filter-bar">
@@ -212,35 +212,58 @@
                   </div>
                 </div>
               </div>
-              <p id="explorer-indicator-legend" class="meta">Card indicator order: Roles | Damage Type | Effectiveness Focus.</p>
               <p id="explorer-count" class="meta"></p>
               <div id="explorer-results" class="card-grid"></div>
-              <div id="champion-tag-editor" class="champion-tag-editor" hidden>
-                <p class="panel-kicker">Tag Editor</p>
-                <h3 id="champion-tag-editor-title">Edit Champion Profile</h3>
-                <p id="champion-tag-editor-meta" class="meta"></p>
-                <div
-                  id="champion-editor-panel-composition"
-                  class="champion-editor-panel"
-                >
-                  <label class="inline-checkbox champion-review-toggle">
+            </div>
+
+            <div id="champion-tag-editor" class="panel draft-board-panel" hidden>
+              <div class="ced-header">
+                <img id="ced-champ-image" class="champ-thumb" alt="" />
+                <div class="ced-champ-info">
+                  <h2 id="champion-tag-editor-title">Edit Champion Profile</h2>
+                  <p id="ced-champ-roles" class="meta"></p>
+                  <label class="inline-checkbox">
                     <input id="champion-tag-editor-reviewed" type="checkbox" />
                     Human reviewed
                   </label>
-                  <p class="meta">Mark this when a human has reviewed and approved the current global composition tags. Tag definitions are shown inline below.</p>
-                  <div id="champion-tag-editor-tags" class="excluded-options"></div>
                 </div>
-                <div id="champion-editor-panel-roles" class="champion-editor-panel">
-                  <p class="meta">Choose one or more valid roles, then configure per-role primary damage type and effectiveness profile.</p>
-                  <div id="champion-metadata-editor-roles" class="excluded-options"></div>
-                  <div id="champion-metadata-role-profiles" class="champion-role-profile-list"></div>
-                </div>
-                <div class="button-row">
-                  <button id="champion-tag-editor-save" type="button">Save Champion Profile</button>
-                  <button id="champion-tag-editor-clear" class="ghost" type="button">Close Editor</button>
-                </div>
-                <p id="champion-tag-editor-feedback" class="meta"></p>
               </div>
+
+              <div id="champion-tag-editor-team-group" hidden>
+                <label class="ced-team-label">Editing for team
+                  <select id="champion-tag-editor-team"></select>
+                </label>
+              </div>
+
+              <div class="ced-section">
+                <p class="ced-section-label">Roles</p>
+                <div id="champion-metadata-editor-roles" class="role-pill-group"></div>
+              </div>
+
+              <div id="champion-metadata-role-profiles" class="ced-role-profiles"></div>
+
+              <div class="ced-section">
+                <p class="ced-section-label">Champion Tags</p>
+                <div class="ced-tag-columns">
+                  <div class="ced-tag-column">
+                    <p class="ced-tag-column-label">Available</p>
+                    <input id="ced-tags-available-filter" type="search" placeholder="Filter tags..." />
+                    <div id="ced-tags-available" class="ced-tag-list"></div>
+                  </div>
+                  <div class="ced-tag-column">
+                    <p class="ced-tag-column-label">Selected</p>
+                    <input id="ced-tags-selected-filter" type="search" placeholder="Filter tags..." />
+                    <div id="ced-tags-selected" class="ced-tag-list"></div>
+                  </div>
+                </div>
+              </div>
+
+              <p id="champion-tag-editor-meta" class="meta"></p>
+              <div class="button-row">
+                <button id="champion-tag-editor-save" type="button">Save Champion Profile</button>
+                <button id="champion-tag-editor-clear" class="ghost" type="button">Cancel</button>
+              </div>
+              <p id="champion-tag-editor-feedback" class="meta"></p>
             </div>
           </section>
 

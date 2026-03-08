@@ -652,6 +652,7 @@ function createElements() {
     explorerCatalogSearch: runtimeDocument.querySelector("#explorer-catalog-search"),
     explorerCount: runtimeDocument.querySelector("#explorer-count"),
     explorerResults: runtimeDocument.querySelector("#explorer-results"),
+    championGridPanel: runtimeDocument.querySelector("#champion-grid-panel"),
     championTagCatalogMeta: runtimeDocument.querySelector("#champion-tag-catalog-meta"),
     championTagCatalogList: runtimeDocument.querySelector("#champion-tag-catalog-list"),
     championTagEditor: runtimeDocument.querySelector("#champion-tag-editor"),
@@ -660,12 +661,12 @@ function createElements() {
     championTagEditorScope: runtimeDocument.querySelector("#champion-tag-editor-scope"),
     championTagEditorTeamGroup: runtimeDocument.querySelector("#champion-tag-editor-team-group"),
     championTagEditorTeam: runtimeDocument.querySelector("#champion-tag-editor-team"),
-    championEditorTabButtons: Array.from(runtimeDocument.querySelectorAll("button[data-champion-editor-tab]")),
-    championEditorPanelComposition: runtimeDocument.querySelector("#champion-editor-panel-composition"),
-    championEditorPanelRoles: runtimeDocument.querySelector("#champion-editor-panel-roles"),
-    championEditorPanelDamage: runtimeDocument.querySelector("#champion-editor-panel-damage"),
-    championEditorPanelScaling: runtimeDocument.querySelector("#champion-editor-panel-scaling"),
-    championTagEditorTags: runtimeDocument.querySelector("#champion-tag-editor-tags"),
+    cedChampImage: runtimeDocument.querySelector("#ced-champ-image"),
+    cedChampRoles: runtimeDocument.querySelector("#ced-champ-roles"),
+    cedTagsAvailableFilter: runtimeDocument.querySelector("#ced-tags-available-filter"),
+    cedTagsSelectedFilter: runtimeDocument.querySelector("#ced-tags-selected-filter"),
+    cedTagsAvailable: runtimeDocument.querySelector("#ced-tags-available"),
+    cedTagsSelected: runtimeDocument.querySelector("#ced-tags-selected"),
     championTagEditorReviewed: runtimeDocument.querySelector("#champion-tag-editor-reviewed"),
     championMetadataEditorRoles: runtimeDocument.querySelector("#champion-metadata-editor-roles"),
     championMetadataRoleProfiles: runtimeDocument.querySelector("#champion-metadata-role-profiles"),
@@ -1264,6 +1265,7 @@ function clearChampionTagEditorState() {
   state.api.isLoadingChampionTags = false;
   state.api.isSavingChampionTags = false;
   setChampionTagEditorFeedback("");
+  closeChampionTagEditor();
 }
 
 function clearTagsManagerState({ clearInputs = true } = {}) {
@@ -5598,24 +5600,21 @@ function normalizeTagNameForMatching(value) {
 }
 
 function renderChampionTagEditorTagOptions() {
-  if (!elements.championTagEditorTags) {
+  if (!elements.cedTagsAvailable || !elements.cedTagsSelected) {
     return;
   }
 
-  elements.championTagEditorTags.innerHTML = "";
+  elements.cedTagsAvailable.innerHTML = "";
+  elements.cedTagsSelected.innerHTML = "";
+
   const selectedTagIds = normalizeApiTagIdArray(state.api.selectedChampionTagIds);
   const selectedTagIdSet = new Set(selectedTagIds);
   const allTags = Array.isArray(state.api.tags)
     ? state.api.tags
         .map((tag) => {
           const tagId = normalizeApiEntityId(tag?.id);
-          if (tagId === null) {
-            return null;
-          }
-          return {
-            ...tag,
-            id: tagId
-          };
+          if (tagId === null) return null;
+          return { ...tag, id: tagId };
         })
         .filter(Boolean)
     : [];
@@ -5624,60 +5623,64 @@ function renderChampionTagEditorTagOptions() {
   const renderedTagIds = new Set(tags.map((tag) => tag.id));
 
   for (const selectedTagId of selectedTagIds) {
-    if (renderedTagIds.has(selectedTagId)) {
-      continue;
-    }
+    if (renderedTagIds.has(selectedTagId)) continue;
     const assignedTag = allTagsById.get(selectedTagId);
-    tags.push(
-      assignedTag ?? {
-        id: selectedTagId,
-        name: `Tag ${selectedTagId}`,
-        definition: ""
-      }
-    );
+    tags.push(assignedTag ?? { id: selectedTagId, name: `Tag ${selectedTagId}`, definition: "" });
     renderedTagIds.add(selectedTagId);
   }
 
   tags.sort((left, right) => String(left.name ?? "").localeCompare(String(right.name ?? "")));
 
-  if (tags.length === 0) {
-    const empty = runtimeDocument.createElement("p");
-    empty.className = "meta";
-    empty.textContent = "No tags available to edit.";
-    elements.championTagEditorTags.append(empty);
-    return;
+  const availableFilter = (elements.cedTagsAvailableFilter?.value ?? "").toLowerCase().trim();
+  const selectedFilter = (elements.cedTagsSelectedFilter?.value ?? "").toLowerCase().trim();
+  const disabled = state.api.isSavingChampionTags || state.api.isLoadingChampionTags;
+
+  const makePill = (tag, isSelected) => {
+    const pill = runtimeDocument.createElement("button");
+    pill.type = "button";
+    pill.className = isSelected ? "ced-tag-pill ced-tag-pill--selected" : "ced-tag-pill";
+    pill.textContent = tag.name;
+    const definitionText = typeof tag.definition === "string" ? tag.definition.trim() : "";
+    if (definitionText) {
+      pill.title = definitionText;
+    }
+    pill.disabled = disabled;
+    pill.addEventListener("click", () => {
+      const next = new Set(state.api.selectedChampionTagIds);
+      if (isSelected) {
+        next.delete(tag.id);
+      } else {
+        next.add(tag.id);
+      }
+      state.api.selectedChampionTagIds = [...next].sort((a, b) => a - b);
+      renderChampionTagEditorTagOptions();
+    });
+    return pill;
+  };
+
+  for (const tag of tags) {
+    const isSelected = selectedTagIdSet.has(tag.id);
+    const tagName = String(tag.name ?? "").toLowerCase();
+    if (isSelected) {
+      if (selectedFilter && !tagName.includes(selectedFilter)) continue;
+      elements.cedTagsSelected.append(makePill(tag, true));
+    } else {
+      if (availableFilter && !tagName.includes(availableFilter)) continue;
+      elements.cedTagsAvailable.append(makePill(tag, false));
+    }
   }
 
-  const selected = selectedTagIdSet;
-  for (const tag of tags) {
-    const label = runtimeDocument.createElement("label");
-    label.className = "champion-tag-checkbox selection-option";
-
-    const checkbox = runtimeDocument.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.value = String(tag.id);
-    checkbox.checked = selected.has(tag.id);
-    checkbox.disabled = state.api.isSavingChampionTags || state.api.isLoadingChampionTags;
-    checkbox.addEventListener("change", () => {
-      const next = new Set(state.api.selectedChampionTagIds);
-      if (checkbox.checked) {
-        next.add(tag.id);
-      } else {
-        next.delete(tag.id);
-      }
-      state.api.selectedChampionTagIds = [...next].sort((left, right) => left - right);
-    });
-
-    const text = runtimeDocument.createElement("span");
-    text.textContent = tag.name;
-
-    const definition = runtimeDocument.createElement("small");
-    definition.className = "meta";
-    const definitionText = typeof tag.definition === "string" ? tag.definition.trim() : "";
-    definition.textContent = definitionText || "No definition set.";
-
-    label.append(checkbox, text, definition);
-    elements.championTagEditorTags.append(label);
+  if (elements.cedTagsAvailable.childElementCount === 0) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = availableFilter ? "No matching tags." : "No available tags.";
+    elements.cedTagsAvailable.append(empty);
+  }
+  if (elements.cedTagsSelected.childElementCount === 0) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = selectedFilter ? "No matching tags." : "No tags selected.";
+    elements.cedTagsSelected.append(empty);
   }
 }
 
@@ -5693,30 +5696,23 @@ function renderChampionMetadataRoleOptions() {
   const selected = new Set(state.api.championMetadataDraft.roles);
 
   for (const role of SLOTS) {
-    const label = runtimeDocument.createElement("label");
-    label.className = "selection-option";
-
-    const checkbox = runtimeDocument.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.value = role;
-    checkbox.checked = selected.has(role);
-    checkbox.disabled = state.api.isSavingChampionTags;
-    checkbox.addEventListener("change", () => {
+    const btn = runtimeDocument.createElement("button");
+    btn.type = "button";
+    btn.className = selected.has(role) ? "role-pill is-active" : "role-pill";
+    btn.textContent = role;
+    btn.disabled = state.api.isSavingChampionTags;
+    btn.addEventListener("click", () => {
       const next = new Set(state.api.championMetadataDraft.roles);
-      if (checkbox.checked) {
-        next.add(role);
-      } else {
+      if (next.has(role)) {
         next.delete(role);
+      } else {
+        next.add(role);
       }
       state.api.championMetadataDraft.roles = normalizeChampionMetadataRoles([...next]);
       ensureChampionMetadataRoleProfiles();
       renderChampionTagEditor();
     });
-
-    const text = runtimeDocument.createElement("span");
-    text.textContent = role;
-    label.append(checkbox, text);
-    elements.championMetadataEditorRoles.append(label);
+    elements.championMetadataEditorRoles.append(btn);
   }
 }
 
@@ -5735,6 +5731,8 @@ function renderChampionMetadataRoleProfileEditors() {
     return;
   }
 
+  const effLevelValues = ["weak", "neutral", "strong"];
+
   const renderRoleProfileCard = (titleText, profile, onDamageChange, onEffectivenessChange) => {
     const card = runtimeDocument.createElement("section");
     card.className = "panel draft-board-panel champion-role-profile-card";
@@ -5743,33 +5741,69 @@ function renderChampionMetadataRoleProfileEditors() {
     title.textContent = titleText;
     card.append(title);
 
-    const damageLabel = runtimeDocument.createElement("label");
-    damageLabel.textContent = "Primary Damage Type";
-    const damageSelect = runtimeDocument.createElement("select");
-    replaceOptions(damageSelect, PRIMARY_DAMAGE_TYPE_OPTIONS);
-    damageSelect.value = normalizeApiPrimaryDamageType(profile.primaryDamageType) ?? "mixed";
-    damageSelect.disabled = state.api.isSavingChampionTags;
-    damageSelect.addEventListener("change", () => onDamageChange(damageSelect.value));
-    damageLabel.append(damageSelect);
-    card.append(damageLabel);
-
-    const grid = runtimeDocument.createElement("div");
-    grid.className = "grid grid-3";
-    for (const phase of EFFECTIVENESS_PHASES) {
-      const phaseLabel = runtimeDocument.createElement("label");
-      phaseLabel.textContent = `${phase[0].toUpperCase()}${phase.slice(1)} Effectiveness`;
-      const phaseSelect = runtimeDocument.createElement("select");
-      replaceOptions(phaseSelect, EFFECTIVENESS_LEVEL_OPTIONS);
-      phaseSelect.value = normalizeApiEffectivenessLevel(profile.effectiveness?.[phase]) ?? "neutral";
-      phaseSelect.disabled = state.api.isSavingChampionTags;
-      phaseSelect.addEventListener("change", () => {
-        onEffectivenessChange(phase, phaseSelect.value);
-      });
-      phaseLabel.append(phaseSelect);
-      grid.append(phaseLabel);
+    // Damage type toggle buttons
+    const damageGroup = runtimeDocument.createElement("div");
+    damageGroup.className = "ced-damage-group";
+    const damageSectionLabel = runtimeDocument.createElement("p");
+    damageSectionLabel.className = "ced-section-label";
+    damageSectionLabel.textContent = "Damage Type";
+    damageGroup.append(damageSectionLabel);
+    const damageButtons = runtimeDocument.createElement("div");
+    damageButtons.className = "ced-damage-buttons";
+    const currentDamage = normalizeApiPrimaryDamageType(profile.primaryDamageType) ?? "mixed";
+    for (const opt of PRIMARY_DAMAGE_TYPE_OPTIONS) {
+      const btn = runtimeDocument.createElement("button");
+      btn.type = "button";
+      btn.className = `ced-damage-btn ced-damage-btn--${opt.value}${currentDamage === opt.value ? " is-active" : ""}`;
+      btn.textContent = opt.label;
+      btn.disabled = state.api.isSavingChampionTags;
+      btn.addEventListener("click", () => onDamageChange(opt.value));
+      damageButtons.append(btn);
     }
+    damageGroup.append(damageButtons);
+    card.append(damageGroup);
 
-    card.append(grid);
+    // Effectiveness sliders
+    const effGroup = runtimeDocument.createElement("div");
+    effGroup.className = "ced-effectiveness-group";
+    const effSectionLabel = runtimeDocument.createElement("p");
+    effSectionLabel.className = "ced-section-label";
+    effSectionLabel.textContent = "Effectiveness";
+    effGroup.append(effSectionLabel);
+    const effGrid = runtimeDocument.createElement("div");
+    effGrid.className = "ced-effectiveness-grid";
+    for (const phase of EFFECTIVENESS_PHASES) {
+      const phaseDiv = runtimeDocument.createElement("div");
+      phaseDiv.className = "ced-effectiveness-phase";
+      const phaseLabel = runtimeDocument.createElement("p");
+      phaseLabel.className = "ced-phase-label";
+      phaseLabel.textContent = `${phase[0].toUpperCase()}${phase.slice(1)}`;
+      const currentLevel = normalizeApiEffectivenessLevel(profile.effectiveness?.[phase]) ?? "neutral";
+      const currentIndex = effLevelValues.indexOf(currentLevel);
+      const slider = runtimeDocument.createElement("input");
+      slider.type = "range";
+      slider.min = "0";
+      slider.max = "2";
+      slider.step = "1";
+      slider.value = String(currentIndex >= 0 ? currentIndex : 1);
+      slider.className = "ced-effectiveness-slider";
+      slider.disabled = state.api.isSavingChampionTags;
+      slider.addEventListener("input", () => {
+        const idx = Number.parseInt(slider.value, 10);
+        onEffectivenessChange(phase, effLevelValues[idx]);
+      });
+      const sliderLabels = runtimeDocument.createElement("div");
+      sliderLabels.className = "ced-slider-labels";
+      for (const lvl of effLevelValues) {
+        const lbl = runtimeDocument.createElement("span");
+        lbl.textContent = lvl[0].toUpperCase() + lvl.slice(1);
+        sliderLabels.append(lbl);
+      }
+      phaseDiv.append(phaseLabel, slider, sliderLabels);
+      effGrid.append(phaseDiv);
+    }
+    effGroup.append(effGrid);
+    card.append(effGroup);
     return card;
   };
 
@@ -5899,7 +5933,6 @@ function renderChampionTagEditor() {
   const leadTeamOptions = getChampionTagLeadTeamOptions();
   const canEditTeam = leadTeamOptions.length > 0;
   const canRenderEditor = Boolean(champion && isAuthenticated() && (canEditGlobal || canEditTeam));
-  elements.championTagEditor.hidden = !canRenderEditor;
   if (!canRenderEditor) {
     return;
   }
@@ -5913,7 +5946,6 @@ function renderChampionTagEditor() {
     scopeOptions.push({ value: "team", label: "Team" });
   }
   if (scopeOptions.length === 0) {
-    elements.championTagEditor.hidden = true;
     return;
   }
 
@@ -5923,6 +5955,14 @@ function renderChampionTagEditor() {
 
   if (elements.championTagEditorTitle) {
     elements.championTagEditorTitle.textContent = `Edit ${champion.name} Profile`;
+  }
+  if (elements.cedChampImage) {
+    elements.cedChampImage.src = getChampionImageUrl(champion.name);
+    elements.cedChampImage.alt = champion.name;
+  }
+  if (elements.cedChampRoles) {
+    const roles = normalizeChampionMetadataRoles(state.api.championMetadataDraft?.roles ?? []);
+    elements.cedChampRoles.textContent = roles.length > 0 ? roles.join(" / ") : "";
   }
 
   if (elements.championTagEditorScope) {
@@ -6041,9 +6081,18 @@ async function openChampionTagEditor(championId) {
   }
   initializeChampionMetadataDraft(champion);
   setChampionTagEditorFeedback("Loading champion tags...");
+
+  if (elements.championGridPanel) elements.championGridPanel.hidden = true;
+  if (elements.championTagEditor) elements.championTagEditor.hidden = false;
+
   renderChampionTagEditor();
   await loadChampionScopedTags(championId);
   renderChampionTagEditor();
+}
+
+function closeChampionTagEditor() {
+  if (elements.championTagEditor) elements.championTagEditor.hidden = true;
+  if (elements.championGridPanel) elements.championGridPanel.hidden = false;
 }
 
 function setChampionEditorTab(tab) {
@@ -6137,6 +6186,7 @@ async function saveChampionTagEditor() {
     }
     setChampionTagEditorFeedback(canEditGlobal ? "Tags and metadata saved." : "Tags saved.");
     renderExplorer();
+    clearChampionTagEditorState();
   } catch (error) {
     setChampionTagEditorFeedback(normalizeApiErrorMessage(error, "Failed to save champion updates."));
   } finally {
@@ -9102,6 +9152,10 @@ function renderExplorer() {
     const card = runtimeDocument.createElement("article");
     card.className = "champ-card";
 
+    // ── Top row: image + heading + pencil ───────────────────────────────
+    const cardTop = runtimeDocument.createElement("div");
+    cardTop.className = "champ-card-top";
+
     const header = runtimeDocument.createElement("div");
     header.className = "champ-header";
     const image = runtimeDocument.createElement("img");
@@ -9122,61 +9176,125 @@ function renderExplorer() {
     name.className = "champ-name";
     name.textContent = champion.name;
 
-    const summary = runtimeDocument.createElement("p");
-    summary.className = "meta";
-    summary.textContent = `${champion.roles.join(" / ")} | ${champion.damageType} | ${champion.scaling}`;
-    summary.title = "Roles | Damage Type | Effectiveness Focus";
-    summary.setAttribute(
-      "aria-label",
-      `Roles: ${champion.roles.join(" / ")}. Damage Type: ${champion.damageType}. Effectiveness focus: ${champion.scaling}.`
-    );
+    // ── Grouped meta: roles, damage, scaling ────────────────────────────
+    const metaGroup = runtimeDocument.createElement("div");
+    metaGroup.className = "champ-meta-group";
 
-    heading.append(name, summary);
-    header.append(image, heading);
-
-    const scopedTags = runtimeDocument.createElement("div");
-    scopedTags.className = "chip-row champ-card-scope-tags";
-    const scopedTagNames = Array.isArray(champion.tagIds)
-      ? champion.tagIds.map((tagId) => state.api.tagById[String(tagId)]?.name ?? `#${tagId}`)
-      : [];
-    if (scopedTagNames.length > 0) {
-      for (const tagName of scopedTagNames) {
-        const chip = runtimeDocument.createElement("span");
-        chip.className = "chip";
-        chip.textContent = tagName;
-        scopedTags.append(chip);
-      }
-    } else {
-      const empty = runtimeDocument.createElement("span");
-      empty.className = "meta";
-      empty.textContent = "No global tags assigned.";
-      scopedTags.append(empty);
+    const rolesRow = runtimeDocument.createElement("div");
+    rolesRow.className = "champ-meta-row";
+    const rolesLabel = runtimeDocument.createElement("span");
+    rolesLabel.className = "champ-meta-label";
+    rolesLabel.textContent = "Role";
+    const rolesPills = runtimeDocument.createElement("span");
+    rolesPills.className = "champ-meta-pills";
+    for (const role of champion.roles) {
+      const pill = runtimeDocument.createElement("span");
+      pill.className = "champ-meta-pill";
+      pill.textContent = role;
+      rolesPills.append(pill);
     }
+    rolesRow.append(rolesLabel, rolesPills);
 
-    const reviewState = runtimeDocument.createElement("p");
-    reviewState.className = "meta";
-    reviewState.textContent = champion.reviewed === true ? "Review: Human reviewed" : "Review: Not reviewed";
+    const damageRow = runtimeDocument.createElement("div");
+    damageRow.className = "champ-meta-row";
+    const damageLabel = runtimeDocument.createElement("span");
+    damageLabel.className = "champ-meta-label";
+    damageLabel.textContent = "Damage";
+    const damagePill = runtimeDocument.createElement("span");
+    damagePill.className = `champ-meta-pill champ-damage-${(champion.damageType ?? "").toLowerCase()}`;
+    damagePill.textContent = champion.damageType;
+    damageRow.append(damageLabel, damagePill);
 
-    const actions = runtimeDocument.createElement("div");
-    actions.className = "button-row champ-card-actions";
-    const editButton = runtimeDocument.createElement("button");
-    editButton.type = "button";
-    editButton.textContent = "Edit Tags";
+    const scalingRow = runtimeDocument.createElement("div");
+    scalingRow.className = "champ-meta-row";
+    const scalingLabel = runtimeDocument.createElement("span");
+    scalingLabel.className = "champ-meta-label";
+    scalingLabel.textContent = "Timing";
+    const scalingPill = runtimeDocument.createElement("span");
+    scalingPill.className = "champ-meta-pill";
+    scalingPill.textContent = champion.scaling;
+    scalingRow.append(scalingLabel, scalingPill);
+
+    const reviewRow = runtimeDocument.createElement("p");
+    reviewRow.className = "meta champ-review-status";
+    reviewRow.textContent = champion.reviewed === true ? "✓ Human reviewed" : "Not reviewed";
+
+    metaGroup.append(rolesRow, damageRow, scalingRow, reviewRow);
+    heading.append(name, metaGroup);
+    header.append(image, heading);
+    cardTop.append(header);
+
+    // ── Pencil edit button ───────────────────────────────────────────────
     const canEdit =
       isAuthenticated() &&
       isGlobalTagEditorUser() &&
       Number.isInteger(champion.id) &&
       champion.id > 0;
-    editButton.disabled = !canEdit;
-    editButton.addEventListener("click", () => {
-      if (!canEdit) {
-        return;
-      }
-      void openChampionTagEditor(champion.id);
-    });
-    actions.append(editButton);
+    if (canEdit) {
+      const editBtn = runtimeDocument.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "champ-card-edit-btn";
+      editBtn.title = "Edit Tags";
+      editBtn.setAttribute("aria-label", `Edit tags for ${champion.name}`);
+      editBtn.textContent = "✎";
+      editBtn.addEventListener("click", () => {
+        void openChampionTagEditor(champion.id);
+      });
+      cardTop.append(editBtn);
+    }
 
-    card.append(header, scopedTags, reviewState, actions);
+    // ── Champion Tags collapsible ────────────────────────────────────────
+    const tagDetails = runtimeDocument.createElement("details");
+    tagDetails.className = "champ-card-tags-panel";
+
+    const tagSummary = runtimeDocument.createElement("summary");
+    const scopedTagNames = Array.isArray(champion.tagIds)
+      ? champion.tagIds
+          .map((tagId) => {
+            const tag = state.api.tagById[String(tagId)];
+            return tag ? { name: tag.name, definition: tag.definition ?? "" } : null;
+          })
+          .filter(Boolean)
+      : [];
+    tagSummary.textContent = `Champion Tags (${scopedTagNames.length})`;
+    tagDetails.append(tagSummary);
+
+    const tagFilter = runtimeDocument.createElement("input");
+    tagFilter.type = "search";
+    tagFilter.className = "champ-card-tag-filter";
+    tagFilter.placeholder = "Filter tags…";
+    tagDetails.append(tagFilter);
+
+    const tagList = runtimeDocument.createElement("div");
+    tagList.className = "champ-card-tag-list";
+
+    if (scopedTagNames.length > 0) {
+      for (const { name: tagName, definition } of scopedTagNames) {
+        const chip = runtimeDocument.createElement("span");
+        chip.className = "chip champ-tag-chip";
+        chip.dataset.tagName = tagName.toLowerCase();
+        chip.textContent = tagName;
+        if (definition) {
+          chip.title = definition;
+        }
+        tagList.append(chip);
+      }
+    } else {
+      const empty = runtimeDocument.createElement("span");
+      empty.className = "meta";
+      empty.textContent = "No tags assigned.";
+      tagList.append(empty);
+    }
+    tagDetails.append(tagList);
+
+    tagFilter.addEventListener("input", () => {
+      const query = tagFilter.value.trim().toLowerCase();
+      for (const chip of tagList.querySelectorAll(".champ-tag-chip")) {
+        chip.hidden = query.length > 0 && !chip.dataset.tagName.includes(query);
+      }
+    });
+
+    card.append(cardTop, tagDetails);
     elements.explorerResults.append(card);
   }
 }
@@ -10832,7 +10950,18 @@ function attachEvents() {
   if (elements.championTagEditorClear) {
     elements.championTagEditorClear.addEventListener("click", () => {
       clearChampionTagEditorState();
-      renderChampionTagEditor();
+    });
+  }
+
+  if (elements.cedTagsAvailableFilter) {
+    elements.cedTagsAvailableFilter.addEventListener("input", () => {
+      renderChampionTagEditorTagOptions();
+    });
+  }
+
+  if (elements.cedTagsSelectedFilter) {
+    elements.cedTagsSelectedFilter.addEventListener("input", () => {
+      renderChampionTagEditorTagOptions();
     });
   }
 
