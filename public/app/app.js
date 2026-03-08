@@ -2771,13 +2771,6 @@ function buildChampionFromApiRecord(rawChampion, index) {
       };
     }
   }
-  // TEST OVERRIDE: give Aatrox different per-role profiles to verify role-tab UI
-  if (name === "Aatrox") {
-    roleProfiles["Top"] = { primaryDamageType: "ap", effectiveness: { early: "weak", mid: "neutral", late: "strong" } };
-    if (normalizedRoles.includes("Jungle")) {
-      roleProfiles["Jungle"] = { primaryDamageType: "ad", effectiveness: { early: "strong", mid: "neutral", late: "neutral" } };
-    }
-  }
   const previewProfile = getChampionRoleProfile({ roles: normalizedRoles, roleProfiles }, normalizedRoles[0]);
   const damageType = deriveDisplayDamageTypeFromProfile(previewProfile);
   const scaling = deriveLegacyScalingFromProfile(previewProfile);
