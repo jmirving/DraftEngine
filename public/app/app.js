@@ -9267,7 +9267,7 @@ function renderExplorer() {
   });
 
   const sorted = sortChampions(filtered);
-  elements.explorerCount.textContent = `${sorted.length} champions match the current filters.`;
+  elements.explorerCount.textContent = `Results: ${sorted.length}`;
   elements.explorerResults.innerHTML = "";
 
   if (sorted.length === 0) {

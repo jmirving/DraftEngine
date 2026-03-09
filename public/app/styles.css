@@ -1120,7 +1120,7 @@ button.ghost {
 }
 
 #explorer-results-container {
-  background: var(--surface);
+  background: linear-gradient(165deg, var(--surface), var(--surface-strong));
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 0.75rem;
