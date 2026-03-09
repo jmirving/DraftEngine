@@ -3,30 +3,30 @@ import { USER_ROLE_ADMIN, USER_ROLE_GLOBAL, USER_ROLE_MEMBER } from "./user-role
 const GLOBAL_ROLE_DEFINITIONS = Object.freeze([
   {
     id: USER_ROLE_MEMBER,
-    label: "member",
-    description: "Default authenticated role. Can manage personal data and read shared data."
+    label: "user",
+    description: "Default authenticated user role. Can manage personal data and read shared data."
   },
   {
     id: USER_ROLE_GLOBAL,
     label: "global",
-    description: "Global editor role. Includes member permissions plus global tag editing."
+    description: "Global editor role. Includes user permissions plus global tag editing."
   },
   {
     id: USER_ROLE_ADMIN,
     label: "admin",
-    description: "Administrator role. Includes global editor permissions plus admin-only endpoints."
+    description: "Administrator role. Includes global editor and user permissions plus admin-only endpoints."
   }
 ]);
 
 const TEAM_MEMBERSHIP_ROLE_DEFINITIONS = Object.freeze([
   {
     id: "member",
-    label: "member",
+    label: "team member",
     description: "Standard team membership. Can read team data in teams they belong to."
   },
   {
     id: "lead",
-    label: "lead",
+    label: "team lead",
     description: "Team management role. Can manage roster/settings for their team."
   }
 ]);

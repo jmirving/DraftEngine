@@ -4085,7 +4085,7 @@ function renderUsersWorkspace() {
     const options = isOwnerAdmin
       ? [{ value: "admin", label: "admin" }]
       : [
-          { value: "member", label: "member" },
+          { value: "member", label: "user" },
           { value: "global", label: "global" }
         ];
     replaceOptions(roleSelect, options);

@@ -653,13 +653,13 @@ function createFetchHarness({
       return createJsonResponse({
         authorization: {
           global_roles: [
-            { id: "member", label: "member", description: "Default authenticated role." },
+            { id: "member", label: "user", description: "Default authenticated user role." },
             { id: "global", label: "global", description: "Global editor role." },
             { id: "admin", label: "admin", description: "Administrator role." }
           ],
           team_membership_roles: [
-            { id: "member", label: "member", description: "Standard team membership role." },
-            { id: "lead", label: "lead", description: "Team management role." }
+            { id: "member", label: "team member", description: "Standard team membership role." },
+            { id: "lead", label: "team lead", description: "Team management role." }
           ],
           team_roster_roles: [
             { id: "primary", label: "primary", description: "Primary roster designation." },
