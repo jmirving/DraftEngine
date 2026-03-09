@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../../server/app.js";
 import { signAccessToken } from "../../server/auth/tokens.js";
+import { OWNER_ADMIN_EMAILS } from "../../server/user-roles.js";
 
 function createMockContext({ riotChampionStatsService = null } = {}) {
   function makeLogoDataUrl(logoBlob, logoMimeType) {
@@ -194,7 +195,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       const user = {
         id: nextUserId,
         email,
-        role: email.toLowerCase() === "jirving0311@gmail.com" ? "admin" : role,
+        role: OWNER_ADMIN_EMAILS.has(String(email).trim().toLowerCase()) ? "admin" : role,
         password_hash: passwordHash,
         game_name: gameName,
         tagline,
@@ -229,11 +230,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
     },
 
     async countAdmins() {
-      return state.users.filter(
-        (candidate) =>
-          String(candidate.role ?? "").trim().toLowerCase() === "admin" &&
-          String(candidate.email ?? "").trim().toLowerCase() === "jirving0311@gmail.com"
-      ).length;
+      return state.users.filter((candidate) => OWNER_ADMIN_EMAILS.has(String(candidate.email ?? "").trim().toLowerCase())).length;
     },
 
     async findByRiotId(gameName, tagline) {
@@ -1620,6 +1617,7 @@ describe("API routes", () => {
 
   it("allows member global champion tag edits when no admins exist", async () => {
     const { app, config, state } = createMockContext();
+    state.users[0].email = "legacy-admin@example.com";
     state.users[0].role = "member";
 
     const memberCanWriteGlobal = await request(app)
@@ -1704,6 +1702,7 @@ describe("API routes", () => {
 
   it("allows member global metadata edits when no admins exist", async () => {
     const { app, config, state } = createMockContext();
+    state.users[0].email = "legacy-admin@example.com";
     state.users[0].role = "member";
 
     const memberWrite = await request(app)
@@ -1794,6 +1793,7 @@ describe("API routes", () => {
 
   it("allows member tag catalog CRUD when no admins exist", async () => {
     const { app, config, state } = createMockContext();
+    state.users[0].email = "legacy-admin@example.com";
     state.users[0].role = "member";
 
     const memberCreate = await request(app)
@@ -1946,6 +1946,20 @@ describe("API routes", () => {
     expect(adminListAfterDelete.status).toBe(200);
     expect(adminListAfterDelete.body.users).toHaveLength(4);
     expect(adminListAfterDelete.body.users.some((user) => Number(user.id) === 2)).toBe(false);
+  });
+
+  it("treats owner allowlisted email as admin even when stored role is member", async () => {
+    const { app, config, state } = createMockContext();
+    state.users[0].role = "member";
+
+    const adminList = await request(app)
+      .get("/admin/users")
+      .set("Authorization", buildAuthHeader(1, config));
+    expect(adminList.status).toBe(200);
+
+    const ownerUser = adminList.body.users.find((user) => Number(user.id) === 1);
+    expect(ownerUser).toBeTruthy();
+    expect(ownerUser.role).toBe("admin");
   });
 
   it("supports requirement definition and composition CRUD", async () => {

@@ -59,8 +59,7 @@ export function createUsersRepository(pool) {
         `
           SELECT COUNT(*)::int AS admin_count
           FROM users
-          WHERE lower(role) = 'admin'
-            AND lower(email) = ANY($1)
+          WHERE lower(email) = ANY($1)
         `,
         [emailList]
       );

@@ -31,10 +31,10 @@ export function isOwnerAdminEmail(rawEmail) {
 }
 
 export function resolveAuthorizationRole(user) {
-  const normalizedRole = normalizeUserRole(user?.role);
-  if (normalizedRole === USER_ROLE_ADMIN && isOwnerAdminEmail(user?.email)) {
+  if (isOwnerAdminEmail(user?.email)) {
     return USER_ROLE_ADMIN;
   }
+  const normalizedRole = normalizeUserRole(user?.role);
   if (normalizedRole === USER_ROLE_GLOBAL) {
     return USER_ROLE_GLOBAL;
   }
