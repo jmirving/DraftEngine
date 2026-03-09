@@ -2149,10 +2149,10 @@ describe("API routes", () => {
     const addOnce = await request(app)
       .post(`/me/pools/${newPoolId}/champions`)
       .set("Authorization", user1Auth)
-      .send({ champion_id: 2, familiarity: 5 });
+      .send({ champion_id: 2, familiarity: 2 });
     expect(addOnce.status).toBe(200);
     expect(addOnce.body.pool.champion_ids).toEqual([2]);
-    expect(addOnce.body.pool.champion_familiarity).toEqual({ 2: 5 });
+    expect(addOnce.body.pool.champion_familiarity).toEqual({ 2: 2 });
 
     const addTwice = await request(app)
       .post(`/me/pools/${newPoolId}/champions`)
@@ -2160,7 +2160,7 @@ describe("API routes", () => {
       .send({ champion_id: 2 });
     expect(addTwice.status).toBe(200);
     expect(addTwice.body.pool.champion_ids).toEqual([2]);
-    expect(addTwice.body.pool.champion_familiarity).toEqual({ 2: 5 });
+    expect(addTwice.body.pool.champion_familiarity).toEqual({ 2: 2 });
 
     const updateFamiliarity = await request(app)
       .put(`/me/pools/${newPoolId}/champions/2/familiarity`)

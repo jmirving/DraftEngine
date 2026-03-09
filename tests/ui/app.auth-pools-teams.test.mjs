@@ -374,7 +374,7 @@ function createFetchHarness({
     for (const championId of pool.champion_ids ?? []) {
       const key = String(championId);
       const existing = Number.parseInt(String(pool.champion_familiarity[key]), 10);
-      pool.champion_familiarity[key] = Number.isInteger(existing) && existing >= 1 && existing <= 6 ? existing : 3;
+      pool.champion_familiarity[key] = Number.isInteger(existing) && existing >= 1 && existing <= 4 ? existing : 3;
     }
     return pool.champion_familiarity;
   };
@@ -1035,7 +1035,7 @@ function createFetchHarness({
         ensurePoolFamiliarity(pool);
       }
       const familiarity = Number.parseInt(String(body?.familiarity), 10);
-      const normalizedFamiliarity = Number.isInteger(familiarity) && familiarity >= 1 && familiarity <= 6 ? familiarity : 3;
+      const normalizedFamiliarity = Number.isInteger(familiarity) && familiarity >= 1 && familiarity <= 4 ? familiarity : 3;
       if (pool && !pool.champion_ids.includes(body.champion_id)) {
         pool.champion_ids.push(body.champion_id);
         pool.champion_familiarity[String(body.champion_id)] = normalizedFamiliarity;
@@ -1070,9 +1070,9 @@ function createFetchHarness({
         return createJsonResponse({ error: { code: "NOT_FOUND", message: "Champion is not in this pool." } }, 404);
       }
       const familiarity = Number.parseInt(String(body?.familiarity), 10);
-      if (!Number.isInteger(familiarity) || familiarity < 1 || familiarity > 6) {
+      if (!Number.isInteger(familiarity) || familiarity < 1 || familiarity > 4) {
         return createJsonResponse(
-          { error: { code: "BAD_REQUEST", message: "Expected 'familiarity' to be between 1 and 6." } },
+          { error: { code: "BAD_REQUEST", message: "Expected 'familiarity' to be between 1 and 4." } },
           400
         );
       }
@@ -3158,6 +3158,63 @@ describe("auth + pools + team management", () => {
       (call) => /^\/me\/pools\/\d+\/champions/.test(call.path) && ["POST", "DELETE"].includes(call.method)
     );
     expect(syncedCalls.length).toBeGreaterThan(0);
+    expect(doc.querySelector("#player-config-feedback").textContent).toContain("Saved pool updates for Mid");
+  });
+
+  test("champion familiarity grade changes persist through explicit save", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const harness = createFetchHarness({
+      pools: [
+        {
+          id: 1,
+          user_id: 11,
+          name: "Mid",
+          champion_ids: [1],
+          champion_familiarity: { 1: 3 },
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      teams: [],
+      membersByTeam: {}
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='player-config']").click();
+    await flush();
+
+    const familiaritySelect = doc.querySelector(
+      "#player-config-grid .player-familiarity-row .player-familiarity-select"
+    );
+    expect(familiaritySelect).toBeTruthy();
+    expect(familiaritySelect.value).toBe("B");
+
+    familiaritySelect.value = "S";
+    familiaritySelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await flush();
+
+    expect(doc.querySelector("#player-config-feedback").textContent).toContain("Unsaved familiarity changes");
+    expect(doc.querySelector("#player-config-save-pool").disabled).toBe(false);
+
+    const immediateFamiliaritySync = harness.calls.filter(
+      (call) => /^\/me\/pools\/\d+\/champions\/\d+\/familiarity$/.test(call.path) && call.method === "PUT"
+    );
+    expect(immediateFamiliaritySync).toHaveLength(0);
+
+    doc.querySelector("#player-config-save-pool").click();
+    await flush();
+    await flush();
+
+    const familiaritySyncCalls = harness.calls.filter(
+      (call) => /^\/me\/pools\/\d+\/champions\/\d+\/familiarity$/.test(call.path) && call.method === "PUT"
+    );
+    expect(familiaritySyncCalls).toHaveLength(1);
+    expect(familiaritySyncCalls[0].body).toEqual({ familiarity: 1 });
     expect(doc.querySelector("#player-config-feedback").textContent).toContain("Saved pool updates for Mid");
   });
 

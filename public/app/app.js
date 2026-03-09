@@ -93,6 +93,7 @@ const CHAMPION_EDITOR_TABS = Object.freeze([
 const CHAMPION_EDITOR_TAB_SET = new Set(CHAMPION_EDITOR_TABS);
 const DEFAULT_PRIMARY_ROLE = "Mid";
 const DEFAULT_FAMILIARITY_LEVEL = 3;
+const FAMILIARITY_GRADES = Object.freeze(["S", "A", "B", "C"]);
 const ALLOWED_TEAM_LOGO_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const MAX_TEAM_LOGO_BYTES = 512 * 1024;
 const PREFILLED_RECOMMENDATION_LIMIT = 3;
@@ -100,13 +101,27 @@ const HIGH_SIGNAL_MASTERY_LEVEL = 6;
 const HIGH_SIGNAL_CHAMPION_POINTS = 100000;
 const OWNER_ADMIN_EMAIL_SET = new Set(["jirving0311@gmail.com", "tylerjtriplett@gmail.com"]);
 
-const FAMILIARITY_LEVEL_LABELS = Object.freeze({
-  1: "I know all the intricacies and how to use them",
-  2: "I've got all the normal and a lot of the harder skills down.",
-  3: "I am familiar enough to play at an average level.",
-  4: "I will potentially panic or misinput a spell",
-  5: "There are intricacies I straight up don't know.",
-  6: "I don't know how that champion works."
+const FAMILIARITY_GRADE_BY_LEVEL = Object.freeze({
+  1: "S",
+  2: "A",
+  3: "B",
+  4: "C",
+  5: "C",
+  6: "C"
+});
+
+const FAMILIARITY_LEVEL_BY_GRADE = Object.freeze({
+  S: 1,
+  A: 2,
+  B: 3,
+  C: 4
+});
+
+const FAMILIARITY_GRADE_LABELS = Object.freeze({
+  S: "I know and can utilize every detail of this champion, including one-trick combo tech.",
+  A: "I can execute this champion consistently at a high level.",
+  B: "I can play this champion well but still miss some nuanced details.",
+  C: "I have a basic understanding of this champion."
 });
 
 const CHAMPION_IMAGE_OVERRIDES = Object.freeze({
@@ -1534,16 +1549,47 @@ function normalizeSecondaryRoles(roles, primaryRole) {
   return Array.from(new Set(roles.filter((role) => SLOTS.includes(role) && role !== primaryRole)));
 }
 
+function getNormalizedFamiliarityFallback(fallback) {
+  const parsedFallback = Number.parseInt(String(fallback), 10);
+  if (Number.isInteger(parsedFallback) && parsedFallback >= 1 && parsedFallback <= 4) {
+    return parsedFallback;
+  }
+  if (parsedFallback === 5 || parsedFallback === 6) {
+    return 4;
+  }
+  return DEFAULT_FAMILIARITY_LEVEL;
+}
+
 function normalizeFamiliarityLevel(rawValue, fallback = DEFAULT_FAMILIARITY_LEVEL) {
   const parsed = Number.parseInt(String(rawValue), 10);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 6) {
-    return fallback;
+  if (!Number.isInteger(parsed)) {
+    return getNormalizedFamiliarityFallback(fallback);
   }
-  return parsed;
+  if (parsed >= 1 && parsed <= 4) {
+    return parsed;
+  }
+  if (parsed === 5 || parsed === 6) {
+    return 4;
+  }
+  return getNormalizedFamiliarityFallback(fallback);
+}
+
+function getFamiliarityGrade(level) {
+  const normalizedLevel = normalizeFamiliarityLevel(level);
+  return FAMILIARITY_GRADE_BY_LEVEL[normalizedLevel] ?? FAMILIARITY_GRADE_BY_LEVEL[DEFAULT_FAMILIARITY_LEVEL];
+}
+
+function familiarityGradeToLevel(grade, fallback = DEFAULT_FAMILIARITY_LEVEL) {
+  const normalizedGrade = typeof grade === "string" ? grade.trim().toUpperCase() : "";
+  if (FAMILIARITY_LEVEL_BY_GRADE[normalizedGrade]) {
+    return FAMILIARITY_LEVEL_BY_GRADE[normalizedGrade];
+  }
+  return normalizeFamiliarityLevel(fallback);
 }
 
 function getFamiliarityLabel(level) {
-  return FAMILIARITY_LEVEL_LABELS[normalizeFamiliarityLevel(level)] ?? FAMILIARITY_LEVEL_LABELS[DEFAULT_FAMILIARITY_LEVEL];
+  const grade = getFamiliarityGrade(level);
+  return `${grade}: ${FAMILIARITY_GRADE_LABELS[grade] ?? FAMILIARITY_GRADE_LABELS.B}`;
 }
 
 function normalizeFamiliarityByChampion(championNames, rawMap) {
@@ -1571,16 +1617,10 @@ function deriveFamiliarityFromMastery({ championLevel, championPoints }) {
   if (level >= 6 || points >= 120000) {
     return 2;
   }
-  if (level >= 5 || points >= 60000) {
+  if (level >= 4 || points >= 25000) {
     return 3;
   }
-  if (level >= 4 || points >= 25000) {
-    return 4;
-  }
-  if (level >= 3 || points >= 8000) {
-    return 5;
-  }
-  return 6;
+  return 4;
 }
 
 function isHighSignalMasteryEntry(entry) {
@@ -8669,20 +8709,46 @@ async function syncPoolSelectionToApi(teamId) {
 
   const players = state.playerConfig.byTeam[teamId] ?? [];
   const activePlayer = players.find((player) => player.role === role);
+  const desiredFamiliarityByChampion = normalizeFamiliarityByChampion(
+    activePlayer?.champions ?? [],
+    activePlayer?.familiarityByChampion
+  );
   const desiredChampionIds = (activePlayer?.champions ?? [])
     .map((name) => state.data.championIdsByName[name])
     .filter((id) => Number.isInteger(id));
+  const desiredFamiliarityByChampionId = {};
+  for (const championName of activePlayer?.champions ?? []) {
+    const championId = state.data.championIdsByName[championName];
+    if (!Number.isInteger(championId)) {
+      continue;
+    }
+    desiredFamiliarityByChampionId[championId] = normalizeFamiliarityLevel(
+      desiredFamiliarityByChampion[championName]
+    );
+  }
   const desiredIdSet = new Set(desiredChampionIds);
   const currentIdSet = new Set((pool.champion_ids ?? []).map((value) => Number(value)));
+  const currentFamiliarityByChampionId =
+    pool?.champion_familiarity && typeof pool.champion_familiarity === "object"
+      ? pool.champion_familiarity
+      : {};
 
   const toAdd = [...desiredIdSet].filter((id) => !currentIdSet.has(id));
   const toRemove = [...currentIdSet].filter((id) => !desiredIdSet.has(id));
+  const toAddSet = new Set(toAdd);
 
   for (const championId of toAdd) {
+    const familiarity = normalizeFamiliarityLevel(
+      desiredFamiliarityByChampionId[championId],
+      DEFAULT_FAMILIARITY_LEVEL
+    );
     await apiRequest(`/me/pools/${pool.id}/champions`, {
       method: "POST",
       auth: true,
-      body: { champion_id: championId }
+      body: {
+        champion_id: championId,
+        familiarity
+      }
     });
   }
 
@@ -8690,6 +8756,34 @@ async function syncPoolSelectionToApi(teamId) {
     await apiRequest(`/me/pools/${pool.id}/champions/${championId}`, {
       method: "DELETE",
       auth: true
+    });
+  }
+
+  const toUpdateFamiliarity = [...desiredIdSet].filter((championId) => {
+    if (toAddSet.has(championId)) {
+      return false;
+    }
+    const desiredFamiliarity = normalizeFamiliarityLevel(
+      desiredFamiliarityByChampionId[championId],
+      DEFAULT_FAMILIARITY_LEVEL
+    );
+    const currentFamiliarity = normalizeFamiliarityLevel(
+      currentFamiliarityByChampionId[String(championId)],
+      DEFAULT_FAMILIARITY_LEVEL
+    );
+    return desiredFamiliarity !== currentFamiliarity;
+  });
+
+  for (const championId of toUpdateFamiliarity) {
+    await apiRequest(`/me/pools/${pool.id}/champions/${championId}/familiarity`, {
+      method: "PUT",
+      auth: true,
+      body: {
+        familiarity: normalizeFamiliarityLevel(
+          desiredFamiliarityByChampionId[championId],
+          DEFAULT_FAMILIARITY_LEVEL
+        )
+      }
     });
   }
 
@@ -8751,6 +8845,12 @@ function renderPlayerConfig() {
 
   const players = state.playerConfig.byTeam[state.playerConfig.teamId] ?? [];
   const activePlayer = players.find((player) => player.role === activeRole) ?? null;
+  if (activePlayer) {
+    activePlayer.familiarityByChampion = normalizeFamiliarityByChampion(
+      activePlayer.champions,
+      activePlayer.familiarityByChampion
+    );
+  }
   if (elements.playerConfigSavePool) {
     elements.playerConfigSavePool.disabled = !activePlayer || !poolDirty || state.playerConfig.isSavingPool;
     elements.playerConfigSavePool.textContent = state.playerConfig.isSavingPool ? "Saving..." : "Save Champions";
@@ -8793,6 +8893,10 @@ function renderPlayerConfig() {
     },
     onChange(selectedValues) {
       activePlayer.champions = Array.from(new Set(selectedValues)).sort((left, right) => left.localeCompare(right));
+      activePlayer.familiarityByChampion = normalizeFamiliarityByChampion(
+        activePlayer.champions,
+        activePlayer.familiarityByChampion
+      );
       setPlayerPoolDirty(state.playerConfig.teamId, true);
       syncDerivedTeamDataFromPlayerConfig();
       syncConfiguredTeamSelection();
@@ -8808,7 +8912,78 @@ function renderPlayerConfig() {
     }
   });
 
-  card.append(poolControlHost);
+  const familiarityHost = runtimeDocument.createElement("div");
+  familiarityHost.className = "player-familiarity";
+
+  const familiarityTitle = runtimeDocument.createElement("h3");
+  familiarityTitle.textContent = "Familiarity Grade";
+  const familiarityMeta = runtimeDocument.createElement("p");
+  familiarityMeta.className = "meta";
+  familiarityMeta.textContent = "S = one-trick detail mastery, A = high execution, B = misses some nuance, C = basic understanding.";
+  familiarityHost.append(familiarityTitle, familiarityMeta);
+
+  const selectedChampionNames = [...activePlayer.champions].sort((left, right) => left.localeCompare(right));
+  if (selectedChampionNames.length === 0) {
+    const emptyFamiliarity = runtimeDocument.createElement("p");
+    emptyFamiliarity.className = "meta";
+    emptyFamiliarity.textContent = "Select champions above to set familiarity.";
+    familiarityHost.append(emptyFamiliarity);
+  } else {
+    const familiarityList = runtimeDocument.createElement("div");
+    familiarityList.className = "player-familiarity-list";
+    for (const championName of selectedChampionNames) {
+      const familiarityRow = runtimeDocument.createElement("div");
+      familiarityRow.className = "player-familiarity-row";
+
+      const championLabel = runtimeDocument.createElement("strong");
+      championLabel.className = "player-familiarity-name";
+      championLabel.textContent = championName;
+
+      const familiarityControl = runtimeDocument.createElement("div");
+      familiarityControl.className = "player-familiarity-control";
+      const familiaritySelect = runtimeDocument.createElement("select");
+      familiaritySelect.className = "player-familiarity-select";
+
+      for (const grade of FAMILIARITY_GRADES) {
+        familiaritySelect.append(createOption(grade, grade));
+      }
+
+      const currentFamiliarity = normalizeFamiliarityLevel(activePlayer.familiarityByChampion[championName]);
+      familiaritySelect.value = getFamiliarityGrade(currentFamiliarity);
+
+      const familiarityDescription = runtimeDocument.createElement("span");
+      familiarityDescription.className = "meta player-familiarity-description";
+      const setDescriptionText = () => {
+        const nextLevel = familiarityGradeToLevel(familiaritySelect.value);
+        familiarityDescription.textContent = getFamiliarityLabel(nextLevel);
+      };
+      setDescriptionText();
+
+      familiaritySelect.addEventListener("change", () => {
+        const nextLevel = familiarityGradeToLevel(familiaritySelect.value);
+        activePlayer.familiarityByChampion = normalizeFamiliarityByChampion(
+          activePlayer.champions,
+          {
+            ...(activePlayer.familiarityByChampion ?? {}),
+            [championName]: nextLevel
+          }
+        );
+        setDescriptionText();
+        setPlayerPoolDirty(state.playerConfig.teamId, true);
+        if (elements.playerConfigSavePool) {
+          elements.playerConfigSavePool.disabled = state.playerConfig.isSavingPool;
+        }
+        renderPlayerConfigFeedback("Unsaved familiarity changes. Click Save Champions.");
+      });
+
+      familiarityControl.append(familiaritySelect, familiarityDescription);
+      familiarityRow.append(championLabel, familiarityControl);
+      familiarityList.append(familiarityRow);
+    }
+    familiarityHost.append(familiarityList);
+  }
+
+  card.append(poolControlHost, familiarityHost);
   elements.playerConfigGrid.append(card);
 }
 
@@ -8931,11 +9106,18 @@ function loadStoredPlayerConfig() {
             id: playerId,
             player: playerName,
             role,
-            champions: []
+            champions: [],
+            familiarityByChampion: {}
           };
         }
 
         const champions = Array.isArray(candidate.champions) ? candidate.champions : [];
+        const familiarityByChampion =
+          candidate.familiarityByChampion &&
+          typeof candidate.familiarityByChampion === "object" &&
+          !Array.isArray(candidate.familiarityByChampion)
+            ? candidate.familiarityByChampion
+            : {};
         for (const champion of champions) {
           if (typeof champion !== "string" || !allowedChampionNames.has(champion)) {
             continue;
@@ -8943,6 +9125,9 @@ function loadStoredPlayerConfig() {
           if (!playersById[playerId].champions.includes(champion)) {
             playersById[playerId].champions.push(champion);
           }
+          playersById[playerId].familiarityByChampion[champion] = normalizeFamiliarityLevel(
+            familiarityByChampion[champion]
+          );
         }
       }
 
@@ -8951,6 +9136,10 @@ function loadStoredPlayerConfig() {
         const roleEligible = new Set(state.data.noneTeamPools[player.role] ?? []);
         player.champions = player.champions.filter((champion) => roleEligible.has(champion));
         player.champions.sort((left, right) => left.localeCompare(right));
+        player.familiarityByChampion = normalizeFamiliarityByChampion(
+          player.champions,
+          player.familiarityByChampion
+        );
       }
       normalizedPlayers.sort((left, right) => {
         const roleCmp = compareSlots(left.role, right.role);

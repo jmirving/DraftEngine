@@ -5,8 +5,8 @@ import { parsePositiveInteger, requireNonEmptyString, requireObject } from "../h
 
 function parsePoolFamiliarity(rawValue, fieldName = "familiarity") {
   const familiarity = parsePositiveInteger(rawValue, fieldName);
-  if (familiarity < 1 || familiarity > 6) {
-    throw badRequest(`Expected '${fieldName}' to be between 1 and 6.`);
+  if (familiarity < 1 || familiarity > 4) {
+    throw badRequest(`Expected '${fieldName}' to be between 1 and 4.`);
   }
   return familiarity;
 }

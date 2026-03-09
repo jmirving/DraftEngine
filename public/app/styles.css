@@ -2505,6 +2505,52 @@ button.slot-order-btn:disabled {
   margin-bottom: 0.35rem;
 }
 
+.player-familiarity {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.7rem;
+}
+
+.player-familiarity-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.player-familiarity-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 280px);
+  gap: 0.5rem;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.4rem 0.45rem;
+  background: #fffefa;
+}
+
+.player-familiarity-name {
+  font-size: 0.9rem;
+}
+
+.player-familiarity-control {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.player-familiarity-select {
+  margin-top: 0;
+}
+
+.player-familiarity-description.meta {
+  margin: 0;
+  font-size: 0.76rem;
+}
+
+@media (max-width: 720px) {
+  .player-familiarity-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .profile-section {
   border-top: 1px solid var(--border);
   margin-top: 1.05rem;
