@@ -135,11 +135,19 @@ const PERMISSIONS = Object.freeze([
   },
   {
     id: "requirements.read.global",
-    description: "Read requirement definitions and compositions catalog."
+    description: "Read requirement definitions."
   },
   {
     id: "requirements.write.global",
-    description: "Create/update/delete requirement definitions and compositions."
+    description: "Create/update/delete requirement definitions."
+  },
+  {
+    id: "compositions.read.global",
+    description: "Read compositions catalog."
+  },
+  {
+    id: "compositions.write.global",
+    description: "Create/update/delete compositions."
   },
   {
     id: "admin.users.read",
@@ -171,7 +179,8 @@ const GLOBAL_ROLE_ASSIGNMENTS = Object.freeze({
     "tags.catalog.read",
     "champion_tags.read.global",
     "champion_tags.read.team",
-    "requirements.read.global"
+    "requirements.read.global",
+    "compositions.read.global"
   ]),
   [USER_ROLE_GLOBAL]: Object.freeze([
     "profile.read.self",
@@ -192,7 +201,9 @@ const GLOBAL_ROLE_ASSIGNMENTS = Object.freeze({
     "tags.catalog.write.global",
     "champion_metadata.write.global",
     "requirements.read.global",
-    "requirements.write.global"
+    "requirements.write.global",
+    "compositions.read.global",
+    "compositions.write.global"
   ]),
   [USER_ROLE_ADMIN]: Object.freeze([
     "profile.read.self",
@@ -214,6 +225,8 @@ const GLOBAL_ROLE_ASSIGNMENTS = Object.freeze({
     "champion_metadata.write.global",
     "requirements.read.global",
     "requirements.write.global",
+    "compositions.read.global",
+    "compositions.write.global",
     "admin.users.read",
     "admin.users.write",
     "admin.users.delete"
