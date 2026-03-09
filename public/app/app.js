@@ -153,6 +153,18 @@ const BUILDER_DEFAULTS = Object.freeze({
   defaultTreeDensity: "summary",
   showOptionalChecksByDefault: false
 });
+const BUILDER_RANK_GOAL_VALID_END_STATES = "valid_end_states";
+const BUILDER_RANK_GOAL_CANDIDATE_SCORE = "candidate_score";
+const BUILDER_RANK_GOAL_VALUES = new Set([
+  BUILDER_RANK_GOAL_VALID_END_STATES,
+  BUILDER_RANK_GOAL_CANDIDATE_SCORE
+]);
+
+function normalizeBuilderRankGoal(value) {
+  return BUILDER_RANK_GOAL_VALUES.has(value)
+    ? value
+    : BUILDER_RANK_GOAL_VALID_END_STATES;
+}
 
 const UI_COPY = Object.freeze({
   hero: {
@@ -499,6 +511,7 @@ function createInitialState() {
       treeSearch: "",
       treeMinScore: 0,
       treeMinCandidateScore: 1,
+      treeRankGoal: BUILDER_RANK_GOAL_VALID_END_STATES,
       treeValidLeavesOnly: true,
       focusNodeId: "0",
       selectedNodeId: null,
@@ -710,6 +723,7 @@ function createElements() {
     treeSearch: runtimeDocument.querySelector("#tree-search"),
     treeMinScore: runtimeDocument.querySelector("#tree-min-score"),
     treeMinCandidateScore: runtimeDocument.querySelector("#tree-min-candidate-score"),
+    treeRankGoal: runtimeDocument.querySelector("#tree-rank-goal"),
     treeValidLeavesOnly: runtimeDocument.querySelector("#tree-valid-leaves-only"),
     treeMapLegend: runtimeDocument.querySelector("#tree-map-legend"),
     treeExpandAll: runtimeDocument.querySelector("#tree-expand-all"),
@@ -9173,6 +9187,7 @@ function resetBuilderToDefaults() {
   state.builder.treeSearch = "";
   state.builder.treeMinScore = 0;
   state.builder.treeMinCandidateScore = 1;
+  state.builder.treeRankGoal = BUILDER_RANK_GOAL_VALID_END_STATES;
   state.builder.treeValidLeavesOnly = true;
 
   const rawBranch = Number.parseInt(String(state.data.config.treeDefaults.maxBranch), 10);
@@ -9191,6 +9206,9 @@ function resetBuilderToDefaults() {
   elements.treeMinScore.value = "0";
   if (elements.treeMinCandidateScore) {
     elements.treeMinCandidateScore.value = "1";
+  }
+  if (elements.treeRankGoal) {
+    elements.treeRankGoal.value = BUILDER_RANK_GOAL_VALID_END_STATES;
   }
   elements.treeValidLeavesOnly.checked = true;
   elements.treeDensity.value = state.builder.treeDensity;
@@ -9316,9 +9334,9 @@ function generateTreeFromCurrentState({ scrollToResults = true } = {}) {
       excludedChampions: state.builder.excludedChampions,
       maxDepth: state.builder.maxDepth,
       maxBranch: state.builder.maxBranch,
-      minCandidateScore: 0,
+      minCandidateScore: state.builder.treeMinCandidateScore,
       pruneUnreachableRequired: true,
-      rankGoal: "valid_end_states"
+      rankGoal: normalizeBuilderRankGoal(state.builder.treeRankGoal)
     });
     clearTreeSelectionState();
     setBuilderStage("inspect");
@@ -10291,6 +10309,23 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
       quickActions.append(clearSearch);
     }
 
+    if (state.builder.treeMinCandidateScore > 0) {
+      const lowerFloor = runtimeDocument.createElement("button");
+      lowerFloor.type = "button";
+      lowerFloor.className = "ghost";
+      lowerFloor.textContent = "Lower Min Candidate Score to 0";
+      lowerFloor.addEventListener("click", () => {
+        state.builder.treeMinCandidateScore = 0;
+        if (elements.treeMinCandidateScore) {
+          elements.treeMinCandidateScore.value = "0";
+        }
+        setBuilderStage("setup");
+        resetBuilderTreeState();
+        renderBuilder();
+      });
+      quickActions.append(lowerFloor);
+    }
+
     if (quickActions.childElementCount > 0) {
       elements.builderTreeSummary.append(quickActions);
     }
@@ -10536,6 +10571,12 @@ function renderBuilder() {
   elements.treeDensity.value = state.builder.treeDensity;
   elements.treeSearch.value = state.builder.treeSearch;
   elements.treeMinScore.value = String(state.builder.treeMinScore);
+  if (elements.treeMinCandidateScore) {
+    elements.treeMinCandidateScore.value = String(state.builder.treeMinCandidateScore);
+  }
+  if (elements.treeRankGoal) {
+    elements.treeRankGoal.value = normalizeBuilderRankGoal(state.builder.treeRankGoal);
+  }
   elements.treeValidLeavesOnly.checked = state.builder.treeValidLeavesOnly;
   elements.treeDensity.disabled = !state.builder.tree;
   elements.treeSearch.disabled = !state.builder.tree;
@@ -11377,6 +11418,16 @@ function attachEvents() {
       const parsed = Number.parseInt(elements.treeMinCandidateScore.value, 10);
       state.builder.treeMinCandidateScore = Number.isFinite(parsed) ? Math.max(0, parsed) : 1;
       elements.treeMinCandidateScore.value = String(state.builder.treeMinCandidateScore);
+      setBuilderStage("setup");
+      resetBuilderTreeState();
+      renderBuilder();
+    });
+  }
+
+  if (elements.treeRankGoal) {
+    elements.treeRankGoal.addEventListener("change", () => {
+      state.builder.treeRankGoal = normalizeBuilderRankGoal(elements.treeRankGoal.value);
+      elements.treeRankGoal.value = state.builder.treeRankGoal;
       setBuilderStage("setup");
       resetBuilderTreeState();
       renderBuilder();

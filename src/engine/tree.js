@@ -9,6 +9,8 @@ import { evaluateCompositionRequirements } from "./requirements.js";
 
 const DEFAULT_MIN_CANDIDATE_SCORE = 1;
 const DEFAULT_RANK_GOAL = "valid_end_states";
+const RANK_GOAL_CANDIDATE_SCORE = "candidate_score";
+const RANK_GOAL_VALUES = new Set([DEFAULT_RANK_GOAL, RANK_GOAL_CANDIDATE_SCORE]);
 const MAX_FALLBACK_KEEP = 2;
 
 function normalizeExclusions(excludedChampions = []) {
@@ -44,7 +46,7 @@ function resolveNextRole(teamState, preferredRole, roleOrder = SLOTS) {
 }
 
 function normalizeRankGoal(rankGoal) {
-  return rankGoal === DEFAULT_RANK_GOAL ? rankGoal : DEFAULT_RANK_GOAL;
+  return RANK_GOAL_VALUES.has(rankGoal) ? rankGoal : DEFAULT_RANK_GOAL;
 }
 
 function createGenerationStats() {

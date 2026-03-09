@@ -489,6 +489,20 @@
                         <input id="builder-max-branch" type="number" min="1" max="25" step="1" />
                       </label>
                     </div>
+                    <div class="grid grid-2">
+                      <label>
+                        Min Candidate Score
+                        <input id="tree-min-candidate-score" type="number" min="0" step="1" value="1" />
+                      </label>
+                      <label>
+                        Rank Goal
+                        <select id="tree-rank-goal">
+                          <option value="valid_end_states" selected>Valid end states</option>
+                          <option value="candidate_score">Candidate score</option>
+                        </select>
+                      </label>
+                    </div>
+                    <p class="meta">Scoring controls affect generation order and branch thinning during tree build.</p>
                   </div>
                 </details>
               </div>
@@ -1139,6 +1153,10 @@
               >
                 <h3>What's New</h3>
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
+                <h4>Version 0.7.5 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>Composer Advanced Controls now exposes `Min Candidate Score` and `Rank Goal` so users can tune tree generation scoring behavior directly.</li>
+                </ul>
                 <h4>Version 0.7.4 (Shipped)</h4>
                 <ul class="coming-soon-list">
                   <li>Profile now supports per-champion familiarity grading with an explicit S/A/B/C scale in each role pool, including save/load persistence.</li>
@@ -1192,6 +1210,7 @@
                 <h4>Composer</h4>
                 <ul class="coming-soon-list">
                   <li>Per-team and per-user composition overlays remain deferred (draftflow-160)</li>
+                  <li>Per-composition scoring-weight customization (beyond floor/rank controls) is still deferred (draftflow-199).</li>
                 </ul>
                 <h4>Teams</h4>
                 <ul class="coming-soon-list">

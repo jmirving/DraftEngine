@@ -252,3 +252,97 @@ test("valid-end-state ranking prefers branches that satisfy more requirements", 
   const nodes = collectNodes(tree);
   expect(nodes.some((node) => node.requiredSummary.requiredTotal > 0)).toBe(true);
 });
+
+test("rankGoal candidate_score can prioritize immediate score over downstream valid-leaf count", () => {
+  const championsByName = {
+    FlexTag: {
+      name: "FlexTag",
+      tagIds: [1],
+      tags: { Frontline: true }
+    },
+    TopOnly: {
+      name: "TopOnly",
+      tagIds: [],
+      tags: {}
+    },
+    MidLock: {
+      name: "MidLock",
+      tagIds: [],
+      tags: {}
+    },
+    ADCLock: {
+      name: "ADCLock",
+      tagIds: [],
+      tags: {}
+    },
+    SupportLock: {
+      name: "SupportLock",
+      tagIds: [],
+      tags: {}
+    }
+  };
+
+  const requirements = [
+    {
+      id: 77,
+      name: "Need Frontline",
+      definition: "Need one frontline champion anywhere",
+      rules: [
+        {
+          id: "need-frontline-anywhere",
+          expr: { tag: "Frontline" },
+          minCount: 1
+        }
+      ]
+    }
+  ];
+
+  const baseParams = {
+    teamState: {
+      Mid: "MidLock",
+      ADC: "ADCLock",
+      Support: "SupportLock"
+    },
+    teamId: "X",
+    nextRole: "Top",
+    roleOrder: ["Top", "Jungle", "Mid", "ADC", "Support"],
+    teamPools: {
+      X: {
+        Top: ["FlexTag", "TopOnly"],
+        Jungle: ["FlexTag"],
+        Mid: ["MidLock"],
+        ADC: ["ADCLock"],
+        Support: ["SupportLock"]
+      }
+    },
+    championsByName,
+    requirements,
+    tagById: {
+      "1": { id: 1, name: "Frontline" }
+    },
+    maxDepth: 2,
+    maxBranch: 5,
+    minCandidateScore: -100,
+    pruneUnreachableRequired: true
+  };
+
+  const validEndStateTree = generatePossibilityTree({
+    ...baseParams,
+    rankGoal: "valid_end_states"
+  });
+  const candidateScoreTree = generatePossibilityTree({
+    ...baseParams,
+    rankGoal: "candidate_score"
+  });
+
+  expect(validEndStateTree.children).toHaveLength(2);
+  expect(candidateScoreTree.children).toHaveLength(2);
+  expect(validEndStateTree.children[0].addedChampion).toBe("TopOnly");
+  expect(validEndStateTree.children[0].branchPotential.validLeafCount).toBeGreaterThan(
+    validEndStateTree.children[1].branchPotential.validLeafCount
+  );
+  expect(candidateScoreTree.children[0].addedChampion).toBe("FlexTag");
+  expect(candidateScoreTree.children[0].candidateScore).toBeGreaterThan(
+    candidateScoreTree.children[1].candidateScore
+  );
+});

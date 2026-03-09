@@ -316,6 +316,38 @@ describe("workflow app integration", () => {
     expect(afterMinScoreCircles).toBe(1);
   });
 
+  test("advanced scoring controls in setup update generation floor and rank goal", async () => {
+    const { dom, state } = await bootApp();
+    const doc = dom.window.document;
+    const topSelect = doc.querySelector("#slot-Top");
+    const continueButton = doc.querySelector("#builder-continue-validate");
+    const generateButton = doc.querySelector("#builder-generate");
+    const minCandidateScore = doc.querySelector("#tree-min-candidate-score");
+    const rankGoal = doc.querySelector("#tree-rank-goal");
+
+    expect(minCandidateScore).toBeTruthy();
+    expect(rankGoal).toBeTruthy();
+
+    minCandidateScore.value = "1000";
+    minCandidateScore.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    expect(state.builder.treeMinCandidateScore).toBe(1000);
+
+    rankGoal.value = "candidate_score";
+    rankGoal.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    expect(state.builder.treeRankGoal).toBe("candidate_score");
+
+    const firstTop = Array.from(topSelect.options).find((option) => option.value);
+    topSelect.value = firstTop.value;
+    topSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+    continueButton.click();
+    generateButton.click();
+
+    expect(state.builder.tree).toBeTruthy();
+    expect(state.builder.tree.children.length).toBeGreaterThan(0);
+    expect(state.builder.tree.children.every((child) => child.passesMinScore === false)).toBe(true);
+  });
+
   test("empty root summary offers recovery CTAs for filters and candidate floor", async () => {
     const { dom, state } = await bootApp();
     const doc = dom.window.document;

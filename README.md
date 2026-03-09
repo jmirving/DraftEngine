@@ -172,9 +172,11 @@ Tree defaults:
 - `maxDepth=4`
 - `maxBranch=8`
 - `minCandidateScore=1` (UI default)
+- `rankGoal=valid_end_states` (UI default)
 
 Tree generation behavior:
 - `minCandidateScore` is a preference threshold, not an absolute feasibility gate.
+- `rankGoal` can prioritize either downstream valid-end-state outcomes (`valid_end_states`) or immediate candidate score (`candidate_score`).
 - Candidates are ranked by requirement-gap and requirement-pass progress at each node.
 - If every legal pick at a node falls below the threshold, adaptive fallback still expands the best legal picks and marks them as below-floor candidates.
 - Fallback is capped to a small number of branches to preserve output without exploding low-signal paths.
