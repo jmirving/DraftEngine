@@ -169,26 +169,25 @@ Requirement evaluation defaults to:
 - If no composition is selected, the review panel reports that no composition is selected.
 
 Tree defaults:
-- `maxDepth=4`
 - `maxBranch=8`
 - `minCandidateScore=1` (UI default)
 - `rankGoal=valid_end_states` (UI default)
-- `candidateScoringWeights={ baseScore:1, gapDeltaWeight:10, passDeltaWeight:4, unreachablePenaltyWeight:20 }`
-- `compositionScoringWeights={ requiredPassedWeight:10, requiredGapPenaltyWeight:6, filledSlotsWeight:3 }`
+- `candidateScoringWeights={ redundancyPenalty:1 }`
 
 Tree generation behavior:
+- Tree depth is automatic and always runs to the end of the remaining draft.
 - `minCandidateScore` is a preference threshold, not an absolute feasibility gate.
 - `rankGoal` can prioritize either downstream valid-end-state outcomes (`valid_end_states`) or immediate candidate score (`candidate_score`).
-- Candidate and composition scoring weights are configurable in Composer Advanced Controls.
-- Candidates are ranked by requirement-gap and requirement-pass progress at each node.
+- Composer Advanced Controls expose `redundancyPenalty` for max-count overflow tuning.
+- Candidates are ranked by clause-level minimum coverage progress and redundancy overflow, not only requirement pass/fail flips.
 - If every legal pick at a node falls below the threshold, adaptive fallback still expands the best legal picks and marks them as below-floor candidates.
 - Fallback is capped to a small number of branches to preserve output without exploding low-signal paths.
 - Summary view reports `pruned low score`, `pruned relative score`, and fallback usage counts in generation stats.
+- Composer review surfaces per-clause counts, missing coverage, redundancy overflow, and score contributions.
 
 ## Current MVP Constraints
 
 - Tree generation is deterministic for identical inputs.
-- Candidate scoring does not apply redundancy penalties.
 - Tree expansion priority follows configurable Node Draft Order.
 - Team configuration supports `None` mode (global role-eligible champion pools).
 - Tree view includes both an outline and a visual Tree Map graph.

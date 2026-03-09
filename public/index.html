@@ -479,16 +479,11 @@
                     <div id="builder-excluded-options" class="excluded-options"></div>
                     <p class="meta">Multi-select checklist. Excluded champions are never offered in selectors or generated tree nodes.</p>
                     <div id="builder-excluded-pills" class="chip-row"></div>
-                    <div class="grid grid-2">
-                      <label>
-                        Auto Depth (remaining slots)
-                        <input id="builder-max-depth" type="number" min="0" max="5" step="1" readonly />
-                      </label>
-                      <label>
-                        maxBranch
-                        <input id="builder-max-branch" type="number" min="1" max="25" step="1" />
-                      </label>
-                    </div>
+                    <label>
+                      maxBranch
+                      <input id="builder-max-branch" type="number" min="1" max="25" step="1" />
+                    </label>
+                    <p class="meta">Tree generation always runs to the end of the remaining composition.</p>
                     <div class="grid grid-2">
                       <label>
                         Min Candidate Score
@@ -503,40 +498,10 @@
                       </label>
                     </div>
                     <p class="meta">Scoring controls affect generation order and branch thinning during tree build.</p>
-                    <p class="panel-kicker">Candidate Scoring Weights</p>
-                    <div class="grid grid-2">
-                      <label>
-                        Base Score
-                        <input id="tree-candidate-base-score" type="number" step="1" value="1" />
-                      </label>
-                      <label>
-                        Gap Delta Weight
-                        <input id="tree-candidate-gap-weight" type="number" step="1" value="10" />
-                      </label>
-                      <label>
-                        Pass Delta Weight
-                        <input id="tree-candidate-pass-weight" type="number" step="1" value="4" />
-                      </label>
-                      <label>
-                        Unreachable Penalty Weight
-                        <input id="tree-candidate-unreachable-penalty-weight" type="number" min="0" step="1" value="20" />
-                      </label>
-                    </div>
-                    <p class="panel-kicker">Composition Scoring Weights</p>
-                    <div class="grid grid-2">
-                      <label>
-                        Required Passed Weight
-                        <input id="tree-composition-passed-weight" type="number" step="1" value="10" />
-                      </label>
-                      <label>
-                        Required Gap Penalty Weight
-                        <input id="tree-composition-gap-penalty-weight" type="number" min="0" step="1" value="6" />
-                      </label>
-                      <label>
-                        Filled Slots Weight
-                        <input id="tree-composition-filled-slots-weight" type="number" step="1" value="3" />
-                      </label>
-                    </div>
+                    <label>
+                      redundancyPenalty
+                      <input id="tree-candidate-redundancy-penalty" type="number" min="0" step="1" value="1" />
+                    </label>
                   </div>
                 </details>
               </div>
@@ -1190,7 +1155,9 @@
                 <h4>Version 0.7.4 (Shipped)</h4>
                 <ul class="coming-soon-list">
                   <li>Profile now supports per-champion familiarity grading with an explicit S/A/B/C scale in each role pool, including save/load persistence.</li>
-                  <li>Composer Advanced Controls now exposes scoring controls for tree generation, including `Min Candidate Score`, `Rank Goal`, and editable candidate/composition scoring weights.</li>
+                  <li>Composer tree generation now always expands to the end of the remaining draft instead of exposing a manual depth control.</li>
+                  <li>Composer Advanced Controls now focuses tree tuning on `Min Candidate Score`, `Rank Goal`, and a global `redundancyPenalty` for max-count overflow instead of opaque candidate/composition weight grids.</li>
+                  <li>Composer requirement visibility now shows clause-level match counts, missing coverage, redundancy overflow, and score contributions in Review/Inspect.</li>
                 </ul>
                 <h4>Version 0.7.3 (Shipped)</h4>
                 <ul class="coming-soon-list">
@@ -1242,6 +1209,7 @@
                 <ul class="coming-soon-list">
                   <li>Per-team and per-user composition overlays remain deferred (draftflow-160)</li>
                   <li>Per-composition saved scoring profiles and scoped scoring presets are still deferred (draftflow-199).</li>
+                  <li>Clause scoring still needs joiner-aware aggregation for OR-linked requirements so parallel OR clauses do not over-count progress (draftflow-201).</li>
                 </ul>
                 <h4>Teams</h4>
                 <ul class="coming-soon-list">

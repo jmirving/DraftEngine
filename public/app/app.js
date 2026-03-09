@@ -9,6 +9,7 @@ import {
   isDamageType,
   isScaling,
   isSlot,
+  buildRequirementScoreBreakdown,
   evaluateCompositionRequirements,
   generatePossibilityTree,
   normalizeTeamState
@@ -144,7 +145,6 @@ const DEFAULT_APP_CONFIG = Object.freeze({
     }
   },
   treeDefaults: {
-    maxDepth: 4,
     maxBranch: 8
   }
 });
@@ -160,15 +160,7 @@ const BUILDER_RANK_GOAL_VALUES = new Set([
   BUILDER_RANK_GOAL_CANDIDATE_SCORE
 ]);
 const BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS = Object.freeze({
-  baseScore: 1,
-  gapDeltaWeight: 10,
-  passDeltaWeight: 4,
-  unreachablePenaltyWeight: 20
-});
-const BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS = Object.freeze({
-  requiredPassedWeight: 10,
-  requiredGapPenaltyWeight: 6,
-  filledSlotsWeight: 3
+  redundancyPenalty: 1
 });
 
 function normalizeBuilderRankGoal(value) {
@@ -187,38 +179,12 @@ function normalizeBuilderCandidateScoringWeights(weights = BUILDER_DEFAULT_CANDI
     ? weights
     : BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS;
   return {
-    baseScore: normalizeBuilderFiniteNumber(source.baseScore, BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.baseScore),
-    gapDeltaWeight: normalizeBuilderFiniteNumber(
-      source.gapDeltaWeight,
-      BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.gapDeltaWeight
-    ),
-    passDeltaWeight: normalizeBuilderFiniteNumber(
-      source.passDeltaWeight,
-      BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.passDeltaWeight
-    ),
-    unreachablePenaltyWeight: normalizeBuilderFiniteNumber(
-      source.unreachablePenaltyWeight,
-      BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.unreachablePenaltyWeight
-    )
-  };
-}
-
-function normalizeBuilderCompositionScoringWeights(weights = BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS) {
-  const source = weights && typeof weights === "object" && !Array.isArray(weights)
-    ? weights
-    : BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS;
-  return {
-    requiredPassedWeight: normalizeBuilderFiniteNumber(
-      source.requiredPassedWeight,
-      BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS.requiredPassedWeight
-    ),
-    requiredGapPenaltyWeight: normalizeBuilderFiniteNumber(
-      source.requiredGapPenaltyWeight,
-      BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS.requiredGapPenaltyWeight
-    ),
-    filledSlotsWeight: normalizeBuilderFiniteNumber(
-      source.filledSlotsWeight,
-      BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS.filledSlotsWeight
+    redundancyPenalty: Math.max(
+      0,
+      normalizeBuilderFiniteNumber(
+        source.redundancyPenalty,
+        BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.redundancyPenalty
+      )
     )
   };
 }
@@ -561,7 +527,6 @@ function createInitialState() {
       slotPoolRole: Object.fromEntries(SLOTS.map((s) => [s, s])),
       excludedChampions: [],
       excludedSearch: "",
-      maxDepth: 4,
       maxBranch: 8,
       tree: null,
       treeDensity: "summary",
@@ -571,9 +536,6 @@ function createInitialState() {
       treeRankGoal: BUILDER_RANK_GOAL_VALID_END_STATES,
       candidateScoringWeights: {
         ...BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS
-      },
-      compositionScoringWeights: {
-        ...BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS
       },
       treeValidLeavesOnly: true,
       focusNodeId: "0",
@@ -764,7 +726,6 @@ function createElements() {
     builderExcludedSearch: runtimeDocument.querySelector("#builder-excluded-search"),
     builderExcludedOptions: runtimeDocument.querySelector("#builder-excluded-options"),
     builderExcludedPills: runtimeDocument.querySelector("#builder-excluded-pills"),
-    builderMaxDepth: runtimeDocument.querySelector("#builder-max-depth"),
     builderMaxBranch: runtimeDocument.querySelector("#builder-max-branch"),
     builderContinueValidate: runtimeDocument.querySelector("#builder-continue-validate"),
     builderGenerate: runtimeDocument.querySelector("#builder-generate"),
@@ -787,13 +748,7 @@ function createElements() {
     treeMinScore: runtimeDocument.querySelector("#tree-min-score"),
     treeMinCandidateScore: runtimeDocument.querySelector("#tree-min-candidate-score"),
     treeRankGoal: runtimeDocument.querySelector("#tree-rank-goal"),
-    treeCandidateBaseScore: runtimeDocument.querySelector("#tree-candidate-base-score"),
-    treeCandidateGapWeight: runtimeDocument.querySelector("#tree-candidate-gap-weight"),
-    treeCandidatePassWeight: runtimeDocument.querySelector("#tree-candidate-pass-weight"),
-    treeCandidateUnreachablePenaltyWeight: runtimeDocument.querySelector("#tree-candidate-unreachable-penalty-weight"),
-    treeCompositionPassedWeight: runtimeDocument.querySelector("#tree-composition-passed-weight"),
-    treeCompositionGapPenaltyWeight: runtimeDocument.querySelector("#tree-composition-gap-penalty-weight"),
-    treeCompositionFilledSlotsWeight: runtimeDocument.querySelector("#tree-composition-filled-slots-weight"),
+    treeCandidateRedundancyPenalty: runtimeDocument.querySelector("#tree-candidate-redundancy-penalty"),
     treeValidLeavesOnly: runtimeDocument.querySelector("#tree-valid-leaves-only"),
     treeMapLegend: runtimeDocument.querySelector("#tree-map-legend"),
     treeExpandAll: runtimeDocument.querySelector("#tree-expand-all"),
@@ -7289,11 +7244,7 @@ function initializeBuilderControls() {
   elements.builderActiveTeam.value = state.builder.teamId;
   syncBuilderCompositionControls();
 
-  state.builder.maxDepth = getAutoMaxDepth();
   state.builder.maxBranch = state.data.config.treeDefaults.maxBranch;
-  elements.builderMaxDepth.value = String(state.builder.maxDepth);
-  elements.builderMaxDepth.disabled = true;
-  elements.builderMaxDepth.title = "Tree depth is automatic and equals remaining draft slots.";
   elements.builderMaxBranch.value = String(state.builder.maxBranch);
 
   updateTeamHelpAndSlotLabels();
@@ -9261,21 +9212,15 @@ function resetBuilderToDefaults() {
   state.builder.candidateScoringWeights = {
     ...BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS
   };
-  state.builder.compositionScoringWeights = {
-    ...BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS
-  };
   state.builder.treeValidLeavesOnly = true;
 
   const rawBranch = Number.parseInt(String(state.data.config.treeDefaults.maxBranch), 10);
-  state.builder.maxDepth = getAutoMaxDepth();
   state.builder.maxBranch = Number.isFinite(rawBranch) ? Math.max(1, rawBranch) : 8;
 
   resetBuilderTreeState();
   state.builder.treeDensity = BUILDER_DEFAULTS.defaultTreeDensity;
   setBuilderStage("setup");
 
-  elements.builderMaxDepth.value = String(state.builder.maxDepth);
-  elements.builderMaxDepth.disabled = true;
   elements.builderMaxBranch.value = String(state.builder.maxBranch);
   elements.builderExcludedSearch.value = "";
   elements.treeSearch.value = "";
@@ -9286,30 +9231,10 @@ function resetBuilderToDefaults() {
   if (elements.treeRankGoal) {
     elements.treeRankGoal.value = BUILDER_RANK_GOAL_VALID_END_STATES;
   }
-  if (elements.treeCandidateBaseScore) {
-    elements.treeCandidateBaseScore.value = String(BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.baseScore);
-  }
-  if (elements.treeCandidateGapWeight) {
-    elements.treeCandidateGapWeight.value = String(BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.gapDeltaWeight);
-  }
-  if (elements.treeCandidatePassWeight) {
-    elements.treeCandidatePassWeight.value = String(BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.passDeltaWeight);
-  }
-  if (elements.treeCandidateUnreachablePenaltyWeight) {
-    elements.treeCandidateUnreachablePenaltyWeight.value = String(
-      BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.unreachablePenaltyWeight
+  if (elements.treeCandidateRedundancyPenalty) {
+    elements.treeCandidateRedundancyPenalty.value = String(
+      BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.redundancyPenalty
     );
-  }
-  if (elements.treeCompositionPassedWeight) {
-    elements.treeCompositionPassedWeight.value = String(BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS.requiredPassedWeight);
-  }
-  if (elements.treeCompositionGapPenaltyWeight) {
-    elements.treeCompositionGapPenaltyWeight.value = String(
-      BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS.requiredGapPenaltyWeight
-    );
-  }
-  if (elements.treeCompositionFilledSlotsWeight) {
-    elements.treeCompositionFilledSlotsWeight.value = String(BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS.filledSlotsWeight);
   }
   elements.treeValidLeavesOnly.checked = true;
   elements.treeDensity.value = state.builder.treeDensity;
@@ -9385,11 +9310,6 @@ function getEnginePoolContext() {
   };
 }
 
-function getAutoMaxDepth() {
-  const completion = getTeamCompletionInfo(state.builder.teamState);
-  return completion.totalSlots - completion.filledSlots;
-}
-
 function getChampionsForSlotAndRole(slot, poolRole) {
   const ctx = state.builder.draftContext;
   if (ctx?.members?.length > 0) {
@@ -9423,7 +9343,6 @@ function generateTreeFromCurrentState({ scrollToResults = true } = {}) {
     setInspectFeedback("");
     const { teamId, teamPools } = getEnginePoolContext();
     const requirements = getBuilderSelectedRequirements();
-    state.builder.maxDepth = getAutoMaxDepth();
     state.builder.tree = generatePossibilityTree({
       teamState: state.builder.teamState,
       teamId,
@@ -9433,11 +9352,9 @@ function generateTreeFromCurrentState({ scrollToResults = true } = {}) {
       requirements,
       tagById: state.api.tagById,
       excludedChampions: state.builder.excludedChampions,
-      maxDepth: state.builder.maxDepth,
       maxBranch: state.builder.maxBranch,
       minCandidateScore: state.builder.treeMinCandidateScore,
       candidateScoringWeights: normalizeBuilderCandidateScoringWeights(state.builder.candidateScoringWeights),
-      compositionScoringWeights: normalizeBuilderCompositionScoringWeights(state.builder.compositionScoringWeights),
       pruneUnreachableRequired: true,
       rankGoal: normalizeBuilderRankGoal(state.builder.treeRankGoal)
     });
@@ -9456,20 +9373,13 @@ function generateTreeFromCurrentState({ scrollToResults = true } = {}) {
   }
 }
 
-function applyBuilderScoringWeightChange(group, key, rawValue, fallback, { min = null } = {}) {
+function applyBuilderScoringWeightChange(key, rawValue, fallback, { min = null } = {}) {
   let value = normalizeBuilderFiniteNumber(rawValue, fallback);
   if (Number.isFinite(min)) {
     value = Math.max(min, value);
   }
-  if (group === "candidate") {
-    state.builder.candidateScoringWeights = {
-      ...state.builder.candidateScoringWeights,
-      [key]: value
-    };
-    return value;
-  }
-  state.builder.compositionScoringWeights = {
-    ...state.builder.compositionScoringWeights,
+  state.builder.candidateScoringWeights = {
+    ...state.builder.candidateScoringWeights,
     [key]: value
   };
   return value;
@@ -9834,7 +9744,15 @@ function evaluateComposerRequirements() {
   });
 }
 
-function buildRequirementStatusRow(requirementResult) {
+function getComposerRedundancyPenalty() {
+  return normalizeBuilderCandidateScoringWeights(state.builder.candidateScoringWeights).redundancyPenalty;
+}
+
+function buildComposerRequirementScoreBreakdown(requirementEvaluation) {
+  return buildRequirementScoreBreakdown(requirementEvaluation, getComposerRedundancyPenalty());
+}
+
+function buildRequirementStatusRow(requirementResult, requirementScore = null) {
   const status = requirementResult.status;
   const passed = status === "pass";
   const item = runtimeDocument.createElement("li");
@@ -9869,16 +9787,41 @@ function buildRequirementStatusRow(requirementResult) {
   }
 
   if (Array.isArray(requirementResult.clauses) && requirementResult.clauses.length > 0) {
-    const clausesMeta = runtimeDocument.createElement("p");
-    clausesMeta.className = "meta";
-    const clauseSummary = requirementResult.clauses
-      .map((clause, index) => {
-        const stateLabel = clause.status === "pass" ? "pass" : clause.status === "pending" ? "pending" : "fail";
-        return `C${index + 1} ${stateLabel} (${clause.currentMatches}/${clause.minCount}, max possible ${clause.maxPossibleMatches})`;
-      })
-      .join(" | ");
-    clausesMeta.textContent = clauseSummary;
-    item.append(clausesMeta);
+    const clausesList = runtimeDocument.createElement("ul");
+    clausesList.className = "meta";
+    const clauseScoreById = new Map(
+      Array.isArray(requirementScore?.clauses)
+        ? requirementScore.clauses.map((clause) => [clause.id, clause])
+        : []
+    );
+
+    for (const [index, clause] of requirementResult.clauses.entries()) {
+      const clauseId =
+        typeof clause?.id === "string" && clause.id.trim() !== ""
+          ? clause.id.trim()
+          : `clause-${index + 1}`;
+      const clauseScore = clauseScoreById.get(clauseId) ?? null;
+      const clauseItem = runtimeDocument.createElement("li");
+      const stateLabel = clause.status === "pass" ? "pass" : clause.status === "pending" ? "pending" : "fail";
+      const rangeLabel = clause.maxCount === null ? `${clause.minCount}+` : `${clause.minCount}-${clause.maxCount}`;
+      const overflowLabel =
+        clause.overBy > 0 ? ` | redundancy overflow ${clause.overBy}` : "";
+      const contributionLabel = clauseScore ? ` | score ${clauseScore.scoreContribution}` : "";
+      clauseItem.textContent =
+        `C${index + 1} ${stateLabel}: ${clause.currentMatches}/${rangeLabel} matches` +
+        ` | under ${clause.underBy} | max possible ${clause.maxPossibleMatches}${overflowLabel}${contributionLabel}`;
+      clausesList.append(clauseItem);
+    }
+    item.append(clausesList);
+  }
+
+  if (requirementScore) {
+    const scoreMeta = runtimeDocument.createElement("p");
+    scoreMeta.className = "meta";
+    scoreMeta.textContent =
+      `Clause score ${requirementScore.totalScore} | missing matches ${requirementScore.totalUnderBy} | ` +
+      `redundancy overflow ${requirementScore.totalOverBy}.`;
+    item.append(scoreMeta);
   }
 
   return item;
@@ -9903,6 +9846,7 @@ function renderChecks() {
   }
 
   const requirementEvaluation = evaluateComposerRequirements();
+  const scoreBreakdown = buildComposerRequirementScoreBreakdown(requirementEvaluation);
   const requiredTotal = requirementEvaluation.requiredSummary.requiredTotal;
   const requiredPassed = requirementEvaluation.requiredSummary.requiredPassed;
   const requiredGaps = requirementEvaluation.requiredSummary.requiredGaps;
@@ -9927,7 +9871,9 @@ function renderChecks() {
     return;
   }
   for (const requirementResult of requirementResults) {
-    elements.builderRequiredChecks.append(buildRequirementStatusRow(requirementResult));
+    const requirementScore =
+      scoreBreakdown.requirements.find((candidate) => candidate.requirementId === requirementResult.id) ?? null;
+    elements.builderRequiredChecks.append(buildRequirementStatusRow(requirementResult, requirementScore));
   }
 }
 
@@ -10153,6 +10099,35 @@ function nodePassesActiveTreeFilters(node) {
   );
 }
 
+function getCandidateBreakdownLines(candidateBreakdown, limit = 3) {
+  if (!candidateBreakdown || !Array.isArray(candidateBreakdown.requirements)) {
+    return [];
+  }
+
+  const lines = [];
+  for (const requirement of candidateBreakdown.requirements) {
+    for (const clause of requirement.clauses ?? []) {
+      if (clause.underDelta > 0) {
+        lines.push(`${requirement.requirementName} ${clause.label}: +${clause.underDelta} required coverage`);
+      }
+      if (clause.overDelta > 0) {
+        lines.push(`${requirement.requirementName} ${clause.label}: +${clause.overDelta} redundancy overflow`);
+      }
+      if (clause.overDelta < 0) {
+        lines.push(
+          `${requirement.requirementName} ${clause.label}: -${Math.abs(clause.overDelta)} redundancy overflow`
+        );
+      }
+    }
+  }
+
+  if (candidateBreakdown.unreachablePenalty > 0) {
+    lines.push(`unreachable penalty ${candidateBreakdown.unreachablePenalty}`);
+  }
+
+  return lines.slice(0, limit);
+}
+
 function renderTreeNode(node, depth = 0, nodeId = "0", visibleIds = null) {
   if (visibleIds && !visibleIds.has(nodeId)) {
     return null;
@@ -10181,7 +10156,9 @@ function renderTreeNode(node, depth = 0, nodeId = "0", visibleIds = null) {
     : "Root Composition";
   title.textContent = titleText;
   const score = runtimeDocument.createElement("small");
-  score.textContent = `Composition score: ${node.score} | required gaps: ${node.requiredSummary?.requiredGaps ?? "?"}`;
+  score.textContent =
+    `Composition score: ${node.score} | missing matches: ${node.scoreBreakdown?.totalUnderBy ?? 0} | ` +
+    `redundancy overflow: ${node.scoreBreakdown?.totalOverBy ?? 0}`;
   titleRow.append(title, score);
 
   const action = runtimeDocument.createElement("button");
@@ -10198,6 +10175,14 @@ function renderTreeNode(node, depth = 0, nodeId = "0", visibleIds = null) {
   actionRow.append(action);
 
   nodeBox.append(titleRow, actionRow);
+
+  const candidateLines = getCandidateBreakdownLines(node.candidateBreakdown, 2);
+  if (candidateLines.length > 0) {
+    const candidateMeta = runtimeDocument.createElement("div");
+    candidateMeta.className = "meta";
+    candidateMeta.textContent = candidateLines.join(" | ");
+    nodeBox.append(candidateMeta);
+  }
 
   if (Array.isArray(node.pathRationale) && node.pathRationale.length > 0) {
     const rationale = runtimeDocument.createElement("div");
@@ -10474,8 +10459,15 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
     const fallbackSuffix = entry.node.passesMinScore === false ? ", below min candidate score floor" : "";
     score.textContent =
       `Composition score ${entry.node.score}, candidate score ${entry.node.candidateScore ?? 0}, ` +
-      `required gaps ${entry.node.requiredSummary?.requiredGaps ?? "?"}, ` +
+      `missing matches ${entry.node.scoreBreakdown?.totalUnderBy ?? 0}, ` +
+      `redundancy overflow ${entry.node.scoreBreakdown?.totalOverBy ?? 0}, ` +
       `valid leaves ${entry.node.branchPotential?.validLeafCount ?? 0}${fallbackSuffix}.`;
+
+    const candidateMetaLines = getCandidateBreakdownLines(entry.node.candidateBreakdown, 2);
+    const candidateMeta = runtimeDocument.createElement("p");
+    candidateMeta.className = "meta";
+    candidateMeta.textContent =
+      candidateMetaLines.length > 0 ? candidateMetaLines.join(" | ") : "No clause score change for this branch.";
 
     const actions = runtimeDocument.createElement("div");
     actions.className = "button-row";
@@ -10487,7 +10479,7 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
     });
     actions.append(inspect);
 
-    card.append(title, score, actions);
+    card.append(title, score, candidateMeta, actions);
     list.append(card);
   }
 
@@ -10684,16 +10676,10 @@ function renderTreeMap() {
 
 function renderBuilder() {
   state.builder.candidateScoringWeights = normalizeBuilderCandidateScoringWeights(state.builder.candidateScoringWeights);
-  state.builder.compositionScoringWeights = normalizeBuilderCompositionScoringWeights(
-    state.builder.compositionScoringWeights
-  );
-  state.builder.maxDepth = getAutoMaxDepth();
   renderBuilderStageGuide();
   replaceOptions(elements.builderActiveTeam, getTeamSelectOptions());
   elements.builderActiveTeam.value = state.builder.teamId;
   syncBuilderCompositionControls();
-  elements.builderMaxDepth.value = String(state.builder.maxDepth);
-  elements.builderMaxDepth.disabled = true;
   elements.treeDensity.value = state.builder.treeDensity;
   elements.treeSearch.value = state.builder.treeSearch;
   elements.treeMinScore.value = String(state.builder.treeMinScore);
@@ -10703,28 +10689,8 @@ function renderBuilder() {
   if (elements.treeRankGoal) {
     elements.treeRankGoal.value = normalizeBuilderRankGoal(state.builder.treeRankGoal);
   }
-  if (elements.treeCandidateBaseScore) {
-    elements.treeCandidateBaseScore.value = String(state.builder.candidateScoringWeights.baseScore);
-  }
-  if (elements.treeCandidateGapWeight) {
-    elements.treeCandidateGapWeight.value = String(state.builder.candidateScoringWeights.gapDeltaWeight);
-  }
-  if (elements.treeCandidatePassWeight) {
-    elements.treeCandidatePassWeight.value = String(state.builder.candidateScoringWeights.passDeltaWeight);
-  }
-  if (elements.treeCandidateUnreachablePenaltyWeight) {
-    elements.treeCandidateUnreachablePenaltyWeight.value = String(
-      state.builder.candidateScoringWeights.unreachablePenaltyWeight
-    );
-  }
-  if (elements.treeCompositionPassedWeight) {
-    elements.treeCompositionPassedWeight.value = String(state.builder.compositionScoringWeights.requiredPassedWeight);
-  }
-  if (elements.treeCompositionGapPenaltyWeight) {
-    elements.treeCompositionGapPenaltyWeight.value = String(state.builder.compositionScoringWeights.requiredGapPenaltyWeight);
-  }
-  if (elements.treeCompositionFilledSlotsWeight) {
-    elements.treeCompositionFilledSlotsWeight.value = String(state.builder.compositionScoringWeights.filledSlotsWeight);
+  if (elements.treeCandidateRedundancyPenalty) {
+    elements.treeCandidateRedundancyPenalty.value = String(state.builder.candidateScoringWeights.redundancyPenalty);
   }
   elements.treeValidLeavesOnly.checked = state.builder.treeValidLeavesOnly;
   elements.treeDensity.disabled = !state.builder.tree;
@@ -11583,54 +11549,22 @@ function attachEvents() {
     });
   }
 
-  const bindBuilderScoringWeightInput = (element, { group, key, fallback, min = null }) => {
+  const bindBuilderScoringWeightInput = (element, { key, fallback, min = null }) => {
     if (!element) {
       return;
     }
     element.addEventListener("change", () => {
-      const nextValue = applyBuilderScoringWeightChange(group, key, element.value, fallback, { min });
+      const nextValue = applyBuilderScoringWeightChange(key, element.value, fallback, { min });
       element.value = String(nextValue);
       setBuilderStage("setup");
       resetBuilderTreeState();
       renderBuilder();
     });
   };
-  bindBuilderScoringWeightInput(elements.treeCandidateBaseScore, {
-    group: "candidate",
-    key: "baseScore",
-    fallback: BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.baseScore
-  });
-  bindBuilderScoringWeightInput(elements.treeCandidateGapWeight, {
-    group: "candidate",
-    key: "gapDeltaWeight",
-    fallback: BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.gapDeltaWeight
-  });
-  bindBuilderScoringWeightInput(elements.treeCandidatePassWeight, {
-    group: "candidate",
-    key: "passDeltaWeight",
-    fallback: BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.passDeltaWeight
-  });
-  bindBuilderScoringWeightInput(elements.treeCandidateUnreachablePenaltyWeight, {
-    group: "candidate",
-    key: "unreachablePenaltyWeight",
-    fallback: BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.unreachablePenaltyWeight,
+  bindBuilderScoringWeightInput(elements.treeCandidateRedundancyPenalty, {
+    key: "redundancyPenalty",
+    fallback: BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.redundancyPenalty,
     min: 0
-  });
-  bindBuilderScoringWeightInput(elements.treeCompositionPassedWeight, {
-    group: "composition",
-    key: "requiredPassedWeight",
-    fallback: BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS.requiredPassedWeight
-  });
-  bindBuilderScoringWeightInput(elements.treeCompositionGapPenaltyWeight, {
-    group: "composition",
-    key: "requiredGapPenaltyWeight",
-    fallback: BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS.requiredGapPenaltyWeight,
-    min: 0
-  });
-  bindBuilderScoringWeightInput(elements.treeCompositionFilledSlotsWeight, {
-    group: "composition",
-    key: "filledSlotsWeight",
-    fallback: BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS.filledSlotsWeight
   });
 
   elements.builderExcludedSearch.addEventListener("input", () => {

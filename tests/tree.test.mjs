@@ -139,6 +139,12 @@ test("tree exposes requiredSummary, viability, and generation stats metadata", (
     requiredPassed: expect.any(Number),
     requiredGaps: expect.any(Number)
   });
+  expect(tree.scoreBreakdown).toMatchObject({
+    totalUnderBy: expect.any(Number),
+    totalOverBy: expect.any(Number),
+    totalScore: expect.any(Number),
+    requirements: expect.any(Array)
+  });
   expect(tree.viability).toMatchObject({
     remainingSteps: expect.any(Number),
     unreachableRequired: expect.any(Array),
@@ -160,7 +166,7 @@ test("tree exposes requiredSummary, viability, and generation stats metadata", (
   });
 });
 
-test("depth-limited incomplete leaves are never terminal-valid", () => {
+test("tree always expands to the end of the remaining composition", () => {
   const tree = generatePossibilityTree({
     teamState: {},
     teamId: "TTT",
@@ -168,19 +174,18 @@ test("depth-limited incomplete leaves are never terminal-valid", () => {
     teamPools: data.teamPools,
     championsByName: data.championsByName,
     requirements: [],
-    maxDepth: 1,
     maxBranch: 5,
     minCandidateScore: 0,
     pruneUnreachableRequired: false
   });
 
   expect(tree.children.length).toBeGreaterThan(0);
-  for (const child of tree.children) {
-    expect(child.viability.isDraftComplete).toBe(false);
-    expect(child.viability.isTerminalValid).toBe(false);
-    expect(child.branchPotential.validLeafCount).toBe(0);
-  }
-  expect(tree.generationStats.validLeaves).toBe(0);
+  expect(tree.viability.remainingSteps).toBe(5);
+  expect(tree.generationStats.validLeaves).toBeGreaterThan(0);
+  const nodes = collectNodes(tree);
+  const deepestNode = Math.max(...nodes.map((node) => node.depth));
+  expect(deepestNode).toBe(5);
+  expect(nodes.some((node) => node.viability.isDraftComplete)).toBe(true);
 });
 
 test("valid-end-state ranking prefers branches that satisfy more requirements", () => {
@@ -248,6 +253,10 @@ test("valid-end-state ranking prefers branches that satisfy more requirements", 
   expect(tree.children.length).toBe(2);
   expect(tree.children[0].addedChampion).toBe("TopFrontline");
   expect(tree.children[0].requiredSummary.requiredGaps).toBeLessThan(tree.children[1].requiredSummary.requiredGaps);
+  expect(tree.children[0].candidateBreakdown).toMatchObject({
+    totalScore: expect.any(Number),
+    requirements: expect.any(Array)
+  });
 
   const nodes = collectNodes(tree);
   expect(nodes.some((node) => node.requiredSummary.requiredTotal > 0)).toBe(true);
@@ -347,20 +356,20 @@ test("rankGoal candidate_score can prioritize immediate score over downstream va
   );
 });
 
-test("custom scoring weights change candidate ordering and composition score", () => {
+test("redundancyPenalty can change candidate ordering when a pick exceeds clause max", () => {
   const championsByName = {
-    MidAP: {
-      name: "MidAP",
-      tagIds: [],
-      tags: {}
-    },
-    TopFrontline: {
-      name: "TopFrontline",
+    MidFrontline: {
+      name: "MidFrontline",
       tagIds: [1],
       tags: { Frontline: true }
     },
-    TopNoFrontline: {
-      name: "TopNoFrontline",
+    ATopFrontline: {
+      name: "ATopFrontline",
+      tagIds: [1],
+      tags: { Frontline: true }
+    },
+    BTopNoFrontline: {
+      name: "BTopNoFrontline",
       tagIds: [],
       tags: {}
     }
@@ -368,30 +377,30 @@ test("custom scoring weights change candidate ordering and composition score", (
   const requirements = [
     {
       id: 10,
-      name: "Need Top Frontline",
-      definition: "Top slot should be frontline",
+      name: "Prefer exactly one frontline source",
+      definition: "Meet the minimum but discourage redundant extra sources",
       rules: [
         {
-          id: "top-frontline",
+          id: "frontline-cap",
           expr: { tag: "Frontline" },
           minCount: 1,
-          roleFilter: ["Top"]
+          maxCount: 1
         }
       ]
     }
   ];
-  const tree = generatePossibilityTree({
+  const baseParams = {
     teamState: {
-      Mid: "MidAP"
+      Mid: "MidFrontline"
     },
     teamId: "X",
     nextRole: "Top",
     roleOrder: ["Top", "Jungle", "Mid", "ADC", "Support"],
     teamPools: {
       X: {
-        Top: ["TopNoFrontline", "TopFrontline"],
+        Top: ["ATopFrontline", "BTopNoFrontline"],
         Jungle: [],
-        Mid: ["MidAP"],
+        Mid: ["MidFrontline"],
         ADC: [],
         Support: []
       }
@@ -401,25 +410,28 @@ test("custom scoring weights change candidate ordering and composition score", (
     tagById: {
       "1": { id: 1, name: "Frontline" }
     },
-    maxDepth: 1,
     maxBranch: 5,
     minCandidateScore: -100,
-    candidateScoringWeights: {
-      baseScore: 0,
-      gapDeltaWeight: -10,
-      passDeltaWeight: 0,
-      unreachablePenaltyWeight: 0
-    },
-    compositionScoringWeights: {
-      requiredPassedWeight: 0,
-      requiredGapPenaltyWeight: 0,
-      filledSlotsWeight: 11
-    },
     pruneUnreachableRequired: false
+  };
+
+  const treeNoPenalty = generatePossibilityTree({
+    ...baseParams,
+    candidateScoringWeights: {
+      redundancyPenalty: 0
+    }
   });
 
-  expect(tree.score).toBe(11);
-  expect(tree.children).toHaveLength(2);
-  expect(tree.children[0].addedChampion).toBe("TopNoFrontline");
-  expect(tree.children[0].candidateScore).toBeGreaterThan(tree.children[1].candidateScore);
+  const treeWithPenalty = generatePossibilityTree({
+    ...baseParams,
+    candidateScoringWeights: {
+      redundancyPenalty: 2
+    }
+  });
+
+  expect(treeNoPenalty.children).toHaveLength(2);
+  expect(treeWithPenalty.children).toHaveLength(2);
+  expect(treeNoPenalty.children[0].addedChampion).toBe("ATopFrontline");
+  expect(treeWithPenalty.children[0].addedChampion).toBe("BTopNoFrontline");
+  expect(treeWithPenalty.children[0].candidateScore).toBeGreaterThan(treeWithPenalty.children[1].candidateScore);
 });

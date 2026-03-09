@@ -167,6 +167,52 @@ describe("evaluateCompositionRequirements", () => {
     expect(result.requirements[0].clauses[0].failType).toBe("separation_unreachable");
   });
 
+  test("treats max overflow as redundancy instead of hard failure", () => {
+    const result = evaluateCompositionRequirements({
+      teamState: {
+        Top: "Alpha",
+        Jungle: "Gamma",
+        Mid: "Beta",
+        ADC: null,
+        Support: null
+      },
+      championsByName,
+      tagById,
+      requirements: [
+        {
+          id: 25,
+          name: "Single frontline source preferred",
+          rules: [
+            {
+              id: "frontline-cap",
+              expr: { or: [{ tag: "Frontline" }, { tag: "Follow Up" }] },
+              minCount: 1,
+              maxCount: 1,
+              roleFilter: ["Top", "Mid"]
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(result.requiredSummary).toEqual({
+      requiredTotal: 1,
+      requiredPassed: 1,
+      requiredGaps: 0
+    });
+    expect(result.unreachableRequirements).toEqual([]);
+    expect(result.requirements[0].status).toBe("pass");
+    expect(result.requirements[0].clauses[0]).toMatchObject({
+      currentMatches: 2,
+      minCount: 1,
+      maxCount: 1,
+      overBy: 1,
+      underBy: 0,
+      inRange: false,
+      canStillReachMin: true
+    });
+  });
+
   test("drives tree expansion in requirement mode from requirement gaps", () => {
     const tree = generatePossibilityTree({
       teamState: {

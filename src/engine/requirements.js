@@ -274,21 +274,24 @@ function evaluateClause({
   const currentMatches = currentMatchSlots.length;
   const remainingSlots = potentialMatchRoles.length;
   const maxPossibleMatches = currentMatches + remainingSlots;
+  const underBy = Math.max(0, minCount - currentMatches);
+  const overBy = maxCount === null ? 0 : Math.max(0, currentMatches - maxCount);
+  const canStillReachMin = maxPossibleMatches >= minCount;
+  const inRange = underBy === 0 && overBy === 0;
+  const progressToMin = minCount > 0 ? Math.min(currentMatches, minCount) / minCount : 1;
 
   let status = "pending";
   let reason = "";
   let failType = null;
-  if (maxCount !== null && currentMatches > maxCount) {
-    status = "fail";
-    failType = "max_exceeded";
-    reason = `Already exceeded max (${currentMatches}/${maxCount}).`;
-  } else if (maxPossibleMatches < minCount) {
+  if (maxPossibleMatches < minCount) {
     status = "fail";
     failType = "min_unreachable";
     reason = `Cannot reach min (${currentMatches}/${minCount}); max possible is ${maxPossibleMatches}.`;
   } else if (currentMatches >= minCount) {
     status = "pass";
-    reason = `Meets min (${currentMatches}/${minCount})${maxCount === null ? "" : ` and max (${maxCount})`}.`;
+    reason = overBy > 0
+      ? `Meets min (${currentMatches}/${minCount}) but exceeds max (${maxCount}) by ${overBy}.`
+      : `Meets min (${currentMatches}/${minCount})${maxCount === null ? "" : ` and max (${maxCount})`}.`;
   } else {
     status = "pending";
     reason = `Needs ${minCount - currentMatches} more match(es) with ${remainingSlots} eligible open slot(s).`;
@@ -307,6 +310,11 @@ function evaluateClause({
     currentMatches,
     remainingSlots,
     maxPossibleMatches,
+    underBy,
+    overBy,
+    inRange,
+    canStillReachMin,
+    progressToMin,
     currentMatchSlots,
     potentialMatchRoles
   };

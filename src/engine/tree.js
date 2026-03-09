@@ -6,23 +6,18 @@ import {
   normalizeTeamState
 } from "../domain/model.js";
 import { evaluateCompositionRequirements } from "./requirements.js";
+import {
+  DEFAULT_CANDIDATE_SCORING_WEIGHTS,
+  buildRequirementScoreBreakdown,
+  normalizeCandidateScoringWeights
+} from "./scoring.js";
 
 const DEFAULT_MIN_CANDIDATE_SCORE = 1;
 const DEFAULT_RANK_GOAL = "valid_end_states";
 const RANK_GOAL_CANDIDATE_SCORE = "candidate_score";
 const RANK_GOAL_VALUES = new Set([DEFAULT_RANK_GOAL, RANK_GOAL_CANDIDATE_SCORE]);
 const MAX_FALLBACK_KEEP = 2;
-const DEFAULT_CANDIDATE_SCORING_WEIGHTS = Object.freeze({
-  baseScore: 1,
-  gapDeltaWeight: 10,
-  passDeltaWeight: 4,
-  unreachablePenaltyWeight: 20
-});
-const DEFAULT_COMPOSITION_SCORING_WEIGHTS = Object.freeze({
-  requiredPassedWeight: 10,
-  requiredGapPenaltyWeight: 6,
-  filledSlotsWeight: 3
-});
+const UNREACHABLE_CANDIDATE_PENALTY = 100;
 
 function normalizeExclusions(excludedChampions = []) {
   return new Set(excludedChampions.filter((name) => typeof name === "string" && name.trim() !== ""));
@@ -58,46 +53,6 @@ function resolveNextRole(teamState, preferredRole, roleOrder = SLOTS) {
 
 function normalizeRankGoal(rankGoal) {
   return RANK_GOAL_VALUES.has(rankGoal) ? rankGoal : DEFAULT_RANK_GOAL;
-}
-
-function normalizeFiniteNumber(value, fallback) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function normalizeCandidateScoringWeights(weights = DEFAULT_CANDIDATE_SCORING_WEIGHTS) {
-  const source = weights && typeof weights === "object" && !Array.isArray(weights)
-    ? weights
-    : DEFAULT_CANDIDATE_SCORING_WEIGHTS;
-  return {
-    baseScore: normalizeFiniteNumber(source.baseScore, DEFAULT_CANDIDATE_SCORING_WEIGHTS.baseScore),
-    gapDeltaWeight: normalizeFiniteNumber(source.gapDeltaWeight, DEFAULT_CANDIDATE_SCORING_WEIGHTS.gapDeltaWeight),
-    passDeltaWeight: normalizeFiniteNumber(source.passDeltaWeight, DEFAULT_CANDIDATE_SCORING_WEIGHTS.passDeltaWeight),
-    unreachablePenaltyWeight: normalizeFiniteNumber(
-      source.unreachablePenaltyWeight,
-      DEFAULT_CANDIDATE_SCORING_WEIGHTS.unreachablePenaltyWeight
-    )
-  };
-}
-
-function normalizeCompositionScoringWeights(weights = DEFAULT_COMPOSITION_SCORING_WEIGHTS) {
-  const source = weights && typeof weights === "object" && !Array.isArray(weights)
-    ? weights
-    : DEFAULT_COMPOSITION_SCORING_WEIGHTS;
-  return {
-    requiredPassedWeight: normalizeFiniteNumber(
-      source.requiredPassedWeight,
-      DEFAULT_COMPOSITION_SCORING_WEIGHTS.requiredPassedWeight
-    ),
-    requiredGapPenaltyWeight: normalizeFiniteNumber(
-      source.requiredGapPenaltyWeight,
-      DEFAULT_COMPOSITION_SCORING_WEIGHTS.requiredGapPenaltyWeight
-    ),
-    filledSlotsWeight: normalizeFiniteNumber(
-      source.filledSlotsWeight,
-      DEFAULT_COMPOSITION_SCORING_WEIGHTS.filledSlotsWeight
-    )
-  };
 }
 
 function createGenerationStats() {
@@ -198,17 +153,115 @@ function buildRequirementCheckMap(requirementEvaluation) {
   return checks;
 }
 
-function scoreRequirementNode(
-  requirementEvaluation,
-  teamState,
-  compositionScoringWeights = DEFAULT_COMPOSITION_SCORING_WEIGHTS
-) {
-  const summary = requirementEvaluation.requiredSummary;
+function countFilledSlots(teamState) {
+  return Object.values(normalizeTeamState(teamState)).filter(Boolean).length;
+}
+
+function getRemainingDraftSlots(teamState) {
+  return SLOTS.length - countFilledSlots(teamState);
+}
+
+function buildNodeScoreBreakdown(requirementEvaluation, redundancyPenalty) {
+  return buildRequirementScoreBreakdown(requirementEvaluation, redundancyPenalty);
+}
+
+function scoreRequirementNode(requirementEvaluation, teamState, candidateScoringWeights = DEFAULT_CANDIDATE_SCORING_WEIGHTS) {
+  const scoreBreakdown = buildNodeScoreBreakdown(
+    requirementEvaluation,
+    candidateScoringWeights.redundancyPenalty
+  );
   const filledSlots = Object.values(normalizeTeamState(teamState)).filter(Boolean).length;
-  const requirementProgressScore =
-    summary.requiredPassed * compositionScoringWeights.requiredPassedWeight -
-    summary.requiredGaps * compositionScoringWeights.requiredGapPenaltyWeight;
-  return requirementProgressScore + filledSlots * compositionScoringWeights.filledSlotsWeight;
+  return {
+    scoreBreakdown,
+    score: scoreBreakdown.totalScore + filledSlots
+  };
+}
+
+function buildClauseDeltaScoreBreakdown(currentEvaluation, projectedEvaluation, candidateScoringWeights) {
+  const redundancyPenalty = candidateScoringWeights.redundancyPenalty;
+  const currentBreakdown = buildNodeScoreBreakdown(currentEvaluation, redundancyPenalty);
+  const projectedBreakdown = buildNodeScoreBreakdown(projectedEvaluation, redundancyPenalty);
+  const currentRequirementsById = new Map(
+    currentBreakdown.requirements.map((requirement) => [requirement.requirementId, requirement])
+  );
+
+  const requirements = projectedBreakdown.requirements.map((projectedRequirement) => {
+    const currentRequirement = currentRequirementsById.get(projectedRequirement.requirementId) ?? null;
+    const currentClausesById = new Map(
+      Array.isArray(currentRequirement?.clauses)
+        ? currentRequirement.clauses.map((clause) => [clause.id, clause])
+        : []
+    );
+
+    const clauses = projectedRequirement.clauses.map((projectedClause) => {
+      const currentClause = currentClausesById.get(projectedClause.id) ?? null;
+      const underDelta = (currentClause?.underBy ?? 0) - projectedClause.underBy;
+      const overDelta = projectedClause.overBy - (currentClause?.overBy ?? 0);
+      const scoreContribution = underDelta - overDelta * redundancyPenalty;
+      return {
+        id: projectedClause.id,
+        label: projectedClause.label,
+        status: projectedClause.status,
+        previousStatus: currentClause?.status ?? null,
+        currentMatches: projectedClause.currentMatches,
+        previousMatches: currentClause?.currentMatches ?? 0,
+        minCount: projectedClause.minCount,
+        maxCount: projectedClause.maxCount,
+        underBy: projectedClause.underBy,
+        overBy: projectedClause.overBy,
+        underDelta,
+        overDelta,
+        scoreContribution
+      };
+    });
+
+    return {
+      requirementId: projectedRequirement.requirementId,
+      requirementName: projectedRequirement.requirementName,
+      totalScore: clauses.reduce((sum, clause) => sum + clause.scoreContribution, 0),
+      clauses
+    };
+  });
+
+  const unreachablePenalty =
+    projectedEvaluation.unreachableRequirements.length > 0
+      ? projectedEvaluation.unreachableRequirements.length * UNREACHABLE_CANDIDATE_PENALTY
+      : 0;
+
+  return {
+    requirements,
+    totalScore: requirements.reduce((sum, requirement) => sum + requirement.totalScore, 0),
+    unreachablePenalty
+  };
+}
+
+function buildCandidateRationale(scoreBreakdown, projectedEvaluation) {
+  const rationale = [];
+  for (const requirement of scoreBreakdown.requirements) {
+    for (const clause of requirement.clauses) {
+      if (clause.underDelta > 0) {
+        rationale.push(`${requirement.requirementName} ${clause.label}: closes ${clause.underDelta} required match(es)`);
+      } else if (clause.underDelta < 0) {
+        rationale.push(
+          `${requirement.requirementName} ${clause.label}: loses ${Math.abs(clause.underDelta)} required match(es)`
+        );
+      }
+      if (clause.overDelta > 0) {
+        rationale.push(`${requirement.requirementName} ${clause.label}: adds ${clause.overDelta} redundancy overflow`);
+      } else if (clause.overDelta < 0) {
+        rationale.push(
+          `${requirement.requirementName} ${clause.label}: reduces redundancy overflow by ${Math.abs(clause.overDelta)}`
+        );
+      }
+    }
+  }
+  if (projectedEvaluation.unreachableRequirements.length > 0) {
+    rationale.push(`creates unreachable requirements: ${projectedEvaluation.unreachableRequirements.join(", ")}`);
+  }
+  if (rationale.length === 0) {
+    rationale.push("does not change clause coverage");
+  }
+  return rationale;
 }
 
 function evaluateRequirementBundleForTree({
@@ -277,7 +330,6 @@ function generateNextCandidatesByRequirements({
     excludedChampions,
     tagById
   });
-  const currentSummary = currentEvaluation.requiredSummary;
 
   const scored = [];
   let eligibleBeforeScoreCount = 0;
@@ -303,32 +355,13 @@ function generateNextCandidatesByRequirements({
       excludedChampions,
       tagById
     });
-    const projectedSummary = projectedEvaluation.requiredSummary;
-
-    const gapDelta = currentSummary.requiredGaps - projectedSummary.requiredGaps;
-    const passDelta = projectedSummary.requiredPassed - currentSummary.requiredPassed;
-    const unreachablePenalty =
-      projectedEvaluation.unreachableRequirements.length * normalizedCandidateScoringWeights.unreachablePenaltyWeight;
-    const score =
-      normalizedCandidateScoringWeights.baseScore +
-      gapDelta * normalizedCandidateScoringWeights.gapDeltaWeight +
-      passDelta * normalizedCandidateScoringWeights.passDeltaWeight -
-      unreachablePenalty;
-
-    const rationale = [];
-    if (gapDelta > 0) {
-      rationale.push(`closes ${gapDelta} requirement gap(s)`);
-    } else if (gapDelta < 0) {
-      rationale.push(`opens ${Math.abs(gapDelta)} requirement gap(s)`);
-    } else {
-      rationale.push("maintains requirement gap count");
-    }
-    if (passDelta > 0) {
-      rationale.push(`satisfies ${passDelta} additional requirement(s)`);
-    }
-    if (projectedEvaluation.unreachableRequirements.length > 0) {
-      rationale.push(`creates unreachable requirements: ${projectedEvaluation.unreachableRequirements.join(", ")}`);
-    }
+    const scoreBreakdown = buildClauseDeltaScoreBreakdown(
+      currentEvaluation,
+      projectedEvaluation,
+      normalizedCandidateScoringWeights
+    );
+    const score = scoreBreakdown.totalScore - scoreBreakdown.unreachablePenalty;
+    const rationale = buildCandidateRationale(scoreBreakdown, projectedEvaluation);
     rationale.push("keeps slot progression (+1)");
 
     scored.push({
@@ -336,6 +369,7 @@ function generateNextCandidatesByRequirements({
       championName,
       score,
       selectionScore: score,
+      scoreBreakdown,
       rationale,
       passesMinScore: score >= minCandidateScore
     });
@@ -376,11 +410,9 @@ function buildNodeByRequirements({
   requirements,
   excludedChampions,
   tagById,
-  maxDepth,
   maxBranch,
   minCandidateScore,
   candidateScoringWeights,
-  compositionScoringWeights,
   pruneUnreachableRequired,
   rankGoal,
   depth,
@@ -400,10 +432,14 @@ function buildNodeByRequirements({
     tagById
   });
   const requiredSummary = requirementEvaluation.requiredSummary;
-  const nodeScore = scoreRequirementNode(requirementEvaluation, normalized, compositionScoringWeights);
-  const remainingSteps = Math.max(0, maxDepth - depth);
+  const { score: nodeScore, scoreBreakdown } = scoreRequirementNode(
+    requirementEvaluation,
+    normalized,
+    candidateScoringWeights
+  );
+  const remainingSteps = getRemainingDraftSlots(normalized);
   const teamComplete = isTeamComplete(normalized);
-  const isTerminal = depth >= maxDepth || teamComplete;
+  const isTerminal = teamComplete;
   const unreachableRequired = pruneUnreachableRequired ? requirementEvaluation.unreachableRequirements : [];
 
   const node = {
@@ -418,6 +454,7 @@ function buildNodeByRequirements({
       needsTopThreat: false
     },
     requiredSummary,
+    scoreBreakdown,
     viability: {
       remainingSteps,
       unreachableRequired,
@@ -510,11 +547,9 @@ function buildNodeByRequirements({
       requirements,
       excludedChampions,
       tagById,
-      maxDepth,
       maxBranch,
       minCandidateScore,
       candidateScoringWeights,
-      compositionScoringWeights,
       pruneUnreachableRequired,
       rankGoal,
       depth: depth + 1,
@@ -530,6 +565,7 @@ function buildNodeByRequirements({
       addedChampion: candidate.championName,
       candidateScore: candidate.score,
       passesMinScore: candidate.passesMinScore,
+      candidateBreakdown: candidate.scoreBreakdown,
       rationale: candidate.rationale
     });
   }
@@ -564,16 +600,13 @@ function generatePossibilityTreeByRequirements({
   requirements = [],
   excludedChampions = [],
   tagById = {},
-  maxDepth = DEFAULT_TREE_SETTINGS.maxDepth,
   maxBranch = DEFAULT_TREE_SETTINGS.maxBranch,
   minCandidateScore = DEFAULT_MIN_CANDIDATE_SCORE,
   candidateScoringWeights = DEFAULT_CANDIDATE_SCORING_WEIGHTS,
-  compositionScoringWeights = DEFAULT_COMPOSITION_SCORING_WEIGHTS,
   pruneUnreachableRequired = true,
   rankGoal = DEFAULT_RANK_GOAL
 }) {
   const normalizedCandidateScoringWeights = normalizeCandidateScoringWeights(candidateScoringWeights);
-  const normalizedCompositionScoringWeights = normalizeCompositionScoringWeights(compositionScoringWeights);
   const generationStats = createGenerationStats();
   const tree = buildNodeByRequirements({
     teamState,
@@ -585,11 +618,9 @@ function generatePossibilityTreeByRequirements({
     requirements,
     excludedChampions,
     tagById,
-    maxDepth,
     maxBranch,
     minCandidateScore,
     candidateScoringWeights: normalizedCandidateScoringWeights,
-    compositionScoringWeights: normalizedCompositionScoringWeights,
     pruneUnreachableRequired: Boolean(pruneUnreachableRequired),
     rankGoal: normalizeRankGoal(rankGoal),
     depth: 0,
@@ -611,11 +642,9 @@ export function generatePossibilityTree({
   requirements = [],
   tagById = {},
   excludedChampions = [],
-  maxDepth = DEFAULT_TREE_SETTINGS.maxDepth,
   maxBranch = DEFAULT_TREE_SETTINGS.maxBranch,
   minCandidateScore = DEFAULT_MIN_CANDIDATE_SCORE,
   candidateScoringWeights = DEFAULT_CANDIDATE_SCORING_WEIGHTS,
-  compositionScoringWeights = DEFAULT_COMPOSITION_SCORING_WEIGHTS,
   pruneUnreachableRequired = true,
   rankGoal = DEFAULT_RANK_GOAL
 }) {
@@ -633,11 +662,9 @@ export function generatePossibilityTree({
     requirements: Array.isArray(requirements) ? requirements : [],
     excludedChampions,
     tagById,
-    maxDepth,
     maxBranch,
     minCandidateScore,
     candidateScoringWeights,
-    compositionScoringWeights,
     pruneUnreachableRequired,
     rankGoal
   });
