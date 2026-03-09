@@ -1119,8 +1119,16 @@ button.ghost {
   gap: 0.7rem;
 }
 
+#explorer-results-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+}
+
 #explorer-results.card-grid {
-  max-height: 58rem;
+  max-height: 55rem;
   overflow-y: auto;
   padding-right: 0.25rem;
 }
