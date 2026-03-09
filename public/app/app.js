@@ -9339,15 +9339,15 @@ function renderExplorer() {
       cardHeader.append(editBtn);
     }
 
-    // ── Meta section: Role(s) / Damage Type / Power Spike ───────────────
-    const makeMetaSection = (labelText, pills) => {
+    // ── Meta section: Role(s) / Damage Type / Effectiveness Focus ───────
+    const makeMetaSection = (labelText, pills, pillRowClass = "") => {
       const section = runtimeDocument.createElement("div");
       section.className = "champ-meta-section";
       const label = runtimeDocument.createElement("p");
       label.className = "champ-meta-label";
       label.textContent = labelText;
       const pillRow = runtimeDocument.createElement("div");
-      pillRow.className = "champ-meta-pills";
+      pillRow.className = ("champ-meta-pills" + (pillRowClass ? " " + pillRowClass : "")).trim();
       pillRow.append(...pills);
       section.append(label, pillRow);
       return section;
@@ -9398,15 +9398,13 @@ function renderExplorer() {
         ? deriveDisplayDamageTypeFromProfile(profile)
         : champion.damageType;
 
-      // Power spike: show "Phase: Level" pills for non-neutral phases only
+      // Effectiveness Focus: always show all 3 phases
       const spikePills = [];
       if (profile?.effectiveness) {
         for (const phase of EFFECTIVENESS_PHASES) {
-          const level = profile.effectiveness[phase];
-          if (level && level !== "neutral") {
-            const label = `${phase[0].toUpperCase()}${phase.slice(1)}: ${level[0].toUpperCase()}${level.slice(1)}`;
-            spikePills.push(makePill(label, `champ-spike-${level}`));
-          }
+          const level = normalizeApiEffectivenessLevel(profile.effectiveness[phase]) ?? "neutral";
+          const label = `${phase[0].toUpperCase()}${phase.slice(1)}: ${level[0].toUpperCase()}${level.slice(1)}`;
+          spikePills.push(makePill(label, `champ-spike-${level}`));
         }
       } else if (champion.scaling) {
         spikePills.push(makePill(champion.scaling));
@@ -9417,9 +9415,9 @@ function renderExplorer() {
         : [];
 
       meta.append(
-        makeMetaSection("Role(s)", roleBtns),
+        makeMetaSection("Role(s)", roleBtns, "champ-role-pill-row"),
         makeMetaSection("Damage Type", damagePills),
-        makeMetaSection("Power Spike", spikePills)
+        makeMetaSection("Effectiveness Focus", spikePills, "champ-spike-pill-row")
       );
       return meta;
     };
