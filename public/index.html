@@ -1315,6 +1315,35 @@
           ? window.DRAFTENGINE_API_BASE_URL.trim()
           : window.location.origin;
     </script>
+    <script>
+      // Runs synchronously after DOM is parsed, before module scripts.
+      // Sets the correct nav/tab active state immediately so the browser's
+      // first paint never shows the default Composer tab on a hash-routed page.
+      (function () {
+        try {
+          var VALID_TABS = new Set([
+            "workflow", "team-config", "player-config", "explorer",
+            "tags", "users", "requirements", "compositions", "coming-soon"
+          ]);
+          var raw = localStorage.getItem("draftflow.authSession.v1");
+          if (!raw) return;
+          var session = JSON.parse(raw);
+          if (!session || typeof session.token !== "string" || !session.token.trim()) return;
+          var hash = window.location.hash.replace(/^#/, "").trim();
+          if (!hash || !VALID_TABS.has(hash)) return;
+          // Swap active tab surface
+          var prevTab = document.querySelector(".tab-surface.is-active");
+          if (prevTab) prevTab.classList.remove("is-active");
+          var nextTab = document.getElementById("tab-" + hash);
+          if (nextTab) nextTab.classList.add("is-active");
+          // Swap active nav link
+          var prevNav = document.querySelector(".side-menu-link.is-active");
+          if (prevNav) prevNav.classList.remove("is-active");
+          var nextNav = document.querySelector('.side-menu-link[data-tab="' + hash + '"]');
+          if (nextNav) nextNav.classList.add("is-active");
+        } catch (e) {}
+      })();
+    </script>
     <script type="module" src="./app/main.js"></script>
   </body>
 </html>
