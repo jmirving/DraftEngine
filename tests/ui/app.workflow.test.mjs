@@ -316,7 +316,7 @@ describe("workflow app integration", () => {
     expect(afterMinScoreCircles).toBe(1);
   });
 
-  test("advanced scoring controls in setup update generation floor and rank goal", async () => {
+  test("advanced scoring controls in setup update generation floor, rank goal, and score weights", async () => {
     const { dom, state } = await bootApp();
     const doc = dom.window.document;
     const topSelect = doc.querySelector("#slot-Top");
@@ -324,9 +324,13 @@ describe("workflow app integration", () => {
     const generateButton = doc.querySelector("#builder-generate");
     const minCandidateScore = doc.querySelector("#tree-min-candidate-score");
     const rankGoal = doc.querySelector("#tree-rank-goal");
+    const candidateBaseScore = doc.querySelector("#tree-candidate-base-score");
+    const compositionFilledSlotsWeight = doc.querySelector("#tree-composition-filled-slots-weight");
 
     expect(minCandidateScore).toBeTruthy();
     expect(rankGoal).toBeTruthy();
+    expect(candidateBaseScore).toBeTruthy();
+    expect(compositionFilledSlotsWeight).toBeTruthy();
 
     minCandidateScore.value = "1000";
     minCandidateScore.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
@@ -336,6 +340,14 @@ describe("workflow app integration", () => {
     rankGoal.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
     expect(state.builder.treeRankGoal).toBe("candidate_score");
 
+    candidateBaseScore.value = "7";
+    candidateBaseScore.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    expect(state.builder.candidateScoringWeights.baseScore).toBe(7);
+
+    compositionFilledSlotsWeight.value = "11";
+    compositionFilledSlotsWeight.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    expect(state.builder.compositionScoringWeights.filledSlotsWeight).toBe(11);
+
     const firstTop = Array.from(topSelect.options).find((option) => option.value);
     topSelect.value = firstTop.value;
     topSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
@@ -344,8 +356,10 @@ describe("workflow app integration", () => {
     generateButton.click();
 
     expect(state.builder.tree).toBeTruthy();
+    expect(state.builder.tree.score).toBe(11);
     expect(state.builder.tree.children.length).toBeGreaterThan(0);
     expect(state.builder.tree.children.every((child) => child.passesMinScore === false)).toBe(true);
+    expect(state.builder.tree.children.every((child) => child.candidateScore === 7)).toBe(true);
   });
 
   test("empty root summary offers recovery CTAs for filters and candidate floor", async () => {

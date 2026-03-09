@@ -159,11 +159,68 @@ const BUILDER_RANK_GOAL_VALUES = new Set([
   BUILDER_RANK_GOAL_VALID_END_STATES,
   BUILDER_RANK_GOAL_CANDIDATE_SCORE
 ]);
+const BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS = Object.freeze({
+  baseScore: 1,
+  gapDeltaWeight: 10,
+  passDeltaWeight: 4,
+  unreachablePenaltyWeight: 20
+});
+const BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS = Object.freeze({
+  requiredPassedWeight: 10,
+  requiredGapPenaltyWeight: 6,
+  filledSlotsWeight: 3
+});
 
 function normalizeBuilderRankGoal(value) {
   return BUILDER_RANK_GOAL_VALUES.has(value)
     ? value
     : BUILDER_RANK_GOAL_VALID_END_STATES;
+}
+
+function normalizeBuilderFiniteNumber(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeBuilderCandidateScoringWeights(weights = BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS) {
+  const source = weights && typeof weights === "object" && !Array.isArray(weights)
+    ? weights
+    : BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS;
+  return {
+    baseScore: normalizeBuilderFiniteNumber(source.baseScore, BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.baseScore),
+    gapDeltaWeight: normalizeBuilderFiniteNumber(
+      source.gapDeltaWeight,
+      BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.gapDeltaWeight
+    ),
+    passDeltaWeight: normalizeBuilderFiniteNumber(
+      source.passDeltaWeight,
+      BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.passDeltaWeight
+    ),
+    unreachablePenaltyWeight: normalizeBuilderFiniteNumber(
+      source.unreachablePenaltyWeight,
+      BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.unreachablePenaltyWeight
+    )
+  };
+}
+
+function normalizeBuilderCompositionScoringWeights(weights = BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS) {
+  const source = weights && typeof weights === "object" && !Array.isArray(weights)
+    ? weights
+    : BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS;
+  return {
+    requiredPassedWeight: normalizeBuilderFiniteNumber(
+      source.requiredPassedWeight,
+      BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS.requiredPassedWeight
+    ),
+    requiredGapPenaltyWeight: normalizeBuilderFiniteNumber(
+      source.requiredGapPenaltyWeight,
+      BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS.requiredGapPenaltyWeight
+    ),
+    filledSlotsWeight: normalizeBuilderFiniteNumber(
+      source.filledSlotsWeight,
+      BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS.filledSlotsWeight
+    )
+  };
 }
 
 const UI_COPY = Object.freeze({
@@ -512,6 +569,12 @@ function createInitialState() {
       treeMinScore: 0,
       treeMinCandidateScore: 1,
       treeRankGoal: BUILDER_RANK_GOAL_VALID_END_STATES,
+      candidateScoringWeights: {
+        ...BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS
+      },
+      compositionScoringWeights: {
+        ...BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS
+      },
       treeValidLeavesOnly: true,
       focusNodeId: "0",
       selectedNodeId: null,
@@ -724,6 +787,13 @@ function createElements() {
     treeMinScore: runtimeDocument.querySelector("#tree-min-score"),
     treeMinCandidateScore: runtimeDocument.querySelector("#tree-min-candidate-score"),
     treeRankGoal: runtimeDocument.querySelector("#tree-rank-goal"),
+    treeCandidateBaseScore: runtimeDocument.querySelector("#tree-candidate-base-score"),
+    treeCandidateGapWeight: runtimeDocument.querySelector("#tree-candidate-gap-weight"),
+    treeCandidatePassWeight: runtimeDocument.querySelector("#tree-candidate-pass-weight"),
+    treeCandidateUnreachablePenaltyWeight: runtimeDocument.querySelector("#tree-candidate-unreachable-penalty-weight"),
+    treeCompositionPassedWeight: runtimeDocument.querySelector("#tree-composition-passed-weight"),
+    treeCompositionGapPenaltyWeight: runtimeDocument.querySelector("#tree-composition-gap-penalty-weight"),
+    treeCompositionFilledSlotsWeight: runtimeDocument.querySelector("#tree-composition-filled-slots-weight"),
     treeValidLeavesOnly: runtimeDocument.querySelector("#tree-valid-leaves-only"),
     treeMapLegend: runtimeDocument.querySelector("#tree-map-legend"),
     treeExpandAll: runtimeDocument.querySelector("#tree-expand-all"),
@@ -9188,6 +9258,12 @@ function resetBuilderToDefaults() {
   state.builder.treeMinScore = 0;
   state.builder.treeMinCandidateScore = 1;
   state.builder.treeRankGoal = BUILDER_RANK_GOAL_VALID_END_STATES;
+  state.builder.candidateScoringWeights = {
+    ...BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS
+  };
+  state.builder.compositionScoringWeights = {
+    ...BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS
+  };
   state.builder.treeValidLeavesOnly = true;
 
   const rawBranch = Number.parseInt(String(state.data.config.treeDefaults.maxBranch), 10);
@@ -9209,6 +9285,31 @@ function resetBuilderToDefaults() {
   }
   if (elements.treeRankGoal) {
     elements.treeRankGoal.value = BUILDER_RANK_GOAL_VALID_END_STATES;
+  }
+  if (elements.treeCandidateBaseScore) {
+    elements.treeCandidateBaseScore.value = String(BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.baseScore);
+  }
+  if (elements.treeCandidateGapWeight) {
+    elements.treeCandidateGapWeight.value = String(BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.gapDeltaWeight);
+  }
+  if (elements.treeCandidatePassWeight) {
+    elements.treeCandidatePassWeight.value = String(BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.passDeltaWeight);
+  }
+  if (elements.treeCandidateUnreachablePenaltyWeight) {
+    elements.treeCandidateUnreachablePenaltyWeight.value = String(
+      BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.unreachablePenaltyWeight
+    );
+  }
+  if (elements.treeCompositionPassedWeight) {
+    elements.treeCompositionPassedWeight.value = String(BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS.requiredPassedWeight);
+  }
+  if (elements.treeCompositionGapPenaltyWeight) {
+    elements.treeCompositionGapPenaltyWeight.value = String(
+      BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS.requiredGapPenaltyWeight
+    );
+  }
+  if (elements.treeCompositionFilledSlotsWeight) {
+    elements.treeCompositionFilledSlotsWeight.value = String(BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS.filledSlotsWeight);
   }
   elements.treeValidLeavesOnly.checked = true;
   elements.treeDensity.value = state.builder.treeDensity;
@@ -9335,6 +9436,8 @@ function generateTreeFromCurrentState({ scrollToResults = true } = {}) {
       maxDepth: state.builder.maxDepth,
       maxBranch: state.builder.maxBranch,
       minCandidateScore: state.builder.treeMinCandidateScore,
+      candidateScoringWeights: normalizeBuilderCandidateScoringWeights(state.builder.candidateScoringWeights),
+      compositionScoringWeights: normalizeBuilderCompositionScoringWeights(state.builder.compositionScoringWeights),
       pruneUnreachableRequired: true,
       rankGoal: normalizeBuilderRankGoal(state.builder.treeRankGoal)
     });
@@ -9351,6 +9454,25 @@ function generateTreeFromCurrentState({ scrollToResults = true } = {}) {
     renderBuilder();
     return false;
   }
+}
+
+function applyBuilderScoringWeightChange(group, key, rawValue, fallback, { min = null } = {}) {
+  let value = normalizeBuilderFiniteNumber(rawValue, fallback);
+  if (Number.isFinite(min)) {
+    value = Math.max(min, value);
+  }
+  if (group === "candidate") {
+    state.builder.candidateScoringWeights = {
+      ...state.builder.candidateScoringWeights,
+      [key]: value
+    };
+    return value;
+  }
+  state.builder.compositionScoringWeights = {
+    ...state.builder.compositionScoringWeights,
+    [key]: value
+  };
+  return value;
 }
 
 function isChampionInOtherSlot(slot, championName) {
@@ -10561,6 +10683,10 @@ function renderTreeMap() {
 }
 
 function renderBuilder() {
+  state.builder.candidateScoringWeights = normalizeBuilderCandidateScoringWeights(state.builder.candidateScoringWeights);
+  state.builder.compositionScoringWeights = normalizeBuilderCompositionScoringWeights(
+    state.builder.compositionScoringWeights
+  );
   state.builder.maxDepth = getAutoMaxDepth();
   renderBuilderStageGuide();
   replaceOptions(elements.builderActiveTeam, getTeamSelectOptions());
@@ -10576,6 +10702,29 @@ function renderBuilder() {
   }
   if (elements.treeRankGoal) {
     elements.treeRankGoal.value = normalizeBuilderRankGoal(state.builder.treeRankGoal);
+  }
+  if (elements.treeCandidateBaseScore) {
+    elements.treeCandidateBaseScore.value = String(state.builder.candidateScoringWeights.baseScore);
+  }
+  if (elements.treeCandidateGapWeight) {
+    elements.treeCandidateGapWeight.value = String(state.builder.candidateScoringWeights.gapDeltaWeight);
+  }
+  if (elements.treeCandidatePassWeight) {
+    elements.treeCandidatePassWeight.value = String(state.builder.candidateScoringWeights.passDeltaWeight);
+  }
+  if (elements.treeCandidateUnreachablePenaltyWeight) {
+    elements.treeCandidateUnreachablePenaltyWeight.value = String(
+      state.builder.candidateScoringWeights.unreachablePenaltyWeight
+    );
+  }
+  if (elements.treeCompositionPassedWeight) {
+    elements.treeCompositionPassedWeight.value = String(state.builder.compositionScoringWeights.requiredPassedWeight);
+  }
+  if (elements.treeCompositionGapPenaltyWeight) {
+    elements.treeCompositionGapPenaltyWeight.value = String(state.builder.compositionScoringWeights.requiredGapPenaltyWeight);
+  }
+  if (elements.treeCompositionFilledSlotsWeight) {
+    elements.treeCompositionFilledSlotsWeight.value = String(state.builder.compositionScoringWeights.filledSlotsWeight);
   }
   elements.treeValidLeavesOnly.checked = state.builder.treeValidLeavesOnly;
   elements.treeDensity.disabled = !state.builder.tree;
@@ -11433,6 +11582,56 @@ function attachEvents() {
       renderBuilder();
     });
   }
+
+  const bindBuilderScoringWeightInput = (element, { group, key, fallback, min = null }) => {
+    if (!element) {
+      return;
+    }
+    element.addEventListener("change", () => {
+      const nextValue = applyBuilderScoringWeightChange(group, key, element.value, fallback, { min });
+      element.value = String(nextValue);
+      setBuilderStage("setup");
+      resetBuilderTreeState();
+      renderBuilder();
+    });
+  };
+  bindBuilderScoringWeightInput(elements.treeCandidateBaseScore, {
+    group: "candidate",
+    key: "baseScore",
+    fallback: BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.baseScore
+  });
+  bindBuilderScoringWeightInput(elements.treeCandidateGapWeight, {
+    group: "candidate",
+    key: "gapDeltaWeight",
+    fallback: BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.gapDeltaWeight
+  });
+  bindBuilderScoringWeightInput(elements.treeCandidatePassWeight, {
+    group: "candidate",
+    key: "passDeltaWeight",
+    fallback: BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.passDeltaWeight
+  });
+  bindBuilderScoringWeightInput(elements.treeCandidateUnreachablePenaltyWeight, {
+    group: "candidate",
+    key: "unreachablePenaltyWeight",
+    fallback: BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS.unreachablePenaltyWeight,
+    min: 0
+  });
+  bindBuilderScoringWeightInput(elements.treeCompositionPassedWeight, {
+    group: "composition",
+    key: "requiredPassedWeight",
+    fallback: BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS.requiredPassedWeight
+  });
+  bindBuilderScoringWeightInput(elements.treeCompositionGapPenaltyWeight, {
+    group: "composition",
+    key: "requiredGapPenaltyWeight",
+    fallback: BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS.requiredGapPenaltyWeight,
+    min: 0
+  });
+  bindBuilderScoringWeightInput(elements.treeCompositionFilledSlotsWeight, {
+    group: "composition",
+    key: "filledSlotsWeight",
+    fallback: BUILDER_DEFAULT_COMPOSITION_SCORING_WEIGHTS.filledSlotsWeight
+  });
 
   elements.builderExcludedSearch.addEventListener("input", () => {
     state.builder.excludedSearch = elements.builderExcludedSearch.value;

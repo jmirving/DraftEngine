@@ -173,10 +173,13 @@ Tree defaults:
 - `maxBranch=8`
 - `minCandidateScore=1` (UI default)
 - `rankGoal=valid_end_states` (UI default)
+- `candidateScoringWeights={ baseScore:1, gapDeltaWeight:10, passDeltaWeight:4, unreachablePenaltyWeight:20 }`
+- `compositionScoringWeights={ requiredPassedWeight:10, requiredGapPenaltyWeight:6, filledSlotsWeight:3 }`
 
 Tree generation behavior:
 - `minCandidateScore` is a preference threshold, not an absolute feasibility gate.
 - `rankGoal` can prioritize either downstream valid-end-state outcomes (`valid_end_states`) or immediate candidate score (`candidate_score`).
+- Candidate and composition scoring weights are configurable in Composer Advanced Controls.
 - Candidates are ranked by requirement-gap and requirement-pass progress at each node.
 - If every legal pick at a node falls below the threshold, adaptive fallback still expands the best legal picks and marks them as below-floor candidates.
 - Fallback is capped to a small number of branches to preserve output without exploding low-signal paths.

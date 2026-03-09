@@ -346,3 +346,80 @@ test("rankGoal candidate_score can prioritize immediate score over downstream va
     candidateScoreTree.children[1].candidateScore
   );
 });
+
+test("custom scoring weights change candidate ordering and composition score", () => {
+  const championsByName = {
+    MidAP: {
+      name: "MidAP",
+      tagIds: [],
+      tags: {}
+    },
+    TopFrontline: {
+      name: "TopFrontline",
+      tagIds: [1],
+      tags: { Frontline: true }
+    },
+    TopNoFrontline: {
+      name: "TopNoFrontline",
+      tagIds: [],
+      tags: {}
+    }
+  };
+  const requirements = [
+    {
+      id: 10,
+      name: "Need Top Frontline",
+      definition: "Top slot should be frontline",
+      rules: [
+        {
+          id: "top-frontline",
+          expr: { tag: "Frontline" },
+          minCount: 1,
+          roleFilter: ["Top"]
+        }
+      ]
+    }
+  ];
+  const tree = generatePossibilityTree({
+    teamState: {
+      Mid: "MidAP"
+    },
+    teamId: "X",
+    nextRole: "Top",
+    roleOrder: ["Top", "Jungle", "Mid", "ADC", "Support"],
+    teamPools: {
+      X: {
+        Top: ["TopNoFrontline", "TopFrontline"],
+        Jungle: [],
+        Mid: ["MidAP"],
+        ADC: [],
+        Support: []
+      }
+    },
+    championsByName,
+    requirements,
+    tagById: {
+      "1": { id: 1, name: "Frontline" }
+    },
+    maxDepth: 1,
+    maxBranch: 5,
+    minCandidateScore: -100,
+    candidateScoringWeights: {
+      baseScore: 0,
+      gapDeltaWeight: -10,
+      passDeltaWeight: 0,
+      unreachablePenaltyWeight: 0
+    },
+    compositionScoringWeights: {
+      requiredPassedWeight: 0,
+      requiredGapPenaltyWeight: 0,
+      filledSlotsWeight: 11
+    },
+    pruneUnreachableRequired: false
+  });
+
+  expect(tree.score).toBe(11);
+  expect(tree.children).toHaveLength(2);
+  expect(tree.children[0].addedChampion).toBe("TopNoFrontline");
+  expect(tree.children[0].candidateScore).toBeGreaterThan(tree.children[1].candidateScore);
+});

@@ -12,6 +12,17 @@ const DEFAULT_RANK_GOAL = "valid_end_states";
 const RANK_GOAL_CANDIDATE_SCORE = "candidate_score";
 const RANK_GOAL_VALUES = new Set([DEFAULT_RANK_GOAL, RANK_GOAL_CANDIDATE_SCORE]);
 const MAX_FALLBACK_KEEP = 2;
+const DEFAULT_CANDIDATE_SCORING_WEIGHTS = Object.freeze({
+  baseScore: 1,
+  gapDeltaWeight: 10,
+  passDeltaWeight: 4,
+  unreachablePenaltyWeight: 20
+});
+const DEFAULT_COMPOSITION_SCORING_WEIGHTS = Object.freeze({
+  requiredPassedWeight: 10,
+  requiredGapPenaltyWeight: 6,
+  filledSlotsWeight: 3
+});
 
 function normalizeExclusions(excludedChampions = []) {
   return new Set(excludedChampions.filter((name) => typeof name === "string" && name.trim() !== ""));
@@ -47,6 +58,46 @@ function resolveNextRole(teamState, preferredRole, roleOrder = SLOTS) {
 
 function normalizeRankGoal(rankGoal) {
   return RANK_GOAL_VALUES.has(rankGoal) ? rankGoal : DEFAULT_RANK_GOAL;
+}
+
+function normalizeFiniteNumber(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeCandidateScoringWeights(weights = DEFAULT_CANDIDATE_SCORING_WEIGHTS) {
+  const source = weights && typeof weights === "object" && !Array.isArray(weights)
+    ? weights
+    : DEFAULT_CANDIDATE_SCORING_WEIGHTS;
+  return {
+    baseScore: normalizeFiniteNumber(source.baseScore, DEFAULT_CANDIDATE_SCORING_WEIGHTS.baseScore),
+    gapDeltaWeight: normalizeFiniteNumber(source.gapDeltaWeight, DEFAULT_CANDIDATE_SCORING_WEIGHTS.gapDeltaWeight),
+    passDeltaWeight: normalizeFiniteNumber(source.passDeltaWeight, DEFAULT_CANDIDATE_SCORING_WEIGHTS.passDeltaWeight),
+    unreachablePenaltyWeight: normalizeFiniteNumber(
+      source.unreachablePenaltyWeight,
+      DEFAULT_CANDIDATE_SCORING_WEIGHTS.unreachablePenaltyWeight
+    )
+  };
+}
+
+function normalizeCompositionScoringWeights(weights = DEFAULT_COMPOSITION_SCORING_WEIGHTS) {
+  const source = weights && typeof weights === "object" && !Array.isArray(weights)
+    ? weights
+    : DEFAULT_COMPOSITION_SCORING_WEIGHTS;
+  return {
+    requiredPassedWeight: normalizeFiniteNumber(
+      source.requiredPassedWeight,
+      DEFAULT_COMPOSITION_SCORING_WEIGHTS.requiredPassedWeight
+    ),
+    requiredGapPenaltyWeight: normalizeFiniteNumber(
+      source.requiredGapPenaltyWeight,
+      DEFAULT_COMPOSITION_SCORING_WEIGHTS.requiredGapPenaltyWeight
+    ),
+    filledSlotsWeight: normalizeFiniteNumber(
+      source.filledSlotsWeight,
+      DEFAULT_COMPOSITION_SCORING_WEIGHTS.filledSlotsWeight
+    )
+  };
 }
 
 function createGenerationStats() {
@@ -147,11 +198,17 @@ function buildRequirementCheckMap(requirementEvaluation) {
   return checks;
 }
 
-function scoreRequirementNode(requirementEvaluation, teamState) {
+function scoreRequirementNode(
+  requirementEvaluation,
+  teamState,
+  compositionScoringWeights = DEFAULT_COMPOSITION_SCORING_WEIGHTS
+) {
   const summary = requirementEvaluation.requiredSummary;
   const filledSlots = Object.values(normalizeTeamState(teamState)).filter(Boolean).length;
-  const requirementProgressScore = summary.requiredPassed * 10 - summary.requiredGaps * 6;
-  return requirementProgressScore + filledSlots * 3;
+  const requirementProgressScore =
+    summary.requiredPassed * compositionScoringWeights.requiredPassedWeight -
+    summary.requiredGaps * compositionScoringWeights.requiredGapPenaltyWeight;
+  return requirementProgressScore + filledSlots * compositionScoringWeights.filledSlotsWeight;
 }
 
 function evaluateRequirementBundleForTree({
@@ -189,8 +246,10 @@ function generateNextCandidatesByRequirements({
   excludedChampions = [],
   tagById = {},
   maxBranch = DEFAULT_TREE_SETTINGS.maxBranch,
-  minCandidateScore = DEFAULT_MIN_CANDIDATE_SCORE
+  minCandidateScore = DEFAULT_MIN_CANDIDATE_SCORE,
+  candidateScoringWeights = DEFAULT_CANDIDATE_SCORING_WEIGHTS
 }) {
+  const normalizedCandidateScoringWeights = normalizeCandidateScoringWeights(candidateScoringWeights);
   const normalized = normalizeTeamState(teamState);
   const role = resolveNextRole(normalized, nextRole, roleOrder);
   if (!role) {
@@ -248,8 +307,13 @@ function generateNextCandidatesByRequirements({
 
     const gapDelta = currentSummary.requiredGaps - projectedSummary.requiredGaps;
     const passDelta = projectedSummary.requiredPassed - currentSummary.requiredPassed;
-    const unreachablePenalty = projectedEvaluation.unreachableRequirements.length * 20;
-    const score = 1 + gapDelta * 10 + passDelta * 4 - unreachablePenalty;
+    const unreachablePenalty =
+      projectedEvaluation.unreachableRequirements.length * normalizedCandidateScoringWeights.unreachablePenaltyWeight;
+    const score =
+      normalizedCandidateScoringWeights.baseScore +
+      gapDelta * normalizedCandidateScoringWeights.gapDeltaWeight +
+      passDelta * normalizedCandidateScoringWeights.passDeltaWeight -
+      unreachablePenalty;
 
     const rationale = [];
     if (gapDelta > 0) {
@@ -315,6 +379,8 @@ function buildNodeByRequirements({
   maxDepth,
   maxBranch,
   minCandidateScore,
+  candidateScoringWeights,
+  compositionScoringWeights,
   pruneUnreachableRequired,
   rankGoal,
   depth,
@@ -334,7 +400,7 @@ function buildNodeByRequirements({
     tagById
   });
   const requiredSummary = requirementEvaluation.requiredSummary;
-  const nodeScore = scoreRequirementNode(requirementEvaluation, normalized);
+  const nodeScore = scoreRequirementNode(requirementEvaluation, normalized, compositionScoringWeights);
   const remainingSteps = Math.max(0, maxDepth - depth);
   const teamComplete = isTeamComplete(normalized);
   const isTerminal = depth >= maxDepth || teamComplete;
@@ -396,7 +462,8 @@ function buildNodeByRequirements({
     excludedChampions,
     tagById,
     maxBranch,
-    minCandidateScore
+    minCandidateScore,
+    candidateScoringWeights
   });
 
   generationStats.candidateGenerationCalls += 1;
@@ -446,6 +513,8 @@ function buildNodeByRequirements({
       maxDepth,
       maxBranch,
       minCandidateScore,
+      candidateScoringWeights,
+      compositionScoringWeights,
       pruneUnreachableRequired,
       rankGoal,
       depth: depth + 1,
@@ -498,9 +567,13 @@ function generatePossibilityTreeByRequirements({
   maxDepth = DEFAULT_TREE_SETTINGS.maxDepth,
   maxBranch = DEFAULT_TREE_SETTINGS.maxBranch,
   minCandidateScore = DEFAULT_MIN_CANDIDATE_SCORE,
+  candidateScoringWeights = DEFAULT_CANDIDATE_SCORING_WEIGHTS,
+  compositionScoringWeights = DEFAULT_COMPOSITION_SCORING_WEIGHTS,
   pruneUnreachableRequired = true,
   rankGoal = DEFAULT_RANK_GOAL
 }) {
+  const normalizedCandidateScoringWeights = normalizeCandidateScoringWeights(candidateScoringWeights);
+  const normalizedCompositionScoringWeights = normalizeCompositionScoringWeights(compositionScoringWeights);
   const generationStats = createGenerationStats();
   const tree = buildNodeByRequirements({
     teamState,
@@ -515,6 +588,8 @@ function generatePossibilityTreeByRequirements({
     maxDepth,
     maxBranch,
     minCandidateScore,
+    candidateScoringWeights: normalizedCandidateScoringWeights,
+    compositionScoringWeights: normalizedCompositionScoringWeights,
     pruneUnreachableRequired: Boolean(pruneUnreachableRequired),
     rankGoal: normalizeRankGoal(rankGoal),
     depth: 0,
@@ -539,6 +614,8 @@ export function generatePossibilityTree({
   maxDepth = DEFAULT_TREE_SETTINGS.maxDepth,
   maxBranch = DEFAULT_TREE_SETTINGS.maxBranch,
   minCandidateScore = DEFAULT_MIN_CANDIDATE_SCORE,
+  candidateScoringWeights = DEFAULT_CANDIDATE_SCORING_WEIGHTS,
+  compositionScoringWeights = DEFAULT_COMPOSITION_SCORING_WEIGHTS,
   pruneUnreachableRequired = true,
   rankGoal = DEFAULT_RANK_GOAL
 }) {
@@ -559,6 +636,8 @@ export function generatePossibilityTree({
     maxDepth,
     maxBranch,
     minCandidateScore,
+    candidateScoringWeights,
+    compositionScoringWeights,
     pruneUnreachableRequired,
     rankGoal
   });
