@@ -1657,7 +1657,7 @@ button.slot-order-btn:disabled {
   border-radius: 10px;
   border: 1px solid var(--border);
   background: #fffefa;
-  padding: 0.44rem;
+  padding: 0.6rem 0.7rem;
 }
 
 .check-title-row {
@@ -1665,6 +1665,12 @@ button.slot-order-btn:disabled {
   justify-content: space-between;
   align-items: center;
   gap: 0.6rem;
+}
+
+.check-headline {
+  margin: 0.2rem 0 0;
+  font-weight: 700;
+  color: var(--ink);
 }
 
 .check-badges {
@@ -1789,6 +1795,7 @@ button.slot-order-btn:disabled {
 
 .node small {
   color: var(--muted);
+  font-weight: 600;
 }
 
 .node button {
@@ -1990,14 +1997,21 @@ button.slot-order-btn:disabled {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: #fffefa;
-  padding: 0.6rem;
+  padding: 0.8rem;
   margin-top: 0.7rem;
+}
+
+.tree-summary-headline {
+  margin: 0 0 0.2rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink);
 }
 
 .summary-card-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 0.45rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.7rem;
 }
 
 .requirements-clause-list {
@@ -2087,13 +2101,91 @@ button.slot-order-btn:disabled {
 .summary-card {
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 0.45rem;
+  padding: 0.75rem;
   background: #fffcf5;
   box-shadow: inset 0 3px 0 rgba(204, 91, 52, 0.22);
 }
 
 .summary-card .button-row button {
   width: auto;
+}
+
+.branch-card {
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+}
+
+.branch-card-top {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+
+.branch-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  padding: 0.14rem 0.5rem;
+  border-radius: 999px;
+  background: #f6ddd2;
+  color: #7f301a;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.branch-headline {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.branch-benefit-list {
+  margin: 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.2rem;
+  color: var(--muted);
+}
+
+.branch-benefit-list li::marker {
+  color: var(--accent);
+}
+
+.debug-details {
+  border-top: 1px dashed var(--border);
+  padding-top: 0.45rem;
+}
+
+.debug-details > summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  list-style: none;
+}
+
+.debug-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.debug-details > summary::after {
+  content: "Show";
+  float: right;
+  font-weight: 600;
+}
+
+.debug-details[open] > summary::after {
+  content: "Hide";
+}
+
+.check-clause-list {
+  margin: 0.45rem 0 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.18rem;
 }
 
 .pool-snapshot-card {

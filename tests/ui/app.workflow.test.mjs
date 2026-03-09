@@ -314,6 +314,9 @@ describe("workflow app integration", () => {
     treeMinScore.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
     const afterMinScoreCircles = doc.querySelectorAll("#builder-tree-map circle").length;
     expect(afterMinScoreCircles).toBe(1);
+    expect(doc.querySelector("#builder-tree-summary").textContent).toContain("Ranked by viable end states first");
+    expect(doc.querySelector("#builder-tree-summary").textContent).toContain("viable finish");
+    expect(doc.querySelector("#builder-tree-summary").textContent).toContain("Generation stats");
   });
 
   test("advanced scoring controls in setup update generation floor, rank goal, and redundancy penalty", async () => {

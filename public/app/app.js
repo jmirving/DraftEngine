@@ -9752,6 +9752,19 @@ function buildComposerRequirementScoreBreakdown(requirementEvaluation) {
   return buildRequirementScoreBreakdown(requirementEvaluation, getComposerRedundancyPenalty());
 }
 
+function formatRequirementHeadline(requirementResult) {
+  const clauses = Array.isArray(requirementResult?.clauses) ? requirementResult.clauses : [];
+  const totalUnderBy = clauses.reduce((sum, clause) => sum + (clause?.underBy ?? 0), 0);
+  const totalOverBy = clauses.reduce((sum, clause) => sum + (clause?.overBy ?? 0), 0);
+  if (totalUnderBy > 0) {
+    return `Missing ${totalUnderBy} required match${totalUnderBy === 1 ? "" : "es"}.`;
+  }
+  if (totalOverBy > 0) {
+    return `Meets minimums, but has ${totalOverBy} redundant extra match${totalOverBy === 1 ? "" : "es"}.`;
+  }
+  return "Currently in range.";
+}
+
 function buildRequirementStatusRow(requirementResult, requirementScore = null) {
   const status = requirementResult.status;
   const passed = status === "pass";
@@ -9775,8 +9788,8 @@ function buildRequirementStatusRow(requirementResult, requirementScore = null) {
   titleRow.append(title, badgeRow);
 
   const detail = runtimeDocument.createElement("div");
-  detail.className = "meta";
-  detail.textContent = requirementResult.reason;
+  detail.className = "check-headline";
+  detail.textContent = formatRequirementHeadline(requirementResult);
   item.append(titleRow, detail);
 
   if (requirementResult.definition) {
@@ -9787,8 +9800,31 @@ function buildRequirementStatusRow(requirementResult, requirementScore = null) {
   }
 
   if (Array.isArray(requirementResult.clauses) && requirementResult.clauses.length > 0) {
+    const clauseSummary = runtimeDocument.createElement("p");
+    clauseSummary.className = "meta";
+    const clausesMissing = requirementResult.clauses.filter((clause) => (clause?.underBy ?? 0) > 0).length;
+    const clausesOverflowing = requirementResult.clauses.filter((clause) => (clause?.overBy ?? 0) > 0).length;
+    const summaryParts = [];
+    if (clausesMissing > 0) {
+      summaryParts.push(`${clausesMissing} clause${clausesMissing === 1 ? "" : "s"} still need coverage`);
+    }
+    if (clausesOverflowing > 0) {
+      summaryParts.push(`${clausesOverflowing} clause${clausesOverflowing === 1 ? "" : "s"} overflow max`);
+    }
+    if (summaryParts.length < 1) {
+      summaryParts.push("All clause ranges currently satisfied");
+    }
+    clauseSummary.textContent = summaryParts.join(" | ");
+    item.append(clauseSummary);
+
+    const clauseDetails = runtimeDocument.createElement("details");
+    clauseDetails.className = "debug-details";
+    const clauseDetailsSummary = runtimeDocument.createElement("summary");
+    clauseDetailsSummary.textContent = "Clause details";
+    clauseDetails.append(clauseDetailsSummary);
+
     const clausesList = runtimeDocument.createElement("ul");
-    clausesList.className = "meta";
+    clausesList.className = "meta check-clause-list";
     const clauseScoreById = new Map(
       Array.isArray(requirementScore?.clauses)
         ? requirementScore.clauses.map((clause) => [clause.id, clause])
@@ -9802,25 +9838,31 @@ function buildRequirementStatusRow(requirementResult, requirementScore = null) {
           : `clause-${index + 1}`;
       const clauseScore = clauseScoreById.get(clauseId) ?? null;
       const clauseItem = runtimeDocument.createElement("li");
-      const stateLabel = clause.status === "pass" ? "pass" : clause.status === "pending" ? "pending" : "fail";
       const rangeLabel = clause.maxCount === null ? `${clause.minCount}+` : `${clause.minCount}-${clause.maxCount}`;
-      const overflowLabel =
-        clause.overBy > 0 ? ` | redundancy overflow ${clause.overBy}` : "";
-      const contributionLabel = clauseScore ? ` | score ${clauseScore.scoreContribution}` : "";
-      clauseItem.textContent =
-        `C${index + 1} ${stateLabel}: ${clause.currentMatches}/${rangeLabel} matches` +
-        ` | under ${clause.underBy} | max possible ${clause.maxPossibleMatches}${overflowLabel}${contributionLabel}`;
+      const pieces = [`${clause.currentMatches}/${rangeLabel}`];
+      if ((clause.underBy ?? 0) > 0) {
+        pieces.push(`needs ${clause.underBy}`);
+      } else {
+        pieces.push("minimum met");
+      }
+      if ((clause.overBy ?? 0) > 0) {
+        pieces.push(`overflow ${clause.overBy}`);
+      }
+      if (clauseScore) {
+        pieces.push(`score ${clauseScore.scoreContribution}`);
+      }
+      clauseItem.textContent = `C${index + 1}: ${pieces.join(" | ")}`;
       clausesList.append(clauseItem);
     }
-    item.append(clausesList);
+    clauseDetails.append(clausesList);
+    item.append(clauseDetails);
   }
 
   if (requirementScore) {
     const scoreMeta = runtimeDocument.createElement("p");
     scoreMeta.className = "meta";
     scoreMeta.textContent =
-      `Clause score ${requirementScore.totalScore} | missing matches ${requirementScore.totalUnderBy} | ` +
-      `redundancy overflow ${requirementScore.totalOverBy}.`;
+      `Missing matches ${requirementScore.totalUnderBy} | redundancy overflow ${requirementScore.totalOverBy}.`;
     item.append(scoreMeta);
   }
 
@@ -10128,6 +10170,29 @@ function getCandidateBreakdownLines(candidateBreakdown, limit = 3) {
   return lines.slice(0, limit);
 }
 
+function getCandidateBenefitLines(candidateBreakdown, limit = 2) {
+  const rawLines = getCandidateBreakdownLines(candidateBreakdown, 8);
+  return rawLines.filter((line) => !line.startsWith("unreachable penalty")).slice(0, limit);
+}
+
+function getBranchStatusLine(node) {
+  const missing = node?.scoreBreakdown?.totalUnderBy ?? 0;
+  const overflow = node?.scoreBreakdown?.totalOverBy ?? 0;
+  if (missing > 0) {
+    return `${missing} required match${missing === 1 ? "" : "es"} still missing`;
+  }
+  if (overflow > 0) {
+    return `All minimums met, ${overflow} redundant overflow`;
+  }
+  return "All current clause ranges satisfied";
+}
+
+function getRankGoalLabel() {
+  return normalizeBuilderRankGoal(state.builder.treeRankGoal) === BUILDER_RANK_GOAL_CANDIDATE_SCORE
+    ? "Ranked by immediate candidate score"
+    : "Ranked by viable end states first";
+}
+
 function renderTreeNode(node, depth = 0, nodeId = "0", visibleIds = null) {
   if (visibleIds && !visibleIds.has(nodeId)) {
     return null;
@@ -10156,9 +10221,7 @@ function renderTreeNode(node, depth = 0, nodeId = "0", visibleIds = null) {
     : "Root Composition";
   title.textContent = titleText;
   const score = runtimeDocument.createElement("small");
-  score.textContent =
-    `Composition score: ${node.score} | missing matches: ${node.scoreBreakdown?.totalUnderBy ?? 0} | ` +
-    `redundancy overflow: ${node.scoreBreakdown?.totalOverBy ?? 0}`;
+  score.textContent = getBranchStatusLine(node);
   titleRow.append(title, score);
 
   const action = runtimeDocument.createElement("button");
@@ -10176,12 +10239,27 @@ function renderTreeNode(node, depth = 0, nodeId = "0", visibleIds = null) {
 
   nodeBox.append(titleRow, actionRow);
 
-  const candidateLines = getCandidateBreakdownLines(node.candidateBreakdown, 2);
+  const candidateLines = getCandidateBenefitLines(node.candidateBreakdown, 2);
   if (candidateLines.length > 0) {
     const candidateMeta = runtimeDocument.createElement("div");
-    candidateMeta.className = "meta";
+    candidateMeta.className = "branch-benefit-list";
     candidateMeta.textContent = candidateLines.join(" | ");
     nodeBox.append(candidateMeta);
+  }
+
+  if (node.addedChampion) {
+    const nodeDebug = runtimeDocument.createElement("details");
+    nodeDebug.className = "debug-details";
+    const nodeDebugSummary = runtimeDocument.createElement("summary");
+    nodeDebugSummary.textContent = "Debug scores";
+    const nodeDebugBody = runtimeDocument.createElement("p");
+    nodeDebugBody.className = "meta";
+    nodeDebugBody.textContent =
+      `Composition score ${node.score} | candidate score ${node.candidateScore ?? 0} | ` +
+      `missing matches ${node.scoreBreakdown?.totalUnderBy ?? 0} | ` +
+      `redundancy overflow ${node.scoreBreakdown?.totalOverBy ?? 0}`;
+    nodeDebug.append(nodeDebugSummary, nodeDebugBody);
+    nodeBox.append(nodeDebug);
   }
 
   if (Array.isArray(node.pathRationale) && node.pathRationale.length > 0) {
@@ -10278,8 +10356,10 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
   const generationStats = state.builder.tree.generationStats ?? null;
   const maxDepth = Math.max(...flat.map((entry) => entry.depth));
   const summaryMeta = runtimeDocument.createElement("p");
-  summaryMeta.className = "meta";
-  summaryMeta.textContent = `${flat.length} visible node(s), depth ${maxDepth}.`;
+  summaryMeta.className = "tree-summary-headline";
+  summaryMeta.textContent =
+    `${flat.length} visible node${flat.length === 1 ? "" : "s"} | ` +
+    `${generationStats?.validLeaves ?? 0} viable finish${(generationStats?.validLeaves ?? 0) === 1 ? "" : "es"} | depth ${maxDepth}.`;
   elements.builderTreeSummary.append(summaryMeta);
 
   if (rootNodeId !== "0") {
@@ -10312,6 +10392,15 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
   }
 
   if (generationStats) {
+    const rankMeta = runtimeDocument.createElement("p");
+    rankMeta.className = "meta";
+    rankMeta.textContent = getRankGoalLabel();
+    elements.builderTreeSummary.append(rankMeta);
+
+    const statsDetails = runtimeDocument.createElement("details");
+    statsDetails.className = "debug-details";
+    const statsSummary = runtimeDocument.createElement("summary");
+    statsSummary.textContent = "Generation stats";
     const statsMeta = runtimeDocument.createElement("p");
     statsMeta.className = "meta";
     statsMeta.textContent =
@@ -10324,7 +10413,7 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
       `fallback candidates ${generationStats.fallbackCandidatesUsed ?? 0}, fallback nodes ${generationStats.fallbackNodes ?? 0}, ` +
       `complete draft leaves ${generationStats.completeDraftLeaves}, incomplete draft leaves ${generationStats.incompleteDraftLeaves}, ` +
       `valid leaves ${generationStats.validLeaves}, incomplete leaves ${generationStats.incompleteLeaves}.`;
-    elements.builderTreeSummary.append(statsMeta);
+    statsDetails.append(statsSummary, statsMeta);
 
     if ((generationStats.fallbackNodes ?? 0) > 0) {
       const fallbackMeta = runtimeDocument.createElement("p");
@@ -10332,8 +10421,9 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
       fallbackMeta.textContent =
         `Adaptive fallback kept ${generationStats.fallbackCandidatesUsed} below-floor candidate(s) ` +
         `across ${generationStats.fallbackNodes} node(s) to avoid artificial dead-ends.`;
-      elements.builderTreeSummary.append(fallbackMeta);
+      statsDetails.append(fallbackMeta);
     }
+    elements.builderTreeSummary.append(statsDetails);
 
     if (generationStats.completeDraftLeaves === 0) {
       const hardFail = runtimeDocument.createElement("p");
@@ -10362,7 +10452,7 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
   }
 
   const topHeading = runtimeDocument.createElement("p");
-  topHeading.className = "meta";
+  topHeading.className = "panel-kicker";
   topHeading.textContent = rootNodeId === "0" ? "Top branches from root:" : `Top branches from ${state.builder.selectedNodeTitle}:`;
   elements.builderTreeSummary.append(topHeading);
 
@@ -10449,25 +10539,48 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
 
   for (const entry of topBranches) {
     const card = runtimeDocument.createElement("article");
-    card.className = "summary-card";
+    card.className = "summary-card branch-card";
 
+    const cardTop = runtimeDocument.createElement("div");
+    cardTop.className = "branch-card-top";
+    const rank = runtimeDocument.createElement("span");
+    rank.className = "branch-rank";
+    rank.textContent = `#${topBranches.indexOf(entry) + 1}`;
     const title = runtimeDocument.createElement("strong");
     title.textContent = entry.title;
+    cardTop.append(rank, title);
 
-    const score = runtimeDocument.createElement("p");
-    score.className = "meta";
-    const fallbackSuffix = entry.node.passesMinScore === false ? ", below min candidate score floor" : "";
-    score.textContent =
+    const headline = runtimeDocument.createElement("p");
+    headline.className = "branch-headline";
+    headline.textContent =
+      `${entry.node.branchPotential?.validLeafCount ?? 0} viable finish${(entry.node.branchPotential?.validLeafCount ?? 0) === 1 ? "" : "es"} | ` +
+      `${getBranchStatusLine(entry.node)}.`;
+
+    const benefits = runtimeDocument.createElement("ul");
+    benefits.className = "branch-benefit-list";
+    const candidateMetaLines = getCandidateBenefitLines(entry.node.candidateBreakdown, 2);
+    const benefitLines =
+      candidateMetaLines.length > 0
+        ? candidateMetaLines
+        : ["No immediate clause coverage gain; ranked via downstream viable finishes."];
+    for (const line of benefitLines) {
+      const item = runtimeDocument.createElement("li");
+      item.textContent = line;
+      benefits.append(item);
+    }
+
+    const debugDetails = runtimeDocument.createElement("details");
+    debugDetails.className = "debug-details";
+    const debugSummary = runtimeDocument.createElement("summary");
+    debugSummary.textContent = "Debug scores";
+    const debugBody = runtimeDocument.createElement("p");
+    debugBody.className = "meta";
+    const fallbackSuffix = entry.node.passesMinScore === false ? ", below candidate floor" : "";
+    debugBody.textContent =
       `Composition score ${entry.node.score}, candidate score ${entry.node.candidateScore ?? 0}, ` +
       `missing matches ${entry.node.scoreBreakdown?.totalUnderBy ?? 0}, ` +
-      `redundancy overflow ${entry.node.scoreBreakdown?.totalOverBy ?? 0}, ` +
-      `valid leaves ${entry.node.branchPotential?.validLeafCount ?? 0}${fallbackSuffix}.`;
-
-    const candidateMetaLines = getCandidateBreakdownLines(entry.node.candidateBreakdown, 2);
-    const candidateMeta = runtimeDocument.createElement("p");
-    candidateMeta.className = "meta";
-    candidateMeta.textContent =
-      candidateMetaLines.length > 0 ? candidateMetaLines.join(" | ") : "No clause score change for this branch.";
+      `redundancy overflow ${entry.node.scoreBreakdown?.totalOverBy ?? 0}${fallbackSuffix}.`;
+    debugDetails.append(debugSummary, debugBody);
 
     const actions = runtimeDocument.createElement("div");
     actions.className = "button-row";
@@ -10479,7 +10592,7 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
     });
     actions.append(inspect);
 
-    card.append(title, score, candidateMeta, actions);
+    card.append(cardTop, headline, benefits, debugDetails, actions);
     list.append(card);
   }
 
