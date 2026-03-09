@@ -98,6 +98,7 @@ const MAX_TEAM_LOGO_BYTES = 512 * 1024;
 const PREFILLED_RECOMMENDATION_LIMIT = 3;
 const HIGH_SIGNAL_MASTERY_LEVEL = 6;
 const HIGH_SIGNAL_CHAMPION_POINTS = 100000;
+const OWNER_ADMIN_EMAIL_SET = new Set(["jirving0311@gmail.com", "tylerjtriplett@gmail.com"]);
 
 const FAMILIARITY_LEVEL_LABELS = Object.freeze({
   1: "I know all the intricacies and how to use them",
@@ -3213,10 +3214,20 @@ function normalizeApiAdminUser(rawUser) {
   const canUpdateRiotId = rawUser.can_update_riot_id === false
     ? false
     : (rawUser.can_update_riot_id === true || correctionCount < 1);
+  const normalizedRole = normalizeApiUserRole(rawUser.role);
+  const storedRole = rawUser.stored_role === undefined
+    ? normalizedRole
+    : normalizeApiUserRole(rawUser.stored_role);
+  const emailKey = email.toLowerCase();
+  const isOwnerAdmin = rawUser.is_owner_admin === true
+    ? true
+    : (rawUser.is_owner_admin === false ? false : OWNER_ADMIN_EMAIL_SET.has(emailKey));
   return {
     id,
     email,
-    role: normalizeApiUserRole(rawUser.role),
+    role: normalizedRole,
+    stored_role: storedRole,
+    is_owner_admin: isOwnerAdmin,
     game_name: gameName,
     tagline,
     riot_id: riotId,
@@ -4026,6 +4037,9 @@ function renderUsersWorkspace() {
     const isSavingRiotId = state.api.savingUserRiotIdId === user.id;
     const isDeletingUser = state.api.deletingUserId === user.id;
     const isSavingAnyUserAction = isSavingRole || isSavingRiotId || isDeletingUser;
+    const isOwnerAdmin = user.is_owner_admin === true;
+    const ownerStoredRole = normalizeApiUserRole(user.stored_role);
+    const ownerRoleNeedsSync = isOwnerAdmin && ownerStoredRole !== "admin";
 
     const title = runtimeDocument.createElement("strong");
     title.textContent = user.email;
@@ -4039,7 +4053,6 @@ function renderUsersWorkspace() {
     roleLabel.textContent = "Permissions";
 
     const roleSelect = runtimeDocument.createElement("select");
-    const isOwnerAdmin = user.email.toLowerCase() === "jirving0311@gmail.com";
     const options = isOwnerAdmin
       ? [{ value: "admin", label: "admin" }]
       : [
@@ -4047,11 +4060,30 @@ function renderUsersWorkspace() {
           { value: "global", label: "global" }
         ];
     replaceOptions(roleSelect, options);
-    roleSelect.value = normalizeApiUserRole(user.role);
-    roleSelect.disabled = isSavingAnyUserAction;
-    roleSelect.addEventListener("change", () => {
-      void saveUserRoleFromWorkspace(user.id, roleSelect.value);
+    roleSelect.value = isOwnerAdmin ? "admin" : normalizeApiUserRole(user.role);
+    roleSelect.disabled = isSavingAnyUserAction || isOwnerAdmin;
+    if (!isOwnerAdmin) {
+      roleSelect.addEventListener("change", () => {
+        void saveUserRoleFromWorkspace(user.id, roleSelect.value);
+      });
+    }
+
+    const ownerAdminSyncButton = runtimeDocument.createElement("button");
+    ownerAdminSyncButton.type = "button";
+    ownerAdminSyncButton.className = "ghost";
+    ownerAdminSyncButton.textContent = isSavingRole
+      ? "Applying..."
+      : (ownerRoleNeedsSync ? "Apply Admin to DB" : "Reapply Admin");
+    ownerAdminSyncButton.disabled = !isOwnerAdmin || isSavingAnyUserAction;
+    ownerAdminSyncButton.addEventListener("click", () => {
+      void saveUserRoleFromWorkspace(user.id, "admin");
     });
+
+    const ownerAdminSyncMeta = runtimeDocument.createElement("p");
+    ownerAdminSyncMeta.className = "meta";
+    ownerAdminSyncMeta.textContent = ownerRoleNeedsSync
+      ? `Stored DB role is '${ownerStoredRole}'. Click Apply Admin to DB to sync.`
+      : "Owner admin DB role is synced.";
 
     const riotCorrectionLabel = runtimeDocument.createElement("label");
     riotCorrectionLabel.className = "meta";
@@ -4106,7 +4138,11 @@ function renderUsersWorkspace() {
 
     roleLabel.append(runtimeDocument.createElement("br"), roleSelect);
     riotCorrectionLabel.append(runtimeDocument.createElement("br"), riotCorrectionControls);
-    card.append(title, riot, roleLabel, riotCorrectionLabel, riotCorrectionMeta, deleteUserButton, deleteUserMeta);
+    card.append(title, riot, roleLabel);
+    if (isOwnerAdmin) {
+      card.append(ownerAdminSyncButton, ownerAdminSyncMeta);
+    }
+    card.append(riotCorrectionLabel, riotCorrectionMeta, deleteUserButton, deleteUserMeta);
 
     const detailPanel = runtimeDocument.createElement("details");
     detailPanel.className = "user-detail-panel";

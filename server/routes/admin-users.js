@@ -37,10 +37,13 @@ function serializeAdminUser(user) {
   const gameName = typeof user.game_name === "string" ? user.game_name.trim() : "";
   const tagline = typeof user.tagline === "string" ? user.tagline.trim() : "";
   const correctionCount = normalizeRiotIdCorrectionCount(user?.riot_id_correction_count);
+  const isOwnerAdmin = isOwnerAdminEmail(user?.email);
   return {
     id: Number(user.id),
     email: user.email,
     role: resolveAuthorizationRole(user),
+    stored_role: normalizeUserRole(user?.role),
+    is_owner_admin: isOwnerAdmin,
     game_name: gameName,
     tagline,
     riot_id: gameName && tagline ? `${gameName}#${tagline}` : (gameName || ""),

@@ -1846,6 +1846,9 @@ describe("API routes", () => {
       .set("Authorization", buildAuthHeader(1, config));
     expect(adminList.status).toBe(200);
     expect(adminList.body.users).toHaveLength(5);
+    const listedOwner = adminList.body.users.find((user) => Number(user.id) === 1);
+    expect(listedOwner?.is_owner_admin).toBe(true);
+    expect(listedOwner?.stored_role).toBe("admin");
 
     const adminAuthorizationMatrix = await request(app)
       .get("/admin/authorization")
@@ -1960,6 +1963,8 @@ describe("API routes", () => {
     const ownerUser = adminList.body.users.find((user) => Number(user.id) === 1);
     expect(ownerUser).toBeTruthy();
     expect(ownerUser.role).toBe("admin");
+    expect(ownerUser.stored_role).toBe("member");
+    expect(ownerUser.is_owner_admin).toBe(true);
   });
 
   it("supports requirement definition and composition CRUD", async () => {

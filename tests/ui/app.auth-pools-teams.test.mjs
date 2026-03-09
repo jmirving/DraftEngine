@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { BOOLEAN_TAGS } from "../../src/index.js";
 
 const htmlFixture = readFileSync(resolve("public/index.html"), "utf8");
+const OWNER_ADMIN_EMAILS = new Set(["jirving0311@gmail.com", "tylerjtriplett@gmail.com"]);
 
 function createStorageStub(initial = {}) {
   const store = new Map(Object.entries(initial));
@@ -78,7 +79,8 @@ function createFetchHarness({
   championIdsAsStrings = false,
   loginUser = null,
   profile = null,
-  teamContext = null
+  teamContext = null,
+  adminUsersSeed = null
 } = {}) {
   const calls = [];
   let nextPoolId = pools.length + 1;
@@ -193,34 +195,40 @@ function createFetchHarness({
       .map((request) => Number.parseInt(String(request?.id ?? 0), 10) + 1)
       .filter((value) => Number.isInteger(value) && value > 0)
   );
-  const adminUsers = [
-    {
-      id: 11,
-      email: resolvedLoginUser.email,
-      role: typeof resolvedLoginUser.role === "string" ? resolvedLoginUser.role : "admin",
-      game_name: resolvedLoginUser.gameName,
-      tagline: resolvedLoginUser.tagline,
-      riot_id: `${resolvedLoginUser.gameName}#${resolvedLoginUser.tagline}`,
-      riot_id_correction_count: 0,
-      can_update_riot_id: true,
-      primary_role: resolvedLoginUser.primaryRole,
-      secondary_roles: Array.isArray(resolvedLoginUser.secondaryRoles)
-        ? [...resolvedLoginUser.secondaryRoles]
-        : []
-    },
-    {
-      id: 22,
-      email: "member@example.com",
-      role: "member",
-      game_name: "Member",
-      tagline: "NA1",
-      riot_id: "Member#NA1",
-      riot_id_correction_count: 0,
-      can_update_riot_id: true,
-      primary_role: "Support",
-      secondary_roles: []
-    }
-  ];
+  const adminUsers = Array.isArray(adminUsersSeed) && adminUsersSeed.length > 0
+    ? adminUsersSeed.map((user) => ({ ...user }))
+    : [
+        {
+          id: 11,
+          email: resolvedLoginUser.email,
+          role: typeof resolvedLoginUser.role === "string" ? resolvedLoginUser.role : "admin",
+          stored_role: typeof resolvedLoginUser.role === "string" ? resolvedLoginUser.role : "admin",
+          is_owner_admin: OWNER_ADMIN_EMAILS.has(String(resolvedLoginUser.email ?? "").trim().toLowerCase()),
+          game_name: resolvedLoginUser.gameName,
+          tagline: resolvedLoginUser.tagline,
+          riot_id: `${resolvedLoginUser.gameName}#${resolvedLoginUser.tagline}`,
+          riot_id_correction_count: 0,
+          can_update_riot_id: true,
+          primary_role: resolvedLoginUser.primaryRole,
+          secondary_roles: Array.isArray(resolvedLoginUser.secondaryRoles)
+            ? [...resolvedLoginUser.secondaryRoles]
+            : []
+        },
+        {
+          id: 22,
+          email: "member@example.com",
+          role: "member",
+          stored_role: "member",
+          is_owner_admin: false,
+          game_name: "Member",
+          tagline: "NA1",
+          riot_id: "Member#NA1",
+          riot_id_correction_count: 0,
+          can_update_riot_id: true,
+          primary_role: "Support",
+          secondary_roles: []
+        }
+      ];
 
   function parseRiotId(rawValue) {
     const normalizedValue = typeof rawValue === "string" ? rawValue.trim() : "";
@@ -701,6 +709,7 @@ function createFetchHarness({
         return createJsonResponse({ error: { code: "NOT_FOUND", message: "User not found." } }, 404);
       }
       user.role = typeof body?.role === "string" ? body.role : user.role;
+      user.stored_role = typeof body?.role === "string" ? body.role : (user.stored_role ?? user.role);
       return createJsonResponse({ user });
     }
 
@@ -753,7 +762,7 @@ function createFetchHarness({
         return createJsonResponse({ error: { code: "NOT_FOUND", message: "User not found." } }, 404);
       }
       const targetUser = adminUsers[userIndex];
-      if (String(targetUser.email ?? "").trim().toLowerCase() === "jirving0311@gmail.com") {
+      if (OWNER_ADMIN_EMAILS.has(String(targetUser.email ?? "").trim().toLowerCase())) {
         return createJsonResponse({ error: { code: "BAD_REQUEST", message: "The owner account cannot be deleted." } }, 400);
       }
       adminUsers.splice(userIndex, 1);
@@ -2011,6 +2020,78 @@ describe("auth + pools + team management", () => {
     const deleteUserCall = harness.calls.find((call) => call.path === "/admin/users/22" && call.method === "DELETE");
     expect(deleteUserCall).toBeTruthy();
     expect(doc.querySelector("#users-list").textContent).not.toContain("member@example.com");
+  });
+
+  test("users workspace can reapply owner admin to sync stored DB role", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "tylerjtriplett@gmail.com", role: "admin", gameName: "Tripinmixes", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness({
+      loginUser: { id: 11, email: "tylerjtriplett@gmail.com", role: "admin", gameName: "Tripinmixes", tagline: "NA1" },
+      adminUsersSeed: [
+        {
+          id: 11,
+          email: "tylerjtriplett@gmail.com",
+          role: "admin",
+          stored_role: "member",
+          is_owner_admin: true,
+          game_name: "Tripinmixes",
+          tagline: "NA1",
+          riot_id: "Tripinmixes#NA1",
+          riot_id_correction_count: 0,
+          can_update_riot_id: true,
+          primary_role: "Mid",
+          secondary_roles: []
+        },
+        {
+          id: 22,
+          email: "member@example.com",
+          role: "member",
+          stored_role: "member",
+          is_owner_admin: false,
+          game_name: "Member",
+          tagline: "NA1",
+          riot_id: "Member#NA1",
+          riot_id_correction_count: 0,
+          can_update_riot_id: true,
+          primary_role: "Support",
+          secondary_roles: []
+        }
+      ]
+    });
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector(".side-menu-link[data-tab='users']").click();
+    await flush();
+
+    let ownerCard = [...doc.querySelectorAll("#users-list .summary-card")].find((card) =>
+      card.textContent.includes("tylerjtriplett@gmail.com")
+    );
+    expect(ownerCard).toBeTruthy();
+    expect(ownerCard.textContent).toContain("Stored DB role is 'member'.");
+
+    const applyButton = [...ownerCard.querySelectorAll("button")].find(
+      (button) => button.textContent.trim() === "Apply Admin to DB"
+    );
+    expect(applyButton).toBeTruthy();
+    applyButton.click();
+    await flush();
+    await flush();
+
+    const roleUpdateCall = harness.calls.find(
+      (call) => call.path === "/admin/users/11/role" && call.method === "PUT"
+    );
+    expect(roleUpdateCall).toBeTruthy();
+    expect(roleUpdateCall.body.role).toBe("admin");
+
+    ownerCard = [...doc.querySelectorAll("#users-list .summary-card")].find((card) =>
+      card.textContent.includes("tylerjtriplett@gmail.com")
+    );
+    expect(ownerCard.textContent).toContain("Owner admin DB role is synced.");
   });
 
   test("compositions workspace creates requirement definitions and compositions", async () => {
