@@ -304,6 +304,10 @@ describe("workflow app integration", () => {
 
     const initialCircles = doc.querySelectorAll("#builder-tree-map circle").length;
     expect(initialCircles).toBeGreaterThan(0);
+    const initialSummaryText = doc.querySelector("#builder-tree-summary").textContent;
+    expect(initialSummaryText).toMatch(/Immediate gain:|No immediate clause coverage change;/);
+    expect(initialSummaryText).toMatch(/Still missing:|All current clause ranges satisfied/);
+    expect(initialSummaryText).not.toContain("required matches still missing");
 
     treeSearch.value = "zzzz-no-node";
     treeSearch.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
@@ -314,9 +318,10 @@ describe("workflow app integration", () => {
     treeMinScore.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
     const afterMinScoreCircles = doc.querySelectorAll("#builder-tree-map circle").length;
     expect(afterMinScoreCircles).toBe(1);
-    expect(doc.querySelector("#builder-tree-summary").textContent).toContain("Ranked by viable end states first");
-    expect(doc.querySelector("#builder-tree-summary").textContent).toContain("viable finish");
-    expect(doc.querySelector("#builder-tree-summary").textContent).toContain("Generation stats");
+    const treeSummaryText = doc.querySelector("#builder-tree-summary").textContent;
+    expect(treeSummaryText).toContain("Ranked by viable end states first");
+    expect(treeSummaryText).toContain("viable finish");
+    expect(treeSummaryText).toContain("Generation stats");
   });
 
   test("advanced scoring controls in setup update generation floor, rank goal, and redundancy penalty", async () => {

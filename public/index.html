@@ -1159,6 +1159,7 @@
                   <li>Composer Advanced Controls now focuses tree tuning on `Min Candidate Score`, `Rank Goal`, and a global `redundancyPenalty` for max-count overflow instead of opaque candidate/composition weight grids.</li>
                   <li>Composer requirement visibility now shows clause-level match counts, missing coverage, redundancy overflow, and score contributions in Review/Inspect.</li>
                   <li>Composer top-branch cards now prioritize readable recommendation signals, with rank, viable-finish counts, primary benefits, and collapsed debug metrics instead of leading with raw engine stats.</li>
+                  <li>Composer top-branch cards now surface total immediate coverage gain, explicit unmet clause coverage, and `+N more clause changes` indicators so near-tied recommendations are easier to tell apart.</li>
                 </ul>
                 <h4>Version 0.7.3 (Shipped)</h4>
                 <ul class="coming-soon-list">
@@ -1211,7 +1212,6 @@
                   <li>Per-team and per-user composition overlays remain deferred (draftflow-160)</li>
                   <li>Per-composition saved scoring profiles and scoped scoring presets are still deferred (draftflow-199).</li>
                   <li>Clause scoring still needs joiner-aware aggregation for OR-linked requirements so parallel OR clauses do not over-count progress (draftflow-203).</li>
-                  <li>Top-branch recommendations still need stronger differentiation when adjacent options cluster around similar scores or outcomes (draftflow-202).</li>
                 </ul>
                 <h4>Teams</h4>
                 <ul class="coming-soon-list">

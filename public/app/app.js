@@ -10170,16 +10170,100 @@ function getCandidateBreakdownLines(candidateBreakdown, limit = 3) {
   return lines.slice(0, limit);
 }
 
+function getCandidateDeltaSummary(candidateBreakdown) {
+  const summary = {
+    totalCoverageGain: 0,
+    totalCoverageLoss: 0,
+    totalOverflowAdded: 0,
+    totalOverflowReduced: 0,
+    changedClauseCount: 0,
+    unreachablePenalty: Number(candidateBreakdown?.unreachablePenalty ?? 0) || 0
+  };
+  if (!candidateBreakdown || !Array.isArray(candidateBreakdown.requirements)) {
+    return summary;
+  }
+  for (const requirement of candidateBreakdown.requirements) {
+    for (const clause of requirement.clauses ?? []) {
+      if (clause.underDelta > 0) {
+        summary.totalCoverageGain += clause.underDelta;
+        summary.changedClauseCount += 1;
+      } else if (clause.underDelta < 0) {
+        summary.totalCoverageLoss += Math.abs(clause.underDelta);
+        summary.changedClauseCount += 1;
+      }
+      if (clause.overDelta > 0) {
+        summary.totalOverflowAdded += clause.overDelta;
+        summary.changedClauseCount += 1;
+      } else if (clause.overDelta < 0) {
+        summary.totalOverflowReduced += Math.abs(clause.overDelta);
+        summary.changedClauseCount += 1;
+      }
+    }
+  }
+  return summary;
+}
+
 function getCandidateBenefitLines(candidateBreakdown, limit = 2) {
   const rawLines = getCandidateBreakdownLines(candidateBreakdown, 8);
   return rawLines.filter((line) => !line.startsWith("unreachable penalty")).slice(0, limit);
+}
+
+function getCandidateBenefitMeta(candidateBreakdown, limit = 2) {
+  const rawLines = getCandidateBreakdownLines(candidateBreakdown, 100).filter(
+    (line) => !line.startsWith("unreachable penalty")
+  );
+  return {
+    lines: rawLines.slice(0, limit),
+    hiddenCount: Math.max(0, rawLines.length - limit),
+    summary: getCandidateDeltaSummary(candidateBreakdown)
+  };
+}
+
+function getRemainingCoverageMeta(scoreBreakdown, limit = 2) {
+  const lines = [];
+  if (!scoreBreakdown || !Array.isArray(scoreBreakdown.requirements)) {
+    return { lines, hiddenCount: 0 };
+  }
+  for (const requirement of scoreBreakdown.requirements) {
+    for (const clause of requirement.clauses ?? []) {
+      if ((clause?.underBy ?? 0) > 0) {
+        lines.push(`${requirement.requirementName} ${clause.label}: needs ${clause.underBy}`);
+      }
+    }
+  }
+  return {
+    lines: lines.slice(0, limit),
+    hiddenCount: Math.max(0, lines.length - limit)
+  };
+}
+
+function getBranchImpactSummary(candidateBreakdown) {
+  const summary = getCandidateDeltaSummary(candidateBreakdown);
+  const parts = [];
+  if (summary.totalCoverageGain > 0) {
+    parts.push(
+      `Immediate gain: +${summary.totalCoverageGain} required coverage across ${summary.changedClauseCount} clause change${summary.changedClauseCount === 1 ? "" : "s"}`
+    );
+  }
+  if (summary.totalOverflowAdded > 0) {
+    parts.push(`Adds ${summary.totalOverflowAdded} redundancy overflow`);
+  } else if (summary.totalOverflowReduced > 0) {
+    parts.push(`Reduces redundancy overflow by ${summary.totalOverflowReduced}`);
+  }
+  if (summary.totalCoverageLoss > 0) {
+    parts.push(`Loses ${summary.totalCoverageLoss} required coverage`);
+  }
+  if (parts.length < 1) {
+    return "No immediate clause coverage change; ranked via downstream viable finishes.";
+  }
+  return parts.join(" | ");
 }
 
 function getBranchStatusLine(node) {
   const missing = node?.scoreBreakdown?.totalUnderBy ?? 0;
   const overflow = node?.scoreBreakdown?.totalOverBy ?? 0;
   if (missing > 0) {
-    return `${missing} required match${missing === 1 ? "" : "es"} still missing`;
+    return `${missing} required coverage still missing`;
   }
   if (overflow > 0) {
     return `All minimums met, ${overflow} redundant overflow`;
@@ -10239,11 +10323,15 @@ function renderTreeNode(node, depth = 0, nodeId = "0", visibleIds = null) {
 
   nodeBox.append(titleRow, actionRow);
 
-  const candidateLines = getCandidateBenefitLines(node.candidateBreakdown, 2);
-  if (candidateLines.length > 0) {
+  const candidateBenefits = getCandidateBenefitMeta(node.candidateBreakdown, 2);
+  if (candidateBenefits.lines.length > 0) {
     const candidateMeta = runtimeDocument.createElement("div");
     candidateMeta.className = "branch-benefit-list";
-    candidateMeta.textContent = candidateLines.join(" | ");
+    const visibleLines = [...candidateBenefits.lines];
+    if (candidateBenefits.hiddenCount > 0) {
+      visibleLines.push(`+${candidateBenefits.hiddenCount} more clause change${candidateBenefits.hiddenCount === 1 ? "" : "s"}`);
+    }
+    candidateMeta.textContent = visibleLines.join(" | ");
     nodeBox.append(candidateMeta);
   }
 
@@ -10254,10 +10342,12 @@ function renderTreeNode(node, depth = 0, nodeId = "0", visibleIds = null) {
     nodeDebugSummary.textContent = "Debug scores";
     const nodeDebugBody = runtimeDocument.createElement("p");
     nodeDebugBody.className = "meta";
+    const nodeDeltaSummary = getCandidateDeltaSummary(node.candidateBreakdown);
     nodeDebugBody.textContent =
       `Composition score ${node.score} | candidate score ${node.candidateScore ?? 0} | ` +
-      `missing matches ${node.scoreBreakdown?.totalUnderBy ?? 0} | ` +
-      `redundancy overflow ${node.scoreBreakdown?.totalOverBy ?? 0}`;
+      `+${nodeDeltaSummary.totalCoverageGain} required coverage | ` +
+      `redundancy overflow +${nodeDeltaSummary.totalOverflowAdded} | ` +
+      `missing coverage ${node.scoreBreakdown?.totalUnderBy ?? 0}`;
     nodeDebug.append(nodeDebugSummary, nodeDebugBody);
     nodeBox.append(nodeDebug);
   }
@@ -10556,17 +10646,40 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
       `${entry.node.branchPotential?.validLeafCount ?? 0} viable finish${(entry.node.branchPotential?.validLeafCount ?? 0) === 1 ? "" : "es"} | ` +
       `${getBranchStatusLine(entry.node)}.`;
 
+    const impact = runtimeDocument.createElement("p");
+    impact.className = "branch-impact-summary";
+    impact.textContent = getBranchImpactSummary(entry.node.candidateBreakdown);
+
     const benefits = runtimeDocument.createElement("ul");
     benefits.className = "branch-benefit-list";
-    const candidateMetaLines = getCandidateBenefitLines(entry.node.candidateBreakdown, 2);
+    const candidateBenefitMeta = getCandidateBenefitMeta(entry.node.candidateBreakdown, 2);
     const benefitLines =
-      candidateMetaLines.length > 0
-        ? candidateMetaLines
+      candidateBenefitMeta.lines.length > 0
+        ? candidateBenefitMeta.lines
         : ["No immediate clause coverage gain; ranked via downstream viable finishes."];
     for (const line of benefitLines) {
       const item = runtimeDocument.createElement("li");
       item.textContent = line;
       benefits.append(item);
+    }
+    if (candidateBenefitMeta.hiddenCount > 0) {
+      const hidden = runtimeDocument.createElement("li");
+      hidden.className = "branch-more";
+      hidden.textContent =
+        `+${candidateBenefitMeta.hiddenCount} more clause change${candidateBenefitMeta.hiddenCount === 1 ? "" : "s"}`;
+      benefits.append(hidden);
+    }
+
+    const remainingCoverage = getRemainingCoverageMeta(entry.node.scoreBreakdown, 2);
+    let remaining = null;
+    if (remainingCoverage.lines.length > 0) {
+      remaining = runtimeDocument.createElement("p");
+      remaining.className = "branch-gap-list";
+      remaining.textContent =
+        `Still missing: ${remainingCoverage.lines.join(" | ")}` +
+        (remainingCoverage.hiddenCount > 0
+          ? ` | +${remainingCoverage.hiddenCount} more unmet clause${remainingCoverage.hiddenCount === 1 ? "" : "s"}`
+          : "");
     }
 
     const debugDetails = runtimeDocument.createElement("details");
@@ -10576,10 +10689,12 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
     const debugBody = runtimeDocument.createElement("p");
     debugBody.className = "meta";
     const fallbackSuffix = entry.node.passesMinScore === false ? ", below candidate floor" : "";
+    const deltaSummary = getCandidateDeltaSummary(entry.node.candidateBreakdown);
     debugBody.textContent =
       `Composition score ${entry.node.score}, candidate score ${entry.node.candidateScore ?? 0}, ` +
-      `missing matches ${entry.node.scoreBreakdown?.totalUnderBy ?? 0}, ` +
-      `redundancy overflow ${entry.node.scoreBreakdown?.totalOverBy ?? 0}${fallbackSuffix}.`;
+      `+${deltaSummary.totalCoverageGain} required coverage, ` +
+      `redundancy overflow +${deltaSummary.totalOverflowAdded}, ` +
+      `missing coverage ${entry.node.scoreBreakdown?.totalUnderBy ?? 0}${fallbackSuffix}.`;
     debugDetails.append(debugSummary, debugBody);
 
     const actions = runtimeDocument.createElement("div");
@@ -10592,7 +10707,11 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
     });
     actions.append(inspect);
 
-    card.append(cardTop, headline, benefits, debugDetails, actions);
+    if (remaining) {
+      card.append(cardTop, headline, impact, benefits, remaining, debugDetails, actions);
+    } else {
+      card.append(cardTop, headline, impact, benefits, debugDetails, actions);
+    }
     list.append(card);
   }
 

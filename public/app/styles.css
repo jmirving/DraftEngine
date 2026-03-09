@@ -2142,6 +2142,13 @@ button.slot-order-btn:disabled {
   line-height: 1.35;
 }
 
+.branch-impact-summary {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
 .branch-benefit-list {
   margin: 0;
   padding-left: 1rem;
@@ -2150,8 +2157,19 @@ button.slot-order-btn:disabled {
   color: var(--muted);
 }
 
+.branch-more {
+  font-weight: 700;
+}
+
 .branch-benefit-list li::marker {
   color: var(--accent);
+}
+
+.branch-gap-list {
+  margin: 0;
+  padding-top: 0.1rem;
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 .debug-details {
