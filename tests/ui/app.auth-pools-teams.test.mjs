@@ -1947,11 +1947,13 @@ describe("auth + pools + team management", () => {
     await flush();
 
     expect(doc.querySelector("#users-access").textContent).toContain("users loaded");
-    expect(doc.querySelector("#users-authorization-access").textContent).toContain("global roles");
-    expect(doc.querySelector("#users-authorization-roles").textContent).toContain("Global Roles");
+    expect(doc.querySelector("#users-authorization-access").textContent).toContain("roles");
+    expect(doc.querySelector("#users-authorization-roles").textContent).toContain("Roles");
+    expect(doc.querySelector("#users-authorization-roles").textContent).toContain("global.member");
+    expect(doc.querySelector("#users-authorization-roles").textContent).toContain("team_membership.member");
     expect(doc.querySelector("#users-authorization-roles").textContent).not.toContain("Team Roster Roles");
-    expect(doc.querySelector("#users-authorization-permissions").textContent).toContain("Permission Catalog");
-    expect(doc.querySelector("#users-authorization-assignments").textContent).toContain("Global Role Assignments");
+    expect(doc.querySelector("#users-authorization-permissions").hidden).toBe(true);
+    expect(doc.querySelector("#users-authorization-assignments").textContent).toContain("Permission Assignments");
     expect(doc.querySelector("#users-authorization-assignments").textContent).not.toContain("Team Roster Assignments");
     const matrixCall = harness.calls.find((call) => call.path === "/admin/authorization" && call.method === "GET");
     expect(matrixCall).toBeTruthy();

@@ -3696,6 +3696,7 @@ function renderUsersAuthorizationWorkspace() {
   elements.usersAuthorizationRoles.innerHTML = "";
   elements.usersAuthorizationPermissions.innerHTML = "";
   elements.usersAuthorizationAssignments.innerHTML = "";
+  elements.usersAuthorizationPermissions.hidden = true;
 
   if (!isAuthenticated()) {
     elements.usersAuthorizationAccess.textContent = "Sign in as admin to view roles and permissions.";
@@ -3728,12 +3729,27 @@ function renderUsersAuthorizationWorkspace() {
       ? matrix.assignments.team_membership_roles
       : {};
   const permissionById = new Map(permissions.map((permission) => [permission.id, permission]));
+  const combinedRoles = [
+    ...globalRoles.map((role) => ({ ...role, scope: "global", key: `global:${role.id}` })),
+    ...teamMembershipRoles.map((role) => ({ ...role, scope: "team_membership", key: `team_membership:${role.id}` }))
+  ];
+  const combinedAssignments = Object.fromEntries(
+    combinedRoles.map((role) => {
+      const assignmentSource = role.scope === "team_membership" ? teamMembershipAssignments : globalAssignments;
+      const assigned = Array.isArray(assignmentSource[role.id]) ? assignmentSource[role.id] : [];
+      return [role.key, assigned];
+    })
+  );
 
   elements.usersAuthorizationAccess.textContent = [
-    `${globalRoles.length} global role${globalRoles.length === 1 ? "" : "s"}`,
-    `${teamMembershipRoles.length} team membership role${teamMembershipRoles.length === 1 ? "" : "s"}`,
+    `${combinedRoles.length} role${combinedRoles.length === 1 ? "" : "s"}`,
     `${permissions.length} permission${permissions.length === 1 ? "" : "s"}`
   ].join(" • ");
+
+  const formatRoleCode = (role) => {
+    const scopePrefix = role.scope === "team_membership" ? "team_membership" : "global";
+    return `${scopePrefix}.${role.id}`;
+  };
 
   const createBlockHeader = (title, count, subtitle) => {
     const header = runtimeDocument.createElement("div");
@@ -3782,11 +3798,11 @@ function renderUsersAuthorizationWorkspace() {
       roleLabel.textContent = role.label || role.id;
       const roleId = runtimeDocument.createElement("span");
       roleId.className = "users-authz-role-id";
-      roleId.textContent = role.id;
+      roleId.textContent = formatRoleCode(role);
       roleHeader.append(roleLabel, roleId);
       roleCard.append(roleHeader);
       if (assignments && typeof assignments === "object") {
-        const assignmentCount = Array.isArray(assignments[role.id]) ? assignments[role.id].length : 0;
+        const assignmentCount = Array.isArray(assignments[role.key]) ? assignments[role.key].length : 0;
         roleCard.append(
           createMetaParagraph(`${assignmentCount} permission${assignmentCount === 1 ? "" : "s"} assigned`)
         );
@@ -3800,10 +3816,7 @@ function renderUsersAuthorizationWorkspace() {
     return card;
   };
 
-  elements.usersAuthorizationRoles.append(
-    createRoleCard("Global Roles", globalRoles, globalAssignments),
-    createRoleCard("Team Membership Roles", teamMembershipRoles, teamMembershipAssignments)
-  );
+  elements.usersAuthorizationRoles.append(createRoleCard("Roles", combinedRoles, combinedAssignments));
 
   const normalizePermissionDomainLabel = (domain) => {
     const normalized = typeof domain === "string" ? domain.trim() : "";
@@ -3823,60 +3836,6 @@ function renderUsersAuthorizationWorkspace() {
     }
     return rawDomain;
   };
-
-  const groupedPermissions = permissions.reduce((acc, permission) => {
-    const domain = normalizePermissionDomain(permission.id);
-    if (!acc.has(domain)) {
-      acc.set(domain, []);
-    }
-    acc.get(domain).push(permission);
-    return acc;
-  }, new Map());
-
-  const permissionsCard = runtimeDocument.createElement("article");
-  permissionsCard.className = "summary-card users-authz-block";
-  permissionsCard.append(
-    createBlockHeader(
-      "Permission Catalog",
-      permissions.length,
-      "Grouped by policy namespace so related controls are easy to scan."
-    )
-  );
-  if (permissions.length === 0) {
-    permissionsCard.append(createMetaParagraph("No permissions defined."));
-  } else {
-    const sortedDomains = [...groupedPermissions.keys()].sort((left, right) => left.localeCompare(right));
-    const domainGrid = runtimeDocument.createElement("div");
-    domainGrid.className = "users-authz-permission-domain-grid";
-    for (const domain of sortedDomains) {
-      const group = runtimeDocument.createElement("section");
-      group.className = "users-authz-permission-group";
-      const domainHeading = runtimeDocument.createElement("h4");
-      domainHeading.className = "users-authz-permission-heading";
-      const domainPermissions = groupedPermissions.get(domain) ?? [];
-      domainHeading.textContent = `${normalizePermissionDomainLabel(domain)} (${domainPermissions.length})`;
-      group.append(domainHeading);
-      const list = runtimeDocument.createElement("div");
-      list.className = "users-authz-permission-list";
-      domainPermissions.sort((left, right) => String(left.id ?? "").localeCompare(String(right.id ?? "")));
-      for (const permission of domainPermissions) {
-        const row = runtimeDocument.createElement("div");
-        row.className = "users-authz-permission-row";
-        const code = runtimeDocument.createElement("span");
-        code.className = "users-authz-code";
-        code.textContent = permission.id;
-        row.append(code);
-        if (permission.description) {
-          row.append(createMetaParagraph(permission.description));
-        }
-        list.append(row);
-      }
-      group.append(list);
-      domainGrid.append(group);
-    }
-    permissionsCard.append(domainGrid);
-  }
-  elements.usersAuthorizationPermissions.append(permissionsCard);
 
   const createAssignmentCard = (title, roles, assignments) => {
     const card = runtimeDocument.createElement("article");
@@ -3899,7 +3858,7 @@ function renderUsersAuthorizationWorkspace() {
     }
 
     const rolePermissionSets = new Map(
-      roles.map((role) => [role.id, new Set(Array.isArray(assignments[role.id]) ? assignments[role.id] : [])])
+      roles.map((role) => [role.key, new Set(Array.isArray(assignments[role.key]) ? assignments[role.key] : [])])
     );
     const unknownPermissionIds = [...new Set([...rolePermissionSets.values()].flatMap((set) => [...set]))]
       .filter((permissionId) => !permissionById.has(permissionId))
@@ -3937,8 +3896,8 @@ function renderUsersAuthorizationWorkspace() {
 
     const sortedDomains = [...groupedPermissionRows.keys()].sort((left, right) => left.localeCompare(right));
     for (const role of roles) {
-      if (!rolePermissionSets.has(role.id)) {
-        rolePermissionSets.set(role.id, new Set());
+      if (!rolePermissionSets.has(role.key)) {
+        rolePermissionSets.set(role.key, new Set());
       }
     }
 
@@ -3968,7 +3927,7 @@ function renderUsersAuthorizationWorkspace() {
         roleLabel.textContent = role.label || role.id;
         const roleId = runtimeDocument.createElement("span");
         roleId.className = "users-authz-role-id";
-        roleId.textContent = role.id;
+        roleId.textContent = formatRoleCode(role);
         roleHead.append(roleLabel, roleId);
         headRow.append(roleHead);
       }
@@ -3993,7 +3952,7 @@ function renderUsersAuthorizationWorkspace() {
         permissionRow.append(permissionCell);
 
         for (const role of roles) {
-          const rolePermissionSet = rolePermissionSets.get(role.id) ?? new Set();
+          const rolePermissionSet = rolePermissionSets.get(role.key) ?? new Set();
           const granted = rolePermissionSet.has(permission.id);
           const cell = runtimeDocument.createElement("td");
           cell.className = "users-authz-matrix-cell";
@@ -4017,8 +3976,7 @@ function renderUsersAuthorizationWorkspace() {
   };
 
   elements.usersAuthorizationAssignments.append(
-    createAssignmentCard("Global Role Assignments", globalRoles, globalAssignments),
-    createAssignmentCard("Team Membership Assignments", teamMembershipRoles, teamMembershipAssignments)
+    createAssignmentCard("Permission Assignments", combinedRoles, combinedAssignments)
   );
 }
 
