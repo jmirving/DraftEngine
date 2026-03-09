@@ -11921,10 +11921,9 @@ async function init() {
     loadStoredUiState();
     syncNavLayout();
     loadStoredAuthSession();
-    renderAuthGate();
     const initialRoute = parseTabRouteHash(runtimeWindow.location.hash);
-    // Apply the correct initial tab before any awaits so the browser never
-    // paints the default Composer tab when the user was on a different page.
+    // Set the correct tab BEFORE renderAuthGate() so that when app-shell is
+    // made visible the right tab is already active — prevents the Composer flash.
     const initialTab =
       initialRoute.status === "valid"
         ? initialRoute.tab
@@ -11935,6 +11934,7 @@ async function init() {
       syncRoute: true,
       replaceRoute: initialRoute.status !== "valid" || initialRoute.shouldNormalize
     });
+    renderAuthGate();
     await loadMvpData();
     await loadTagCatalogFromApi();
     let loadedTeamContextFromApi = false;
