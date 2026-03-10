@@ -729,6 +729,7 @@ function createElements() {
     builderExcludedSearch: runtimeDocument.querySelector("#builder-excluded-search"),
     builderExcludedOptions: runtimeDocument.querySelector("#builder-excluded-options"),
     builderExcludedPills: runtimeDocument.querySelector("#builder-excluded-pills"),
+    builderExcludedClear: runtimeDocument.querySelector("#builder-excluded-clear"),
     builderMaxBranch: runtimeDocument.querySelector("#builder-max-branch"),
     builderContinueValidate: runtimeDocument.querySelector("#builder-continue-validate"),
     builderGenerate: runtimeDocument.querySelector("#builder-generate"),
@@ -9959,27 +9960,24 @@ function renderExcludedOptions() {
   elements.builderExcludedOptions.innerHTML = "";
 
   if (filtered.length === 0) {
-    const empty = runtimeDocument.createElement("p");
-    empty.className = "meta";
+    const empty = runtimeDocument.createElement("li");
+    empty.className = "pool-snapshot-empty";
     empty.textContent = "No champions match the current search.";
     elements.builderExcludedOptions.append(empty);
     return;
   }
 
   for (const championName of filtered) {
-    const label = runtimeDocument.createElement("label");
-    label.className = "excluded-option selection-option";
-
-    const checkbox = runtimeDocument.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = state.builder.excludedChampions.includes(championName);
-    checkbox.addEventListener("change", () => {
-      if (checkbox.checked) {
-        if (!state.builder.excludedChampions.includes(championName)) {
-          state.builder.excludedChampions.push(championName);
-        }
-      } else {
+    const li = runtimeDocument.createElement("li");
+    li.textContent = championName;
+    if (state.builder.excludedChampions.includes(championName)) {
+      li.classList.add("is-selected");
+    }
+    li.addEventListener("click", () => {
+      if (state.builder.excludedChampions.includes(championName)) {
         state.builder.excludedChampions = state.builder.excludedChampions.filter((name) => name !== championName);
+      } else {
+        state.builder.excludedChampions.push(championName);
       }
 
       for (const slot of SLOTS) {
@@ -9994,12 +9992,7 @@ function renderExcludedOptions() {
       renderTeamConfig();
       renderBuilder();
     });
-
-    const text = runtimeDocument.createElement("span");
-    text.textContent = championName;
-
-    label.append(checkbox, text);
-    elements.builderExcludedOptions.append(label);
+    elements.builderExcludedOptions.append(li);
   }
 }
 
@@ -11782,6 +11775,18 @@ function attachEvents() {
   elements.builderExcludedSearch.addEventListener("input", () => {
     state.builder.excludedSearch = elements.builderExcludedSearch.value;
     renderExcludedOptions();
+  });
+
+  elements.builderExcludedClear?.addEventListener("click", () => {
+    if (state.builder.excludedChampions.length === 0) return;
+    state.builder.excludedChampions = [];
+    state.builder.excludedSearch = "";
+    elements.builderExcludedSearch.value = "";
+    resetBuilderTreeState();
+    setBuilderStage("setup");
+    validateTeamSelections();
+    renderTeamConfig();
+    renderBuilder();
   });
 
   elements.builderMaxBranch.addEventListener("change", () => {

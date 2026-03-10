@@ -326,37 +326,37 @@
                 <p id="builder-setup-feedback" class="error-inline" hidden></p>
                 <details id="builder-advanced-controls" class="advanced-controls">
                   <summary>Advanced Controls (Scoring + Constraints)</summary>
-                  <div class="stack advanced-controls-content">
-                    <label>
-                      Excluded Champions
-                      <input id="builder-excluded-search" type="search" placeholder="Filter champion list" />
-                    </label>
-                    <div id="builder-excluded-options" class="excluded-options"></div>
-                    <p class="meta">Multi-select checklist. Excluded champions are never offered in selectors or generated tree nodes.</p>
-                    <div id="builder-excluded-pills" class="chip-row"></div>
-                    <label>
-                      maxBranch
-                      <input id="builder-max-branch" type="number" min="1" max="25" step="1" />
-                    </label>
-                    <p class="meta">Tree generation always runs to the end of the remaining composition.</p>
-                    <div class="grid grid-2">
-                      <label>
+                  <div class="advanced-controls-content">
+                    <div class="advanced-excluded-section">
+                      <div class="advanced-excluded-header">
+                        <span class="advanced-compact-label">Excluded Champions</span>
+                        <button id="builder-excluded-clear" type="button" class="ghost advanced-clear-btn">Clear</button>
+                      </div>
+                      <input id="builder-excluded-search" type="search" class="pool-snapshot-filter" placeholder="Filter..." />
+                      <ul id="builder-excluded-options" class="excluded-options"></ul>
+                      <div id="builder-excluded-pills" class="chip-row"></div>
+                    </div>
+                    <div class="advanced-scoring-grid">
+                      <label class="advanced-compact-label">
+                        maxBranch
+                        <input id="builder-max-branch" type="number" min="1" max="25" step="1" />
+                      </label>
+                      <label class="advanced-compact-label">
                         Min Candidate Score
                         <input id="tree-min-candidate-score" type="number" min="0" step="1" value="1" />
                       </label>
-                      <label>
+                      <label class="advanced-compact-label">
                         Rank Goal
                         <select id="tree-rank-goal">
                           <option value="valid_end_states" selected>Valid end states</option>
                           <option value="candidate_score">Candidate score</option>
                         </select>
                       </label>
+                      <label class="advanced-compact-label">
+                        redundancyPenalty
+                        <input id="tree-candidate-redundancy-penalty" type="number" min="0" step="1" value="1" />
+                      </label>
                     </div>
-                    <p class="meta">Scoring controls affect generation order and branch thinning during tree build.</p>
-                    <label>
-                      redundancyPenalty
-                      <input id="tree-candidate-redundancy-penalty" type="number" min="0" step="1" value="1" />
-                    </label>
                   </div>
                 </details>
               </div>
