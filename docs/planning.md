@@ -10,6 +10,21 @@
 | Add `getMemberForSlot` helper | — | Single source of truth for Role (PlayerName) across Pool Snapshot, Player Slots, Node Draft Order |
 | Add `team_members.lane` column + backfill from accepted invitations | — | Fixes team-specific position (e.g. SnomJuice → Top) without relying on profile primary role |
 
+#### 2026-03-09 — Champion Tag Editor Redesign & Card Role Pill Fixes
+
+| Item | Notes |
+|---|---|
+| Tag editor layout redesign | Two-column top row: identity card (~25%) + grouped meta container (~75%) with border |
+| Roles + Damage Type above Effectiveness | Meta container uses column layout: Roles/Damage side-by-side (50/50 grid, centered), Effectiveness below |
+| "Apply tags to all selected Roles?" toggle | Moved into roles header row (right-aligned); replaces "All roles same" |
+| "UPDATE ROLE PROFILE:" selector | Relabeled from "Profile for:"; appears bottom-left of meta container when multiple roles differ |
+| Equal-width role tab pills | `min-width: 4.75rem` fits "Jungle" (widest role) across all five pills |
+| Save navigates back | Successful save calls `closeChampionTagEditor()` instead of staying on editor |
+| Fix stale `activeCardRole` on card | Validates stored role is still in `champRoles`; falls back to first role if stale |
+| Fix single-role card pill always inactive | `allRoleProfilesSame` returns `true` for single-role champions; pill now always renders filled |
+| Multi-role pill visual rule | All same profiles → all pills filled; profiles differ → only leftmost pill filled |
+| Editor damage type pill style | Rectangular buttons replaced with card-matching colored pill design (`border-radius: 999px`, per-variant border colors) |
+
 #### 2026-03-04 — Composer Player Slots & Pool Snapshot UI Overhaul
 
 | Item | Notes |

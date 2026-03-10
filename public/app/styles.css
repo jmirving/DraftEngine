@@ -3123,23 +3123,23 @@ button.slot-order-btn:disabled {
 
 /* Roles + Damage Type in a row above Effectiveness */
 .ced-meta-upper {
-  display: flex;
-  gap: 1.5rem;
-  align-items: flex-start;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
 }
 
 .ced-roles-section {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  flex: 0 0 auto;
+  align-items: center;
 }
 
 /* Roles label + share toggle on same line */
 .ced-roles-header-row {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 1rem;
   flex-wrap: wrap;
 }
@@ -3150,14 +3150,14 @@ button.slot-order-btn:disabled {
 }
 
 .ced-roles-header-row #ced-share-toggle-slot {
-  margin-left: auto;
+  margin-left: 0;
 }
 
 .ced-damage-section {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  flex: 0 0 auto;
+  align-items: center;
 }
 
 .ced-damage-section .ced-section-label {
@@ -3374,7 +3374,7 @@ button.slot-order-btn:disabled {
     width: 100%;
   }
   .ced-meta-upper {
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 }
 
