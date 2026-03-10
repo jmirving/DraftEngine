@@ -9587,7 +9587,7 @@ function renderExplorer() {
     // Detect whether all role profiles are identical (shared profile scenario)
     const champRoles = champion.roles ?? [];
     const allRoleProfilesSame = (() => {
-      if (champRoles.length <= 1) return false;
+      if (champRoles.length <= 1) return true;
       const profiles = champRoles.map((r) => champion.roleProfiles?.[r]);
       if (profiles.some((p) => !p)) return false;
       const first = JSON.stringify(profiles[0]);
@@ -9602,7 +9602,7 @@ function renderExplorer() {
       const roleBtns = champRoles.map((r) => {
         const btn = runtimeDocument.createElement("button");
         btn.type = "button";
-        const isActive = allRoleProfilesSame || r === activeRoleKey;
+        const isActive = allRoleProfilesSame || r === champRoles[0];
         btn.className = isActive ? "champ-role-pill is-active" : "champ-role-pill is-inactive";
         btn.textContent = r;
         if (champRoles.length > 1 && !allRoleProfilesSame) {
@@ -9646,7 +9646,8 @@ function renderExplorer() {
       return meta;
     };
 
-    const activeCardRole = state.explorer.activeCardRole[champion.id] ?? champRoles[0];
+    const storedCardRole = state.explorer.activeCardRole[champion.id];
+    const activeCardRole = (storedCardRole && champRoles.includes(storedCardRole)) ? storedCardRole : champRoles[0];
     const metaSection = buildCardMeta(activeCardRole);
 
     // ── Champion Tags collapsible ────────────────────────────────────────

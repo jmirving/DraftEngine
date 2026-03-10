@@ -3116,6 +3116,9 @@ button.slot-order-btn:disabled {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
 }
 
 /* Roles + Damage Type in a row above Effectiveness */
@@ -3281,27 +3284,25 @@ button.slot-order-btn:disabled {
 }
 
 .ced-damage-btn {
-  padding: 0.28rem 0.7rem;
-  border: 2px solid transparent;
-  border-radius: 6px;
-  font-size: 0.82rem;
-  font-weight: 600;
+  padding: 0.18rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.78rem;
   cursor: pointer;
   width: auto;
   min-width: 0;
-  opacity: 0.55;
-  transition: opacity 0.1s, border-color 0.1s;
+  opacity: 0.4;
+  transition: opacity 0.1s;
 }
 
 .ced-damage-btn.is-active {
   opacity: 1;
-  border-color: currentColor;
 }
 
-.ced-damage-btn--ad       { background: #ffe5e5; color: #8b1a1a; }
-.ced-damage-btn--ap       { background: #e5eeff; color: #1a348b; }
-.ced-damage-btn--mixed    { background: #f3e5ff; color: #5a1a8b; }
-.ced-damage-btn--utility  { background: #e5ffe8; color: #1a6b28; }
+.ced-damage-btn--ad      { background: #ffe5e5; color: #8b1a1a; border-color: #f0b0b0; }
+.ced-damage-btn--ap      { background: #e5eeff; color: #1a348b; border-color: #aac0f0; }
+.ced-damage-btn--mixed   { background: #f3e5ff; color: #5a1a8b; border-color: #d0a8f0; }
+.ced-damage-btn--utility { background: #e5ffe8; color: #1a6b28; border-color: #a0d8a8; }
 
 
 .ced-effectiveness-grid {
