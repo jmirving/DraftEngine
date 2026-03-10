@@ -1806,6 +1806,15 @@ button.pool-snapshot-order-btn:disabled {
   color: #6b2a12;
 }
 
+.pill-removable {
+  cursor: pointer;
+}
+
+.pill-removable:hover {
+  background: #fde0d6;
+  border-color: #c56a4a;
+}
+
 .draft-order-block {
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -1846,7 +1855,7 @@ button.pool-snapshot-order-btn:disabled {
 
 .advanced-controls-content {
   display: grid;
-  grid-template-columns: 1fr 2fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 0.5rem;
   margin-top: 0.55rem;
   align-items: start;
@@ -1856,21 +1865,35 @@ button.pool-snapshot-order-btn:disabled {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-}
-
-.advanced-excluded-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+  align-items: stretch;
 }
 
 .advanced-clear-btn {
-  font-size: 0.7rem;
-  padding: 0.1rem 0.4rem;
+  align-self: flex-end;
+  font-size: 0.68rem;
+  padding: 0.1rem 0.35rem;
   min-height: unset;
   height: auto;
   line-height: 1.4;
+  margin-top: 0.15rem;
+  width: auto;
+}
+
+.advanced-excluded-pills-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.advanced-excluded-pills {
+  flex-wrap: wrap;
+  gap: 0.2rem;
+}
+
+.advanced-scoring-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .advanced-compact-label {

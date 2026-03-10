@@ -328,34 +328,38 @@
                   <summary>Advanced Controls (Scoring + Constraints)</summary>
                   <div class="advanced-controls-content">
                     <div class="advanced-excluded-section">
-                      <div class="advanced-excluded-header">
-                        <span class="advanced-compact-label">Excluded Champions</span>
-                        <button id="builder-excluded-clear" type="button" class="ghost advanced-clear-btn">Clear</button>
-                      </div>
+                      <span class="advanced-compact-label">Excluded Champions</span>
                       <input id="builder-excluded-search" type="search" class="pool-snapshot-filter" placeholder="Filter..." />
                       <ul id="builder-excluded-options" class="excluded-options"></ul>
-                      <div id="builder-excluded-pills" class="chip-row"></div>
+                      <button id="builder-excluded-clear" type="button" class="ghost advanced-clear-btn">Clear</button>
                     </div>
-                    <div class="advanced-scoring-grid">
-                      <label class="advanced-compact-label">
-                        maxBranch
-                        <input id="builder-max-branch" type="number" min="1" max="25" step="1" />
-                      </label>
-                      <label class="advanced-compact-label">
-                        Min Candidate Score
-                        <input id="tree-min-candidate-score" type="number" min="0" step="1" value="1" />
-                      </label>
-                      <label class="advanced-compact-label">
-                        Rank Goal
-                        <select id="tree-rank-goal">
-                          <option value="valid_end_states" selected>Valid end states</option>
-                          <option value="candidate_score">Candidate score</option>
-                        </select>
-                      </label>
-                      <label class="advanced-compact-label">
-                        redundancyPenalty
-                        <input id="tree-candidate-redundancy-penalty" type="number" min="0" step="1" value="1" />
-                      </label>
+                    <div class="advanced-excluded-pills-column">
+                      <span class="advanced-compact-label">Active Exclusions</span>
+                      <div id="builder-excluded-pills" class="chip-row advanced-excluded-pills"></div>
+                    </div>
+                    <div class="advanced-scoring-section">
+                      <span class="advanced-compact-label">Scoring</span>
+                      <div class="advanced-scoring-grid">
+                        <label class="advanced-compact-label">
+                          maxBranch
+                          <input id="builder-max-branch" type="number" min="1" max="25" step="1" />
+                        </label>
+                        <label class="advanced-compact-label">
+                          Min Candidate Score
+                          <input id="tree-min-candidate-score" type="number" min="0" step="1" value="1" />
+                        </label>
+                        <label class="advanced-compact-label">
+                          Rank Goal
+                          <select id="tree-rank-goal">
+                            <option value="valid_end_states" selected>Valid end states</option>
+                            <option value="candidate_score">Candidate score</option>
+                          </select>
+                        </label>
+                        <label class="advanced-compact-label">
+                          redundancyPenalty
+                          <input id="tree-candidate-redundancy-penalty" type="number" min="0" step="1" value="1" />
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </details>

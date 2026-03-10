@@ -9941,8 +9941,17 @@ function renderExcludedPills() {
   const sorted = [...state.builder.excludedChampions].sort((left, right) => left.localeCompare(right));
   for (const championName of sorted) {
     const pill = runtimeDocument.createElement("span");
-    pill.className = "pill";
+    pill.className = "pill pill-removable";
     pill.textContent = championName;
+    pill.title = `Click to remove ${championName} from exclusions`;
+    pill.addEventListener("click", () => {
+      state.builder.excludedChampions = state.builder.excludedChampions.filter((name) => name !== championName);
+      resetBuilderTreeState();
+      setBuilderStage("setup");
+      validateTeamSelections();
+      renderTeamConfig();
+      renderBuilder();
+    });
     elements.builderExcludedPills.append(pill);
   }
 }
