@@ -1845,10 +1845,11 @@ button.pool-snapshot-order-btn:disabled {
 }
 
 .advanced-controls-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 0.5rem;
   margin-top: 0.55rem;
+  align-items: start;
 }
 
 .advanced-excluded-section {
