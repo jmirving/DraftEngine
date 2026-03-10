@@ -1814,38 +1814,104 @@ button.pool-snapshot-order-btn:disabled {
   box-shadow: inset 0 3px 0 rgba(204, 91, 52, 0.2);
 }
 
-.advanced-controls {
+/* Pool Snapshot footer (excluded pills + advanced button) */
+.pool-snapshot-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.pool-snapshot-footer .chip-row {
+  flex: 1;
+  min-width: 0;
+}
+
+.advanced-toggle-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  white-space: nowrap;
+}
+
+.advanced-toggle-icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+/* Allow popover to escape the panel overflow */
+.draft-board-panel:has(.advanced-popover:not([hidden])) {
+  overflow: visible;
+}
+
+/* Advanced Controls popover */
+.advanced-popover {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 3rem;
+  z-index: 90;
+  width: 320px;
+  max-height: 420px;
+  overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: #fffefa;
-  padding: 0.45rem 0.6rem;
-  box-shadow: inset 0 3px 0 rgba(204, 91, 52, 0.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  padding: 0.5rem;
 }
 
-.advanced-controls > summary {
-  cursor: pointer;
-  font-weight: 700;
+.advanced-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.advanced-popover-close {
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0 0.3rem;
+  min-height: unset;
+  height: auto;
+}
+
+.advanced-popover-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.advanced-popover-content .excluded-options {
+  max-height: 160px;
+  padding: 0.25rem;
+  gap: 0.15rem;
+}
+
+.advanced-compact-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 600;
   color: var(--ink);
-  list-style: none;
 }
 
-.advanced-controls > summary::-webkit-details-marker {
-  display: none;
+.advanced-compact-label input,
+.advanced-compact-label select {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.3rem;
 }
 
-.advanced-controls > summary::after {
-  content: "Show";
-  float: right;
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
-.advanced-controls[open] > summary::after {
-  content: "Hide";
-}
-
-.advanced-controls-content {
-  margin-top: 0.55rem;
+.advanced-compact-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
 }
 
 .tree-toolbar {

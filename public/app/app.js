@@ -725,7 +725,9 @@ function createElements() {
     builderChecksReadiness: runtimeDocument.querySelector("#builder-checks-readiness"),
     builderStageSetup: runtimeDocument.querySelector("#builder-stage-setup"),
     builderStageInspect: runtimeDocument.querySelector("#builder-stage-inspect"),
-    builderAdvancedControls: runtimeDocument.querySelector("#builder-advanced-controls"),
+    advancedControlsToggle: runtimeDocument.querySelector("#advanced-controls-toggle"),
+    advancedControlsClose: runtimeDocument.querySelector("#advanced-controls-close"),
+    advancedPopover: runtimeDocument.querySelector("#builder-advanced-popover"),
     builderExcludedSearch: runtimeDocument.querySelector("#builder-excluded-search"),
     builderExcludedOptions: runtimeDocument.querySelector("#builder-excluded-options"),
     builderExcludedPills: runtimeDocument.querySelector("#builder-excluded-pills"),
@@ -11797,6 +11799,14 @@ function attachEvents() {
       return;
     }
     setSetupFeedback("");
+  });
+
+  elements.advancedControlsToggle?.addEventListener("click", () => {
+    const popover = elements.advancedPopover;
+    if (popover) popover.hidden = !popover.hidden;
+  });
+  elements.advancedControlsClose?.addEventListener("click", () => {
+    if (elements.advancedPopover) elements.advancedPopover.hidden = true;
   });
 
   elements.builderGenerate.addEventListener("click", () => {

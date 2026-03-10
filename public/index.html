@@ -322,43 +322,46 @@
                     <h3>Pool Snapshot</h3>
                     <p id="team-config-pool-summary" class="meta"></p>
                     <div id="team-config-pool-grid" class="team-pool-grid"></div>
+                    <div class="pool-snapshot-footer">
+                      <div id="builder-excluded-pills" class="chip-row"></div>
+                      <button id="advanced-controls-toggle" type="button" class="ghost advanced-toggle-btn">Advanced <span class="advanced-toggle-icon">&#9881;</span></button>
+                    </div>
+                    <div id="builder-advanced-popover" class="advanced-popover" hidden>
+                      <div class="advanced-popover-content">
+                        <div class="advanced-popover-header">
+                          <strong>Advanced Controls</strong>
+                          <button id="advanced-controls-close" type="button" class="ghost advanced-popover-close">&times;</button>
+                        </div>
+                        <label class="advanced-compact-label">
+                          Excluded Champions
+                          <input id="builder-excluded-search" type="search" class="pool-snapshot-filter" placeholder="Filter champion list" />
+                        </label>
+                        <div id="builder-excluded-options" class="excluded-options"></div>
+                        <div class="advanced-compact-grid">
+                          <label class="advanced-compact-label">
+                            maxBranch
+                            <input id="builder-max-branch" type="number" min="1" max="25" step="1" />
+                          </label>
+                          <label class="advanced-compact-label">
+                            Min Candidate Score
+                            <input id="tree-min-candidate-score" type="number" min="0" step="1" value="1" />
+                          </label>
+                          <label class="advanced-compact-label">
+                            Rank Goal
+                            <select id="tree-rank-goal">
+                              <option value="valid_end_states" selected>Valid end states</option>
+                              <option value="candidate_score">Candidate score</option>
+                            </select>
+                          </label>
+                          <label class="advanced-compact-label">
+                            redundancyPenalty
+                            <input id="tree-candidate-redundancy-penalty" type="number" min="0" step="1" value="1" />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 <p id="builder-setup-feedback" class="error-inline" hidden></p>
-                <details id="builder-advanced-controls" class="advanced-controls">
-                  <summary>Advanced Controls (Scoring + Constraints)</summary>
-                  <div class="stack advanced-controls-content">
-                    <label>
-                      Excluded Champions
-                      <input id="builder-excluded-search" type="search" placeholder="Filter champion list" />
-                    </label>
-                    <div id="builder-excluded-options" class="excluded-options"></div>
-                    <p class="meta">Multi-select checklist. Excluded champions are never offered in selectors or generated tree nodes.</p>
-                    <div id="builder-excluded-pills" class="chip-row"></div>
-                    <label>
-                      maxBranch
-                      <input id="builder-max-branch" type="number" min="1" max="25" step="1" />
-                    </label>
-                    <p class="meta">Tree generation always runs to the end of the remaining composition.</p>
-                    <div class="grid grid-2">
-                      <label>
-                        Min Candidate Score
-                        <input id="tree-min-candidate-score" type="number" min="0" step="1" value="1" />
-                      </label>
-                      <label>
-                        Rank Goal
-                        <select id="tree-rank-goal">
-                          <option value="valid_end_states" selected>Valid end states</option>
-                          <option value="candidate_score">Candidate score</option>
-                        </select>
-                      </label>
-                    </div>
-                    <p class="meta">Scoring controls affect generation order and branch thinning during tree build.</p>
-                    <label>
-                      redundancyPenalty
-                      <input id="tree-candidate-redundancy-penalty" type="number" min="0" step="1" value="1" />
-                    </label>
-                  </div>
-                </details>
               </div>
             </aside>
 
