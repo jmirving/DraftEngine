@@ -734,12 +734,6 @@ function createElements() {
     builderGenerate: runtimeDocument.querySelector("#builder-generate"),
     builderClear: runtimeDocument.querySelector("#builder-clear"),
     builderNextRoleReadout: runtimeDocument.querySelector("#builder-next-role-readout"),
-    slotUpButtons: Object.fromEntries(
-      SLOTS.map((slot) => [slot, runtimeDocument.querySelector(`#slot-up-${slot}`)])
-    ),
-    slotDownButtons: Object.fromEntries(
-      SLOTS.map((slot) => [slot, runtimeDocument.querySelector(`#slot-down-${slot}`)])
-    ),
     builderTeamContext: runtimeDocument.querySelector("#builder-team-context"),
     builderRequiredChecks: runtimeDocument.querySelector("#builder-required-checks"),
     builderOptionalChecks: runtimeDocument.querySelector("#builder-optional-checks"),
@@ -850,24 +844,6 @@ function createElements() {
     logoLightboxClose: runtimeDocument.querySelector("#logo-lightbox-close"),
     logoLightboxImage: runtimeDocument.querySelector("#logo-lightbox-image"),
     logoLightboxCaption: runtimeDocument.querySelector("#logo-lightbox-caption"),
-    slotSelects: Object.fromEntries(
-      SLOTS.map((slot) => [slot, runtimeDocument.querySelector(`#slot-${slot}`)])
-    ),
-    slotLabels: Object.fromEntries(
-      SLOTS.map((slot) => [slot, runtimeDocument.querySelector(`#slot-label-${slot}`)])
-    ),
-    slotRows: Object.fromEntries(
-      SLOTS.map((slot) => [slot, runtimeDocument.querySelector(`#slot-row-${slot}`)])
-    ),
-    slotOrderBadges: Object.fromEntries(
-      SLOTS.map((slot) => [slot, runtimeDocument.querySelector(`#slot-order-${slot}`)])
-    ),
-    slotStatusBadges: Object.fromEntries(
-      SLOTS.map((slot) => [slot, runtimeDocument.querySelector(`#slot-status-${slot}`)])
-    ),
-    slotPoolSelects: Object.fromEntries(
-      SLOTS.map((slot) => [slot, runtimeDocument.querySelector(`#slot-pool-${slot}`)])
-    )
   };
 }
 
@@ -7073,12 +7049,6 @@ function updateTeamHelpAndSlotLabels() {
     elements.builderTeamHelp.textContent =
       "Team context is set. Candidate pools use your configured role pools.";
   }
-
-  for (const slot of SLOTS) {
-    const member = getMemberForSlot(slot);
-    const name = member?.displayName?.split("#")[0] ?? null;
-    elements.slotLabels[slot].textContent = name ? `SUMMONER: ${name}` : "";
-  }
 }
 
 function getTeamSelectOptions() {
@@ -7447,14 +7417,26 @@ function renderTeamConfig() {
   elements.teamConfigPoolGrid.innerHTML = "";
   for (const slot of SLOTS) {
     const poolRole = state.builder.slotPoolRole[slot] ?? slot;
+    const draftIndex = state.builder.draftOrder.indexOf(slot);
+    const filled = Boolean(state.builder.teamState[slot]);
 
     const card = runtimeDocument.createElement("article");
     card.className = "summary-card pool-snapshot-card";
+    card.dataset.slot = slot;
+    card.draggable = true;
+    card.style.order = String(draftIndex);
+    card.classList.toggle("is-filled", filled);
 
     const member = getMemberForSlot(slot);
     const memberName = member?.displayName?.split("#")[0] ?? null;
-    const champions = getChampionsForSlotAndRole(slot, poolRole).slice().sort((a, b) => a.localeCompare(b));
+    const allChampions = getChampionsForSlotAndRole(slot, poolRole).slice().sort((a, b) => a.localeCompare(b));
+    const champions = allChampions.filter((champ) => {
+      if (state.builder.excludedChampions.includes(champ)) return false;
+      if (champ !== state.builder.teamState[slot] && isChampionInOtherSlot(slot, champ)) return false;
+      return true;
+    });
 
+    // Row 1: name + role
     const header = runtimeDocument.createElement("div");
     header.className = "pool-snapshot-header";
 
@@ -7472,6 +7454,40 @@ function renderTeamConfig() {
     }
     header.append(title, roleSelect);
 
+    // Row 2: left arrow, pick order, status, right arrow
+    const controlsRow = runtimeDocument.createElement("div");
+    controlsRow.className = "pool-snapshot-controls";
+
+    const leftBtn = runtimeDocument.createElement("button");
+    leftBtn.type = "button";
+    leftBtn.className = "ghost pool-snapshot-order-btn";
+    leftBtn.textContent = "\u25C0";
+    leftBtn.disabled = draftIndex === 0;
+    leftBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      moveSlotInDraftOrder(slot, -1);
+    });
+
+    const orderBadge = runtimeDocument.createElement("span");
+    orderBadge.className = "pool-snapshot-order";
+    orderBadge.textContent = `#${draftIndex + 1}`;
+
+    const statusBadge = runtimeDocument.createElement("span");
+    statusBadge.className = `pool-snapshot-status ${filled ? "is-filled" : "is-pending"}`;
+    statusBadge.textContent = filled ? "Filled" : "Pending";
+
+    const rightBtn = runtimeDocument.createElement("button");
+    rightBtn.type = "button";
+    rightBtn.className = "ghost pool-snapshot-order-btn";
+    rightBtn.textContent = "\u25B6";
+    rightBtn.disabled = draftIndex === state.builder.draftOrder.length - 1;
+    rightBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      moveSlotInDraftOrder(slot, 1);
+    });
+
+    controlsRow.append(leftBtn, orderBadge, statusBadge, rightBtn);
+
     const count = runtimeDocument.createElement("p");
     count.className = "meta";
     count.textContent = `${champions.length} champion${champions.length === 1 ? "" : "s"} in pool.`;
@@ -7479,7 +7495,9 @@ function renderTeamConfig() {
     const filter = runtimeDocument.createElement("input");
     filter.type = "text";
     filter.className = "pool-snapshot-filter";
-    filter.placeholder = "Filter…";
+    filter.placeholder = "Filter\u2026";
+    const savedFilter = state.builder.slotFilterText?.[slot] ?? "";
+    if (savedFilter) filter.value = savedFilter;
 
     const ul = runtimeDocument.createElement("ul");
     ul.className = "pool-snapshot-list";
@@ -7491,18 +7509,17 @@ function renderTeamConfig() {
         if (champ === state.builder.teamState[slot]) {
           li.classList.add("is-selected");
         }
+        if (savedFilter && !champ.toLowerCase().includes(savedFilter.toLowerCase())) {
+          li.hidden = true;
+        }
         li.addEventListener("click", () => {
           if (!validateAndApplySlotSelection(slot, champ)) {
-            syncSlotSelectOptions();
+            renderTeamConfig();
             return;
           }
-          for (const item of ul.querySelectorAll("li.is-selected")) {
-            item.classList.remove("is-selected");
-          }
-          li.classList.add("is-selected");
           setBuilderStage("setup");
           resetBuilderTreeState();
-          syncSlotSelectOptions();
+          renderTeamConfig();
           renderBuilder();
           setSetupFeedback("");
         });
@@ -7517,6 +7534,8 @@ function renderTeamConfig() {
 
     filter.addEventListener("input", () => {
       const q = filter.value.trim().toLowerCase();
+      if (!state.builder.slotFilterText) state.builder.slotFilterText = {};
+      state.builder.slotFilterText[slot] = filter.value;
       for (const li of ul.querySelectorAll("li:not(.pool-snapshot-empty)")) {
         li.hidden = q.length > 0 && !li.textContent.toLowerCase().includes(q);
       }
@@ -7525,17 +7544,38 @@ function renderTeamConfig() {
     roleSelect.addEventListener("change", () => {
       state.builder.slotPoolRole[slot] = roleSelect.value;
       state.builder.teamState[slot] = null;
-      if (elements.slotPoolSelects[slot]) {
-        elements.slotPoolSelects[slot].value = roleSelect.value;
-      }
       setBuilderStage("setup");
       resetBuilderTreeState();
-      syncSlotSelectOptions();
       renderTeamConfig();
       renderBuilder();
     });
 
-    card.append(header, count, filter, ul);
+    // Drag-to-reorder
+    card.addEventListener("dragstart", (event) => {
+      event.dataTransfer?.setData("text/slot", slot);
+      event.dataTransfer.effectAllowed = "move";
+    });
+    card.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+    });
+    card.addEventListener("drop", (event) => {
+      event.preventDefault();
+      const sourceSlot = event.dataTransfer?.getData("text/slot");
+      if (!sourceSlot || sourceSlot === slot) return;
+      const updated = [...state.builder.draftOrder];
+      const sourceIndex = updated.indexOf(sourceSlot);
+      const targetIndex = updated.indexOf(slot);
+      if (sourceIndex < 0 || targetIndex < 0) return;
+      updated.splice(sourceIndex, 1);
+      updated.splice(targetIndex, 0, sourceSlot);
+      state.builder.draftOrder = updated;
+      setBuilderStage("setup");
+      resetBuilderTreeState();
+      renderBuilder();
+    });
+
+    card.append(header, controlsRow, count, filter, ul);
     elements.teamConfigPoolGrid.append(card);
   }
 }
@@ -8922,7 +8962,7 @@ function renderPlayerConfig() {
       syncConfiguredTeamSelection();
       setBuilderStage("setup");
       resetBuilderTreeState();
-      syncSlotSelectOptions();
+      validateTeamSelections();
       renderTeamConfig();
       renderBuilder();
       if (elements.playerConfigSavePool) {
@@ -9379,35 +9419,17 @@ function isChampionInOtherSlot(slot, championName) {
   });
 }
 
-function syncSlotSelectOptions() {
+function validateTeamSelections() {
   for (const slot of SLOTS) {
-    const poolRole = state.builder.slotPoolRole[slot] ?? slot;
-    const select = elements.slotSelects[slot];
-    const poolSelect = elements.slotPoolSelects[slot];
     const selected = state.builder.teamState[slot];
-    const pool = getChampionsForSlotAndRole(slot, poolRole).slice().sort((a, b) => a.localeCompare(b));
-    if (poolSelect && poolSelect.value !== poolRole) {
-      poolSelect.value = poolRole;
-    }
-
-    const allowed = pool.filter((championName) => {
-      if (state.builder.excludedChampions.includes(championName)) {
-        return false;
-      }
-      if (isChampionInOtherSlot(slot, championName)) {
-        return false;
-      }
-      return true;
-    });
-
-    const options = allowed.map((name) => ({ value: name, label: name }));
-    replaceOptions(select, options, true, "Empty");
-
-    if (selected && allowed.includes(selected)) {
-      select.value = selected;
-    } else {
+    if (!selected) continue;
+    const poolRole = state.builder.slotPoolRole[slot] ?? slot;
+    const pool = getChampionsForSlotAndRole(slot, poolRole);
+    const valid = pool.includes(selected)
+      && !state.builder.excludedChampions.includes(selected)
+      && !isChampionInOtherSlot(slot, selected);
+    if (!valid) {
       state.builder.teamState[slot] = null;
-      select.value = "";
     }
   }
 }
@@ -9968,7 +9990,8 @@ function renderExcludedOptions() {
 
       resetBuilderTreeState();
       setBuilderStage("setup");
-      syncSlotSelectOptions();
+      validateTeamSelections();
+      renderTeamConfig();
       renderBuilder();
     });
 
@@ -9992,47 +10015,16 @@ function moveSlotInDraftOrder(slot, direction) {
   state.builder.draftOrder = order;
   setBuilderStage("setup");
   resetBuilderTreeState();
+  renderTeamConfig();
   renderBuilder();
 }
 
 function renderDraftOrder() {
-  for (let index = 0; index < state.builder.draftOrder.length; index += 1) {
-    const role = state.builder.draftOrder[index];
-    const row = elements.slotRows[role];
-    const orderBadge = elements.slotOrderBadges[role];
-    const statusBadge = elements.slotStatusBadges[role];
-    const filled = Boolean(state.builder.teamState[role]);
-    if (row) {
-      row.style.order = String(index);
-      row.classList.toggle("is-filled", filled);
-    }
-    if (orderBadge) {
-      orderBadge.textContent = `#${index + 1}`;
-    }
-    if (statusBadge) {
-      statusBadge.textContent = filled ? "Filled" : "Pending";
-      statusBadge.classList.toggle("is-filled", filled);
-      statusBadge.classList.toggle("is-pending", !filled);
-    }
-  }
-
   const activeNextRole = getActiveNextRole(state.builder.draftOrder, state.builder.teamState);
   if (activeNextRole) {
     elements.builderNextRoleReadout.textContent = `Next expansion role: ${getSlotLabel(activeNextRole)}`;
   } else {
     elements.builderNextRoleReadout.textContent = "All roles are already filled.";
-  }
-
-  for (const role of SLOTS) {
-    const idx = state.builder.draftOrder.indexOf(role);
-    const upBtn = elements.slotUpButtons[role];
-    const downBtn = elements.slotDownButtons[role];
-    if (upBtn) {
-      upBtn.disabled = idx === 0;
-    }
-    if (downBtn) {
-      downBtn.disabled = idx === state.builder.draftOrder.length - 1;
-    }
   }
 }
 
@@ -10076,11 +10068,12 @@ function inspectNode(node, nodeId, nodeTitle) {
   setBuilderStage("inspect");
   state.builder.focusNodeId = nodeId;
   state.builder.teamState = normalizeTeamState(node.teamSlots);
-  syncSlotSelectOptions();
+  validateTeamSelections();
   clearBuilderFeedback();
   setSetupFeedback("");
   state.builder.selectedNodeId = nodeId;
   state.builder.selectedNodeTitle = nodeTitle;
+  renderTeamConfig();
   renderTree();
   renderTreeMap();
 }
@@ -10457,9 +10450,10 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
         ? `${parentNode.addedRole}: ${parentNode.addedChampion}`
         : "Root Composition";
       state.builder.teamState = normalizeTeamState(parentNode.teamSlots);
-      syncSlotSelectOptions();
+      validateTeamSelections();
       clearBuilderFeedback();
       setSetupFeedback("");
+      renderTeamConfig();
       renderTree();
       renderTreeMap();
     });
@@ -10998,9 +10992,9 @@ async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAd
   renderUsersWorkspace();
   renderCompositionsWorkspace();
   renderChampionTagEditor();
-  syncSlotSelectOptions();
+  validateTeamSelections();
   void fetchBuilderDraftContext(state.builder.teamId).then(() => {
-    syncSlotSelectOptions();
+    validateTeamSelections();
     renderTeamConfig();
     renderBuilder();
   });
@@ -11692,12 +11686,12 @@ function attachEvents() {
     saveTeamConfig();
     setBuilderStage("setup");
     resetBuilderTreeState();
-    syncSlotSelectOptions();
+    validateTeamSelections();
     clearBuilderFeedback();
     renderTeamConfig();
     renderBuilder();
     void fetchBuilderDraftContext(state.builder.teamId).then(() => {
-      syncSlotSelectOptions();
+      validateTeamSelections();
       renderTeamConfig();
       renderBuilder();
     });
@@ -11805,63 +11799,6 @@ function attachEvents() {
     setSetupFeedback("");
   });
 
-  for (const slot of SLOTS) {
-    elements.slotSelects[slot].addEventListener("change", () => {
-      const selected = elements.slotSelects[slot].value || null;
-      if (!validateAndApplySlotSelection(slot, selected)) {
-        syncSlotSelectOptions();
-        return;
-      }
-      setBuilderStage("setup");
-      resetBuilderTreeState();
-      syncSlotSelectOptions();
-      renderBuilder();
-      setSetupFeedback("");
-    });
-    elements.slotUpButtons[slot]?.addEventListener("click", () => moveSlotInDraftOrder(slot, -1));
-    elements.slotDownButtons[slot]?.addEventListener("click", () => moveSlotInDraftOrder(slot, 1));
-    elements.slotPoolSelects[slot]?.addEventListener("change", () => {
-      state.builder.slotPoolRole[slot] = elements.slotPoolSelects[slot].value;
-      state.builder.teamState[slot] = null;
-      setBuilderStage("setup");
-      resetBuilderTreeState();
-      syncSlotSelectOptions();
-      renderTeamConfig();
-      renderBuilder();
-    });
-    elements.slotLabels[slot]?.addEventListener("dragstart", (e) => e.stopPropagation());
-    const row = elements.slotRows[slot];
-    if (row) {
-      row.addEventListener("dragstart", (event) => {
-        event.dataTransfer?.setData("text/slot", slot);
-        event.dataTransfer.effectAllowed = "move";
-      });
-      row.addEventListener("dragover", (event) => {
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "move";
-      });
-      row.addEventListener("drop", (event) => {
-        event.preventDefault();
-        const sourceSlot = event.dataTransfer?.getData("text/slot");
-        if (!sourceSlot || sourceSlot === slot) {
-          return;
-        }
-        const updated = [...state.builder.draftOrder];
-        const sourceIndex = updated.indexOf(sourceSlot);
-        const targetIndex = updated.indexOf(slot);
-        if (sourceIndex < 0 || targetIndex < 0) {
-          return;
-        }
-        updated.splice(sourceIndex, 1);
-        updated.splice(targetIndex, 0, sourceSlot);
-        state.builder.draftOrder = updated;
-        setBuilderStage("setup");
-        resetBuilderTreeState();
-        renderBuilder();
-      });
-    }
-  }
-
   elements.builderGenerate.addEventListener("click", () => {
     generateTreeFromCurrentState({ scrollToResults: true });
   });
@@ -11870,8 +11807,9 @@ function attachEvents() {
     state.builder.teamState = createEmptyTeamState();
     resetBuilderTreeState();
     setBuilderStage("setup");
-    syncSlotSelectOptions();
+    validateTeamSelections();
     clearBuilderFeedback();
+    renderTeamConfig();
     renderBuilder();
   });
 
@@ -11889,7 +11827,7 @@ function attachEvents() {
       state.builder.teamId = state.teamConfig.activeTeamId;
       setBuilderStage("setup");
       resetBuilderTreeState();
-      syncSlotSelectOptions();
+      validateTeamSelections();
       saveTeamConfig();
       renderTeamConfig();
       renderBuilder();
@@ -12563,7 +12501,7 @@ async function init() {
       syncRoute: true,
       replaceRoute: initialRoute.status !== "valid" || initialRoute.shouldNormalize
     });
-    syncSlotSelectOptions();
+    validateTeamSelections();
     renderTeamConfig();
     renderTeamAdmin();
     renderPlayerConfig();
@@ -12576,7 +12514,7 @@ async function init() {
     renderAuth();
     clearBuilderFeedback();
     void fetchBuilderDraftContext(state.builder.teamId).then(() => {
-      syncSlotSelectOptions();
+      validateTeamSelections();
       renderTeamConfig();
       renderBuilder();
     });
