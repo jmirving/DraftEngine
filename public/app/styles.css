@@ -2230,6 +2230,9 @@ button.pool-snapshot-order-btn:disabled {
   overflow-y: auto;
   font-size: 0.8rem;
   line-height: 1.6;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fffefa;
 }
 
 .pool-snapshot-list li {
