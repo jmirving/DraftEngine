@@ -201,7 +201,7 @@ const UI_COPY = Object.freeze({
         title: "Teams",
         subtitle: "Create teams, manage rosters, and maintain team settings."
       },
-      "player-config": {
+      profile: {
         title: "Profile",
         subtitle: "Manage your roles, champion pools, and Riot champion stats."
       },
@@ -244,7 +244,7 @@ const UI_COPY = Object.freeze({
     items: {
       workflow: "Composer",
       "team-config": "Teams",
-      "player-config": "Profile",
+      profile: "Profile",
       explorer: "Champions",
       tags: "Tags",
       users: "Users",
@@ -296,7 +296,7 @@ const DEFAULT_TAB_ROUTE = "workflow";
 const TAB_ROUTES = Object.freeze([
   "workflow",
   "team-config",
-  "player-config",
+  "profile",
   "explorer",
   "tags",
   "users",
@@ -443,7 +443,11 @@ function createInitialState() {
       primaryRole: DEFAULT_PRIMARY_ROLE,
       secondaryRoles: [],
       isSavingRoles: false,
-      championStats: createEmptyChampionStatsState()
+      championStats: createEmptyChampionStatsState(),
+      openSetting: null,
+      avatarChampionId: null,
+      displayTeamId: null,
+      avatarFilter: ""
     },
     api: {
       pools: [],
@@ -505,7 +509,8 @@ function createInitialState() {
       excludeTags: [],
       sortBy: "alpha-asc",
       filtersOpen: true,
-      activeCardRole: {}
+      activeCardRole: {},
+      subTab: "my-champions"
     },
     teamConfig: {
       activeTeamId: null
@@ -559,8 +564,6 @@ function createElements() {
     navDesktopToggle: runtimeDocument.querySelector("#nav-desktop-toggle"),
     navDrawer: runtimeDocument.querySelector("#nav-drawer"),
     navOverlay: runtimeDocument.querySelector("#nav-overlay"),
-    navAdminSection: runtimeDocument.querySelector("#nav-admin-section"),
-    navAdminLabel: runtimeDocument.querySelector("#nav-admin-label"),
     tabTriggers: Array.from(runtimeDocument.querySelectorAll("button[data-tab]")),
     sideMenuLinks: Array.from(runtimeDocument.querySelectorAll(".side-menu-link")),
     heroKicker: runtimeDocument.querySelector("#hero-kicker"),
@@ -604,8 +607,6 @@ function createElements() {
     explorerMeta: runtimeDocument.querySelector("#explorer-meta"),
     teamConfigTitle: runtimeDocument.querySelector("#team-config-title"),
     teamConfigMeta: runtimeDocument.querySelector("#team-config-meta"),
-    playerConfigTitle: runtimeDocument.querySelector("#player-config-title"),
-    playerConfigMeta: runtimeDocument.querySelector("#player-config-meta"),
     tagsTitle: runtimeDocument.querySelector("#tags-title"),
     tagsMeta: runtimeDocument.querySelector("#tags-meta"),
     tagsManageAccess: runtimeDocument.querySelector("#tags-manage-access"),
@@ -657,8 +658,10 @@ function createElements() {
     tabRequirements: runtimeDocument.querySelector("#tab-requirements"),
     tabCompositions: runtimeDocument.querySelector("#tab-compositions"),
     tabTeamConfig: runtimeDocument.querySelector("#tab-team-config"),
-    tabPlayerConfig: runtimeDocument.querySelector("#tab-player-config"),
+    tabProfile: runtimeDocument.querySelector("#tab-profile"),
     tabComingSoon: runtimeDocument.querySelector("#tab-coming-soon"),
+    myChampionsPanel: runtimeDocument.querySelector("#my-champions-panel"),
+    explorerSubNavBtns: Array.from(runtimeDocument.querySelectorAll(".explorer-sub-nav-btn")),
     explorerSearch: runtimeDocument.querySelector("#explorer-search"),
     explorerRole: runtimeDocument.querySelector("#explorer-role"),
     explorerDamage: runtimeDocument.querySelector("#explorer-damage"),
@@ -836,11 +839,31 @@ function createElements() {
     profileRolesFeedback: runtimeDocument.querySelector("#profile-roles-feedback"),
     profileRiotStatsSummary: runtimeDocument.querySelector("#profile-riot-stats-summary"),
     profileRiotStatsList: runtimeDocument.querySelector("#profile-riot-stats-list"),
+    profileIdentity: runtimeDocument.querySelector("#profile-identity"),
+    profileAvatarDisplay: runtimeDocument.querySelector("#profile-avatar-display"),
+    profileSummonerName: runtimeDocument.querySelector("#profile-summoner-name"),
+    profileRolesDisplay: runtimeDocument.querySelector("#profile-roles-display"),
+    profileTeamDisplay: runtimeDocument.querySelector("#profile-team-display"),
+    profileSettingsList: runtimeDocument.querySelector("#profile-settings-list"),
+    profileSettingRolesValue: runtimeDocument.querySelector("#profile-setting-roles-value"),
+    profileSettingAvatarValue: runtimeDocument.querySelector("#profile-setting-avatar-value"),
+    profileSettingTeamValue: runtimeDocument.querySelector("#profile-setting-team-value"),
+    profileSettingAccountValue: runtimeDocument.querySelector("#profile-setting-account-value"),
+    profileSettingRolesEditor: runtimeDocument.querySelector("#profile-setting-roles-editor"),
+    profileSettingTeamEditor: runtimeDocument.querySelector("#profile-setting-team-editor"),
+    profileSettingAccountEditor: runtimeDocument.querySelector("#profile-setting-account-editor"),
+    profileTeamSelector: runtimeDocument.querySelector("#profile-team-selector"),
+    profileAccountFields: runtimeDocument.querySelector("#profile-account-fields"),
+    profileSaveAccount: runtimeDocument.querySelector("#profile-save-account"),
+    profileAccountFeedback: runtimeDocument.querySelector("#profile-account-feedback"),
+    profileAdminLink: runtimeDocument.querySelector("#profile-admin-link"),
+    avatarModal: runtimeDocument.querySelector("#avatar-modal"),
+    avatarModalClose: runtimeDocument.querySelector("#avatar-modal-close"),
+    avatarModalSearch: runtimeDocument.querySelector("#avatar-modal-search"),
+    avatarModalGrid: runtimeDocument.querySelector("#avatar-modal-grid"),
     playerConfigSavePool: runtimeDocument.querySelector("#player-config-save-pool"),
     playerConfigFeedback: runtimeDocument.querySelector("#player-config-feedback"),
     playerConfigGrid: runtimeDocument.querySelector("#player-config-grid"),
-    settingsTeamsMemberSummary: runtimeDocument.querySelector("#settings-teams-member-summary"),
-    settingsTeamsMemberList: runtimeDocument.querySelector("#settings-teams-member-list"),
     logoLightbox: runtimeDocument.querySelector("#logo-lightbox"),
     logoLightboxClose: runtimeDocument.querySelector("#logo-lightbox-close"),
     logoLightboxImage: runtimeDocument.querySelector("#logo-lightbox-image"),
@@ -1856,7 +1879,7 @@ function hasDefinedProfileRoles(user) {
 }
 
 function resolvePostLoginTab(user) {
-  return hasDefinedProfileRoles(user) ? DEFAULT_TAB_ROUTE : "player-config";
+  return hasDefinedProfileRoles(user) ? DEFAULT_TAB_ROUTE : "profile";
 }
 
 const AUTH_CARD_TITLES = {
@@ -1986,9 +2009,6 @@ function renderAuth() {
     if (usersTabButton) {
       usersTabButton.hidden = true;
     }
-    if (elements.navAdminSection) {
-      elements.navAdminSection.hidden = true;
-    }
     renderAuthGate();
     return;
   }
@@ -2006,9 +2026,6 @@ function renderAuth() {
   if (usersTabButton) {
     usersTabButton.hidden = !isAdmin;
   }
-  if (elements.navAdminSection) {
-    elements.navAdminSection.hidden = !isAdmin;
-  }
   if (!isAdmin && state.activeTab === "users") {
     setTab(DEFAULT_TAB_ROUTE, { syncRoute: true, replaceRoute: true });
   }
@@ -2020,9 +2037,6 @@ function applyUiCopy() {
   elements.navTitle.textContent = UI_COPY.nav.title;
   if (elements.navMeta) {
     elements.navMeta.textContent = UI_COPY.nav.meta;
-  }
-  if (elements.navAdminLabel) {
-    elements.navAdminLabel.textContent = UI_COPY.nav.adminLabel;
   }
   elements.explorerTitle.textContent = UI_COPY.panels.explorerTitle;
   if (elements.explorerMeta) {
@@ -2057,10 +2071,6 @@ function applyUiCopy() {
   }
   if (elements.teamConfigMeta) {
     elements.teamConfigMeta.textContent = UI_COPY.panels.teamConfigMeta;
-  }
-  elements.playerConfigTitle.textContent = UI_COPY.panels.playerConfigTitle;
-  if (elements.playerConfigMeta) {
-    elements.playerConfigMeta.textContent = UI_COPY.panels.playerConfigMeta;
   }
   if (elements.comingSoonTitle) {
     elements.comingSoonTitle.textContent = UI_COPY.panels.comingSoonTitle;
@@ -2484,7 +2494,7 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
   elements.tabRequirements.classList.toggle("is-active", resolvedTab === "requirements");
   elements.tabCompositions.classList.toggle("is-active", resolvedTab === "compositions");
   elements.tabTeamConfig.classList.toggle("is-active", resolvedTab === "team-config");
-  elements.tabPlayerConfig.classList.toggle("is-active", resolvedTab === "player-config");
+  elements.tabProfile.classList.toggle("is-active", resolvedTab === "profile");
   elements.tabComingSoon.classList.toggle("is-active", resolvedTab === "coming-soon");
   applyHeroCopy(resolvedTab);
 
@@ -2492,11 +2502,13 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
     renderTeamConfig();
     renderTeamAdmin();
   }
-  if (resolvedTab === "player-config" && state.data) {
+  if (resolvedTab === "profile" && state.data) {
     renderPlayerConfig();
   }
   if (resolvedTab === "explorer" && state.data) {
-    renderExplorer();
+    applyExplorerSubTab();
+    if (state.explorer.subTab === "edit-champions") renderExplorer();
+    if (state.explorer.subTab === "my-champions") renderMyChampions();
   }
   if (resolvedTab === "tags") {
     renderTagsWorkspace();
@@ -8866,7 +8878,7 @@ async function saveActivePlayerPoolSelection() {
   }
 
   state.playerConfig.isSavingPool = true;
-  renderPlayerConfig();
+  renderMyChampions();
 
   try {
     if (isAuthenticated()) {
@@ -8885,167 +8897,247 @@ async function saveActivePlayerPoolSelection() {
     renderPlayerConfigFeedback(normalizeApiErrorMessage(error, "Failed to save pool updates."), true);
   } finally {
     state.playerConfig.isSavingPool = false;
-    renderPlayerConfig();
+    renderMyChampions();
   }
 }
 
 function renderPlayerConfig() {
-  state.playerConfig.teamId = normalizePlayerConfigTeamId(state.playerConfig.teamId);
-  const teamOptions = getConfiguredProfileRoles().map((role) => ({
-    value: buildRolePoolTeamId(role),
-    label: role
-  }));
+  const user = state.auth.user;
+  const authenticated = isAuthenticated();
 
-  replaceOptions(elements.playerConfigTeam, teamOptions);
-  elements.playerConfigTeam.value = state.playerConfig.teamId;
-
-  renderProfileRolesSection();
-  renderProfileChampionStatsSection();
-  const activeRole = parseRolePoolTeamId(state.playerConfig.teamId) ?? state.profile.primaryRole;
-  const poolDirty = isPlayerPoolDirty(state.playerConfig.teamId);
-
-  const players = state.playerConfig.byTeam[state.playerConfig.teamId] ?? [];
-  const activePlayer = players.find((player) => player.role === activeRole) ?? null;
-  if (activePlayer) {
-    activePlayer.familiarityByChampion = normalizeFamiliarityByChampion(
-      activePlayer.champions,
-      activePlayer.familiarityByChampion
-    );
-  }
-  if (elements.playerConfigSavePool) {
-    elements.playerConfigSavePool.disabled = !activePlayer || !poolDirty || state.playerConfig.isSavingPool;
-    elements.playerConfigSavePool.textContent = state.playerConfig.isSavingPool ? "Saving..." : "Save Champions";
+  // --- Identity Header ---
+  if (elements.profileSummonerName) {
+    elements.profileSummonerName.textContent = authenticated && user
+      ? `${user.gameName || ""}#${user.tagline || ""}`
+      : "Not signed in";
   }
 
-  renderSettingsTeamMembership();
-  elements.playerConfigGrid.innerHTML = "";
-  if (!activePlayer) {
-    const empty = runtimeDocument.createElement("p");
-    empty.className = "meta";
-    empty.textContent = isAuthenticated()
-      ? `No champions selected for ${activeRole}.`
-      : "Sign in to load API-backed pools.";
-    elements.playerConfigGrid.append(empty);
-    return;
-  }
-
-  const card = runtimeDocument.createElement("article");
-  card.className = "player-config-card";
-
-  const poolControlHost = runtimeDocument.createElement("div");
-  poolControlHost.className = "player-pool-control";
-
-  const roleEligible = state.data.noneTeamPools[activeRole] ?? [];
-  createCheckboxMultiControl({
-    root: poolControlHost,
-    options: roleEligible.map((championName) => ({
-      value: championName,
-      label: championName
-    })),
-    selectedValues: activePlayer.champions,
-    placeholder: "No champions selected",
-    searchable: true,
-    searchPlaceholder: "Filter champions",
-    summaryFormatter(selectedValues) {
-      if (selectedValues.length === 0) {
-        return "No champions selected";
-      }
-      return `${selectedValues.length} champion${selectedValues.length === 1 ? "" : "s"} selected`;
-    },
-    onChange(selectedValues) {
-      activePlayer.champions = Array.from(new Set(selectedValues)).sort((left, right) => left.localeCompare(right));
-      activePlayer.familiarityByChampion = normalizeFamiliarityByChampion(
-        activePlayer.champions,
-        activePlayer.familiarityByChampion
-      );
-      setPlayerPoolDirty(state.playerConfig.teamId, true);
-      syncDerivedTeamDataFromPlayerConfig();
-      syncConfiguredTeamSelection();
-      setBuilderStage("setup");
-      resetBuilderTreeState();
-      validateTeamSelections();
-      renderTeamConfig();
-      renderBuilder();
-      if (elements.playerConfigSavePool) {
-        elements.playerConfigSavePool.disabled = state.playerConfig.isSavingPool;
-      }
-      renderPlayerConfigFeedback("Unsaved champion changes. Click Save Champions.");
+  // Avatar display
+  if (elements.profileAvatarDisplay) {
+    elements.profileAvatarDisplay.innerHTML = "";
+    const avatarChampion = state.profile.avatarChampionId && state.data
+      ? (state.data.champions || []).find((c) => c.id === state.profile.avatarChampionId)
+      : null;
+    if (avatarChampion && avatarChampion.image) {
+      const img = runtimeDocument.createElement("img");
+      img.src = avatarChampion.image;
+      img.alt = avatarChampion.name;
+      img.className = "profile-avatar-img";
+      elements.profileAvatarDisplay.append(img);
+    } else {
+      const placeholder = runtimeDocument.createElement("span");
+      placeholder.className = "profile-avatar-placeholder";
+      placeholder.textContent = authenticated && user ? (user.gameName || "?")[0].toUpperCase() : "?";
+      elements.profileAvatarDisplay.append(placeholder);
     }
+  }
+
+  // Roles display in header
+  if (elements.profileRolesDisplay) {
+    elements.profileRolesDisplay.innerHTML = "";
+    const allRoles = getConfiguredProfileRoles();
+    for (const role of allRoles) {
+      const pill = runtimeDocument.createElement("span");
+      pill.className = "profile-role-pill";
+      if (role === state.profile.primaryRole) {
+        pill.classList.add("is-primary");
+      }
+      pill.textContent = role;
+      elements.profileRolesDisplay.append(pill);
+    }
+  }
+
+  // Team display in header
+  if (elements.profileTeamDisplay) {
+    elements.profileTeamDisplay.innerHTML = "";
+    const allTeams = [...state.api.teams].sort((a, b) => a.name.localeCompare(b.name));
+    const displayTeam = state.profile.displayTeamId
+      ? allTeams.find((t) => t.id === state.profile.displayTeamId)
+      : allTeams[0] || null;
+    if (displayTeam) {
+      if (displayTeam.logo_data_url) {
+        const logo = runtimeDocument.createElement("img");
+        logo.src = displayTeam.logo_data_url;
+        logo.alt = `${displayTeam.name} logo`;
+        logo.className = "profile-team-logo";
+        logo.style.cursor = "pointer";
+        logo.addEventListener("click", () => setTab("team-config", { syncRoute: true }));
+        elements.profileTeamDisplay.append(logo);
+      }
+      const teamName = runtimeDocument.createElement("span");
+      teamName.className = "profile-team-name";
+      teamName.textContent = displayTeam.name;
+      teamName.style.cursor = "pointer";
+      teamName.addEventListener("click", () => setTab("team-config", { syncRoute: true }));
+      elements.profileTeamDisplay.append(teamName);
+    } else if (authenticated) {
+      const noTeam = runtimeDocument.createElement("span");
+      noTeam.className = "meta";
+      noTeam.textContent = "No team";
+      elements.profileTeamDisplay.append(noTeam);
+    }
+  }
+
+  // --- Settings List Values ---
+  if (elements.profileSettingRolesValue) {
+    const allRoles = getConfiguredProfileRoles();
+    elements.profileSettingRolesValue.textContent = allRoles.length > 0 ? allRoles.join(", ") : "None set";
+  }
+
+  if (elements.profileSettingAvatarValue) {
+    const avatarChampion = state.profile.avatarChampionId && state.data
+      ? (state.data.champions || []).find((c) => c.id === state.profile.avatarChampionId)
+      : null;
+    elements.profileSettingAvatarValue.textContent = avatarChampion ? avatarChampion.name : "None";
+  }
+
+  if (elements.profileSettingTeamValue) {
+    const allTeams = [...state.api.teams].sort((a, b) => a.name.localeCompare(b.name));
+    const displayTeam = state.profile.displayTeamId
+      ? allTeams.find((t) => t.id === state.profile.displayTeamId)
+      : allTeams[0] || null;
+    elements.profileSettingTeamValue.textContent = displayTeam ? displayTeam.name : "No team";
+  }
+
+  if (elements.profileSettingAccountValue) {
+    elements.profileSettingAccountValue.textContent = authenticated && user ? user.email : "Not signed in";
+  }
+
+  // Admin link visibility
+  if (elements.profileAdminLink) {
+    elements.profileAdminLink.hidden = !isAdminUser();
+  }
+
+  // --- Toggle editors ---
+  const openSetting = state.profile.openSetting;
+  const settingItems = elements.profileSettingsList
+    ? elements.profileSettingsList.querySelectorAll(".profile-setting-item")
+    : [];
+  settingItems.forEach((item) => {
+    const settingName = item.dataset.setting;
+    const editor = item.querySelector(".profile-setting-editor");
+    const chevron = item.querySelector(".profile-setting-chevron");
+    const isOpen = settingName === openSetting;
+    item.classList.toggle("is-open", isOpen);
+    if (editor) editor.hidden = !isOpen;
+    if (chevron) chevron.textContent = isOpen ? "⌄" : "›";
   });
 
-  const familiarityHost = runtimeDocument.createElement("div");
-  familiarityHost.className = "player-familiarity";
-
-  const familiarityTitle = runtimeDocument.createElement("h3");
-  familiarityTitle.textContent = "Familiarity Grade";
-  const familiarityMeta = runtimeDocument.createElement("p");
-  familiarityMeta.className = "meta";
-  familiarityMeta.textContent = "S = one-trick detail mastery, A = high execution, B = misses some nuance, C = basic understanding.";
-  familiarityHost.append(familiarityTitle, familiarityMeta);
-
-  const selectedChampionNames = [...activePlayer.champions].sort((left, right) => left.localeCompare(right));
-  if (selectedChampionNames.length === 0) {
-    const emptyFamiliarity = runtimeDocument.createElement("p");
-    emptyFamiliarity.className = "meta";
-    emptyFamiliarity.textContent = "Select champions above to set familiarity.";
-    familiarityHost.append(emptyFamiliarity);
-  } else {
-    const familiarityList = runtimeDocument.createElement("div");
-    familiarityList.className = "player-familiarity-list";
-    for (const championName of selectedChampionNames) {
-      const familiarityRow = runtimeDocument.createElement("div");
-      familiarityRow.className = "player-familiarity-row";
-
-      const championLabel = runtimeDocument.createElement("strong");
-      championLabel.className = "player-familiarity-name";
-      championLabel.textContent = championName;
-
-      const familiarityControl = runtimeDocument.createElement("div");
-      familiarityControl.className = "player-familiarity-control";
-      const familiaritySelect = runtimeDocument.createElement("select");
-      familiaritySelect.className = "player-familiarity-select";
-
-      for (const grade of FAMILIARITY_GRADES) {
-        familiaritySelect.append(createOption(grade, grade));
+  // --- Render Team Selector ---
+  if (openSetting === "team" && elements.profileTeamSelector) {
+    elements.profileTeamSelector.innerHTML = "";
+    const allTeams = [...state.api.teams].sort((a, b) => a.name.localeCompare(b.name));
+    for (const team of allTeams) {
+      const btn = runtimeDocument.createElement("button");
+      btn.className = "profile-team-option";
+      btn.type = "button";
+      if (team.id === (state.profile.displayTeamId || (allTeams[0] && allTeams[0].id))) {
+        btn.classList.add("is-active");
       }
-
-      const currentFamiliarity = normalizeFamiliarityLevel(activePlayer.familiarityByChampion[championName]);
-      familiaritySelect.value = getFamiliarityGrade(currentFamiliarity);
-
-      const familiarityDescription = runtimeDocument.createElement("span");
-      familiarityDescription.className = "meta player-familiarity-description";
-      const setDescriptionText = () => {
-        const nextLevel = familiarityGradeToLevel(familiaritySelect.value);
-        familiarityDescription.textContent = getFamiliarityLabel(nextLevel);
-      };
-      setDescriptionText();
-
-      familiaritySelect.addEventListener("change", () => {
-        const nextLevel = familiarityGradeToLevel(familiaritySelect.value);
-        activePlayer.familiarityByChampion = normalizeFamiliarityByChampion(
-          activePlayer.champions,
-          {
-            ...(activePlayer.familiarityByChampion ?? {}),
-            [championName]: nextLevel
-          }
-        );
-        setDescriptionText();
-        setPlayerPoolDirty(state.playerConfig.teamId, true);
-        if (elements.playerConfigSavePool) {
-          elements.playerConfigSavePool.disabled = state.playerConfig.isSavingPool;
-        }
-        renderPlayerConfigFeedback("Unsaved familiarity changes. Click Save Champions.");
+      if (team.logo_data_url) {
+        const logo = runtimeDocument.createElement("img");
+        logo.src = team.logo_data_url;
+        logo.alt = team.name;
+        logo.className = "profile-team-option-logo";
+        btn.append(logo);
+      }
+      const label = runtimeDocument.createElement("span");
+      label.textContent = team.name;
+      btn.append(label);
+      btn.addEventListener("click", () => {
+        state.profile.displayTeamId = team.id;
+        renderPlayerConfig();
       });
-
-      familiarityControl.append(familiaritySelect, familiarityDescription);
-      familiarityRow.append(championLabel, familiarityControl);
-      familiarityList.append(familiarityRow);
+      elements.profileTeamSelector.append(btn);
     }
-    familiarityHost.append(familiarityList);
+    if (allTeams.length === 0) {
+      const empty = runtimeDocument.createElement("p");
+      empty.className = "meta";
+      empty.textContent = "You are not on any teams.";
+      elements.profileTeamSelector.append(empty);
+    }
   }
 
-  card.append(poolControlHost, familiarityHost);
-  elements.playerConfigGrid.append(card);
+  // --- Render Account Fields ---
+  if (openSetting === "account" && elements.profileAccountFields) {
+    if (elements.profileAccountFields.children.length === 0) {
+      const fields = [
+        { id: "profile-account-email", label: "Email", value: user ? user.email : "" },
+        { id: "profile-account-gamename", label: "Game Name", value: user ? user.gameName : "" },
+        { id: "profile-account-tagline", label: "Tagline", value: user ? user.tagline : "" },
+        { id: "profile-account-firstname", label: "First Name", value: user ? (user.firstName || "") : "" },
+        { id: "profile-account-lastname", label: "Last Name", value: user ? (user.lastName || "") : "" }
+      ];
+      const grid = runtimeDocument.createElement("div");
+      grid.className = "grid grid-2";
+      for (const field of fields) {
+        const label = runtimeDocument.createElement("label");
+        label.textContent = field.label;
+        const input = runtimeDocument.createElement("input");
+        input.type = "text";
+        input.id = field.id;
+        input.value = field.value;
+        label.append(input);
+        grid.append(label);
+      }
+      elements.profileAccountFields.append(grid);
+    }
+  }
+
+  // --- Sub-renders ---
+  renderProfileRolesSection();
+  renderProfileChampionStatsSection();
+}
+
+function openAvatarModal() {
+  state.profile.avatarFilter = "";
+  if (elements.avatarModalSearch) elements.avatarModalSearch.value = "";
+  if (elements.avatarModal) elements.avatarModal.hidden = false;
+  renderAvatarModalGrid();
+}
+
+function closeAvatarModal() {
+  if (elements.avatarModal) elements.avatarModal.hidden = true;
+}
+
+function renderAvatarModalGrid() {
+  if (!elements.avatarModalGrid) return;
+  elements.avatarModalGrid.innerHTML = "";
+  const champions = state.data ? (state.data.champions || []) : [];
+  const filter = (state.profile.avatarFilter || "").toLowerCase();
+  const filtered = filter
+    ? champions.filter((c) => c.name.toLowerCase().includes(filter))
+    : champions;
+
+  for (const champion of filtered) {
+    const btn = runtimeDocument.createElement("button");
+    btn.type = "button";
+    btn.className = "avatar-option";
+    if (champion.id === state.profile.avatarChampionId) {
+      btn.classList.add("is-selected");
+    }
+
+    if (champion.image) {
+      const img = runtimeDocument.createElement("img");
+      img.src = champion.image;
+      img.alt = champion.name;
+      img.className = "avatar-option-img";
+      img.loading = "lazy";
+      btn.append(img);
+    }
+
+    const label = runtimeDocument.createElement("span");
+    label.className = "avatar-option-name";
+    label.textContent = champion.name;
+    btn.append(label);
+
+    btn.addEventListener("click", () => {
+      state.profile.avatarChampionId = champion.id;
+      closeAvatarModal();
+      renderPlayerConfig();
+    });
+    elements.avatarModalGrid.append(btn);
+  }
 }
 
 function initializePlayerConfigControls() {
@@ -9476,6 +9568,178 @@ function sortChampions(champions) {
     });
   }
   return champions.sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function applyExplorerSubTab() {
+  const sub = state.explorer.subTab;
+  elements.explorerSubNavBtns.forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.explorerSub === sub);
+  });
+  if (elements.myChampionsPanel) {
+    elements.myChampionsPanel.hidden = sub !== "my-champions";
+  }
+  if (elements.championGridPanel) {
+    elements.championGridPanel.hidden = sub !== "edit-champions";
+  }
+  if (elements.championTagEditor) {
+    elements.championTagEditor.hidden = sub !== "edit-champions" || !state.api.selectedChampionTagEditorId;
+  }
+}
+
+function renderMyChampions() {
+  state.playerConfig.teamId = normalizePlayerConfigTeamId(state.playerConfig.teamId);
+  const teamOptions = getConfiguredProfileRoles().map((role) => ({
+    value: buildRolePoolTeamId(role),
+    label: role
+  }));
+
+  replaceOptions(elements.playerConfigTeam, teamOptions);
+  elements.playerConfigTeam.value = state.playerConfig.teamId;
+
+  const activeRole = parseRolePoolTeamId(state.playerConfig.teamId) ?? state.profile.primaryRole;
+  const poolDirty = isPlayerPoolDirty(state.playerConfig.teamId);
+
+  const players = state.playerConfig.byTeam[state.playerConfig.teamId] ?? [];
+  const activePlayer = players.find((player) => player.role === activeRole) ?? null;
+  if (activePlayer) {
+    activePlayer.familiarityByChampion = normalizeFamiliarityByChampion(
+      activePlayer.champions,
+      activePlayer.familiarityByChampion
+    );
+  }
+  if (elements.playerConfigSavePool) {
+    elements.playerConfigSavePool.disabled = !activePlayer || !poolDirty || state.playerConfig.isSavingPool;
+    elements.playerConfigSavePool.textContent = state.playerConfig.isSavingPool ? "Saving..." : "Save Champions";
+  }
+
+  elements.playerConfigGrid.innerHTML = "";
+  if (!activePlayer) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = isAuthenticated()
+      ? `No champions selected for ${activeRole}.`
+      : "Sign in to load API-backed pools.";
+    elements.playerConfigGrid.append(empty);
+    return;
+  }
+
+  const card = runtimeDocument.createElement("article");
+  card.className = "player-config-card";
+
+  const poolControlHost = runtimeDocument.createElement("div");
+  poolControlHost.className = "player-pool-control";
+
+  const roleEligible = state.data.noneTeamPools[activeRole] ?? [];
+  createCheckboxMultiControl({
+    root: poolControlHost,
+    options: roleEligible.map((championName) => ({
+      value: championName,
+      label: championName
+    })),
+    selectedValues: activePlayer.champions,
+    placeholder: "No champions selected",
+    searchable: true,
+    searchPlaceholder: "Filter champions",
+    summaryFormatter(selectedValues) {
+      if (selectedValues.length === 0) {
+        return "No champions selected";
+      }
+      return `${selectedValues.length} champion${selectedValues.length === 1 ? "" : "s"} selected`;
+    },
+    onChange(selectedValues) {
+      activePlayer.champions = Array.from(new Set(selectedValues)).sort((left, right) => left.localeCompare(right));
+      activePlayer.familiarityByChampion = normalizeFamiliarityByChampion(
+        activePlayer.champions,
+        activePlayer.familiarityByChampion
+      );
+      setPlayerPoolDirty(state.playerConfig.teamId, true);
+      syncDerivedTeamDataFromPlayerConfig();
+      syncConfiguredTeamSelection();
+      setBuilderStage("setup");
+      resetBuilderTreeState();
+      validateTeamSelections();
+      renderTeamConfig();
+      renderBuilder();
+      if (elements.playerConfigSavePool) {
+        elements.playerConfigSavePool.disabled = state.playerConfig.isSavingPool;
+      }
+      renderPlayerConfigFeedback("Unsaved champion changes. Click Save Champions.");
+    }
+  });
+
+  const familiarityHost = runtimeDocument.createElement("div");
+  familiarityHost.className = "player-familiarity";
+
+  const familiarityTitle = runtimeDocument.createElement("h3");
+  familiarityTitle.textContent = "Familiarity Grade";
+  const familiarityMeta = runtimeDocument.createElement("p");
+  familiarityMeta.className = "meta";
+  familiarityMeta.textContent = "S = one-trick detail mastery, A = high execution, B = misses some nuance, C = basic understanding.";
+  familiarityHost.append(familiarityTitle, familiarityMeta);
+
+  const selectedChampionNames = [...activePlayer.champions].sort((left, right) => left.localeCompare(right));
+  if (selectedChampionNames.length === 0) {
+    const emptyFamiliarity = runtimeDocument.createElement("p");
+    emptyFamiliarity.className = "meta";
+    emptyFamiliarity.textContent = "Select champions above to set familiarity.";
+    familiarityHost.append(emptyFamiliarity);
+  } else {
+    const familiarityList = runtimeDocument.createElement("div");
+    familiarityList.className = "player-familiarity-list";
+    for (const championName of selectedChampionNames) {
+      const familiarityRow = runtimeDocument.createElement("div");
+      familiarityRow.className = "player-familiarity-row";
+
+      const championLabel = runtimeDocument.createElement("strong");
+      championLabel.className = "player-familiarity-name";
+      championLabel.textContent = championName;
+
+      const familiarityControl = runtimeDocument.createElement("div");
+      familiarityControl.className = "player-familiarity-control";
+      const familiaritySelect = runtimeDocument.createElement("select");
+      familiaritySelect.className = "player-familiarity-select";
+
+      for (const grade of FAMILIARITY_GRADES) {
+        familiaritySelect.append(createOption(grade, grade));
+      }
+
+      const currentFamiliarity = normalizeFamiliarityLevel(activePlayer.familiarityByChampion[championName]);
+      familiaritySelect.value = getFamiliarityGrade(currentFamiliarity);
+
+      const familiarityDescription = runtimeDocument.createElement("span");
+      familiarityDescription.className = "meta player-familiarity-description";
+      const setDescriptionText = () => {
+        const nextLevel = familiarityGradeToLevel(familiaritySelect.value);
+        familiarityDescription.textContent = getFamiliarityLabel(nextLevel);
+      };
+      setDescriptionText();
+
+      familiaritySelect.addEventListener("change", () => {
+        const nextLevel = familiarityGradeToLevel(familiaritySelect.value);
+        activePlayer.familiarityByChampion = normalizeFamiliarityByChampion(
+          activePlayer.champions,
+          {
+            ...(activePlayer.familiarityByChampion ?? {}),
+            [championName]: nextLevel
+          }
+        );
+        setDescriptionText();
+        setPlayerPoolDirty(state.playerConfig.teamId, true);
+        if (elements.playerConfigSavePool) {
+          elements.playerConfigSavePool.disabled = state.playerConfig.isSavingPool;
+        }
+        renderPlayerConfigFeedback("Unsaved familiarity changes. Click Save Champions.");
+      });
+
+      familiarityControl.append(familiaritySelect, familiarityDescription);
+      familiarityRow.append(championLabel, familiarityControl);
+      familiarityList.append(familiarityRow);
+    }
+    familiarityHost.append(familiarityList);
+  }
+
+  card.append(poolControlHost, familiarityHost);
+  elements.playerConfigGrid.append(card);
 }
 
 function renderExplorer() {
@@ -11308,7 +11572,7 @@ function attachEvents() {
         setAuthMode("login");
         setAuthFeedback("");
         renderAuth();
-        setTab("player-config", { syncRoute: true });
+        setTab("profile", { syncRoute: true });
       }).catch((error) => {
         setAuthFeedback(normalizeApiErrorMessage(error, "Password change failed."));
         renderAuth();
@@ -11325,7 +11589,7 @@ function attachEvents() {
       setAuthMode("login");
       setAuthFeedback("");
       renderAuth();
-      setTab("player-config", { syncRoute: true });
+      setTab("profile", { syncRoute: true });
     });
   }
 
@@ -11334,6 +11598,49 @@ function attachEvents() {
       setAuthMode("change-password");
       setAuthFeedback("");
       renderAuth();
+    });
+  }
+
+  // Profile settings list — accordion toggle
+  if (elements.profileSettingsList) {
+    elements.profileSettingsList.addEventListener("click", (event) => {
+      const row = event.target.closest(".profile-setting-row");
+      if (!row) return;
+      const item = row.closest(".profile-setting-item");
+      if (!item) return;
+      const settingName = item.dataset.setting;
+
+      // Admin link navigates away instead of opening an editor
+      if (settingName === "admin-users") {
+        setTab("users", { syncRoute: true });
+        return;
+      }
+
+      // Avatar opens modal instead of inline editor
+      if (settingName === "avatar") {
+        openAvatarModal();
+        return;
+      }
+
+      // Toggle accordion
+      state.profile.openSetting = state.profile.openSetting === settingName ? null : settingName;
+      renderPlayerConfig();
+    });
+  }
+
+  // Avatar modal
+  if (elements.avatarModalClose) {
+    elements.avatarModalClose.addEventListener("click", closeAvatarModal);
+  }
+  if (elements.avatarModal) {
+    elements.avatarModal.addEventListener("click", (event) => {
+      if (event.target === elements.avatarModal) closeAvatarModal();
+    });
+  }
+  if (elements.avatarModalSearch) {
+    elements.avatarModalSearch.addEventListener("input", () => {
+      state.profile.avatarFilter = elements.avatarModalSearch.value;
+      renderAvatarModalGrid();
     });
   }
 
@@ -11448,6 +11755,15 @@ function attachEvents() {
     elements.explorerCatalogToggle.setAttribute("aria-expanded", String(!isOpen));
     const caret = elements.explorerCatalogToggle.querySelector(".explorer-catalog-caret");
     if (caret) caret.textContent = isOpen ? "▾" : "▴";
+  });
+
+  elements.explorerSubNavBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.explorer.subTab = btn.dataset.explorerSub;
+      applyExplorerSubTab();
+      if (state.explorer.subTab === "my-champions") renderMyChampions();
+      if (state.explorer.subTab === "edit-champions") renderExplorer();
+    });
   });
 
   elements.explorerFilterToggle.addEventListener("click", () => {
@@ -11882,11 +12198,11 @@ function attachEvents() {
   elements.playerConfigTeam.addEventListener("change", () => {
     state.playerConfig.teamId = normalizePlayerConfigTeamId(elements.playerConfigTeam.value);
     if (isAuthenticated()) {
-      renderPlayerConfig();
+      renderMyChampions();
       return;
     }
     const saved = savePlayerConfig();
-    renderPlayerConfig();
+    renderMyChampions();
     renderPlayerConfigFeedback(
       saved ? "" : "Player-config team selection changed in memory, but local storage is unavailable.",
       !saved

@@ -45,11 +45,7 @@
         <button class="side-menu-link" data-tab="requirements" type="button">Requirements</button>
         <button class="side-menu-link" data-tab="compositions" type="button">Compositions</button>
         <div class="side-menu-spacer"></div>
-        <button class="side-menu-link" data-tab="player-config" type="button">Profile</button>
-        <div id="nav-admin-section" class="side-menu-admin-section" hidden>
-          <p id="nav-admin-label" class="side-menu-admin-label">Admin Tools</p>
-          <button class="side-menu-link side-menu-link-admin" data-tab="users" type="button">Users</button>
-        </div>
+        <button class="side-menu-link" data-tab="profile" type="button">Profile</button>
         <button id="auth-logout" class="side-menu-link side-menu-link-logout" type="button">Logout</button>
         <a
           class="updates-nav-link report-issue-link"
@@ -168,7 +164,23 @@
       <div id="app-shell" class="app-shell" hidden>
         <div class="main-content">
           <section id="tab-explorer" class="tab-panel tab-surface">
-            <div id="champion-grid-panel" class="panel draft-board-panel">
+            <div class="explorer-sub-nav">
+              <button class="explorer-sub-nav-btn is-active" data-explorer-sub="my-champions" type="button">My Champions</button>
+              <button class="explorer-sub-nav-btn" data-explorer-sub="edit-champions" type="button">Edit Champions</button>
+            </div>
+            <div id="my-champions-panel" class="panel draft-board-panel">
+              <h2>My Champions</h2>
+              <label>
+                Role
+                <select id="player-config-team"></select>
+              </label>
+              <div id="player-config-grid" class="player-pools-grid"></div>
+              <div class="button-row">
+                <button id="player-config-save-pool" type="button">Save Champions</button>
+              </div>
+              <p id="player-config-feedback" class="meta"></p>
+            </div>
+            <div id="champion-grid-panel" class="panel draft-board-panel" hidden>
               <h2 id="explorer-title">Champions</h2>
               <div class="explorer-filter-section">
                 <div class="explorer-filter-bar">
@@ -808,53 +820,102 @@
             </div>
           </section>
 
-          <section id="tab-player-config" class="tab-panel tab-surface">
+          <section id="tab-profile" class="tab-panel tab-surface">
             <div class="panel draft-board-panel">
-              <h2 id="player-config-title">Profile</h2>
-              <div class="profile-section">
-                <p class="panel-kicker">My Roles</p>
-                <div class="grid grid-2">
-                  <label>
-                    Role (primary)
-                    <select id="profile-primary-role"></select>
-                  </label>
-                  <label>
-                    Roles (other)
-                    <div id="profile-secondary-roles"></div>
-                  </label>
+              <h2>Profile</h2>
+
+              <!-- Identity Header (pride zone) -->
+              <div class="profile-identity" id="profile-identity">
+                <div class="profile-avatar-display" id="profile-avatar-display" title="Click to change avatar"></div>
+                <div class="profile-identity-info">
+                  <p class="profile-summoner-name" id="profile-summoner-name"></p>
+                  <div class="profile-roles-display" id="profile-roles-display"></div>
+                  <div class="profile-team-display" id="profile-team-display"></div>
                 </div>
-                <div class="button-row">
-                  <button id="profile-save-roles" type="button">Save Roles</button>
-                </div>
-                <p id="profile-roles-feedback" class="meta"></p>
               </div>
-              <div class="profile-section">
-                <p class="panel-kicker">My Champions</p>
-                <label>
-                  Role
-                  <select id="player-config-team"></select>
-                </label>
-                <div id="player-config-grid" class="player-pools-grid"></div>
-                <div class="button-row">
-                  <button id="player-config-save-pool" type="button">Save Champions</button>
-                </div>
-                <p id="player-config-feedback" class="meta"></p>
-              </div>
+
+              <!-- Settings List -->
+              <ul class="profile-settings-list" id="profile-settings-list">
+                <li class="profile-setting-item" data-setting="roles">
+                  <div class="profile-setting-row">
+                    <span class="profile-setting-label">My Roles</span>
+                    <span class="profile-setting-value" id="profile-setting-roles-value"></span>
+                    <span class="profile-setting-chevron">›</span>
+                  </div>
+                  <div class="profile-setting-editor" id="profile-setting-roles-editor" hidden>
+                    <div class="grid grid-2">
+                      <label>
+                        Role (primary)
+                        <select id="profile-primary-role"></select>
+                      </label>
+                      <label>
+                        Roles (other)
+                        <div id="profile-secondary-roles"></div>
+                      </label>
+                    </div>
+                    <div class="button-row">
+                      <button id="profile-save-roles" type="button">Save Roles</button>
+                    </div>
+                    <p id="profile-roles-feedback" class="meta"></p>
+                  </div>
+                </li>
+                <li class="profile-setting-item" data-setting="avatar">
+                  <div class="profile-setting-row">
+                    <span class="profile-setting-label">Avatar</span>
+                    <span class="profile-setting-value" id="profile-setting-avatar-value"></span>
+                    <span class="profile-setting-chevron">›</span>
+                  </div>
+                </li>
+                <li class="profile-setting-item" data-setting="team">
+                  <div class="profile-setting-row">
+                    <span class="profile-setting-label">Display Team</span>
+                    <span class="profile-setting-value" id="profile-setting-team-value"></span>
+                    <span class="profile-setting-chevron">›</span>
+                  </div>
+                  <div class="profile-setting-editor" id="profile-setting-team-editor" hidden>
+                    <div id="profile-team-selector"></div>
+                  </div>
+                </li>
+                <li class="profile-setting-item" data-setting="account">
+                  <div class="profile-setting-row">
+                    <span class="profile-setting-label">Account</span>
+                    <span class="profile-setting-value" id="profile-setting-account-value"></span>
+                    <span class="profile-setting-chevron">›</span>
+                  </div>
+                  <div class="profile-setting-editor" id="profile-setting-account-editor" hidden>
+                    <div class="profile-account-fields" id="profile-account-fields"></div>
+                    <div class="button-row">
+                      <button id="profile-change-password" type="button">Change Password</button>
+                      <button id="profile-save-account" type="button">Save Account</button>
+                    </div>
+                    <p id="profile-account-feedback" class="meta"></p>
+                  </div>
+                </li>
+                <li class="profile-setting-item profile-setting-nav" data-setting="admin-users" id="profile-admin-link" hidden>
+                  <div class="profile-setting-row">
+                    <span class="profile-setting-label">Admin: Users</span>
+                    <span class="profile-setting-chevron">›</span>
+                  </div>
+                </li>
+              </ul>
+
+              <!-- Riot Champion Stats (unchanged) -->
               <div class="profile-section">
                 <p class="panel-kicker">Riot Champion Stats</p>
                 <p id="profile-riot-stats-summary" class="meta"></p>
                 <div id="profile-riot-stats-list" class="summary-card-list"></div>
               </div>
-              <div class="settings-team-section">
-                <p class="panel-kicker">My Teams</p>
-                <p id="settings-teams-member-summary" class="meta"></p>
-                <div id="settings-teams-member-list" class="summary-card-list"></div>
-              </div>
-              <div class="profile-section">
-                <p class="panel-kicker">Account</p>
-                <div class="button-row">
-                  <button id="profile-change-password" type="button">Change Password</button>
+            </div>
+
+            <!-- Avatar Picker Modal -->
+            <div class="modal-overlay" id="avatar-modal" hidden>
+              <div class="modal-content avatar-modal-content">
+                <div class="modal-header">
+                  <h3>Select Your Avatar</h3>
+                  <button class="modal-close" id="avatar-modal-close" type="button">×</button>
                 </div>
+                <input id="avatar-modal-search" type="search" placeholder="Filter champions..." class="avatar-modal-search" />
+                <div class="avatar-modal-grid" id="avatar-modal-grid"></div>
               </div>
             </div>
           </section>
@@ -1011,6 +1072,17 @@
               >
                 <h3>What's New</h3>
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
+                <h4>Version 0.8.0 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>Profile page redesigned as an identity showcase with pride header (avatar, summoner name, roles, team logo) and a clickable settings list (accordion-style editors).</li>
+                  <li>Champion avatar selection: choose any champion as your profile portrait via a modal picker with search filtering.</li>
+                  <li>My Champions moved from Profile to the Champions tab with a persistent sub-navigation header (My Champions / Edit Champions toggle).</li>
+                  <li>Champions tab now defaults to "My Champions" when navigated to.</li>
+                  <li>Display Team setting: choose which team logo and name to showcase on your profile identity header; clicking the logo navigates to the Teams tab.</li>
+                  <li>Account settings editor: view and edit email, game name, tagline, first name, and last name inline on the Profile page, plus change password.</li>
+                  <li>Admin Users shortcut moved from the left navigation bar into the Profile settings list (visible to admin users only); Admin Tools section removed from the nav.</li>
+                  <li>Profile tab internal route renamed from "player-config" to "profile" for clarity.</li>
+                </ul>
                 <h4>Version 0.7.6 (Shipped)</h4>
                 <ul class="coming-soon-list">
                   <li>Player Slots section removed — all functionality (pick order badges, status badges, left/right reorder buttons, drag-to-reorder, exclusion and duplicate filtering) is now merged into Pool Snapshot cards.</li>
@@ -1084,6 +1156,8 @@
                 </ul>
                 <h4>Profile</h4>
                 <ul class="coming-soon-list">
+                  <li>Avatar selection and display team preference are frontend-only; backend persistence endpoints for these fields are not yet implemented.</li>
+                  <li>Account settings editing (email, name, game name) needs a backend endpoint to persist changes; currently renders the form but save is not wired to an API.</li>
                   <li>Get champion pool suggestions based on your real League match history (draftflow-145)</li>
                   <li>Live Riot champion stats in Profile remain a placeholder until the full implementation is shipped (draftflow-146)</li>
                 </ul>
@@ -1237,7 +1311,7 @@
       (function () {
         try {
           var VALID_TABS = new Set([
-            "workflow", "team-config", "player-config", "explorer",
+            "workflow", "team-config", "profile", "explorer",
             "tags", "users", "requirements", "compositions", "coming-soon"
           ]);
           var raw = localStorage.getItem("draftflow.authSession.v1");

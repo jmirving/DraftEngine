@@ -337,20 +337,7 @@ body:has(#app-shell.is-nav-collapsed) .nav-drawer {
   flex: 1;
 }
 
-.side-menu-admin-section {
-  margin-top: 0.7rem;
-  padding-top: 0.5rem;
-  border-top: 1px dashed var(--accent-soft);
-}
 
-.side-menu-admin-label {
-  margin: 0 0 0.1rem;
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #8f5f4f;
-}
 
 .side-menu-header {
   display: flex;
@@ -424,12 +411,6 @@ body:has(#app-shell.is-nav-collapsed) .nav-desktop-toggle {
   border-color: #efc8bc;
 }
 
-.side-menu-link-admin {
-  background: #f6fbff;
-  border-color: #b7d2e4;
-  color: #1f4761;
-}
-
 .side-menu-link-logout:hover {
   box-shadow: 0 4px 12px rgba(125, 47, 29, 0.14);
 }
@@ -464,8 +445,6 @@ body:has(#app-shell.is-nav-collapsed) .side-menu-header {
 body:has(#app-shell.is-nav-collapsed) #nav-title,
 body:has(#app-shell.is-nav-collapsed) #nav-meta,
 body:has(#app-shell.is-nav-collapsed) .side-menu-link,
-body:has(#app-shell.is-nav-collapsed) .side-menu-admin-section,
-body:has(#app-shell.is-nav-collapsed) .side-menu-admin-label,
 body:has(#app-shell.is-nav-collapsed) .report-issue-link,
 body:has(#app-shell.is-nav-collapsed) .updates-nav-link,
 body:has(#app-shell.is-nav-collapsed) .side-menu-spacer {
@@ -564,7 +543,7 @@ body:has(#app-shell.is-nav-collapsed) .panel.side-menu {
 }
 
 #tab-explorer .draft-board-panel,
-#tab-player-config .draft-board-panel {
+#tab-profile .draft-board-panel {
   overflow: visible;
 }
 
@@ -1111,6 +1090,34 @@ button.ghost {
   margin: 0 0 0.7rem 0;
   color: var(--muted);
   font-size: 0.84rem;
+}
+
+.explorer-sub-nav {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.explorer-sub-nav-btn {
+  padding: 0.45rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px 8px 0 0;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.explorer-sub-nav-btn:hover {
+  background: var(--surface-strong);
+}
+
+.explorer-sub-nav-btn.is-active {
+  background: #fffefa;
+  color: var(--text);
+  border-bottom-color: #fffefa;
 }
 
 .card-grid {
@@ -2684,34 +2691,323 @@ button.pool-snapshot-order-btn:disabled {
   margin-top: 0;
 }
 
-.settings-team-section {
-  border-top: 1px solid var(--border);
-  margin-top: 1.05rem;
-  padding-top: 1rem;
-  display: grid;
-  gap: 0.35rem;
-}
-
-#tab-player-config .profile-section > label {
+#tab-profile .profile-section > label {
   max-width: 360px;
-}
-
-.settings-team-column h3 {
-  margin: 0 0 0.2rem;
-}
-
-.settings-team-column .summary-card-list {
-  margin-top: 0.35rem;
 }
 
 .player-pool-control .checkbox-multi-list {
   max-height: 280px;
 }
 
-#tab-player-config .player-pool-control .checkbox-multi-panel {
+#tab-profile .player-pool-control .checkbox-multi-panel {
   position: static;
   margin-top: 0.3rem;
   box-shadow: none;
+}
+
+/* --- Profile Identity Header --- */
+.profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  padding: 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: linear-gradient(165deg, var(--surface), var(--surface-strong));
+  margin-bottom: 1rem;
+}
+
+.profile-avatar-display {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: #fffefa;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.profile-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-avatar-placeholder {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.profile-identity-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.profile-summoner-name {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.profile-roles-display {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.profile-role-pill {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.profile-role-pill.is-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.profile-team-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+}
+
+.profile-team-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+.profile-team-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+/* --- Profile Settings List --- */
+.profile-settings-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.profile-setting-item {
+  border-bottom: 1px solid var(--border);
+}
+
+.profile-setting-item:last-child {
+  border-bottom: none;
+}
+
+.profile-setting-row {
+  display: flex;
+  align-items: center;
+  padding: 0.65rem 0.85rem;
+  cursor: pointer;
+  transition: background 0.12s;
+  gap: 0.5rem;
+}
+
+.profile-setting-row:hover {
+  background: var(--surface-strong);
+}
+
+.profile-setting-label {
+  font-weight: 600;
+  font-size: 0.88rem;
+  min-width: 8rem;
+}
+
+.profile-setting-value {
+  flex: 1;
+  color: var(--muted);
+  font-size: 0.84rem;
+  text-align: right;
+}
+
+.profile-setting-chevron {
+  color: var(--muted);
+  font-size: 1.1rem;
+  font-weight: 700;
+  width: 1rem;
+  text-align: center;
+  transition: transform 0.15s;
+}
+
+.profile-setting-item.is-open .profile-setting-chevron {
+  transform: rotate(0deg);
+}
+
+.profile-setting-editor {
+  padding: 0.6rem 0.85rem 0.85rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.profile-setting-nav .profile-setting-row {
+  color: var(--accent);
+}
+
+.profile-setting-nav .profile-setting-label {
+  color: var(--accent);
+}
+
+/* --- Profile Team Selector --- */
+.profile-team-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fffefa;
+  cursor: pointer;
+  margin-bottom: 0.3rem;
+  width: 100%;
+  text-align: left;
+}
+
+.profile-team-option:hover {
+  background: var(--surface-strong);
+}
+
+.profile-team-option.is-active {
+  border-color: var(--accent);
+  background: var(--surface-strong);
+}
+
+.profile-team-option-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+/* --- Avatar Modal --- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(17, 24, 31, 0.6);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.modal-overlay[hidden] {
+  display: none;
+}
+
+.modal-content {
+  background: #fffefa;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem;
+  max-width: 640px;
+  width: 100%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+}
+
+.modal-close:hover {
+  background: var(--surface-strong);
+  color: var(--text);
+}
+
+.avatar-modal-search {
+  margin-bottom: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.avatar-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 0.4rem;
+  overflow-y: auto;
+  flex: 1;
+  padding: 0.2rem;
+}
+
+.avatar-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.3rem;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.avatar-option:hover {
+  background: var(--surface-strong);
+  border-color: var(--border);
+}
+
+.avatar-option.is-selected {
+  border-color: var(--accent);
+  background: var(--surface-strong);
+}
+
+.avatar-option-img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.avatar-option-name {
+  font-size: 0.68rem;
+  text-align: center;
+  color: var(--muted);
+  line-height: 1.2;
 }
 
 .summary-card-logo {
@@ -2745,11 +3041,6 @@ button.pool-snapshot-order-btn:disabled {
 
 .settings-team-card-meta {
   margin: 0;
-}
-
-#settings-teams-member-list {
-  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 280px));
-  justify-content: start;
 }
 
 .logo-lightbox {
