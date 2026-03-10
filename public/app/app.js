@@ -446,6 +446,7 @@ function createInitialState() {
       championStats: createEmptyChampionStatsState(),
       openSetting: null,
       avatarChampionId: null,
+      pendingAvatarId: null,
       displayTeamId: null,
       avatarFilter: ""
     },
@@ -846,19 +847,25 @@ function createElements() {
     profileTeamDisplay: runtimeDocument.querySelector("#profile-team-display"),
     profileSettingsList: runtimeDocument.querySelector("#profile-settings-list"),
     profileSettingRolesValue: runtimeDocument.querySelector("#profile-setting-roles-value"),
-    profileSettingAvatarValue: runtimeDocument.querySelector("#profile-setting-avatar-value"),
-    profileSettingTeamValue: runtimeDocument.querySelector("#profile-setting-team-value"),
     profileSettingAccountValue: runtimeDocument.querySelector("#profile-setting-account-value"),
     profileSettingRolesEditor: runtimeDocument.querySelector("#profile-setting-roles-editor"),
-    profileSettingTeamEditor: runtimeDocument.querySelector("#profile-setting-team-editor"),
     profileSettingAccountEditor: runtimeDocument.querySelector("#profile-setting-account-editor"),
-    profileTeamSelector: runtimeDocument.querySelector("#profile-team-selector"),
+    profileSetPrimaryRole: runtimeDocument.querySelector("#profile-set-primary-role"),
+    profileSetOtherRoles: runtimeDocument.querySelector("#profile-set-other-roles"),
+    primaryRoleModal: runtimeDocument.querySelector("#primary-role-modal"),
+    primaryRoleModalOptions: runtimeDocument.querySelector("#primary-role-modal-options"),
+    primaryRoleModalFeedback: runtimeDocument.querySelector("#primary-role-modal-feedback"),
+    otherRolesModal: runtimeDocument.querySelector("#other-roles-modal"),
+    otherRolesModalFeedback: runtimeDocument.querySelector("#other-roles-modal-feedback"),
+    myChampionsSetPrimary: runtimeDocument.querySelector("#my-champions-set-primary"),
+    myChampionsSetOthers: runtimeDocument.querySelector("#my-champions-set-others"),
+    avatarModalCancel: runtimeDocument.querySelector("#avatar-modal-cancel"),
+    avatarModalSave: runtimeDocument.querySelector("#avatar-modal-save"),
     profileAccountFields: runtimeDocument.querySelector("#profile-account-fields"),
     profileSaveAccount: runtimeDocument.querySelector("#profile-save-account"),
     profileAccountFeedback: runtimeDocument.querySelector("#profile-account-feedback"),
     profileAdminLink: runtimeDocument.querySelector("#profile-admin-link"),
     avatarModal: runtimeDocument.querySelector("#avatar-modal"),
-    avatarModalClose: runtimeDocument.querySelector("#avatar-modal-close"),
     avatarModalSearch: runtimeDocument.querySelector("#avatar-modal-search"),
     avatarModalGrid: runtimeDocument.querySelector("#avatar-modal-grid"),
     playerConfigSavePool: runtimeDocument.querySelector("#player-config-save-pool"),
@@ -1517,11 +1524,6 @@ function setProfileRolesFeedback(message, isError = false) {
   }
   elements.profileRolesFeedback.textContent = message;
   elements.profileRolesFeedback.style.color = isError ? "var(--warn)" : "var(--muted)";
-}
-
-function formatSavedProfileRolesFeedback(primaryRole, secondaryRoles) {
-  const secondaryText = secondaryRoles.length > 0 ? secondaryRoles.join(", ") : "none";
-  return `Saved profile roles. Primary: ${primaryRole}. Secondary: ${secondaryText}.`;
 }
 
 function formatMembershipRole(role) {
@@ -8912,7 +8914,7 @@ function renderPlayerConfig() {
       : "Not signed in";
   }
 
-  // Avatar display
+  // Avatar display (click opens modal)
   if (elements.profileAvatarDisplay) {
     elements.profileAvatarDisplay.innerHTML = "";
     const avatarChampion = state.profile.avatarChampionId && state.data
@@ -8947,7 +8949,7 @@ function renderPlayerConfig() {
     }
   }
 
-  // Team display in header
+  // Team display in header (right side, large)
   if (elements.profileTeamDisplay) {
     elements.profileTeamDisplay.innerHTML = "";
     const allTeams = [...state.api.teams].sort((a, b) => a.name.localeCompare(b.name));
@@ -8955,26 +8957,21 @@ function renderPlayerConfig() {
       ? allTeams.find((t) => t.id === state.profile.displayTeamId)
       : allTeams[0] || null;
     if (displayTeam) {
-      if (displayTeam.logo_data_url) {
-        const logo = runtimeDocument.createElement("img");
-        logo.src = displayTeam.logo_data_url;
-        logo.alt = `${displayTeam.name} logo`;
-        logo.className = "profile-team-logo";
-        logo.style.cursor = "pointer";
-        logo.addEventListener("click", () => setTab("team-config", { syncRoute: true }));
-        elements.profileTeamDisplay.append(logo);
-      }
       const teamName = runtimeDocument.createElement("span");
       teamName.className = "profile-team-name";
       teamName.textContent = displayTeam.name;
       teamName.style.cursor = "pointer";
       teamName.addEventListener("click", () => setTab("team-config", { syncRoute: true }));
       elements.profileTeamDisplay.append(teamName);
-    } else if (authenticated) {
-      const noTeam = runtimeDocument.createElement("span");
-      noTeam.className = "meta";
-      noTeam.textContent = "No team";
-      elements.profileTeamDisplay.append(noTeam);
+      if (displayTeam.logo_data_url) {
+        const logo = runtimeDocument.createElement("img");
+        logo.src = displayTeam.logo_data_url;
+        logo.alt = `${displayTeam.name} logo`;
+        logo.className = "profile-team-logo-lg";
+        logo.style.cursor = "pointer";
+        logo.addEventListener("click", () => setTab("team-config", { syncRoute: true }));
+        elements.profileTeamDisplay.append(logo);
+      }
     }
   }
 
@@ -8982,21 +8979,6 @@ function renderPlayerConfig() {
   if (elements.profileSettingRolesValue) {
     const allRoles = getConfiguredProfileRoles();
     elements.profileSettingRolesValue.textContent = allRoles.length > 0 ? allRoles.join(", ") : "None set";
-  }
-
-  if (elements.profileSettingAvatarValue) {
-    const avatarChampion = state.profile.avatarChampionId && state.data
-      ? (state.data.champions || []).find((c) => c.id === state.profile.avatarChampionId)
-      : null;
-    elements.profileSettingAvatarValue.textContent = avatarChampion ? avatarChampion.name : "None";
-  }
-
-  if (elements.profileSettingTeamValue) {
-    const allTeams = [...state.api.teams].sort((a, b) => a.name.localeCompare(b.name));
-    const displayTeam = state.profile.displayTeamId
-      ? allTeams.find((t) => t.id === state.profile.displayTeamId)
-      : allTeams[0] || null;
-    elements.profileSettingTeamValue.textContent = displayTeam ? displayTeam.name : "No team";
   }
 
   if (elements.profileSettingAccountValue) {
@@ -9022,41 +9004,6 @@ function renderPlayerConfig() {
     if (editor) editor.hidden = !isOpen;
     if (chevron) chevron.textContent = isOpen ? "⌄" : "›";
   });
-
-  // --- Render Team Selector ---
-  if (openSetting === "team" && elements.profileTeamSelector) {
-    elements.profileTeamSelector.innerHTML = "";
-    const allTeams = [...state.api.teams].sort((a, b) => a.name.localeCompare(b.name));
-    for (const team of allTeams) {
-      const btn = runtimeDocument.createElement("button");
-      btn.className = "profile-team-option";
-      btn.type = "button";
-      if (team.id === (state.profile.displayTeamId || (allTeams[0] && allTeams[0].id))) {
-        btn.classList.add("is-active");
-      }
-      if (team.logo_data_url) {
-        const logo = runtimeDocument.createElement("img");
-        logo.src = team.logo_data_url;
-        logo.alt = team.name;
-        logo.className = "profile-team-option-logo";
-        btn.append(logo);
-      }
-      const label = runtimeDocument.createElement("span");
-      label.textContent = team.name;
-      btn.append(label);
-      btn.addEventListener("click", () => {
-        state.profile.displayTeamId = team.id;
-        renderPlayerConfig();
-      });
-      elements.profileTeamSelector.append(btn);
-    }
-    if (allTeams.length === 0) {
-      const empty = runtimeDocument.createElement("p");
-      empty.className = "meta";
-      empty.textContent = "You are not on any teams.";
-      elements.profileTeamSelector.append(empty);
-    }
-  }
 
   // --- Render Account Fields ---
   if (openSetting === "account" && elements.profileAccountFields) {
@@ -9091,6 +9038,7 @@ function renderPlayerConfig() {
 
 function openAvatarModal() {
   state.profile.avatarFilter = "";
+  state.profile.pendingAvatarId = state.profile.avatarChampionId;
   if (elements.avatarModalSearch) elements.avatarModalSearch.value = "";
   if (elements.avatarModal) elements.avatarModal.hidden = false;
   renderAvatarModalGrid();
@@ -9098,6 +9046,12 @@ function openAvatarModal() {
 
 function closeAvatarModal() {
   if (elements.avatarModal) elements.avatarModal.hidden = true;
+}
+
+function saveAvatarSelection() {
+  state.profile.avatarChampionId = state.profile.pendingAvatarId;
+  closeAvatarModal();
+  renderPlayerConfig();
 }
 
 function renderAvatarModalGrid() {
@@ -9113,7 +9067,7 @@ function renderAvatarModalGrid() {
     const btn = runtimeDocument.createElement("button");
     btn.type = "button";
     btn.className = "avatar-option";
-    if (champion.id === state.profile.avatarChampionId) {
+    if (champion.id === state.profile.pendingAvatarId) {
       btn.classList.add("is-selected");
     }
 
@@ -9132,12 +9086,85 @@ function renderAvatarModalGrid() {
     btn.append(label);
 
     btn.addEventListener("click", () => {
-      state.profile.avatarChampionId = champion.id;
-      closeAvatarModal();
-      renderPlayerConfig();
+      state.profile.pendingAvatarId = champion.id;
+      renderAvatarModalGrid();
     });
     elements.avatarModalGrid.append(btn);
   }
+}
+
+function openPrimaryRoleModal() {
+  if (!elements.primaryRoleModal || !elements.primaryRoleModalOptions) return;
+  elements.primaryRoleModal.hidden = false;
+  if (elements.primaryRoleModalFeedback) elements.primaryRoleModalFeedback.textContent = "";
+  elements.primaryRoleModalOptions.innerHTML = "";
+
+  for (const role of SLOTS) {
+    const btn = runtimeDocument.createElement("button");
+    btn.type = "button";
+    btn.className = "role-modal-option";
+    if (role === state.profile.primaryRole) {
+      btn.classList.add("is-selected");
+    }
+    btn.textContent = role;
+    btn.addEventListener("click", () => {
+      const oldPrimary = state.profile.primaryRole;
+      state.profile.primaryRole = normalizeProfileRole(role);
+      state.profile.secondaryRoles = normalizeSecondaryRoles(state.profile.secondaryRoles, state.profile.primaryRole);
+      state.playerConfig.teamId = buildRolePoolTeamId(state.profile.primaryRole);
+      if (elements.profilePrimaryRole) elements.profilePrimaryRole.value = role;
+
+      if (isAuthenticated()) {
+        if (elements.primaryRoleModalFeedback) elements.primaryRoleModalFeedback.textContent = "Saving...";
+        void apiRequest("/me/profile", {
+          method: "PUT",
+          auth: true,
+          body: {
+            primaryRole: state.profile.primaryRole,
+            secondaryRoles: state.profile.secondaryRoles
+          }
+        }).then(async (payload) => {
+          const profile = payload?.profile ?? {};
+          const primaryRole = normalizeProfileRole(profile.primaryRole);
+          state.profile.primaryRole = primaryRole;
+          state.profile.secondaryRoles = normalizeSecondaryRoles(profile.secondaryRoles, primaryRole);
+          state.playerConfig.teamId = buildRolePoolTeamId(primaryRole);
+          if (state.auth.user && typeof state.auth.user === "object") {
+            state.auth.user.primaryRole = state.profile.primaryRole;
+            state.auth.user.secondaryRoles = [...state.profile.secondaryRoles];
+            saveAuthSession();
+          }
+          elements.primaryRoleModal.hidden = true;
+          renderPlayerConfig();
+          await hydrateAuthenticatedViews(state.playerConfig.teamId, state.api.selectedTeamId);
+        }).catch((error) => {
+          if (elements.primaryRoleModalFeedback) {
+            elements.primaryRoleModalFeedback.textContent = normalizeApiErrorMessage(error, "Failed to save.");
+            elements.primaryRoleModalFeedback.style.color = "var(--warn)";
+          }
+        });
+      } else {
+        elements.primaryRoleModal.hidden = true;
+        renderPlayerConfig();
+      }
+    });
+    elements.primaryRoleModalOptions.append(btn);
+  }
+}
+
+function closePrimaryRoleModal() {
+  if (elements.primaryRoleModal) elements.primaryRoleModal.hidden = true;
+}
+
+function openOtherRolesModal() {
+  if (!elements.otherRolesModal) return;
+  elements.otherRolesModal.hidden = false;
+  if (elements.otherRolesModalFeedback) elements.otherRolesModalFeedback.textContent = "";
+  renderProfileRolesSection();
+}
+
+function closeOtherRolesModal() {
+  if (elements.otherRolesModal) elements.otherRolesModal.hidden = true;
 }
 
 function initializePlayerConfigControls() {
@@ -11616,21 +11643,25 @@ function attachEvents() {
         return;
       }
 
-      // Avatar opens modal instead of inline editor
-      if (settingName === "avatar") {
-        openAvatarModal();
-        return;
-      }
-
       // Toggle accordion
       state.profile.openSetting = state.profile.openSetting === settingName ? null : settingName;
       renderPlayerConfig();
     });
   }
 
-  // Avatar modal
-  if (elements.avatarModalClose) {
-    elements.avatarModalClose.addEventListener("click", closeAvatarModal);
+  // Avatar circle click opens avatar modal
+  if (elements.profileAvatarDisplay) {
+    elements.profileAvatarDisplay.addEventListener("click", () => {
+      openAvatarModal();
+    });
+  }
+
+  // Avatar modal — Cancel / Save / backdrop / search
+  if (elements.avatarModalCancel) {
+    elements.avatarModalCancel.addEventListener("click", closeAvatarModal);
+  }
+  if (elements.avatarModalSave) {
+    elements.avatarModalSave.addEventListener("click", saveAvatarSelection);
   }
   if (elements.avatarModal) {
     elements.avatarModal.addEventListener("click", (event) => {
@@ -11641,6 +11672,48 @@ function attachEvents() {
     elements.avatarModalSearch.addEventListener("input", () => {
       state.profile.avatarFilter = elements.avatarModalSearch.value;
       renderAvatarModalGrid();
+    });
+  }
+
+  // Role links — Profile page
+  if (elements.profileSetPrimaryRole) {
+    elements.profileSetPrimaryRole.addEventListener("click", (e) => {
+      e.preventDefault();
+      openPrimaryRoleModal();
+    });
+  }
+  if (elements.profileSetOtherRoles) {
+    elements.profileSetOtherRoles.addEventListener("click", (e) => {
+      e.preventDefault();
+      openOtherRolesModal();
+    });
+  }
+
+  // Role links — My Champions page
+  if (elements.myChampionsSetPrimary) {
+    elements.myChampionsSetPrimary.addEventListener("click", (e) => {
+      e.preventDefault();
+      openPrimaryRoleModal();
+    });
+  }
+  if (elements.myChampionsSetOthers) {
+    elements.myChampionsSetOthers.addEventListener("click", (e) => {
+      e.preventDefault();
+      openOtherRolesModal();
+    });
+  }
+
+  // Primary role modal — backdrop close
+  if (elements.primaryRoleModal) {
+    elements.primaryRoleModal.addEventListener("click", (event) => {
+      if (event.target === elements.primaryRoleModal) closePrimaryRoleModal();
+    });
+  }
+
+  // Other roles modal — backdrop close
+  if (elements.otherRolesModal) {
+    elements.otherRolesModal.addEventListener("click", (event) => {
+      if (event.target === elements.otherRolesModal) closeOtherRolesModal();
     });
   }
 
@@ -12230,12 +12303,15 @@ function attachEvents() {
       return;
     }
     if (!SLOTS.includes(state.profile.primaryRole)) {
-      setProfileRolesFeedback("Primary role is required.", true);
+      if (elements.otherRolesModalFeedback) {
+        elements.otherRolesModalFeedback.textContent = "Primary role is required.";
+        elements.otherRolesModalFeedback.style.color = "var(--warn)";
+      }
       return;
     }
 
     state.profile.isSavingRoles = true;
-    setProfileRolesFeedback("Saving profile roles...");
+    if (elements.otherRolesModalFeedback) elements.otherRolesModalFeedback.textContent = "Saving...";
     renderProfileRolesSection();
 
     void apiRequest("/me/profile", {
@@ -12257,11 +12333,15 @@ function attachEvents() {
           state.auth.user.secondaryRoles = [...state.profile.secondaryRoles];
           saveAuthSession();
         }
-        setProfileRolesFeedback(formatSavedProfileRolesFeedback(state.profile.primaryRole, state.profile.secondaryRoles));
+        closeOtherRolesModal();
+        renderPlayerConfig();
         await hydrateAuthenticatedViews(state.playerConfig.teamId, state.api.selectedTeamId);
       })
       .catch((error) => {
-        setProfileRolesFeedback(normalizeApiErrorMessage(error, "Failed to save profile roles."), true);
+        if (elements.otherRolesModalFeedback) {
+          elements.otherRolesModalFeedback.textContent = normalizeApiErrorMessage(error, "Failed to save profile roles.");
+          elements.otherRolesModalFeedback.style.color = "var(--warn)";
+        }
       })
       .finally(() => {
         state.profile.isSavingRoles = false;
