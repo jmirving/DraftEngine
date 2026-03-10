@@ -232,15 +232,34 @@
             </div>
 
             <div id="champion-tag-editor" class="panel draft-board-panel" hidden>
-              <div class="ced-header">
-                <img id="ced-champ-image" class="champ-thumb" alt="" />
-                <div class="ced-champ-info">
-                  <h2 id="champion-tag-editor-title">Edit Champion Profile</h2>
-                  <p id="ced-champ-roles" class="meta"></p>
-                  <label class="inline-checkbox">
-                    <input id="champion-tag-editor-reviewed" type="checkbox" />
-                    Human reviewed
-                  </label>
+              <div class="ced-top-row">
+                <!-- Left ~25%: identity card -->
+                <div class="ced-header">
+                  <img id="ced-champ-image" class="champ-thumb" alt="" />
+                  <div class="ced-champ-info">
+                    <h2 id="champion-tag-editor-title">Edit Champion Profile</h2>
+                    <p id="ced-champ-roles" class="meta"></p>
+                    <label class="inline-checkbox">
+                      <input id="champion-tag-editor-reviewed" type="checkbox" />
+                      Human reviewed
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Right ~75%: roles / damage / effectiveness -->
+                <div class="ced-meta-container">
+                  <div class="ced-meta-upper">
+                    <div class="ced-roles-section">
+                      <div class="ced-roles-header-row">
+                        <p class="ced-section-label">Roles</p>
+                        <div id="ced-share-toggle-slot"></div>
+                      </div>
+                      <div id="champion-metadata-editor-roles" class="role-pill-group"></div>
+                    </div>
+                    <div id="ced-damage-slot" class="ced-damage-section"></div>
+                  </div>
+                  <div id="ced-effectiveness-slot" class="ced-effectiveness-section"></div>
+                  <div id="champion-metadata-role-profiles" class="ced-role-profiles"></div>
                 </div>
               </div>
 
@@ -248,14 +267,6 @@
                 <label class="ced-team-label">Editing for team
                   <select id="champion-tag-editor-team"></select>
                 </label>
-              </div>
-
-              <div class="ced-profile-grid">
-                <div class="ced-roles-col">
-                  <p class="ced-section-label">Roles</p>
-                  <div id="champion-metadata-editor-roles" class="role-pill-group"></div>
-                </div>
-                <div id="champion-metadata-role-profiles" class="ced-role-profiles"></div>
               </div>
 
               <div class="ced-section">

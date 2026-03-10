@@ -3064,7 +3064,21 @@ button.slot-order-btn:disabled {
   color: #6b2a12;
 }
 
-/* ── Champion tag editor — driver's license header ───── */
+/* ── Champion tag editor — top row (header + meta) ───── */
+.ced-top-row {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.ced-top-row > .ced-header {
+  flex: 0 0 22%;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+/* ── Identity card (screenshot 2) ───────────────────── */
 .ced-header {
   display: flex;
   gap: 0.75rem;
@@ -3073,8 +3087,8 @@ button.slot-order-btn:disabled {
 }
 
 .ced-header .champ-thumb {
-  width: 72px;
-  height: 72px;
+  width: 64px;
+  height: 64px;
   border-radius: 10px;
   object-fit: cover;
   flex-shrink: 0;
@@ -3086,13 +3100,75 @@ button.slot-order-btn:disabled {
 }
 
 .ced-champ-info h2 {
-  margin: 0 0 0.25rem 0;
-  font-size: 1.1rem;
+  margin: 0 0 0.2rem 0;
+  font-size: 1rem;
 }
 
 .ced-champ-info .meta {
-  margin: 0 0 0.35rem 0;
-  font-size: 0.82rem;
+  margin: 0 0 0.3rem 0;
+  font-size: 0.8rem;
+}
+
+/* ── Meta container (screenshot 3, right 75%) ────────── */
+.ced-meta-container {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Roles + Damage Type in a row above Effectiveness */
+.ced-meta-upper {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.ced-roles-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+
+/* Roles label + share toggle on same line */
+.ced-roles-header-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.ced-roles-header-row .ced-section-label {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.ced-roles-header-row #ced-share-toggle-slot {
+  margin-left: auto;
+}
+
+.ced-damage-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+
+.ced-damage-section .ced-section-label {
+  margin: 0;
+}
+
+.ced-effectiveness-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.ced-effectiveness-section .ced-section-label {
+  margin: 0;
 }
 
 /* ── Editor sections ───────────────────────────────────── */
@@ -3153,22 +3229,11 @@ button.slot-order-btn:disabled {
   border-color: #c44a26;
 }
 
-/* ── Editor profile grid layout ─────────────────────────────────────── */
-.ced-profile-grid {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 1.5rem;
-  align-items: start;
-}
-.ced-roles-col {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
+/* ── Role profiles (UPDATE ROLE PROFILE selector) ─────── */
 .ced-role-profiles {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 /* Role tab row for multi-role */
@@ -3196,6 +3261,8 @@ button.slot-order-btn:disabled {
   color: var(--ink);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
+  min-width: 4.75rem;
+  text-align: center;
 }
 .ced-role-tab.is-active {
   background: var(--accent);
@@ -3206,33 +3273,7 @@ button.slot-order-btn:disabled {
   background: var(--surface-strong);
 }
 
-/* Profile cols: damage + effectiveness side by side */
-.ced-profile-cols {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.5rem;
-  align-items: start;
-}
-.ced-damage-col,
-.ced-effectiveness-col {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.champion-role-profile-card {
-  margin-top: 0;
-}
-
-.champion-role-profile-card h4 {
-  margin: 0 0 0.6rem 0;
-}
-
 /* ── Damage type toggle buttons ───────────────────────── */
-.ced-damage-group {
-  margin-bottom: 0.75rem;
-}
-
 .ced-damage-buttons {
   display: flex;
   flex-wrap: wrap;
@@ -3262,10 +3303,6 @@ button.slot-order-btn:disabled {
 .ced-damage-btn--mixed    { background: #f3e5ff; color: #5a1a8b; }
 .ced-damage-btn--utility  { background: #e5ffe8; color: #1a6b28; }
 
-/* ── Effectiveness sliders ─────────────────────────────── */
-.ced-effectiveness-group {
-  margin-bottom: 0.75rem;
-}
 
 .ced-effectiveness-grid {
   display: grid;
@@ -3328,10 +3365,14 @@ button.slot-order-btn:disabled {
 }
 
 @media (max-width: 680px) {
-  .ced-profile-grid {
-    grid-template-columns: 1fr;
+  .ced-top-row {
+    flex-direction: column;
   }
-  .ced-profile-cols {
+  .ced-top-row > .ced-header {
+    flex: none;
+    width: 100%;
+  }
+  .ced-meta-upper {
     flex-direction: column;
   }
 }

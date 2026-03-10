@@ -701,6 +701,9 @@ function createElements() {
     championTagEditorReviewed: runtimeDocument.querySelector("#champion-tag-editor-reviewed"),
     championMetadataEditorRoles: runtimeDocument.querySelector("#champion-metadata-editor-roles"),
     championMetadataRoleProfiles: runtimeDocument.querySelector("#champion-metadata-role-profiles"),
+    cedDamageSlot: runtimeDocument.querySelector("#ced-damage-slot"),
+    cedEffectivenessSlot: runtimeDocument.querySelector("#ced-effectiveness-slot"),
+    cedShareToggleSlot: runtimeDocument.querySelector("#ced-share-toggle-slot"),
     championTagEditorSave: runtimeDocument.querySelector("#champion-tag-editor-save"),
     championTagEditorClear: runtimeDocument.querySelector("#champion-tag-editor-clear"),
     championTagEditorFeedback: runtimeDocument.querySelector("#champion-tag-editor-feedback"),
@@ -5908,9 +5911,10 @@ function renderChampionMetadataRoleOptions() {
 }
 
 function renderChampionMetadataRoleProfileEditors() {
-  if (!elements.championMetadataRoleProfiles) {
-    return;
-  }
+  if (elements.cedDamageSlot) elements.cedDamageSlot.innerHTML = "";
+  if (elements.cedEffectivenessSlot) elements.cedEffectivenessSlot.innerHTML = "";
+  if (elements.cedShareToggleSlot) elements.cedShareToggleSlot.innerHTML = "";
+  if (!elements.championMetadataRoleProfiles) return;
   elements.championMetadataRoleProfiles.innerHTML = "";
 
   const selectedRoles = normalizeChampionMetadataRoles(state.api.championMetadataDraft.roles);
@@ -5918,23 +5922,114 @@ function renderChampionMetadataRoleProfileEditors() {
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
     empty.textContent = "Select at least one role to configure damage type and effectiveness.";
-    elements.championMetadataRoleProfiles.append(empty);
+    if (elements.cedDamageSlot) elements.cedDamageSlot.append(empty);
     return;
   }
 
   const effLevelValues = ["weak", "neutral", "strong"];
 
-  const renderProfileCols = (profile, onDamageChange, onEffectivenessChange) => {
-    const cols = runtimeDocument.createElement("div");
-    cols.className = "ced-profile-cols";
+  const validActiveRole = selectedRoles.includes(state.api.championProfileActiveRole)
+    ? state.api.championProfileActiveRole
+    : selectedRoles[0];
+  state.api.championProfileActiveRole = validActiveRole;
 
-    // Damage type column
-    const damageCol = runtimeDocument.createElement("div");
-    damageCol.className = "ced-damage-col";
+  const useSharedRoleProfile = state.api.championMetadataDraft.useSharedRoleProfile === true && selectedRoles.length > 1;
+
+  // "Apply tags to all selected Roles?" toggle — shown in roles section when multiple roles
+  if (selectedRoles.length > 1 && elements.cedShareToggleSlot) {
+    const shareToggleLabel = runtimeDocument.createElement("label");
+    shareToggleLabel.className = "inline-checkbox champion-role-profile-sync-toggle";
+    const shareToggle = runtimeDocument.createElement("input");
+    shareToggle.id = "champion-metadata-share-role-profile";
+    shareToggle.type = "checkbox";
+    shareToggle.checked = useSharedRoleProfile;
+    shareToggle.disabled = state.api.isSavingChampionTags;
+    shareToggle.addEventListener("change", () => {
+      state.api.championMetadataDraft.useSharedRoleProfile = shareToggle.checked;
+      ensureChampionMetadataRoleProfiles();
+      renderChampionTagEditor();
+    });
+    const shareToggleText = runtimeDocument.createElement("span");
+    shareToggleText.textContent = "Apply tags to all selected Roles?";
+    shareToggleLabel.append(shareToggle, shareToggleText);
+    elements.cedShareToggleSlot.append(shareToggleLabel);
+  }
+
+  // "UPDATE ROLE PROFILE:" tab selector — bottom-left of meta container when multiple roles and not shared
+  if (selectedRoles.length > 1 && !useSharedRoleProfile) {
+    const tabRow = runtimeDocument.createElement("div");
+    tabRow.className = "ced-role-tab-row";
+    const tabLabel = runtimeDocument.createElement("span");
+    tabLabel.className = "ced-role-tab-label";
+    tabLabel.textContent = "UPDATE ROLE PROFILE:";
+    tabRow.append(tabLabel);
+    for (const role of selectedRoles) {
+      const tab = runtimeDocument.createElement("button");
+      tab.type = "button";
+      tab.className = `ced-role-tab${role === validActiveRole ? " is-active" : ""}`;
+      tab.textContent = role;
+      tab.disabled = state.api.isSavingChampionTags;
+      tab.addEventListener("click", () => {
+        state.api.championProfileActiveRole = role;
+        renderChampionTagEditor();
+      });
+      tabRow.append(tab);
+    }
+    elements.championMetadataRoleProfiles.append(tabRow);
+  }
+
+  // Resolve which profile to show
+  const anchorRole = useSharedRoleProfile ? selectedRoles[0] : validActiveRole;
+  const profile = state.api.championMetadataDraft.roleProfiles?.[anchorRole] ?? createDefaultRoleProfileDraft();
+
+  // Damage type callbacks
+  const onDamageChange = useSharedRoleProfile
+    ? (nextDamageType) => {
+        const normalizedDamageType = normalizeApiPrimaryDamageType(nextDamageType) ?? "mixed";
+        for (const role of selectedRoles) {
+          const roleProfile = state.api.championMetadataDraft.roleProfiles?.[role] ?? createDefaultRoleProfileDraft();
+          state.api.championMetadataDraft.roleProfiles[role] = { ...roleProfile, primaryDamageType: normalizedDamageType };
+        }
+        renderChampionTagEditor();
+      }
+    : (nextDamageType) => {
+        state.api.championMetadataDraft.roleProfiles[validActiveRole] = {
+          ...state.api.championMetadataDraft.roleProfiles[validActiveRole],
+          primaryDamageType: normalizeApiPrimaryDamageType(nextDamageType) ?? "mixed"
+        };
+        renderChampionTagEditor();
+      };
+
+  // Effectiveness callbacks
+  const onEffectivenessChange = useSharedRoleProfile
+    ? (phase, nextLevel) => {
+        const normalizedLevel = normalizeApiEffectivenessLevel(nextLevel) ?? "neutral";
+        for (const role of selectedRoles) {
+          const roleProfile = state.api.championMetadataDraft.roleProfiles?.[role] ?? createDefaultRoleProfileDraft();
+          state.api.championMetadataDraft.roleProfiles[role] = {
+            ...roleProfile,
+            effectiveness: { ...(roleProfile.effectiveness ?? {}), [phase]: normalizedLevel }
+          };
+        }
+        renderChampionTagEditor();
+      }
+    : (phase, nextLevel) => {
+        const roleProfile = state.api.championMetadataDraft.roleProfiles[validActiveRole] ?? createDefaultRoleProfileDraft();
+        state.api.championMetadataDraft.roleProfiles[validActiveRole] = {
+          ...roleProfile,
+          effectiveness: {
+            ...(roleProfile.effectiveness ?? {}),
+            [phase]: normalizeApiEffectivenessLevel(nextLevel) ?? "neutral"
+          }
+        };
+        renderChampionTagEditor();
+      };
+
+  // Render damage type into its slot
+  if (elements.cedDamageSlot) {
     const damageSectionLabel = runtimeDocument.createElement("p");
     damageSectionLabel.className = "ced-section-label";
     damageSectionLabel.textContent = "Damage Type";
-    damageCol.append(damageSectionLabel);
     const damageButtons = runtimeDocument.createElement("div");
     damageButtons.className = "ced-damage-buttons";
     const currentDamage = normalizeApiPrimaryDamageType(profile.primaryDamageType) ?? "mixed";
@@ -5947,16 +6042,14 @@ function renderChampionMetadataRoleProfileEditors() {
       btn.addEventListener("click", () => onDamageChange(opt.value));
       damageButtons.append(btn);
     }
-    damageCol.append(damageButtons);
-    cols.append(damageCol);
+    elements.cedDamageSlot.append(damageSectionLabel, damageButtons);
+  }
 
-    // Effectiveness column
-    const effCol = runtimeDocument.createElement("div");
-    effCol.className = "ced-effectiveness-col";
+  // Render effectiveness into its slot
+  if (elements.cedEffectivenessSlot) {
     const effSectionLabel = runtimeDocument.createElement("p");
     effSectionLabel.className = "ced-section-label";
     effSectionLabel.textContent = "Effectiveness";
-    effCol.append(effSectionLabel);
     const effGrid = runtimeDocument.createElement("div");
     effGrid.className = "ced-effectiveness-grid";
     for (const phase of EFFECTIVENESS_PHASES) {
@@ -5980,115 +6073,7 @@ function renderChampionMetadataRoleProfileEditors() {
       phaseDiv.append(phaseLabel, pillRow);
       effGrid.append(phaseDiv);
     }
-    effCol.append(effGrid);
-    cols.append(effCol);
-
-    return cols;
-  };
-
-  // Resolve active role tab
-  const validActiveRole = selectedRoles.includes(state.api.championProfileActiveRole)
-    ? state.api.championProfileActiveRole
-    : selectedRoles[0];
-  state.api.championProfileActiveRole = validActiveRole;
-
-  const useSharedRoleProfile = state.api.championMetadataDraft.useSharedRoleProfile === true && selectedRoles.length > 1;
-
-  // Role tab row (shown when multiple roles)
-  if (selectedRoles.length > 1) {
-    const tabRow = runtimeDocument.createElement("div");
-    tabRow.className = "ced-role-tab-row";
-
-    if (!useSharedRoleProfile) {
-      const tabLabel = runtimeDocument.createElement("span");
-      tabLabel.className = "ced-role-tab-label";
-      tabLabel.textContent = "Profile for:";
-      tabRow.append(tabLabel);
-      for (const role of selectedRoles) {
-        const tab = runtimeDocument.createElement("button");
-        tab.type = "button";
-        tab.className = `ced-role-tab${role === validActiveRole ? " is-active" : ""}`;
-        tab.textContent = role;
-        tab.disabled = state.api.isSavingChampionTags;
-        tab.addEventListener("click", () => {
-          state.api.championProfileActiveRole = role;
-          renderChampionTagEditor();
-        });
-        tabRow.append(tab);
-      }
-    }
-
-    const shareToggleLabel = runtimeDocument.createElement("label");
-    shareToggleLabel.className = "inline-checkbox champion-role-profile-sync-toggle";
-    const shareToggle = runtimeDocument.createElement("input");
-    shareToggle.id = "champion-metadata-share-role-profile";
-    shareToggle.type = "checkbox";
-    shareToggle.checked = useSharedRoleProfile;
-    shareToggle.disabled = state.api.isSavingChampionTags;
-    shareToggle.addEventListener("change", () => {
-      state.api.championMetadataDraft.useSharedRoleProfile = shareToggle.checked;
-      ensureChampionMetadataRoleProfiles();
-      renderChampionTagEditor();
-    });
-    const shareToggleText = runtimeDocument.createElement("span");
-    shareToggleText.textContent = "All roles same";
-    shareToggleLabel.append(shareToggle, shareToggleText);
-    tabRow.append(shareToggleLabel);
-
-    elements.championMetadataRoleProfiles.append(tabRow);
-  }
-
-  // Render profile cols for the active/shared role
-  if (useSharedRoleProfile) {
-    const anchorRole = selectedRoles[0];
-    const profile = state.api.championMetadataDraft.roleProfiles?.[anchorRole] ?? createDefaultRoleProfileDraft();
-    const cols = renderProfileCols(
-      profile,
-      (nextDamageType) => {
-        const normalizedDamageType = normalizeApiPrimaryDamageType(nextDamageType) ?? "mixed";
-        for (const role of selectedRoles) {
-          const roleProfile = state.api.championMetadataDraft.roleProfiles?.[role] ?? createDefaultRoleProfileDraft();
-          state.api.championMetadataDraft.roleProfiles[role] = { ...roleProfile, primaryDamageType: normalizedDamageType };
-        }
-        renderChampionTagEditor();
-      },
-      (phase, nextLevel) => {
-        const normalizedLevel = normalizeApiEffectivenessLevel(nextLevel) ?? "neutral";
-        for (const role of selectedRoles) {
-          const roleProfile = state.api.championMetadataDraft.roleProfiles?.[role] ?? createDefaultRoleProfileDraft();
-          state.api.championMetadataDraft.roleProfiles[role] = {
-            ...roleProfile,
-            effectiveness: { ...(roleProfile.effectiveness ?? {}), [phase]: normalizedLevel }
-          };
-        }
-        renderChampionTagEditor();
-      }
-    );
-    elements.championMetadataRoleProfiles.append(cols);
-  } else {
-    const profile = state.api.championMetadataDraft.roleProfiles?.[validActiveRole] ?? createDefaultRoleProfileDraft();
-    const cols = renderProfileCols(
-      profile,
-      (nextDamageType) => {
-        state.api.championMetadataDraft.roleProfiles[validActiveRole] = {
-          ...state.api.championMetadataDraft.roleProfiles[validActiveRole],
-          primaryDamageType: normalizeApiPrimaryDamageType(nextDamageType) ?? "mixed"
-        };
-        renderChampionTagEditor();
-      },
-      (phase, nextLevel) => {
-        const roleProfile = state.api.championMetadataDraft.roleProfiles[validActiveRole] ?? createDefaultRoleProfileDraft();
-        state.api.championMetadataDraft.roleProfiles[validActiveRole] = {
-          ...roleProfile,
-          effectiveness: {
-            ...(roleProfile.effectiveness ?? {}),
-            [phase]: normalizeApiEffectivenessLevel(nextLevel) ?? "neutral"
-          }
-        };
-        renderChampionTagEditor();
-      }
-    );
-    elements.championMetadataRoleProfiles.append(cols);
+    elements.cedEffectivenessSlot.append(effSectionLabel, effGrid);
   }
 }
 
@@ -6441,14 +6426,14 @@ async function saveChampionTagEditor() {
       setChampionTagEditorFeedback("Saving champion metadata...");
       await saveChampionMetadataTab(championId);
     }
-    setChampionTagEditorFeedback(canEditGlobal ? "Tags and metadata saved." : "Tags saved.");
-    renderExplorer();
     state.api.championEditorSavedSnapshot = getChampionEditorSnapshot();
+    closeChampionTagEditor();
   } catch (error) {
     setChampionTagEditorFeedback(normalizeApiErrorMessage(error, "Failed to save champion updates."));
-  } finally {
     state.api.isSavingChampionTags = false;
     renderChampionTagEditor();
+  } finally {
+    state.api.isSavingChampionTags = false;
   }
 }
 
