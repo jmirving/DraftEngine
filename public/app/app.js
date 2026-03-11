@@ -843,6 +843,7 @@ function createElements() {
     profileRiotStatsList: runtimeDocument.querySelector("#profile-riot-stats-list"),
     profileIdentity: runtimeDocument.querySelector("#profile-identity"),
     profileAvatarDisplay: runtimeDocument.querySelector("#profile-avatar-display"),
+    navAvatarDisplay: runtimeDocument.querySelector("#nav-avatar-display"),
     profileSummonerName: runtimeDocument.querySelector("#profile-summoner-name"),
     profileRolesDisplay: runtimeDocument.querySelector("#profile-roles-display"),
     profileTeamDisplay: runtimeDocument.querySelector("#profile-team-display"),
@@ -2489,6 +2490,8 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
     const isActive = button.dataset.tab === resolvedTab;
     button.classList.toggle("is-active", isActive);
   }
+  const navAvatarLink = runtimeDocument.querySelector(".nav-avatar-link");
+  if (navAvatarLink) navAvatarLink.classList.toggle("is-active", resolvedTab === "profile");
 
   elements.tabExplorer.classList.toggle("is-active", resolvedTab === "explorer");
   elements.tabWorkflow.classList.toggle("is-active", resolvedTab === "workflow");
@@ -8926,11 +8929,14 @@ function renderPlayerConfig() {
   }
 
   // Avatar display (click opens modal)
-  if (elements.profileAvatarDisplay) {
-    elements.profileAvatarDisplay.innerHTML = "";
-    const avatarChampion = state.profile.avatarChampionId && state.data
-      ? (state.data.champions || []).find((c) => c.id === state.profile.avatarChampionId)
-      : null;
+  const avatarChampion = state.profile.avatarChampionId && state.data
+    ? (state.data.champions || []).find((c) => c.id === state.profile.avatarChampionId)
+    : null;
+  const placeholderChar = authenticated && user ? (user.gameName || "?")[0].toUpperCase() : "?";
+
+  for (const container of [elements.profileAvatarDisplay, elements.navAvatarDisplay]) {
+    if (!container) continue;
+    container.innerHTML = "";
     if (avatarChampion) {
       const img = runtimeDocument.createElement("img");
       img.src = getChampionSquareUrl(avatarChampion.name);
@@ -8939,12 +8945,12 @@ function renderPlayerConfig() {
       img.addEventListener("error", () => {
         img.src = championImageFallback(avatarChampion.name);
       }, { once: true });
-      elements.profileAvatarDisplay.append(img);
+      container.append(img);
     } else {
       const placeholder = runtimeDocument.createElement("span");
       placeholder.className = "profile-avatar-placeholder";
-      placeholder.textContent = authenticated && user ? (user.gameName || "?")[0].toUpperCase() : "?";
-      elements.profileAvatarDisplay.append(placeholder);
+      placeholder.textContent = placeholderChar;
+      container.append(placeholder);
     }
   }
 
@@ -11592,7 +11598,8 @@ function attachEvents() {
     });
   }
 
-  elements.authLogout.addEventListener("click", () => {
+  elements.authLogout.addEventListener("click", (e) => {
+    e.preventDefault();
     clearAuthSession("");
     setTab(DEFAULT_TAB_ROUTE, { syncRoute: true, replaceRoute: true });
     clearApiPoolState();

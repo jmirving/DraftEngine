@@ -404,15 +404,78 @@ body:has(#app-shell.is-nav-collapsed) .nav-desktop-toggle {
   color: #fff7f2;
 }
 
-.side-menu-link-logout {
-  margin-top: 0.7rem;
-  background: #fff3ee;
-  color: #7d2f1d;
-  border-color: #efc8bc;
+/* --- Nav Avatar Link --- */
+.nav-avatar-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: none;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
 }
 
-.side-menu-link-logout:hover {
-  box-shadow: 0 4px 12px rgba(125, 47, 29, 0.14);
+.nav-avatar-link:hover {
+  background: var(--surface-strong);
+  border-color: var(--border);
+}
+
+.nav-avatar-link.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.nav-avatar-link.is-active .nav-avatar-label {
+  color: #fff7f2;
+}
+
+.nav-avatar-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #fffefa;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.nav-avatar-circle .profile-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.nav-avatar-circle .profile-avatar-placeholder {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.nav-avatar-label {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #6b2a12;
+}
+
+/* --- Nav Text Link (Logout) --- */
+.nav-text-link {
+  display: inline-block;
+  margin-top: 0.5rem;
+  color: #7a3419;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.12rem;
+  cursor: pointer;
+}
+
+.nav-text-link:hover {
+  color: var(--accent);
 }
 
 .report-issue-link {
@@ -447,7 +510,9 @@ body:has(#app-shell.is-nav-collapsed) #nav-meta,
 body:has(#app-shell.is-nav-collapsed) .side-menu-link,
 body:has(#app-shell.is-nav-collapsed) .report-issue-link,
 body:has(#app-shell.is-nav-collapsed) .updates-nav-link,
-body:has(#app-shell.is-nav-collapsed) .side-menu-spacer {
+body:has(#app-shell.is-nav-collapsed) .side-menu-spacer,
+body:has(#app-shell.is-nav-collapsed) .nav-avatar-link,
+body:has(#app-shell.is-nav-collapsed) .nav-text-link {
   display: none;
 }
 
