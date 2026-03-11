@@ -29,7 +29,8 @@ Required environment variables:
 
 Optional environment variables:
 - `CORS_ORIGIN` (default `*`; set to your frontend URL when deployed separately)
-- `RIOT_API_KEY` (enables Riot profile champion-mastery enrichment on `GET /me/profile`)
+- `NEXUS_API_KEY` (preferred Riot API key env var; enables Riot profile champion-mastery enrichment on `GET /me/profile`)
+- `RIOT_API_KEY` (legacy fallback Riot API key env var)
 - `RIOT_PLATFORM_ROUTING` (default `na1`)
 - `RIOT_ACCOUNT_ROUTING` (optional override; otherwise inferred from platform with regional fallback)
 - `RIOT_API_TIMEOUT_MS` (request timeout, clamped to safe range)

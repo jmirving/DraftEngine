@@ -7,8 +7,16 @@ import { createRepositories } from "./repositories/index.js";
 import { createRiotChampionStatsService } from "./riot/champion-stats.js";
 import { createRiotApiClient } from "./riot/client.js";
 
-function createRiotChampionStatsServiceForRuntime({ env = process.env, championsRepository } = {}) {
-  const riotApiKey = typeof env.RIOT_API_KEY === "string" ? env.RIOT_API_KEY.trim() : "";
+export function resolveRiotApiKey(env = process.env) {
+  const nexusApiKey = typeof env.NEXUS_API_KEY === "string" ? env.NEXUS_API_KEY.trim() : "";
+  if (nexusApiKey) {
+    return nexusApiKey;
+  }
+  return typeof env.RIOT_API_KEY === "string" ? env.RIOT_API_KEY.trim() : "";
+}
+
+export function createRiotChampionStatsServiceForRuntime({ env = process.env, championsRepository } = {}) {
+  const riotApiKey = resolveRiotApiKey(env);
   const riotApiClient = createRiotApiClient({
     apiKey: riotApiKey,
     defaultPlatformRouting: env.RIOT_PLATFORM_ROUTING,
