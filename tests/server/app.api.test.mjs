@@ -138,10 +138,42 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       { id: 2, name: "frontline", definition: "Provides durable front-to-back pressure." }
     ],
     userChampionTagIds: new Map([
-      ["2:1", new Set([2])]
+      ["self:2:1", new Set([2])]
     ]),
     teamChampionTagIds: new Map([
-      ["1:1", new Set([1])]
+      ["team:1:1", new Set([1])]
+    ]),
+    userChampionMetadata: new Map([
+      [
+        "self:2:1",
+        {
+          roles: ["Support"],
+          roleProfiles: {
+            Support: {
+              primaryDamageType: "utility",
+              effectiveness: { early: "neutral", mid: "strong", late: "weak" }
+            }
+          },
+          damageType: "Utility",
+          scaling: "Mid"
+        }
+      ]
+    ]),
+    teamChampionMetadata: new Map([
+      [
+        "team:1:1",
+        {
+          roles: ["Top"],
+          roleProfiles: {
+            Top: {
+              primaryDamageType: "ad",
+              effectiveness: { early: "strong", mid: "neutral", late: "weak" }
+            }
+          },
+          damageType: "AD",
+          scaling: "Early"
+        }
+      ]
     ]),
     promotionRequests: [],
     pools: [
@@ -318,6 +350,34 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
     }
   };
 
+  function scopedKey(scope, ownerId, championId) {
+    return `${scope}:${ownerId}:${championId}`;
+  }
+
+  function cloneChampionMetadata(metadata) {
+    const source = metadata && typeof metadata === "object" ? metadata : {};
+    const roleProfiles = source.roleProfiles && typeof source.roleProfiles === "object"
+      ? Object.fromEntries(
+          Object.entries(source.roleProfiles).map(([role, profile]) => [
+            role,
+            {
+              primaryDamageType: profile?.primaryDamageType ?? "mixed",
+              effectiveness: {
+                early: profile?.effectiveness?.early ?? "neutral",
+                mid: profile?.effectiveness?.mid ?? "neutral",
+                late: profile?.effectiveness?.late ?? "neutral"
+              }
+            }
+          ])
+        )
+      : {};
+    return {
+      ...source,
+      roles: Array.isArray(source.roles) ? [...source.roles] : [],
+      roleProfiles
+    };
+  }
+
   const championsRepository = {
     async listChampions() {
       return [...state.champions].sort((left, right) => left.name.localeCompare(right.name));
@@ -328,18 +388,55 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
     async championExists(championId) {
       return state.champions.some((champion) => champion.id === championId);
     },
-    async updateChampionMetadata(championId, { roles, roleProfiles }) {
+    async listMetadataScopeFlagsByChampionIds({ championIds, userId = null, teamId = null }) {
+      return Object.fromEntries(
+        championIds.map((championId) => [
+          championId,
+          {
+            self: Number.isInteger(userId) ? state.userChampionMetadata.has(scopedKey("self", userId, championId)) : false,
+            team: Number.isInteger(teamId) ? state.teamChampionMetadata.has(scopedKey("team", teamId, championId)) : false,
+            all: true
+          }
+        ])
+      );
+    },
+    async getResolvedChampionMetadataForScope({ championId, scope = "all", userId = null, teamId = null }) {
+      const champion = state.champions.find((item) => item.id === championId) ?? null;
+      if (!champion) {
+        return null;
+      }
+      if (scope === "all") {
+        return {
+          champion,
+          metadata: cloneChampionMetadata(champion.metadata),
+          hasCustomMetadata: true,
+          resolvedScope: "all"
+        };
+      }
+
+      const ownerId = scope === "self" ? userId : teamId;
+      const scopedStore = scope === "self" ? state.userChampionMetadata : state.teamChampionMetadata;
+      const scopedMetadata = Number.isInteger(ownerId)
+        ? scopedStore.get(scopedKey(scope, ownerId, championId))
+        : null;
+      return {
+        champion,
+        metadata: cloneChampionMetadata(scopedMetadata ?? champion.metadata),
+        hasCustomMetadata: Boolean(scopedMetadata),
+        resolvedScope: scopedMetadata ? scope : "all"
+      };
+    },
+    async updateChampionMetadataForScope({ championId, scope = "all", userId = null, teamId = null, roles, roleProfiles }) {
       const champion = state.champions.find((item) => item.id === championId);
       if (!champion) {
         return null;
       }
-      champion.role = roles[0];
-      const primaryRoleProfile = roleProfiles[roles[0]] ?? null;
-      const primaryDamageType = String(primaryRoleProfile?.primaryDamageType ?? "").toLowerCase();
-      champion.metadata = {
-        ...(champion.metadata && typeof champion.metadata === "object" ? champion.metadata : {}),
+      const firstRole = roles[0];
+      const firstRoleProfile = roleProfiles[firstRole] ?? null;
+      const primaryDamageType = String(firstRoleProfile?.primaryDamageType ?? "").toLowerCase();
+      const nextMetadata = {
         roles: [...roles],
-        roleProfiles: { ...roleProfiles },
+        roleProfiles: cloneChampionMetadata({ roleProfiles }).roleProfiles,
         damageType: primaryDamageType === "ad"
           ? "AD"
           : primaryDamageType === "ap"
@@ -349,7 +446,20 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
               : "Mixed",
         scaling: "Mid"
       };
-      return champion;
+
+      if (scope === "all") {
+        champion.role = roles[0];
+        champion.metadata = {
+          ...(champion.metadata && typeof champion.metadata === "object" ? champion.metadata : {}),
+          ...nextMetadata
+        };
+      } else {
+        const ownerId = scope === "self" ? userId : teamId;
+        const store = scope === "self" ? state.userChampionMetadata : state.teamChampionMetadata;
+        store.set(scopedKey(scope, ownerId, championId), nextMetadata);
+      }
+
+      return this.getResolvedChampionMetadataForScope({ championId, scope, userId, teamId });
     },
     async updateChampionReviewState(championId, { reviewed, reviewedByUserId = null }) {
       const champion = state.champions.find((item) => item.id === championId);
@@ -1570,11 +1680,13 @@ describe("API routes", () => {
     expect(globalEditorCanWriteGlobal.status).toBe(200);
     expect(globalEditorCanWriteGlobal.body.reviewed).toBe(true);
 
-    const invalidScopeResponse = await request(app)
+    const selfScopeResponse = await request(app)
       .put("/champions/1/tags")
       .set("Authorization", buildAuthHeader(2, config))
       .send({ scope: "self", tag_ids: [2] });
-    expect(invalidScopeResponse.status).toBe(400);
+    expect(selfScopeResponse.status).toBe(200);
+    expect(selfScopeResponse.body.scope).toBe("self");
+    expect(selfScopeResponse.body.tag_ids).toEqual([2]);
 
     const globalReadDefaultScope = await request(app)
       .get("/champions/1/tags")
@@ -1698,6 +1810,100 @@ describe("API routes", () => {
     expect(adminWrite.body.champion.metadata.roles).toEqual(["Top", "Jungle"]);
     expect(adminWrite.body.champion.metadata.roleProfiles.Top.primaryDamageType).toBe("ad");
     expect(adminWrite.body.champion.metadata.roleProfiles.Jungle.primaryDamageType).toBe("utility");
+  });
+
+  it("reads personalized metadata scope indicators on champion list", async () => {
+    const { app, config, state } = createMockContext();
+    state.users[1].active_team_id = 1;
+
+    const response = await request(app)
+      .get("/champions")
+      .set("Authorization", buildAuthHeader(2, config));
+
+    expect(response.status).toBe(200);
+    const ahri = response.body.champions.find((champion) => champion.id === 1);
+    expect(ahri.metadata_scopes).toEqual({
+      self: true,
+      team: true,
+      all: true
+    });
+  });
+
+  it("reads and writes self-scoped champion metadata without mutating global metadata", async () => {
+    const { app, config, state } = createMockContext();
+
+    const readExisting = await request(app)
+      .get("/champions/1/metadata?scope=self")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(readExisting.status).toBe(200);
+    expect(readExisting.body.has_custom_metadata).toBe(true);
+    expect(readExisting.body.resolved_scope).toBe("self");
+    expect(readExisting.body.metadata.roles).toEqual(["Support"]);
+
+    const writeSelf = await request(app)
+      .put("/champions/1/metadata")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        scope: "self",
+        roles: ["ADC"],
+        role_profiles: {
+          ADC: {
+            primary_damage_type: "ad",
+            effectiveness: { early: "weak", mid: "strong", late: "strong" }
+          }
+        }
+      });
+    expect(writeSelf.status).toBe(200);
+    expect(writeSelf.body.scope).toBe("self");
+    expect(writeSelf.body.metadata.roles).toEqual(["ADC"]);
+    expect(writeSelf.body.has_custom_metadata).toBe(true);
+    expect(state.champions[0].metadata.roles).toEqual(["MID"]);
+
+    const readBack = await request(app)
+      .get("/champions/1/metadata?scope=self")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(readBack.status).toBe(200);
+    expect(readBack.body.metadata.roles).toEqual(["ADC"]);
+    expect(readBack.body.metadata.roleProfiles.ADC.primaryDamageType).toBe("ad");
+  });
+
+  it("enforces team membership rules for team-scoped champion metadata", async () => {
+    const { app, config } = createMockContext();
+
+    const memberForbiddenWrite = await request(app)
+      .put("/champions/1/metadata")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        scope: "team",
+        team_id: 1,
+        roles: ["Support"],
+        role_profiles: {
+          Support: {
+            primary_damage_type: "utility",
+            effectiveness: { early: "neutral", mid: "strong", late: "weak" }
+          }
+        }
+      });
+    expect(memberForbiddenWrite.status).toBe(403);
+
+    const leadWrite = await request(app)
+      .put("/champions/1/metadata")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({
+        scope: "team",
+        team_id: 1,
+        roles: ["Top"],
+        role_profiles: {
+          Top: {
+            primary_damage_type: "ad",
+            effectiveness: { early: "strong", mid: "neutral", late: "weak" }
+          }
+        }
+      });
+    expect(leadWrite.status).toBe(200);
+    expect(leadWrite.body.scope).toBe("team");
+    expect(leadWrite.body.team_id).toBe(1);
+    expect(leadWrite.body.metadata.roles).toEqual(["Top"]);
   });
 
   it("allows member global metadata edits when no admins exist", async () => {

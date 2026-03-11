@@ -2,7 +2,7 @@ import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createRequireAuth } from "./auth/middleware.js";
+import { createOptionalAuth, createRequireAuth } from "./auth/middleware.js";
 import { ApiError, badRequest, formatErrorResponse } from "./errors.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createAdminUsersRouter } from "./routes/admin-users.js";
@@ -45,6 +45,7 @@ export function createApp({
 
   const app = express();
   const requireAuth = createRequireAuth(config);
+  const optionalAuth = createOptionalAuth(config);
   const corsOrigin =
     typeof config.corsOrigin === "string" && config.corsOrigin.trim() !== ""
       ? config.corsOrigin.trim()
@@ -101,7 +102,8 @@ export function createApp({
       promotionRequestsRepository,
       usersRepository,
       teamsRepository,
-      requireAuth
+      requireAuth,
+      optionalAuth
     })
   );
   app.use(

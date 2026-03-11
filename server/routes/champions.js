@@ -15,7 +15,7 @@ import {
 } from "../scope-authorization.js";
 import { SLOTS } from "../../src/domain/model.js";
 
-const CHAMPION_TAG_SCOPE_SET = new Set(["all", "team"]);
+const CHAMPION_SCOPE_SET = new Set(["self", "team", "all"]);
 const MAX_CHAMPION_TAGS_PER_SCOPE = 64;
 const SLOT_SET = new Set(SLOTS);
 const PRIMARY_DAMAGE_TYPE_VALUES = Object.freeze(["ad", "ap", "mixed", "utility"]);
@@ -136,13 +136,40 @@ export function createChampionsRouter({
   tagsRepository,
   usersRepository,
   teamsRepository,
-  requireAuth
+  requireAuth,
+  optionalAuth
 }) {
   const router = Router();
 
-  router.get("/champions", async (_request, response) => {
+  router.get("/champions", optionalAuth, async (request, response) => {
     const champions = await championsRepository.listChampions();
-    response.json({ champions });
+    const userId = request.user?.userId;
+    if (!Number.isInteger(userId)) {
+      response.json({ champions });
+      return;
+    }
+
+    const activeTeamContext = await usersRepository.findTeamContextById(userId);
+    const rawActiveTeamId = activeTeamContext?.active_team_id;
+    const activeTeamId = Number.isInteger(rawActiveTeamId)
+      ? rawActiveTeamId
+      : Number.parseInt(String(rawActiveTeamId ?? ""), 10);
+    const metadataScopeFlagsByChampionId = await championsRepository.listMetadataScopeFlagsByChampionIds({
+      championIds: champions.map((champion) => champion.id),
+      userId,
+      teamId: Number.isInteger(activeTeamId) && activeTeamId > 0 ? activeTeamId : null
+    });
+
+    response.json({
+      champions: champions.map((champion) => ({
+        ...champion,
+        metadata_scopes: metadataScopeFlagsByChampionId[champion.id] ?? {
+          self: false,
+          team: false,
+          all: true
+        }
+      }))
+    });
   });
 
   router.get("/champions/:id", async (request, response) => {
@@ -258,7 +285,7 @@ export function createChampionsRouter({
     const scope = parseScope(request.query.scope, {
       defaultScope: "all",
       fieldName: "scope",
-      allowedScopes: CHAMPION_TAG_SCOPE_SET
+      allowedScopes: CHAMPION_SCOPE_SET
     });
 
     let teamId = null;
@@ -270,7 +297,7 @@ export function createChampionsRouter({
         usersRepository
       });
     } else if (request.query.team_id !== undefined) {
-      throw badRequest("Expected 'team_id' to be omitted for global champion tag reads.");
+      throw badRequest("Expected 'team_id' to be omitted unless scope is 'team'.");
     }
 
     const champion = await championsRepository.getChampionById(championId);
@@ -289,6 +316,7 @@ export function createChampionsRouter({
     const tagIds = await tagsRepository.listChampionTagIdsForScope({
       championId,
       scope,
+      userId,
       teamId
     });
 
@@ -307,7 +335,7 @@ export function createChampionsRouter({
     const scope = parseScope(body.scope, {
       defaultScope: "all",
       fieldName: "scope",
-      allowedScopes: CHAMPION_TAG_SCOPE_SET
+      allowedScopes: CHAMPION_SCOPE_SET
     });
 
     let teamId = null;
@@ -319,7 +347,7 @@ export function createChampionsRouter({
         usersRepository
       });
     } else if (body.team_id !== undefined) {
-      throw badRequest("Expected 'team_id' to be omitted for global champion tag edits.");
+      throw badRequest("Expected 'team_id' to be omitted unless scope is 'team'.");
     }
 
     const tagIds = normalizeTagIds(requireArrayOfPositiveIntegers(body.tag_ids, "tag_ids"));
@@ -352,6 +380,7 @@ export function createChampionsRouter({
       championId,
       tagIds,
       scope,
+      userId,
       teamId
     });
     if (reviewed !== undefined) {
@@ -370,10 +399,78 @@ export function createChampionsRouter({
     });
   });
 
+  router.get("/champions/:id/metadata", requireAuth, async (request, response) => {
+    const championId = parsePositiveInteger(request.params.id, "id");
+    const userId = request.user.userId;
+    const scope = parseScope(request.query.scope, {
+      defaultScope: "all",
+      fieldName: "scope",
+      allowedScopes: CHAMPION_SCOPE_SET
+    });
+
+    let teamId = null;
+    if (scope === "team") {
+      teamId = await resolveScopedTeamId({
+        scope,
+        rawTeamId: request.query.team_id,
+        userId,
+        usersRepository
+      });
+    } else if (request.query.team_id !== undefined) {
+      throw badRequest("Expected 'team_id' to be omitted unless scope is 'team'.");
+    }
+
+    const championExists = await championsRepository.championExists(championId);
+    if (!championExists) {
+      throw notFound("Champion not found.");
+    }
+
+    await assertScopeReadAuthorization({
+      scope,
+      userId,
+      teamId,
+      teamsRepository,
+      teamReadMessage: "You must be on the selected team to read team champion metadata."
+    });
+
+    const metadataResult = await championsRepository.getResolvedChampionMetadataForScope({
+      championId,
+      scope,
+      userId,
+      teamId
+    });
+
+    response.json({
+      scope,
+      team_id: teamId,
+      metadata: metadataResult?.metadata ?? {},
+      has_custom_metadata: metadataResult?.hasCustomMetadata === true,
+      resolved_scope: metadataResult?.resolvedScope ?? "all",
+      reviewed: metadataResult?.champion?.reviewed === true
+    });
+  });
+
   router.put("/champions/:id/metadata", requireAuth, async (request, response) => {
     const championId = parsePositiveInteger(request.params.id, "id");
     const body = requireObject(request.body);
     const userId = request.user.userId;
+    const scope = parseScope(body.scope, {
+      defaultScope: "all",
+      fieldName: "scope",
+      allowedScopes: CHAMPION_SCOPE_SET
+    });
+
+    let teamId = null;
+    if (scope === "team") {
+      teamId = await resolveScopedTeamId({
+        scope,
+        rawTeamId: body.team_id,
+        userId,
+        usersRepository
+      });
+    } else if (body.team_id !== undefined) {
+      throw badRequest("Expected 'team_id' to be omitted unless scope is 'team'.");
+    }
 
     const roles = normalizeMetadataRoles(body.roles);
     const roleProfiles = normalizeMetadataRoleProfiles(
@@ -387,9 +484,9 @@ export function createChampionsRouter({
     }
 
     await assertScopeWriteAuthorization({
-      scope: "all",
+      scope,
       userId,
-      teamId: null,
+      teamId,
       teamsRepository,
       usersRepository,
       teamWriteMessage: "You must be on the selected team to edit team champion metadata.",
@@ -399,14 +496,25 @@ export function createChampionsRouter({
       allowGlobalWriteWhenNoAdmins: true
     });
 
-    const champion = await championsRepository.updateChampionMetadata(championId, {
+    const metadataResult = await championsRepository.updateChampionMetadataForScope({
       roles,
-      roleProfiles
+      roleProfiles,
+      championId,
+      scope,
+      userId,
+      teamId
     });
-    if (!champion) {
+    if (!metadataResult?.champion) {
       throw notFound("Champion not found.");
     }
-    response.json({ champion });
+    response.json({
+      champion: metadataResult.champion,
+      scope,
+      team_id: teamId,
+      metadata: metadataResult.metadata,
+      has_custom_metadata: metadataResult.hasCustomMetadata === true,
+      resolved_scope: metadataResult.resolvedScope
+    });
   });
 
   router.post("/champions/:id/tags/promotion-requests", requireAuth, async (request, response) => {

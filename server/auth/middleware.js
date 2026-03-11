@@ -34,3 +34,23 @@ export function createRequireAuth(config) {
   };
 }
 
+export function createOptionalAuth(config) {
+  return function optionalAuth(request, _response, next) {
+    try {
+      const token = extractBearerToken(request.headers.authorization);
+      if (!token) {
+        next();
+        return;
+      }
+
+      const payload = verifyAccessToken(token, config);
+      const userId = Number.parseInt(String(payload.sub), 10);
+      if (Number.isInteger(userId)) {
+        request.user = { userId };
+      }
+      next();
+    } catch (_error) {
+      next();
+    }
+  };
+}

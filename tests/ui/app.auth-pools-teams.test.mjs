@@ -129,6 +129,8 @@ function createFetchHarness({
       }
     ]
   ]);
+  const userChampionMetadataByScope = new Map();
+  const teamChampionMetadataByScope = new Map();
   const championReviewedById = new Map([
     [1, false],
     [2, false],
@@ -139,6 +141,8 @@ function createFetchHarness({
     [2, new Set([])],
     [3, new Set([])]
   ]);
+  const userChampionTagIds = new Map();
+  const teamChampionTagIds = new Map();
   let persistedTeamContext = {
     activeTeamId: null,
     ...(teamContext && typeof teamContext === "object" ? teamContext : {})
@@ -242,6 +246,31 @@ function createFetchHarness({
       return null;
     }
     return `${gameName.toLowerCase()}#${tagline.toLowerCase()}`;
+  }
+
+  function scopedChampionKey(scope, ownerId, championId) {
+    return `${scope}:${ownerId}:${championId}`;
+  }
+
+  function normalizeHarnessMetadata(metadata) {
+    const source = metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {};
+    return {
+      ...source,
+      roles: Array.isArray(source.roles) ? [...source.roles] : [],
+      roleProfiles: Object.fromEntries(
+        Object.entries(source.roleProfiles ?? {}).map(([role, profile]) => [
+          role,
+          {
+            primaryDamageType: profile?.primaryDamageType ?? profile?.primary_damage_type ?? "mixed",
+            effectiveness: {
+              early: profile?.effectiveness?.early ?? "neutral",
+              mid: profile?.effectiveness?.mid ?? "neutral",
+              late: profile?.effectiveness?.late ?? "neutral"
+            }
+          }
+        ])
+      )
+    };
   }
 
   function resolveMemberRiotId(member) {
@@ -402,6 +431,17 @@ function createFetchHarness({
 
     if (path === "/champions" && method === "GET") {
       const toChampionId = (value) => (championIdsAsStrings ? String(value) : value);
+      const activeTeamId = Number.isInteger(Number(persistedTeamContext.activeTeamId))
+        ? Number(persistedTeamContext.activeTeamId)
+        : null;
+      const includeMetadataScopes = typeof headers.Authorization === "string" && headers.Authorization.startsWith("Bearer ");
+      const buildMetadataScopes = (championId) => ({
+        self: userChampionMetadataByScope.has(scopedChampionKey("self", resolvedLoginUser.id, championId)),
+        team: Number.isInteger(activeTeamId)
+          ? teamChampionMetadataByScope.has(scopedChampionKey("team", activeTeamId, championId))
+          : false,
+        all: true
+      });
       return createJsonResponse({
         champions: [
           {
@@ -410,7 +450,8 @@ function createFetchHarness({
             role: "Mid",
             tagIds: [...(globalChampionTagIds.get(1) ?? [])],
             reviewed: championReviewedById.get(1) === true,
-            metadata: championMetadataById.get(1)
+            metadata: championMetadataById.get(1),
+            ...(includeMetadataScopes ? { metadata_scopes: buildMetadataScopes(1) } : {})
           },
           {
             id: toChampionId(2),
@@ -418,7 +459,8 @@ function createFetchHarness({
             role: "ADC",
             tagIds: [...(globalChampionTagIds.get(2) ?? [])],
             reviewed: championReviewedById.get(2) === true,
-            metadata: championMetadataById.get(2)
+            metadata: championMetadataById.get(2),
+            ...(includeMetadataScopes ? { metadata_scopes: buildMetadataScopes(2) } : {})
           },
           {
             id: toChampionId(3),
@@ -426,7 +468,8 @@ function createFetchHarness({
             role: "Support",
             tagIds: [...(globalChampionTagIds.get(3) ?? [])],
             reviewed: championReviewedById.get(3) === true,
-            metadata: championMetadataById.get(3)
+            metadata: championMetadataById.get(3),
+            ...(includeMetadataScopes ? { metadata_scopes: buildMetadataScopes(3) } : {})
           }
         ]
       });
@@ -493,16 +536,26 @@ function createFetchHarness({
     const championTagsMatch = path.match(/^\/champions\/(\d+)\/tags$/);
     if (championTagsMatch && method === "GET") {
       const championId = Number(championTagsMatch[1]);
+      const scope = parsedUrl.searchParams.get("scope") ?? "all";
+      const teamId = parsedUrl.searchParams.get("team_id");
+      const resolvedTeamId = teamId ? Number(teamId) : null;
+      const resolvedTagIds = scope === "self"
+        ? [...(userChampionTagIds.get(scopedChampionKey("self", resolvedLoginUser.id, championId)) ?? new Set())]
+        : scope === "team"
+          ? [...(teamChampionTagIds.get(scopedChampionKey("team", resolvedTeamId, championId)) ?? new Set())]
+          : [...(globalChampionTagIds.get(championId) ?? [])];
       return createJsonResponse({
-        scope: "all",
-        team_id: null,
-        tag_ids: [...(globalChampionTagIds.get(championId) ?? [])].sort((left, right) => left - right),
+        scope,
+        team_id: resolvedTeamId,
+        tag_ids: resolvedTagIds.sort((left, right) => left - right),
         reviewed: championReviewedById.get(championId) === true
       });
     }
 
     if (championTagsMatch && method === "PUT") {
       const championId = Number(championTagsMatch[1]);
+      const scope = typeof body?.scope === "string" ? body.scope : "all";
+      const teamId = Number.isInteger(Number(body?.team_id)) ? Number(body.team_id) : null;
       const nextTagIds = Array.isArray(body?.tag_ids)
         ? [...new Set(body.tag_ids.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0))]
             .sort((left, right) => left - right)
@@ -510,18 +563,46 @@ function createFetchHarness({
       if (typeof body?.reviewed === "boolean") {
         championReviewedById.set(championId, body.reviewed);
       }
-      globalChampionTagIds.set(championId, new Set(nextTagIds));
+      if (scope === "self") {
+        userChampionTagIds.set(scopedChampionKey("self", resolvedLoginUser.id, championId), new Set(nextTagIds));
+      } else if (scope === "team") {
+        teamChampionTagIds.set(scopedChampionKey("team", teamId, championId), new Set(nextTagIds));
+      } else {
+        globalChampionTagIds.set(championId, new Set(nextTagIds));
+      }
       return createJsonResponse({
-        scope: "all",
-        team_id: null,
+        scope,
+        team_id: scope === "team" ? teamId : null,
         tag_ids: nextTagIds,
         reviewed: championReviewedById.get(championId) === true
       });
     }
 
     const championMetadataMatch = path.match(/^\/champions\/(\d+)\/metadata$/);
+    if (championMetadataMatch && method === "GET") {
+      const championId = Number(championMetadataMatch[1]);
+      const scope = parsedUrl.searchParams.get("scope") ?? "all";
+      const teamId = parsedUrl.searchParams.get("team_id");
+      const resolvedTeamId = teamId ? Number(teamId) : null;
+      const scopedMetadata = scope === "self"
+        ? userChampionMetadataByScope.get(scopedChampionKey("self", resolvedLoginUser.id, championId))
+        : scope === "team"
+          ? teamChampionMetadataByScope.get(scopedChampionKey("team", resolvedTeamId, championId))
+          : championMetadataById.get(championId);
+      return createJsonResponse({
+        scope,
+        team_id: scope === "team" ? resolvedTeamId : null,
+        metadata: normalizeHarnessMetadata(scopedMetadata ?? championMetadataById.get(championId)),
+        has_custom_metadata: scope === "all" ? true : Boolean(scopedMetadata),
+        resolved_scope: scope === "all" || scopedMetadata ? scope : "all",
+        reviewed: championReviewedById.get(championId) === true
+      });
+    }
+
     if (championMetadataMatch && method === "PUT") {
       const championId = Number(championMetadataMatch[1]);
+      const scope = typeof body?.scope === "string" ? body.scope : "all";
+      const teamId = Number.isInteger(Number(body?.team_id)) ? Number(body.team_id) : null;
       const existing = championMetadataById.get(championId) ?? {
         roles: ["Mid"],
         roleProfiles: {
@@ -563,13 +644,24 @@ function createFetchHarness({
         ),
         damageType: nextDamageType
       };
-      championMetadataById.set(championId, nextMetadata);
+      if (scope === "self") {
+        userChampionMetadataByScope.set(scopedChampionKey("self", resolvedLoginUser.id, championId), nextMetadata);
+      } else if (scope === "team") {
+        teamChampionMetadataByScope.set(scopedChampionKey("team", teamId, championId), nextMetadata);
+      } else {
+        championMetadataById.set(championId, nextMetadata);
+      }
       return createJsonResponse({
         champion: {
           id: championId,
-          metadata: nextMetadata,
+          metadata: championMetadataById.get(championId),
           tag_ids: [...(globalChampionTagIds.get(championId) ?? [])].sort((left, right) => left - right)
-        }
+        },
+        scope,
+        team_id: scope === "team" ? teamId : null,
+        metadata: nextMetadata,
+        has_custom_metadata: true,
+        resolved_scope: scope
       });
     }
 
@@ -1417,7 +1509,7 @@ describe("auth + pools + team management", () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
-        user: { id: 11, email: "lead@example.com", gameName: "LeadPlayer", tagline: "NA1" }
+        user: { id: 11, email: "lead@example.com", role: "admin", gameName: "LeadPlayer", tagline: "NA1" }
       })
     });
     const harness = createFetchHarness();
@@ -1425,11 +1517,12 @@ describe("auth + pools + team management", () => {
     const doc = dom.window.document;
 
     doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    doc.querySelector(".explorer-sub-nav-btn[data-explorer-sub='edit-champions']").click();
     await flush();
 
     expect(doc.querySelector("#champion-tag-catalog-list").textContent).toContain("engage");
 
-    const editButton = doc.querySelector("#explorer-results .champ-card-actions button");
+    const editButton = doc.querySelector("#explorer-results .champ-card-edit-btn");
     expect(editButton).toBeTruthy();
     editButton.click();
     await flush();
@@ -1467,7 +1560,7 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='explorer']").click();
     await flush();
 
-    doc.querySelector("#explorer-results .champ-card-actions button").click();
+    doc.querySelector("#explorer-results .champ-card-edit-btn").click();
     await flush();
 
     const reviewedCheckbox = doc.querySelector("#champion-tag-editor-reviewed");
@@ -1513,7 +1606,7 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='explorer']").click();
     await flush();
 
-    const editButton = doc.querySelector("#explorer-results .champ-card-actions button");
+    const editButton = doc.querySelector("#explorer-results .champ-card-edit-btn");
     expect(editButton).toBeTruthy();
     editButton.click();
     await flush();
@@ -1576,7 +1669,7 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='explorer']").click();
     await flush();
 
-    const editButton = doc.querySelector("#explorer-results .champ-card-actions button");
+    const editButton = doc.querySelector("#explorer-results .champ-card-edit-btn");
     expect(editButton).toBeTruthy();
     editButton.click();
     await flush();
@@ -1624,7 +1717,7 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='explorer']").click();
     await flush();
 
-    const editButton = doc.querySelector("#explorer-results .champ-card-actions button");
+    const editButton = doc.querySelector("#explorer-results .champ-card-edit-btn");
     expect(editButton).toBeTruthy();
     editButton.click();
     await flush();
@@ -1648,7 +1741,7 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='explorer']").click();
     await flush();
 
-    const editButton = doc.querySelector("#explorer-results .champ-card-actions button");
+    const editButton = doc.querySelector("#explorer-results .champ-card-edit-btn");
     expect(editButton).toBeTruthy();
     editButton.click();
     await flush();
@@ -1724,7 +1817,7 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='explorer']").click();
     await flush();
 
-    const editButton = doc.querySelector("#explorer-results .champ-card-actions button");
+    const editButton = doc.querySelector("#explorer-results .champ-card-edit-btn");
     expect(editButton).toBeTruthy();
     editButton.click();
     await flush();
@@ -1811,15 +1904,16 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='explorer']").click();
     await flush();
 
-    const editButton = doc.querySelector("#explorer-results .champ-card-actions button");
+    const editButton = doc.querySelector("#explorer-results .champ-card-edit-btn");
     expect(editButton).toBeTruthy();
     editButton.click();
     await flush();
 
-    const topRoleCheckbox = doc.querySelector("#champion-metadata-editor-roles input[value='Top']");
-    expect(topRoleCheckbox).toBeTruthy();
-    topRoleCheckbox.checked = true;
-    topRoleCheckbox.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    const topRoleButton = Array.from(
+      doc.querySelectorAll("#champion-metadata-editor-roles button")
+    ).find((node) => node.textContent.trim() === "Top");
+    expect(topRoleButton).toBeTruthy();
+    topRoleButton.click();
 
     await flush();
     const sharedProfileToggle = doc.querySelector("#champion-metadata-share-role-profile");
@@ -1827,13 +1921,13 @@ describe("auth + pools + team management", () => {
     sharedProfileToggle.checked = true;
     sharedProfileToggle.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
 
-    const sharedProfileCard = Array.from(doc.querySelectorAll(".champion-role-profile-card")).find((node) =>
-      node.textContent.includes("All Selected Roles Profile")
+    const sharedProfileCols = doc.querySelector("#champion-metadata-role-profiles .ced-profile-cols");
+    expect(sharedProfileCols).toBeTruthy();
+    const mixedDamageButton = Array.from(sharedProfileCols.querySelectorAll(".ced-damage-btn")).find((node) =>
+      node.textContent.trim() === "Mixed"
     );
-    expect(sharedProfileCard).toBeTruthy();
-    const sharedDamageSelect = sharedProfileCard.querySelector("select");
-    sharedDamageSelect.value = "mixed";
-    sharedDamageSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    expect(mixedDamageButton).toBeTruthy();
+    mixedDamageButton.click();
 
     doc.querySelector("#champion-tag-editor-save").click();
     await flush();
@@ -1846,6 +1940,92 @@ describe("auth + pools + team management", () => {
     expect(metadataSaveCall.body.role_profiles.Mid.primary_damage_type).toBe("mixed");
     expect(new Set(metadataSaveCall.body.roles)).toEqual(new Set(["Top", "Mid"]));
     expect(doc.querySelector("#champion-tag-editor-feedback").textContent).toContain("saved");
+  });
+
+  test("champion explorer shows metadata scope indicators and defaults members to self scope", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 22, email: "member@example.com", role: "member", gameName: "Member", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness({
+      loginUser: { id: 22, email: "member@example.com", role: "member", gameName: "Member", tagline: "NA1" },
+      profile: { id: 22, email: "member@example.com", role: "member", gameName: "Member", tagline: "NA1" }
+    });
+    const fetchImpl = async (url, init = {}) => {
+      const method = (init.method ?? "GET").toUpperCase();
+      const parsedUrl = new URL(url, "http://api.test");
+      if (method === "GET" && parsedUrl.pathname === "/champions") {
+        return createJsonResponse({
+          champions: [
+            {
+              id: 1,
+              name: "Ahri",
+              role: "Mid",
+              tagIds: [1],
+              reviewed: false,
+              metadata: {
+                roles: ["Mid"],
+                roleProfiles: {
+                  Mid: createRoleProfile("ap", "neutral", "strong", "neutral")
+                }
+              },
+              metadata_scopes: {
+                self: true,
+                team: false,
+                all: true
+              }
+            }
+          ]
+        });
+      }
+      if (method === "GET" && parsedUrl.pathname === "/champions/1/tags") {
+        return createJsonResponse({
+          scope: "self",
+          tag_ids: [1],
+          reviewed: false
+        });
+      }
+      if (method === "GET" && parsedUrl.pathname === "/champions/1/metadata") {
+        return createJsonResponse({
+          scope: "self",
+          metadata: {
+            roles: ["Mid"],
+            roleProfiles: {
+              Mid: createRoleProfile("ap", "neutral", "strong", "neutral")
+            }
+          },
+          has_custom_metadata: true,
+          resolved_scope: "self",
+          reviewed: false
+        });
+      }
+      return harness.impl(url, init);
+    };
+
+    const { dom } = await bootApp({ fetchImpl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    doc.querySelector(".explorer-sub-nav-btn[data-explorer-sub='edit-champions']").click();
+    await flush();
+
+    const card = doc.querySelector("#explorer-results .champ-card");
+    expect(card.textContent).toContain("User: On");
+    expect(card.textContent).toContain("Team: Off");
+    expect(card.textContent).toContain("Global: On");
+
+    const editButton = doc.querySelector("#explorer-results .champ-card-edit-btn");
+    expect(editButton).toBeTruthy();
+    editButton.click();
+    await flush();
+
+    const scopeSelect = doc.querySelector("#champion-tag-editor-scope");
+    expect(scopeSelect).toBeTruthy();
+    expect(Array.from(scopeSelect.options, (option) => option.value)).toEqual(["self"]);
+    expect(scopeSelect.value).toBe("self");
+    expect(doc.querySelector("#champion-tag-editor-meta").textContent).toContain("Editing user metadata");
   });
 
   test("tags workspace renders flat definition-based catalog", async () => {

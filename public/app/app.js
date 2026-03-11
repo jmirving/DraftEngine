@@ -80,7 +80,7 @@ const DEFAULT_MEMBER_ROLE = "member";
 const MEMBER_ROLE_OPTIONS = Object.freeze(["lead", "member"]);
 const DEFAULT_TEAM_MEMBER_TYPE = "substitute";
 const TEAM_MEMBER_TYPE_OPTIONS = Object.freeze(["primary", "substitute"]);
-const CHAMPION_TAG_SCOPES = Object.freeze(["all", "team"]);
+const CHAMPION_TAG_SCOPES = Object.freeze(["self", "team", "all"]);
 const CHAMPION_EDITOR_TAB_COMPOSITION = "composition";
 const CHAMPION_EDITOR_TAB_ROLES = "roles";
 const CHAMPION_EDITOR_TAB_DAMAGE = "damage";
@@ -207,7 +207,7 @@ const UI_COPY = Object.freeze({
       },
       explorer: {
         title: "Champions",
-        subtitle: "Search champions and edit global champion metadata."
+        subtitle: "Search champions and edit user, team, or global champion metadata."
       },
       tags: {
         title: "Tags",
@@ -468,11 +468,13 @@ function createInitialState() {
       tagById: {},
       selectedChampionTagEditorId: null,
       selectedChampionTagIds: [],
-      championTagScope: "all",
+      championTagScope: "self",
       championTagTeamId: "",
       championEditorTab: CHAMPION_EDITOR_TAB_COMPOSITION,
       championMetadataDraft: createEmptyChampionMetadataDraft(),
       championReviewedDraft: false,
+      championMetadataHasCustom: false,
+      championMetadataResolvedScope: "all",
       championEditorSavedSnapshot: null,
       championProfileActiveRole: null,
       isLoadingChampionTags: false,
@@ -979,6 +981,12 @@ function setChampionTagEditorFeedback(message) {
   }
 }
 
+function setChampionTagEditorMeta(message) {
+  if (elements.championTagEditorMeta) {
+    elements.championTagEditorMeta.textContent = message;
+  }
+}
+
 function setTagsManageFeedback(message) {
   if (elements.tagsManageFeedback) {
     elements.tagsManageFeedback.textContent = message;
@@ -1031,6 +1039,30 @@ function getChampionTagLeadTeamOptions() {
     value: String(team.id),
     label: formatTeamCardTitle(team)
   }));
+}
+
+function getChampionProfileScopeOptions() {
+  const options = [];
+  if (isAuthenticated()) {
+    options.push({ value: "self", label: "User" });
+  }
+  if (getChampionTagLeadTeamOptions().length > 0) {
+    options.push({ value: "team", label: "Team" });
+  }
+  if (isGlobalTagEditorUser()) {
+    options.push({ value: "all", label: "Global" });
+  }
+  return options;
+}
+
+function getChampionProfileDefaultScope() {
+  if (isGlobalTagEditorUser()) {
+    return "all";
+  }
+  if (getChampionTagLeadTeamOptions().length > 0) {
+    return "team";
+  }
+  return "self";
 }
 
 function normalizeChampionEditorTab(tab) {
@@ -1238,14 +1270,10 @@ function deriveLegacyScalingFromProfile(profile) {
   return "Mid";
 }
 
-function initializeChampionMetadataDraft(champion) {
-  if (!champion) {
-    state.api.championMetadataDraft = createEmptyChampionMetadataDraft();
-    state.api.championReviewedDraft = false;
-    return;
-  }
-  const roles = normalizeChampionMetadataRoles(champion.roles);
-  const roleProfiles = normalizeRoleProfilesFromMetadata(champion.roleProfiles, roles);
+function initializeChampionMetadataDraftFromMetadata(metadata, reviewed = false) {
+  const metadataObject = metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {};
+  const roles = normalizeChampionMetadataRoles(metadataObject.roles);
+  const roleProfiles = normalizeRoleProfilesFromMetadata(metadataObject.roleProfiles, roles);
   const useSharedRoleProfile = selectedRoleProfilesAreUniform(roles, roleProfiles);
   state.api.championMetadataDraft = {
     roles,
@@ -1253,11 +1281,36 @@ function initializeChampionMetadataDraft(champion) {
     useSharedRoleProfile
   };
   ensureChampionMetadataRoleProfiles();
-  state.api.championReviewedDraft = champion.reviewed === true;
+  state.api.championReviewedDraft = reviewed === true;
 }
 
-function syncChampionMetadataDraftToState(championId, championPayload) {
-  if (!Number.isInteger(championId) || championId <= 0 || !championPayload || typeof championPayload !== "object") {
+function initializeChampionMetadataDraft(champion) {
+  if (!champion) {
+    state.api.championMetadataDraft = createEmptyChampionMetadataDraft();
+    state.api.championReviewedDraft = false;
+    return;
+  }
+  initializeChampionMetadataDraftFromMetadata(
+    {
+      roles: champion.roles,
+      roleProfiles: champion.roleProfiles
+    },
+    champion.reviewed === true
+  );
+}
+
+function updateChampionMetadataScopeIndicator(championId, scope, isEnabled) {
+  const champion = getChampionById(championId);
+  if (!champion) {
+    return;
+  }
+  champion.metadataScopes = normalizeChampionMetadataScopes(champion.metadataScopes);
+  champion.metadataScopes[scope] = isEnabled === true;
+  champion.metadataScopes.all = true;
+}
+
+function syncChampionMetadataDraftToState(championId, payload) {
+  if (!Number.isInteger(championId) || championId <= 0 || !payload || typeof payload !== "object") {
     return;
   }
   const champion = getChampionById(championId);
@@ -1266,26 +1319,35 @@ function syncChampionMetadataDraftToState(championId, championPayload) {
   }
 
   const metadata =
-    championPayload.metadata && typeof championPayload.metadata === "object" && !Array.isArray(championPayload.metadata)
-      ? championPayload.metadata
+    payload.metadata && typeof payload.metadata === "object" && !Array.isArray(payload.metadata)
+      ? payload.metadata
       : {};
-  const nextRoles = normalizeChampionMetadataRoles(metadata.roles);
-  const nextRoleProfiles = normalizeRoleProfilesFromMetadata(metadata.roleProfiles, nextRoles);
-  if (nextRoles.length > 0) {
-    champion.roles = nextRoles;
+  const scope = normalizeChampionTagScope(payload.scope);
+  const hasCustomMetadata = payload.has_custom_metadata === true || payload.hasCustomMetadata === true;
+  const resolvedScope = normalizeChampionTagScope(payload.resolved_scope ?? payload.resolvedScope ?? "all");
+
+  if (scope === "all") {
+    const nextRoles = normalizeChampionMetadataRoles(metadata.roles);
+    const nextRoleProfiles = normalizeRoleProfilesFromMetadata(metadata.roleProfiles, nextRoles);
+    if (nextRoles.length > 0) {
+      champion.roles = nextRoles;
+    }
+    champion.roleProfiles = nextRoleProfiles;
+    const previewProfile = getChampionRoleProfile(champion, champion.roles[0]);
+    champion.damageType = deriveDisplayDamageTypeFromProfile(previewProfile);
+    champion.scaling = deriveLegacyScalingFromProfile(previewProfile);
+    const payloadTagIds = payload.tagIds ?? payload.tag_ids;
+    if (payloadTagIds !== undefined) {
+      champion.tagIds = normalizeChampionTagIdArray(payloadTagIds);
+    }
   }
-  champion.roleProfiles = nextRoleProfiles;
-  const previewProfile = getChampionRoleProfile(champion, champion.roles[0]);
-  champion.damageType = deriveDisplayDamageTypeFromProfile(previewProfile);
-  champion.scaling = deriveLegacyScalingFromProfile(previewProfile);
-  const payloadTagIds = championPayload.tagIds ?? championPayload.tag_ids;
-  if (payloadTagIds !== undefined) {
-    champion.tagIds = normalizeChampionTagIdArray(payloadTagIds);
+  if (payload.reviewed !== undefined) {
+    champion.reviewed = payload.reviewed === true;
   }
-  if (championPayload.reviewed !== undefined) {
-    champion.reviewed = championPayload.reviewed === true;
-  }
-  initializeChampionMetadataDraft(champion);
+  updateChampionMetadataScopeIndicator(championId, scope, hasCustomMetadata);
+  state.api.championMetadataHasCustom = hasCustomMetadata;
+  state.api.championMetadataResolvedScope = resolvedScope;
+  initializeChampionMetadataDraftFromMetadata(metadata, payload.reviewed === true || champion.reviewed === true);
 }
 
 function getChampionEditorSnapshot() {
@@ -1306,15 +1368,18 @@ function hasChampionEditorUnsavedChanges() {
 function clearChampionTagEditorState() {
   state.api.selectedChampionTagEditorId = null;
   state.api.selectedChampionTagIds = [];
-  state.api.championTagScope = "all";
+  state.api.championTagScope = "self";
   state.api.championTagTeamId = "";
   state.api.championEditorTab = CHAMPION_EDITOR_TAB_COMPOSITION;
   state.api.championMetadataDraft = createEmptyChampionMetadataDraft();
   state.api.championReviewedDraft = false;
+  state.api.championMetadataHasCustom = false;
+  state.api.championMetadataResolvedScope = "all";
   state.api.championEditorSavedSnapshot = null;
   state.api.championProfileActiveRole = null;
   state.api.isLoadingChampionTags = false;
   state.api.isSavingChampionTags = false;
+  setChampionTagEditorMeta("");
   setChampionTagEditorFeedback("");
   closeChampionTagEditor();
 }
@@ -2746,6 +2811,17 @@ function normalizeChampionTagIdArray(rawValue) {
   return Array.from(new Set(normalized)).sort((left, right) => left - right);
 }
 
+function normalizeChampionMetadataScopes(rawValue) {
+  const source = rawValue && typeof rawValue === "object" && !Array.isArray(rawValue)
+    ? rawValue
+    : {};
+  return {
+    self: source.self === true,
+    team: source.team === true,
+    all: source.all !== false
+  };
+}
+
 function buildChampionFromApiRecord(rawChampion, index) {
   if (!rawChampion || typeof rawChampion !== "object" || Array.isArray(rawChampion)) {
     throw new DataValidationError(`Invalid champion payload at index ${index}.`);
@@ -2816,7 +2892,8 @@ function buildChampionFromApiRecord(rawChampion, index) {
     roleProfiles,
     tags: deriveApiTagsFromTagIds(tagIds),
     tagIds,
-    reviewed
+    reviewed,
+    metadataScopes: normalizeChampionMetadataScopes(rawChampion.metadataScopes ?? rawChampion.metadata_scopes)
   };
 }
 
@@ -2829,7 +2906,7 @@ async function fetchJson(path) {
 }
 
 async function loadChampionsData() {
-  const payload = await fetchJson(resolveApiUrl("/champions"));
+  const payload = await apiRequest("/champions", { auth: isAuthenticated() });
   if (!payload || typeof payload !== "object" || !Array.isArray(payload.champions)) {
     throw new DataValidationError("Champions API response is missing the champions array.");
   }
@@ -2896,6 +2973,18 @@ async function loadMvpData() {
     playerPoolsByTeam,
     teamPools: buildTeamPoolsFromPlayerPools(playerPoolsByTeam),
     teamPlayersByRole: buildTeamPlayersByRoleFromPlayerPools(playerPoolsByTeam)
+  };
+}
+
+async function refreshChampionDataFromApi() {
+  const championData = await loadChampionsData();
+  state.data = {
+    ...state.data,
+    champions: championData.champions,
+    championsByName: championData.championsByName,
+    championIdsByName: championData.championIdsByName ?? {},
+    championNamesById: championData.championNamesById ?? {},
+    noneTeamPools: buildNoneTeamPools(championData.champions)
   };
 }
 
@@ -6107,28 +6196,16 @@ function renderChampionTagEditor() {
 
   const championId = state.api.selectedChampionTagEditorId;
   const champion = Number.isInteger(championId) ? getChampionById(championId) : null;
-  const canEditGlobal = isGlobalTagEditorUser();
   const leadTeamOptions = getChampionTagLeadTeamOptions();
-  const canEditTeam = leadTeamOptions.length > 0;
-  const canRenderEditor = Boolean(champion && isAuthenticated() && (canEditGlobal || canEditTeam));
+  const scopeOptions = getChampionProfileScopeOptions();
+  const canRenderEditor = Boolean(champion && isAuthenticated() && scopeOptions.length > 0);
   if (!canRenderEditor) {
     return;
   }
 
   state.api.championTagScope = normalizeChampionTagScope(state.api.championTagScope);
-  const scopeOptions = [];
-  if (canEditGlobal) {
-    scopeOptions.push({ value: "all", label: "Global" });
-  }
-  if (canEditTeam) {
-    scopeOptions.push({ value: "team", label: "Team" });
-  }
-  if (scopeOptions.length === 0) {
-    return;
-  }
-
   if (!scopeOptions.some((option) => option.value === state.api.championTagScope)) {
-    state.api.championTagScope = scopeOptions[0].value;
+    state.api.championTagScope = getChampionProfileDefaultScope();
   }
 
   if (elements.championTagEditorTitle) {
@@ -6169,6 +6246,16 @@ function renderChampionTagEditor() {
     elements.championTagEditorTeam.disabled = state.api.championTagScope !== "team" || leadTeamOptions.length === 0;
   }
 
+  const activeScopeOption = scopeOptions.find((option) => option.value === state.api.championTagScope);
+  const scopeLabel = activeScopeOption?.label ?? "Scope";
+  const teamLabel = state.api.championTagScope === "team"
+    ? leadTeamOptions.find((option) => option.value === state.api.championTagTeamId)?.label ?? "selected team"
+    : "";
+  const scopeMeta = state.api.championMetadataHasCustom
+    ? `Editing ${scopeLabel.toLowerCase()} metadata${teamLabel ? ` for ${teamLabel}` : ""}.`
+    : `${scopeLabel}${teamLabel ? ` (${teamLabel})` : ""} is currently using global metadata. Save to create a custom profile.`;
+  setChampionTagEditorMeta(scopeMeta);
+
   renderChampionEditorTabs();
   renderChampionTagEditorTagOptions();
   renderChampionMetadataEditors();
@@ -6180,16 +6267,29 @@ function renderChampionTagEditor() {
   const metadataDraftComplete = championMetadataDraftIsComplete();
 
   if (elements.championTagEditorSave) {
-    elements.championTagEditorSave.textContent = canEditGlobal ? "Save Tags + Metadata" : "Save Tags";
+    elements.championTagEditorSave.textContent = "Save Champion Profile";
     const compositionSaveBlocked = state.api.isLoadingChampionTags;
     elements.championTagEditorSave.disabled =
       state.api.isSavingChampionTags ||
       compositionSaveBlocked ||
-      (canEditGlobal && !metadataDraftComplete);
+      !metadataDraftComplete;
   }
   if (elements.championTagEditorClear) {
     elements.championTagEditorClear.disabled = state.api.isSavingChampionTags;
   }
+}
+
+function buildChampionScopeQuery() {
+  const scope = normalizeChampionTagScope(state.api.championTagScope);
+  const query = new URLSearchParams({ scope });
+  if (scope === "team") {
+    const teamId = normalizeTeamEntityId(state.api.championTagTeamId);
+    if (!teamId) {
+      return null;
+    }
+    query.set("team_id", teamId);
+  }
+  return query;
 }
 
 async function loadChampionScopedTags(championId) {
@@ -6197,19 +6297,11 @@ async function loadChampionScopedTags(championId) {
     return false;
   }
 
-  const scope = normalizeChampionTagScope(state.api.championTagScope);
-  const query = new URLSearchParams({ scope });
-  if (scope === "team") {
-    const teamId = normalizeTeamEntityId(state.api.championTagTeamId);
-    if (!teamId) {
-      setChampionTagEditorFeedback("Select a team to load team tags.");
-      return false;
-    }
-    query.set("team_id", teamId);
+  const query = buildChampionScopeQuery();
+  if (!query) {
+    setChampionTagEditorFeedback("Select a team to load team-scoped champion data.");
+    return false;
   }
-
-  state.api.isLoadingChampionTags = true;
-  renderChampionTagEditor();
 
   try {
     const payload = await apiRequest(`/champions/${championId}/tags?${query.toString()}`, { auth: true });
@@ -6220,35 +6312,83 @@ async function loadChampionScopedTags(championId) {
       if (payload?.reviewed !== undefined) {
         state.api.championReviewedDraft = payload.reviewed === true;
       }
-      setChampionTagEditorFeedback("");
-    } else {
-      setChampionTagEditorFeedback("");
     }
     if (payload?.team_id !== undefined && payload?.team_id !== null) {
       state.api.championTagTeamId = String(payload.team_id);
     }
     return true;
   } catch (error) {
-    setChampionTagEditorFeedback(normalizeApiErrorMessage(error, "Failed to load champion tags."));
+    setChampionTagEditorFeedback(normalizeApiErrorMessage(error, "Failed to load scoped champion tags."));
     return false;
+  }
+}
+
+async function loadChampionScopedMetadata(championId) {
+  if (!isAuthenticated() || !Number.isInteger(championId) || championId <= 0) {
+    return false;
+  }
+
+  const query = buildChampionScopeQuery();
+  if (!query) {
+    setChampionTagEditorFeedback("Select a team to load team-scoped champion data.");
+    return false;
+  }
+
+  try {
+    const payload = await apiRequest(`/champions/${championId}/metadata?${query.toString()}`, { auth: true });
+    const metadata =
+      payload?.metadata && typeof payload.metadata === "object" && !Array.isArray(payload.metadata)
+        ? payload.metadata
+        : {};
+    if (payload?.team_id !== undefined && payload?.team_id !== null) {
+      state.api.championTagTeamId = String(payload.team_id);
+    }
+    initializeChampionMetadataDraftFromMetadata(metadata, payload?.reviewed === true);
+    state.api.championMetadataHasCustom = payload?.has_custom_metadata === true;
+    state.api.championMetadataResolvedScope = normalizeChampionTagScope(payload?.resolved_scope ?? "all");
+    updateChampionMetadataScopeIndicator(championId, normalizeChampionTagScope(payload?.scope), state.api.championMetadataHasCustom);
+    return true;
+  } catch (error) {
+    setChampionTagEditorFeedback(normalizeApiErrorMessage(error, "Failed to load scoped champion metadata."));
+    return false;
+  }
+}
+
+async function loadChampionEditorScopeData(championId) {
+  state.api.isLoadingChampionTags = true;
+  renderChampionTagEditor();
+  try {
+    const [tagsLoaded, metadataLoaded] = await Promise.all([
+      loadChampionScopedTags(championId),
+      loadChampionScopedMetadata(championId)
+    ]);
+    if (tagsLoaded && metadataLoaded) {
+      setChampionTagEditorFeedback("");
+    }
+    return tagsLoaded && metadataLoaded;
   } finally {
     state.api.isLoadingChampionTags = false;
+    renderChampionTagEditor();
   }
 }
 
 async function openChampionTagEditor(championId) {
-  const canEditGlobal = isGlobalTagEditorUser();
   const leadTeamOptions = getChampionTagLeadTeamOptions();
-  const canEditTeam = leadTeamOptions.length > 0;
-  if (!isAuthenticated() || (!canEditGlobal && !canEditTeam) || !Number.isInteger(championId) || championId <= 0) {
+  if (!isAuthenticated() || !Number.isInteger(championId) || championId <= 0) {
     return;
   }
 
   const champion = getChampionById(championId);
+  const previousEditorChampionId = state.api.selectedChampionTagEditorId;
   state.api.selectedChampionTagEditorId = championId;
   const scopedTagIds = normalizeChampionTagIdArray(champion?.tagIds);
   state.api.selectedChampionTagIds = scopedTagIds;
-  state.api.championTagScope = isGlobalTagEditorUser() ? "all" : "team";
+  if (
+    !Number.isInteger(previousEditorChampionId) ||
+    !getChampionProfileScopeOptions().some((option) => option.value === state.api.championTagScope)
+  ) {
+    state.api.championTagScope = getChampionProfileDefaultScope();
+  }
   if (state.api.championTagScope === "team") {
     const selectedTeam = getSelectedAdminTeam();
     const hasSelectedLeadTeam = selectedTeam?.membership_role === "lead" ? String(selectedTeam.id) : "";
@@ -6258,14 +6398,18 @@ async function openChampionTagEditor(championId) {
     state.api.championTagTeamId = "";
   }
   initializeChampionMetadataDraft(champion);
-  setChampionTagEditorFeedback("Loading champion tags...");
+  state.api.championMetadataHasCustom = champion?.metadataScopes?.[state.api.championTagScope] === true;
+  state.api.championMetadataResolvedScope = state.api.championMetadataHasCustom
+    ? state.api.championTagScope
+    : "all";
+  setChampionTagEditorFeedback("Loading champion profile...");
 
   state.explorer._savedScrollTop = elements.explorerResults ? elements.explorerResults.scrollTop : 0;
   if (elements.championGridPanel) elements.championGridPanel.hidden = true;
   if (elements.championTagEditor) elements.championTagEditor.hidden = false;
 
   renderChampionTagEditor();
-  await loadChampionScopedTags(championId);
+  await loadChampionEditorScopeData(championId);
   state.api.championEditorSavedSnapshot = getChampionEditorSnapshot();
   renderChampionTagEditor();
 }
@@ -6368,8 +6512,10 @@ async function saveChampionCompositionTab(championId) {
   state.api.selectedChampionTagIds = normalizeApiTagIdArray(response?.tag_ids);
   const champion = getChampionById(championId);
   if (champion) {
-    champion.tagIds = [...state.api.selectedChampionTagIds];
-    champion.tags = deriveApiTagsFromTagIds(champion.tagIds);
+    if (scope === "all") {
+      champion.tagIds = [...state.api.selectedChampionTagIds];
+      champion.tags = deriveApiTagsFromTagIds(champion.tagIds);
+    }
     champion.reviewed = response?.reviewed === true;
   }
 }
@@ -6389,16 +6535,24 @@ async function saveChampionMetadataTab(championId) {
     };
   }
   const payload = {
+    scope: normalizeChampionTagScope(state.api.championTagScope),
     roles: [...state.api.championMetadataDraft.roles],
     role_profiles: roleProfilesPayload
   };
+  if (payload.scope === "team") {
+    const teamId = normalizeTeamEntityId(state.api.championTagTeamId);
+    if (!teamId) {
+      throw new Error("Select a team before saving team-scoped metadata.");
+    }
+    payload.team_id = Number.parseInt(teamId, 10);
+  }
 
   const response = await apiRequest(`/champions/${championId}/metadata`, {
     method: "PUT",
     auth: true,
     body: payload
   });
-  syncChampionMetadataDraftToState(championId, response?.champion);
+  syncChampionMetadataDraftToState(championId, response);
 }
 
 async function saveChampionTagEditor() {
@@ -6412,22 +6566,20 @@ async function saveChampionTagEditor() {
     return;
   }
   if (state.api.isLoadingChampionTags) {
-    setChampionTagEditorFeedback("Wait for champion tags to finish loading before saving.");
+    setChampionTagEditorFeedback("Wait for the champion profile to finish loading before saving.");
     renderChampionTagEditor();
     return;
   }
-  const canEditGlobal = isGlobalTagEditorUser();
 
   state.api.isSavingChampionTags = true;
-  setChampionTagEditorFeedback("Saving champion tags...");
+  setChampionTagEditorFeedback("Saving champion profile...");
   renderChampionTagEditor();
 
   try {
     await saveChampionCompositionTab(championId);
-    if (canEditGlobal) {
-      setChampionTagEditorFeedback("Saving champion metadata...");
-      await saveChampionMetadataTab(championId);
-    }
+    setChampionTagEditorFeedback("Saving scoped metadata...");
+    await saveChampionMetadataTab(championId);
+    setChampionTagEditorFeedback("Champion profile saved.");
     state.api.championEditorSavedSnapshot = getChampionEditorSnapshot();
     closeChampionTagEditor();
   } catch (error) {
@@ -9930,20 +10082,45 @@ function renderExplorer() {
       nameWrap.append(indicator);
     }
 
+    const metadataScopes = normalizeChampionMetadataScopes(champion.metadataScopes);
+    const scopeIndicators = runtimeDocument.createElement("div");
+    scopeIndicators.className = "champ-card-scope-indicators";
+    for (const scopeOption of [
+      { value: "self", label: "User" },
+      { value: "team", label: "Team" },
+      { value: "all", label: "Global" }
+    ]) {
+      const pill = runtimeDocument.createElement("span");
+      const isOn = metadataScopes[scopeOption.value] === true;
+      const isActiveEditorScope =
+        state.api.selectedChampionTagEditorId === champion.id &&
+        state.api.championTagScope === scopeOption.value;
+      pill.className = [
+        "champ-scope-indicator",
+        isOn ? "is-on" : "is-off",
+        isActiveEditorScope ? "is-active-scope" : ""
+      ].filter(Boolean).join(" ");
+      pill.textContent = `${scopeOption.label}: ${isOn ? "On" : "Off"}`;
+      pill.title = isOn
+        ? `${scopeOption.label} scope has custom metadata for ${champion.name}.`
+        : `${scopeOption.label} scope is currently using global metadata for ${champion.name}.`;
+      scopeIndicators.append(pill);
+    }
+    nameWrap.append(scopeIndicators);
+
     cardHeader.append(image, nameWrap);
 
     // ── Pencil edit button ───────────────────────────────────────────────
     const canEdit =
       isAuthenticated() &&
-      isGlobalTagEditorUser() &&
       Number.isInteger(champion.id) &&
       champion.id > 0;
     if (canEdit) {
       const editBtn = runtimeDocument.createElement("button");
       editBtn.type = "button";
       editBtn.className = "champ-card-edit-btn";
-      editBtn.title = "Edit Tags";
-      editBtn.setAttribute("aria-label", `Edit tags for ${champion.name}`);
+      editBtn.title = "Edit Champion Profile";
+      editBtn.setAttribute("aria-label", `Edit champion profile for ${champion.name}`);
       editBtn.textContent = "✎";
       editBtn.addEventListener("click", () => {
         void openChampionTagEditor(champion.id);
@@ -11338,6 +11515,7 @@ function syncTagMutualExclusion(changed, includeValuesInput, excludeValuesInput)
 
 async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAdminTeamId = null) {
   setTeamJoinFeedback("");
+  await refreshChampionDataFromApi();
   await loadProfileFromApi();
   await loadPoolsFromApi(preferredPoolTeamId);
   await loadTeamsFromApi(preferredAdminTeamId);
@@ -11615,6 +11793,11 @@ function attachEvents() {
     renderCompositionsWorkspace();
     renderAuthGate();
     renderAuth();
+    void refreshChampionDataFromApi()
+      .then(() => {
+        renderExplorer();
+      })
+      .catch(() => {});
   });
 
   if (elements.authSignupLink) {
@@ -12129,10 +12312,8 @@ function attachEvents() {
       }
       renderChampionTagEditor();
       if (state.api.selectedChampionTagEditorId) {
-        setChampionTagEditorFeedback("Loading champion tags...");
-        void loadChampionScopedTags(state.api.selectedChampionTagEditorId).then(() => {
-          renderChampionTagEditor();
-        });
+        setChampionTagEditorFeedback("Loading champion profile...");
+        void loadChampionEditorScopeData(state.api.selectedChampionTagEditorId);
       }
     });
   }
@@ -12142,10 +12323,8 @@ function attachEvents() {
       state.api.championTagTeamId = normalizeTeamEntityId(elements.championTagEditorTeam.value) ?? "";
       renderChampionTagEditor();
       if (state.api.selectedChampionTagEditorId) {
-        setChampionTagEditorFeedback("Loading champion tags...");
-        void loadChampionScopedTags(state.api.selectedChampionTagEditorId).then(() => {
-          renderChampionTagEditor();
-        });
+        setChampionTagEditorFeedback("Loading champion profile...");
+        void loadChampionEditorScopeData(state.api.selectedChampionTagEditorId);
       }
     });
   }
