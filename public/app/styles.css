@@ -2890,6 +2890,7 @@ button.pool-snapshot-order-btn:disabled {
   width: fit-content;
   min-width: 0;
   max-width: 320px;
+  padding: 0.75rem;
 }
 
 .modal-compact .button-row {
@@ -2932,7 +2933,6 @@ button.pool-snapshot-order-btn:disabled {
 .other-roles-pill-row {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
   gap: 0.4rem;
   margin-bottom: 0.75rem;
 }
