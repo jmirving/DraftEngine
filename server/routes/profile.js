@@ -95,6 +95,7 @@ async function assertTeamMembershipOrNull(teamId, userId, teamsRepository, field
 export function createProfileRouter({ usersRepository, teamsRepository, requireAuth, riotChampionStatsService = null }) {
   const router = Router();
   router.use("/me/profile", requireAuth);
+  router.use("/me/account", requireAuth);
   router.use("/me/team-context", requireAuth);
 
   router.get("/me/profile", async (request, response) => {
@@ -112,6 +113,29 @@ export function createProfileRouter({ usersRepository, teamsRepository, requireA
     }
 
     response.json({ profile: serializeProfile(profile, championStats) });
+  });
+
+  router.put("/me/account", async (request, response) => {
+    const userId = request.user.userId;
+    const body = requireObject(request.body);
+    const firstName = typeof body.firstName === "string" ? body.firstName.trim() : "";
+    const lastName = typeof body.lastName === "string" ? body.lastName.trim() : "";
+    const updated = await usersRepository.updateAccountInfo(userId, { firstName, lastName });
+    if (!updated) {
+      throw notFound("User not found.");
+    }
+    const user = {
+      id: Number(updated.id),
+      email: updated.email,
+      role: updated.role,
+      gameName: updated.game_name ?? "",
+      tagline: updated.tagline ?? "",
+      firstName: updated.first_name ?? "",
+      lastName: updated.last_name ?? "",
+      primaryRole: updated.primary_role ?? "Mid",
+      secondaryRoles: Array.isArray(updated.secondary_roles) ? updated.secondary_roles : []
+    };
+    response.json({ user });
   });
 
   router.put("/me/profile", async (request, response) => {

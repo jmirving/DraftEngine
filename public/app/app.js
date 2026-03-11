@@ -8920,11 +8920,14 @@ function renderPlayerConfig() {
     const avatarChampion = state.profile.avatarChampionId && state.data
       ? (state.data.champions || []).find((c) => c.id === state.profile.avatarChampionId)
       : null;
-    if (avatarChampion && avatarChampion.image) {
+    if (avatarChampion) {
       const img = runtimeDocument.createElement("img");
-      img.src = avatarChampion.image;
+      img.src = getChampionImageUrl(avatarChampion.name);
       img.alt = avatarChampion.name;
       img.className = "profile-avatar-img";
+      img.addEventListener("error", () => {
+        img.src = championImageFallback(avatarChampion.name);
+      }, { once: true });
       elements.profileAvatarDisplay.append(img);
     } else {
       const placeholder = runtimeDocument.createElement("span");
@@ -9050,8 +9053,35 @@ function closeAvatarModal() {
 
 function saveAvatarSelection() {
   state.profile.avatarChampionId = state.profile.pendingAvatarId;
+  persistAvatarChampionId();
   closeAvatarModal();
   renderPlayerConfig();
+}
+
+const AVATAR_STORAGE_KEY = "draftengine_avatar_champion_id";
+
+function persistAvatarChampionId() {
+  if (!runtimeStorage) return;
+  try {
+    if (state.profile.avatarChampionId != null) {
+      runtimeStorage.setItem(AVATAR_STORAGE_KEY, String(state.profile.avatarChampionId));
+    } else {
+      runtimeStorage.removeItem(AVATAR_STORAGE_KEY);
+    }
+  } catch { /* ignore storage errors */ }
+}
+
+function restoreAvatarChampionId() {
+  if (!runtimeStorage) return;
+  try {
+    const stored = runtimeStorage.getItem(AVATAR_STORAGE_KEY);
+    if (stored != null && stored !== "") {
+      const parsed = Number(stored);
+      if (Number.isInteger(parsed) && parsed > 0) {
+        state.profile.avatarChampionId = parsed;
+      }
+    }
+  } catch { /* ignore storage errors */ }
 }
 
 function renderAvatarModalGrid() {
@@ -9071,14 +9101,15 @@ function renderAvatarModalGrid() {
       btn.classList.add("is-selected");
     }
 
-    if (champion.image) {
-      const img = runtimeDocument.createElement("img");
-      img.src = champion.image;
-      img.alt = champion.name;
-      img.className = "avatar-option-img";
-      img.loading = "lazy";
-      btn.append(img);
-    }
+    const img = runtimeDocument.createElement("img");
+    img.src = getChampionImageUrl(champion.name);
+    img.alt = champion.name;
+    img.className = "avatar-option-img";
+    img.loading = "lazy";
+    img.addEventListener("error", () => {
+      img.src = championImageFallback(champion.name);
+    }, { once: true });
+    btn.append(img);
 
     const label = runtimeDocument.createElement("span");
     label.className = "avatar-option-name";
@@ -11628,6 +11659,44 @@ function attachEvents() {
     });
   }
 
+  if (elements.profileSaveAccount) {
+    elements.profileSaveAccount.addEventListener("click", async () => {
+      const firstNameInput = runtimeDocument.querySelector("#profile-account-firstname");
+      const lastNameInput = runtimeDocument.querySelector("#profile-account-lastname");
+      const firstName = firstNameInput ? firstNameInput.value.trim() : "";
+      const lastName = lastNameInput ? lastNameInput.value.trim() : "";
+
+      if (elements.profileAccountFeedback) {
+        elements.profileAccountFeedback.textContent = "Saving...";
+        elements.profileAccountFeedback.style.color = "";
+      }
+
+      try {
+        const payload = await apiRequest("/me/account", {
+          method: "PUT",
+          auth: true,
+          body: { firstName, lastName }
+        });
+        const updatedUser = payload?.user;
+        if (updatedUser && state.auth.user) {
+          state.auth.user.firstName = updatedUser.firstName ?? "";
+          state.auth.user.lastName = updatedUser.lastName ?? "";
+          saveAuthSession();
+        }
+        if (elements.profileAccountFeedback) {
+          elements.profileAccountFeedback.textContent = "Account saved.";
+          elements.profileAccountFeedback.style.color = "";
+        }
+        renderPlayerConfig();
+      } catch (error) {
+        if (elements.profileAccountFeedback) {
+          elements.profileAccountFeedback.textContent = normalizeApiErrorMessage(error, "Failed to save account.");
+          elements.profileAccountFeedback.style.color = "var(--warn)";
+        }
+      }
+    });
+  }
+
   // Profile settings list — accordion toggle
   if (elements.profileSettingsList) {
     elements.profileSettingsList.addEventListener("click", (event) => {
@@ -12860,6 +12929,7 @@ async function init() {
     loadStoredUiState();
     syncNavLayout();
     loadStoredAuthSession();
+    restoreAvatarChampionId();
     renderAuthGate();
     const initialRoute = parseTabRouteHash(runtimeWindow.location.hash);
     // Apply the correct initial tab before any awaits so the browser never

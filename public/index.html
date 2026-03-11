@@ -1076,6 +1076,14 @@
               >
                 <h3>What's New</h3>
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
+                <h4>Version 0.8.1 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>Avatar modal now displays champion portrait images with names for visual identification; images load from Riot Data Dragon.</li>
+                  <li>Avatar selection now persists across page refreshes via local storage.</li>
+                  <li>Saving the avatar via the modal now updates the profile avatar circle immediately with the selected champion portrait.</li>
+                  <li>Account settings (First Name, Last Name) now persist to the server when saved; values survive page refresh.</li>
+                  <li>Account editor buttons (Change Password, Save Account) now have top spacing and are right-aligned.</li>
+                </ul>
                 <h4>Version 0.8.0 (Shipped)</h4>
                 <ul class="coming-soon-list">
                   <li>Profile page redesigned as an identity showcase with pride header (avatar, summoner name, roles, team display) and a clickable settings list (accordion-style editors).</li>
@@ -1161,8 +1169,9 @@
                 </ul>
                 <h4>Profile</h4>
                 <ul class="coming-soon-list">
-                  <li>Avatar selection and display team preference are frontend-only; backend persistence endpoints for these fields are not yet implemented.</li>
-                  <li>Account settings editing (email, name, game name) needs a backend endpoint to persist changes; currently renders the form but save is not wired to an API.</li>
+                  <li>Avatar selection persists locally; a full backend persistence endpoint for avatar champion ID is not yet implemented.</li>
+                  <li>Display team preference is frontend-only; backend persistence for team display selection is not yet implemented.</li>
+                  <li>Account settings: email, game name, and tagline are read-only for now; only first/last name are editable and persisted via the API.</li>
                   <li>Get champion pool suggestions based on your real League match history (draftflow-145)</li>
                   <li>Live Riot champion stats in Profile remain a placeholder until the full implementation is shipped (draftflow-146)</li>
                 </ul>

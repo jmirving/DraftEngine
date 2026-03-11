@@ -2733,7 +2733,9 @@ button.pool-snapshot-order-btn:disabled {
 .profile-avatar-img {
   width: 100%;
   height: 100%;
+  border-radius: 50%;
   object-fit: cover;
+  object-position: top;
 }
 
 .profile-avatar-placeholder {
@@ -2952,6 +2954,11 @@ button.pool-snapshot-order-btn:disabled {
   background: var(--surface);
 }
 
+.profile-setting-editor .button-row {
+  margin-top: 0.75rem;
+  justify-content: flex-end;
+}
+
 .profile-setting-nav .profile-setting-row {
   color: var(--accent);
 }
@@ -3093,6 +3100,7 @@ button.pool-snapshot-order-btn:disabled {
   height: 56px;
   border-radius: 50%;
   object-fit: cover;
+  object-position: top;
 }
 
 .avatar-option-name {

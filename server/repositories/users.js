@@ -141,6 +141,20 @@ export function createUsersRepository(pool) {
       return result.rows[0] ?? null;
     },
 
+    async updateAccountInfo(userId, { firstName, lastName }) {
+      const result = await pool.query(
+        `
+          UPDATE users
+          SET first_name = $2,
+              last_name = $3
+          WHERE id = $1
+          RETURNING id, email, game_name, tagline, first_name, last_name, role, primary_role, secondary_roles, riot_id_correction_count, created_at
+        `,
+        [userId, firstName || null, lastName || null]
+      );
+      return result.rows[0] ?? null;
+    },
+
     async updateProfileRoles(userId, { primaryRole, secondaryRoles }) {
       const result = await pool.query(
         `
