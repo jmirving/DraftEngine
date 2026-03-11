@@ -11574,6 +11574,7 @@ function attachEvents() {
     renderBuilder();
     renderUsersWorkspace();
     renderCompositionsWorkspace();
+    renderAuthGate();
     renderAuth();
   });
 
