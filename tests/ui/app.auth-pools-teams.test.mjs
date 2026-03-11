@@ -1966,9 +1966,9 @@ describe("auth + pools + team management", () => {
               tagIds: [1],
               reviewed: false,
               metadata: {
-                roles: ["Mid"],
+                roles: ["Support"],
                 roleProfiles: {
-                  Mid: createRoleProfile("ap", "neutral", "strong", "neutral")
+                  Support: createRoleProfile("utility", "strong", "neutral", "weak")
                 }
               },
               metadata_scopes: {
@@ -2030,9 +2030,42 @@ describe("auth + pools + team management", () => {
     await flush();
 
     const card = doc.querySelector("#explorer-results .champ-card");
-    expect(card.textContent).toContain("User: Present");
-    expect(card.textContent).toContain("Team: Not Present");
-    expect(card.textContent).toContain("Global: Present");
+    expect(card.textContent).toContain("Support");
+    expect(card.textContent).toContain("Utility");
+
+    const scopeButtons = Array.from(card.querySelectorAll(".champ-scope-indicator"));
+    const userScopeButton = scopeButtons.find((button) => button.textContent.trim() === "User");
+    const teamScopeButton = scopeButtons.find((button) => button.textContent.trim() === "Team");
+    const globalScopeButton = scopeButtons.find((button) => button.textContent.trim() === "Global");
+
+    expect(userScopeButton).toBeTruthy();
+    expect(userScopeButton.className).toContain("is-present");
+    expect(userScopeButton.getAttribute("aria-pressed")).toBe("false");
+    expect(userScopeButton.disabled).toBe(false);
+
+    expect(teamScopeButton).toBeTruthy();
+    expect(teamScopeButton.className).toContain("is-missing");
+    expect(teamScopeButton.disabled).toBe(true);
+
+    expect(globalScopeButton).toBeTruthy();
+    expect(globalScopeButton.className).toContain("is-selected");
+    expect(globalScopeButton.getAttribute("aria-pressed")).toBe("true");
+
+    userScopeButton.click();
+    await flush();
+
+    const updatedCard = doc.querySelector("#explorer-results .champ-card");
+    const updatedScopeButtons = Array.from(updatedCard.querySelectorAll(".champ-scope-indicator"));
+    const updatedUserScopeButton = updatedScopeButtons.find((button) => button.textContent.trim() === "User");
+    const updatedGlobalScopeButton = updatedScopeButtons.find((button) => button.textContent.trim() === "Global");
+
+    expect(updatedUserScopeButton.className).toContain("is-selected");
+    expect(updatedUserScopeButton.getAttribute("aria-pressed")).toBe("true");
+    expect(updatedGlobalScopeButton.className).toContain("is-present");
+    expect(updatedGlobalScopeButton.getAttribute("aria-pressed")).toBe("false");
+    expect(updatedCard.textContent).toContain("Mid");
+    expect(updatedCard.textContent).toContain("AP");
+    expect(updatedCard.textContent).not.toContain("Utility");
 
     const metadataFilter = doc.querySelector("#explorer-metadata-scope");
     expect(metadataFilter).toBeTruthy();

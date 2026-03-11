@@ -514,6 +514,8 @@ function createInitialState() {
       sortBy: "alpha-asc",
       filtersOpen: true,
       activeCardRole: {},
+      activeMetadataScopeByChampionId: {},
+      scopedMetadataByChampionId: {},
       subTab: "my-champions"
     },
     teamConfig: {
@@ -1070,6 +1072,121 @@ function getChampionProfileDefaultScope() {
   return "self";
 }
 
+function getExplorerTeamScopeTeamId() {
+  const selectedTeam = getSelectedAdminTeam();
+  if (selectedTeam && String(selectedTeam.membership_role ?? "").toLowerCase() === "lead") {
+    return String(selectedTeam.id);
+  }
+  return getChampionTagLeadTeamOptions()[0]?.value ?? "";
+}
+
+function canReadExplorerMetadataScope(scope) {
+  const normalizedScope = normalizeChampionTagScope(scope);
+  if (normalizedScope === "all") {
+    return true;
+  }
+  if (normalizedScope === "self") {
+    return isAuthenticated();
+  }
+  if (normalizedScope === "team") {
+    return getExplorerTeamScopeTeamId() !== "";
+  }
+  return false;
+}
+
+function getExplorerScopedMetadataCacheKey(scope) {
+  const normalizedScope = normalizeChampionTagScope(scope);
+  if (normalizedScope === "team") {
+    const teamId = getExplorerTeamScopeTeamId();
+    return teamId ? `team:${teamId}` : "team";
+  }
+  return normalizedScope;
+}
+
+function getExplorerScopedMetadataCacheEntry(championId, scope) {
+  if (!Number.isInteger(championId) || championId <= 0) {
+    return null;
+  }
+  const championCache = state.explorer.scopedMetadataByChampionId[String(championId)];
+  if (!championCache || typeof championCache !== "object" || Array.isArray(championCache)) {
+    return null;
+  }
+  const cacheKey = getExplorerScopedMetadataCacheKey(scope);
+  const entry = championCache[cacheKey];
+  return entry && typeof entry === "object" && !Array.isArray(entry) ? entry : null;
+}
+
+function cacheExplorerScopedMetadataPayload(championId, scope, payload) {
+  if (!Number.isInteger(championId) || championId <= 0) {
+    return null;
+  }
+  const metadata =
+    payload?.metadata && typeof payload.metadata === "object" && !Array.isArray(payload.metadata)
+      ? payload.metadata
+      : {};
+  const roles = normalizeChampionMetadataRoles(metadata.roles);
+  const entry = {
+    scope: normalizeChampionTagScope(scope),
+    hasCustomMetadata: payload?.has_custom_metadata === true || payload?.hasCustomMetadata === true,
+    resolvedScope: normalizeChampionTagScope(payload?.resolved_scope ?? payload?.resolvedScope ?? "all"),
+    reviewed: payload?.reviewed === true,
+    roles,
+    roleProfiles: normalizeRoleProfilesFromMetadata(metadata.roleProfiles, roles)
+  };
+
+  const championKey = String(championId);
+  const cacheKey = getExplorerScopedMetadataCacheKey(scope);
+  const championCache =
+    state.explorer.scopedMetadataByChampionId[championKey] &&
+    typeof state.explorer.scopedMetadataByChampionId[championKey] === "object" &&
+    !Array.isArray(state.explorer.scopedMetadataByChampionId[championKey])
+      ? { ...state.explorer.scopedMetadataByChampionId[championKey] }
+      : {};
+
+  if (entry.hasCustomMetadata) {
+    championCache[cacheKey] = entry;
+  } else {
+    delete championCache[cacheKey];
+  }
+
+  if (Object.keys(championCache).length === 0) {
+    delete state.explorer.scopedMetadataByChampionId[championKey];
+  } else {
+    state.explorer.scopedMetadataByChampionId[championKey] = championCache;
+  }
+
+  return entry;
+}
+
+function syncExplorerScopedMetadataState() {
+  const championIds = new Set(
+    Array.isArray(state.data?.champions)
+      ? state.data.champions
+          .filter((champion) => Number.isInteger(champion.id) && champion.id > 0)
+          .map((champion) => String(champion.id))
+      : []
+  );
+
+  state.explorer.activeMetadataScopeByChampionId = Object.fromEntries(
+    Object.entries(state.explorer.activeMetadataScopeByChampionId).filter(([championId, scope]) => {
+      if (!championIds.has(championId)) {
+        return false;
+      }
+      if (normalizeChampionTagScope(scope) === "all") {
+        return true;
+      }
+      const champion = getChampionById(Number.parseInt(championId, 10));
+      const metadataScopes = normalizeChampionMetadataScopes(champion?.metadataScopes);
+      const normalizedScope = normalizeChampionTagScope(scope);
+      return metadataScopes[normalizedScope] === true;
+    })
+  );
+
+  state.explorer.scopedMetadataByChampionId = Object.fromEntries(
+    Object.entries(state.explorer.scopedMetadataByChampionId).filter(([championId]) => championIds.has(championId))
+  );
+}
+
 function getExplorerMetadataScopeFilterOptions() {
   const options = [{ value: "", label: "Any custom metadata" }];
   if (isAuthenticated()) {
@@ -1376,6 +1493,10 @@ function syncChampionMetadataDraftToState(championId, payload) {
     champion.reviewed = payload.reviewed === true;
   }
   updateChampionMetadataScopeIndicator(championId, scope, hasCustomMetadata);
+  cacheExplorerScopedMetadataPayload(championId, scope, payload);
+  if (!hasCustomMetadata && state.explorer.activeMetadataScopeByChampionId[String(championId)] === scope) {
+    state.explorer.activeMetadataScopeByChampionId[String(championId)] = "all";
+  }
   state.api.championMetadataHasCustom = hasCustomMetadata;
   state.api.championMetadataResolvedScope = resolvedScope;
   initializeChampionMetadataDraftFromMetadata(metadata, payload.reviewed === true || champion.reviewed === true);
@@ -3017,6 +3138,108 @@ async function refreshChampionDataFromApi() {
     championNamesById: championData.championNamesById ?? {},
     noneTeamPools: buildNoneTeamPools(championData.champions)
   };
+  syncExplorerScopedMetadataState();
+}
+
+function getExplorerChampionActiveMetadataScope(champion) {
+  const activeScope = normalizeChampionTagScope(
+    state.explorer.activeMetadataScopeByChampionId[String(champion?.id)] ?? "all"
+  );
+  if (activeScope === "all") {
+    return "all";
+  }
+  if (!canReadExplorerMetadataScope(activeScope)) {
+    return "all";
+  }
+  const metadataScopes = normalizeChampionMetadataScopes(champion?.metadataScopes);
+  return metadataScopes[activeScope] === true ? activeScope : "all";
+}
+
+function getExplorerChampionMetadataPreview(champion, scope) {
+  const normalizedScope = normalizeChampionTagScope(scope);
+  if (normalizedScope !== "all") {
+    const entry = getExplorerScopedMetadataCacheEntry(champion.id, normalizedScope);
+    if (entry?.hasCustomMetadata) {
+      const roles = normalizeChampionMetadataRoles(entry.roles);
+      if (roles.length > 0) {
+        return {
+          roles,
+          roleProfiles: normalizeRoleProfilesFromMetadata(entry.roleProfiles, roles)
+        };
+      }
+    }
+  }
+
+  const roles = normalizeChampionMetadataRoles(champion?.roles);
+  return {
+    roles,
+    roleProfiles: normalizeRoleProfilesFromMetadata(champion?.roleProfiles, roles)
+  };
+}
+
+async function loadExplorerScopedMetadata(championId, scope) {
+  const normalizedScope = normalizeChampionTagScope(scope);
+  if (!isAuthenticated() || !Number.isInteger(championId) || championId <= 0 || normalizedScope === "all") {
+    return null;
+  }
+  if (!canReadExplorerMetadataScope(normalizedScope)) {
+    return null;
+  }
+
+  const query = new URLSearchParams({ scope: normalizedScope });
+  if (normalizedScope === "team") {
+    const teamId = getExplorerTeamScopeTeamId();
+    if (!teamId) {
+      return null;
+    }
+    query.set("team_id", teamId);
+  }
+
+  const payload = await apiRequest(`/champions/${championId}/metadata?${query.toString()}`, { auth: true });
+  updateChampionMetadataScopeIndicator(
+    championId,
+    normalizedScope,
+    payload?.has_custom_metadata === true || payload?.hasCustomMetadata === true
+  );
+  return cacheExplorerScopedMetadataPayload(championId, normalizedScope, payload);
+}
+
+async function selectExplorerChampionMetadataScope(championId, scope) {
+  if (!Number.isInteger(championId) || championId <= 0) {
+    return;
+  }
+  const champion = getChampionById(championId);
+  if (!champion) {
+    return;
+  }
+  const normalizedScope = normalizeChampionTagScope(scope);
+  const championKey = String(championId);
+  if (normalizedScope === "all") {
+    state.explorer.activeMetadataScopeByChampionId[championKey] = "all";
+    renderExplorer();
+    return;
+  }
+
+  const metadataScopes = normalizeChampionMetadataScopes(champion.metadataScopes);
+  if (metadataScopes[normalizedScope] !== true || !canReadExplorerMetadataScope(normalizedScope)) {
+    return;
+  }
+
+  const cached = getExplorerScopedMetadataCacheEntry(championId, normalizedScope);
+  if (cached?.hasCustomMetadata) {
+    state.explorer.activeMetadataScopeByChampionId[championKey] = normalizedScope;
+    renderExplorer();
+    return;
+  }
+
+  try {
+    const loaded = await loadExplorerScopedMetadata(championId, normalizedScope);
+    state.explorer.activeMetadataScopeByChampionId[championKey] = loaded?.hasCustomMetadata ? normalizedScope : "all";
+    renderExplorer();
+  } catch (_error) {
+    state.explorer.activeMetadataScopeByChampionId[championKey] = "all";
+    renderExplorer();
+  }
 }
 
 function getChampionById(championId) {
@@ -10111,6 +10334,9 @@ function renderExplorer() {
   for (const champion of sorted) {
     const card = runtimeDocument.createElement("article");
     card.className = "champ-card";
+    const metadataScopes = normalizeChampionMetadataScopes(champion.metadataScopes);
+    const activeMetadataScope = getExplorerChampionActiveMetadataScope(champion);
+    const activeMetadataPreview = getExplorerChampionMetadataPreview(champion, activeMetadataScope);
 
     // ── Header: image + name/badge row + pencil ──────────────────────────
     const cardHeader = runtimeDocument.createElement("div");
@@ -10147,8 +10373,6 @@ function renderExplorer() {
       indicator.append(check, " Human reviewed");
       nameWrap.append(indicator);
     }
-
-    const metadataScopes = normalizeChampionMetadataScopes(champion.metadataScopes);
     const scopeIndicators = runtimeDocument.createElement("div");
     scopeIndicators.className = "champ-card-scope-indicators";
     for (const scopeOption of [
@@ -10156,22 +10380,36 @@ function renderExplorer() {
       { value: "team", label: "Team" },
       { value: "all", label: "Global" }
     ]) {
-      const pill = runtimeDocument.createElement("span");
-      const isOn = metadataScopes[scopeOption.value] === true;
-      const isActiveEditorScope =
-        state.api.selectedChampionTagEditorId === champion.id &&
-        state.api.championTagScope === scopeOption.value;
+      const pill = runtimeDocument.createElement("button");
+      pill.type = "button";
+      const isPresent = scopeOption.value === "all" || metadataScopes[scopeOption.value] === true;
+      const isSelected = activeMetadataScope === scopeOption.value;
+      const canSelect = scopeOption.value === "all" || (isPresent && canReadExplorerMetadataScope(scopeOption.value));
       pill.className = [
         "champ-scope-indicator",
-        isActiveEditorScope ? "is-selected" : (isOn ? "is-present" : "is-missing"),
-        isActiveEditorScope ? "is-active-scope" : ""
+        isSelected ? "is-selected" : (isPresent ? "is-present" : "is-missing")
       ].filter(Boolean).join(" ");
-      pill.textContent = `${scopeOption.label}: ${isActiveEditorScope ? "Selected" : (isOn ? "Present" : "Not Present")}`;
-      pill.title = isActiveEditorScope
-        ? `${scopeOption.label} scope is currently selected for editing ${champion.name}.`
-        : isOn
-          ? `${scopeOption.label} scope has custom metadata for ${champion.name}.`
-          : `${scopeOption.label} scope is currently using global metadata for ${champion.name}.`;
+      pill.textContent = scopeOption.label;
+      pill.setAttribute("aria-pressed", String(isSelected));
+      pill.disabled = !canSelect;
+      pill.title = isSelected
+        ? `${scopeOption.label} metadata is currently selected for ${champion.name}.`
+        : isPresent
+          ? `Select ${scopeOption.label.toLowerCase()} metadata for ${champion.name}.`
+          : `${scopeOption.label} metadata is not present for ${champion.name}.`;
+      pill.setAttribute(
+        "aria-label",
+        isSelected
+          ? `${scopeOption.label} metadata selected for ${champion.name}`
+          : isPresent
+            ? `${scopeOption.label} metadata present for ${champion.name}`
+            : `${scopeOption.label} metadata not present for ${champion.name}`
+      );
+      if (canSelect && !isSelected) {
+        pill.addEventListener("click", () => {
+          void selectExplorerChampionMetadataScope(champion.id, scopeOption.value);
+        });
+      }
       scopeIndicators.append(pill);
     }
     nameWrap.append(scopeIndicators);
@@ -10218,10 +10456,11 @@ function renderExplorer() {
     };
 
     // Detect whether all role profiles are identical (shared profile scenario)
-    const champRoles = champion.roles ?? [];
+    const champRoles = activeMetadataPreview.roles ?? [];
+    const champRoleProfiles = activeMetadataPreview.roleProfiles ?? {};
     const allRoleProfilesSame = (() => {
       if (champRoles.length <= 1) return true;
-      const profiles = champRoles.map((r) => champion.roleProfiles?.[r]);
+      const profiles = champRoles.map((r) => champRoleProfiles?.[r]);
       if (profiles.some((p) => !p)) return false;
       const first = JSON.stringify(profiles[0]);
       return profiles.every((p) => JSON.stringify(p) === first);
@@ -10235,7 +10474,7 @@ function renderExplorer() {
       const roleBtns = champRoles.map((r) => {
         const btn = runtimeDocument.createElement("button");
         btn.type = "button";
-        const isActive = allRoleProfilesSame || r === champRoles[0];
+        const isActive = allRoleProfilesSame || r === activeRoleKey;
         btn.className = isActive ? "champ-role-pill is-active" : "champ-role-pill is-inactive";
         btn.textContent = r;
         if (champRoles.length > 1 && !allRoleProfilesSame) {
@@ -10250,7 +10489,7 @@ function renderExplorer() {
       });
 
       // Profile data for active role
-      const profile = champion.roleProfiles?.[activeRoleKey];
+      const profile = champRoleProfiles?.[activeRoleKey];
       const damageType = profile
         ? deriveDisplayDamageTypeFromProfile(profile)
         : champion.damageType;
