@@ -406,42 +406,36 @@ body:has(#app-shell.is-nav-collapsed) .nav-desktop-toggle {
 
 /* --- Nav Avatar Link --- */
 .nav-avatar-link {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  display: inline-flex;
   margin-top: 0.45rem;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid transparent;
-  border-radius: 12px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
   background: none;
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
-}
-
-.nav-avatar-link:hover {
-  background: var(--surface-strong);
-  border-color: var(--border);
-}
-
-.nav-avatar-link.is-active {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.nav-avatar-link.is-active .nav-avatar-label {
-  color: #fff7f2;
 }
 
 .nav-avatar-circle {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   background: #fffefa;
   overflow: hidden;
   display: grid;
   place-items: center;
   flex-shrink: 0;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.nav-avatar-link:hover .nav-avatar-circle {
+  border-color: var(--accent-soft);
+  box-shadow: 0 2px 8px rgba(113, 54, 27, 0.18);
+}
+
+.nav-avatar-link.is-active .nav-avatar-circle {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .nav-avatar-circle .profile-avatar-img {
@@ -452,15 +446,9 @@ body:has(#app-shell.is-nav-collapsed) .nav-desktop-toggle {
 }
 
 .nav-avatar-circle .profile-avatar-placeholder {
-  font-size: 0.85rem;
+  font-size: 1rem;
   font-weight: 700;
   color: var(--muted);
-}
-
-.nav-avatar-label {
-  font-weight: 700;
-  font-size: 0.88rem;
-  color: #6b2a12;
 }
 
 /* --- Nav Text Link (Logout) --- */
@@ -2915,7 +2903,7 @@ button.pool-snapshot-order-btn:disabled {
 
 /* --- Role Modals (compact) --- */
 .modal-compact {
-  max-width: 360px;
+  max-width: 440px;
 }
 
 .modal-compact .button-row {
