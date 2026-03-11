@@ -1524,6 +1524,7 @@ button.pool-snapshot-order-btn:disabled {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .button-row > button {
@@ -2852,6 +2853,10 @@ button.pool-snapshot-order-btn:disabled {
   max-width: 360px;
 }
 
+.modal-compact .button-row {
+  margin-top: 0.5rem;
+}
+
 .role-modal-options {
   display: flex;
   flex-direction: column;
@@ -2885,10 +2890,17 @@ button.pool-snapshot-order-btn:disabled {
   border-color: var(--accent);
 }
 
+.other-roles-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+}
+
 /* --- Avatar Modal Actions --- */
 .avatar-modal-actions {
   margin-top: 0.5rem;
-  justify-content: flex-end;
 }
 
 /* --- Profile Settings List --- */
@@ -2956,7 +2968,6 @@ button.pool-snapshot-order-btn:disabled {
 
 .profile-setting-editor .button-row {
   margin-top: 0.75rem;
-  justify-content: flex-end;
 }
 
 .profile-setting-nav .profile-setting-row {

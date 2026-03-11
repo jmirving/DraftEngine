@@ -837,6 +837,7 @@ function createElements() {
     profilePrimaryRole: runtimeDocument.querySelector("#profile-primary-role"),
     profileSecondaryRoles: runtimeDocument.querySelector("#profile-secondary-roles"),
     profileSaveRoles: runtimeDocument.querySelector("#profile-save-roles"),
+    profileCancelRoles: runtimeDocument.querySelector("#profile-cancel-roles"),
     profileRolesFeedback: runtimeDocument.querySelector("#profile-roles-feedback"),
     profileRiotStatsSummary: runtimeDocument.querySelector("#profile-riot-stats-summary"),
     profileRiotStatsList: runtimeDocument.querySelector("#profile-riot-stats-list"),
@@ -8562,28 +8563,31 @@ function renderProfileRolesSection() {
   elements.profileSecondaryRoles.innerHTML = "";
   const selectedSecondary = new Set(state.profile.secondaryRoles);
   const secondaryCandidates = SLOTS.filter((role) => role !== state.profile.primaryRole);
+
+  const pillRow = runtimeDocument.createElement("div");
+  pillRow.className = "other-roles-pill-row";
   for (const role of secondaryCandidates) {
-    const label = runtimeDocument.createElement("label");
-    label.className = "profile-role-option";
-
-    const checkbox = runtimeDocument.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.value = role;
-    checkbox.checked = selectedSecondary.has(role);
-    checkbox.disabled = !authenticated || isSavingRoles;
-    checkbox.addEventListener("change", () => {
-      const chosen = Array.from(
-        elements.profileSecondaryRoles.querySelectorAll("input[type='checkbox']:checked"),
-        (input) => input.value
+    const btn = runtimeDocument.createElement("button");
+    btn.type = "button";
+    btn.className = "ced-role-tab";
+    if (selectedSecondary.has(role)) btn.classList.add("is-active");
+    btn.textContent = role;
+    btn.disabled = !authenticated || isSavingRoles;
+    btn.addEventListener("click", () => {
+      if (selectedSecondary.has(role)) {
+        selectedSecondary.delete(role);
+      } else {
+        selectedSecondary.add(role);
+      }
+      state.profile.secondaryRoles = normalizeSecondaryRoles(
+        Array.from(selectedSecondary),
+        state.profile.primaryRole
       );
-      state.profile.secondaryRoles = normalizeSecondaryRoles(chosen, state.profile.primaryRole);
+      btn.classList.toggle("is-active", selectedSecondary.has(role));
     });
-
-    const text = runtimeDocument.createElement("span");
-    text.textContent = role;
-    label.append(checkbox, text);
-    elements.profileSecondaryRoles.append(label);
+    pillRow.append(btn);
   }
+  elements.profileSecondaryRoles.append(pillRow);
 }
 
 function formatProfileChampionStatsSummary(championStats, authenticated) {
@@ -9187,8 +9191,11 @@ function closePrimaryRoleModal() {
   if (elements.primaryRoleModal) elements.primaryRoleModal.hidden = true;
 }
 
+let _otherRolesSnapshot = [];
+
 function openOtherRolesModal() {
   if (!elements.otherRolesModal) return;
+  _otherRolesSnapshot = [...state.profile.secondaryRoles];
   elements.otherRolesModal.hidden = false;
   if (elements.otherRolesModalFeedback) elements.otherRolesModalFeedback.textContent = "";
   renderProfileRolesSection();
@@ -9196,6 +9203,24 @@ function openOtherRolesModal() {
 
 function closeOtherRolesModal() {
   if (elements.otherRolesModal) elements.otherRolesModal.hidden = true;
+}
+
+function hasOtherRolesUnsavedChanges() {
+  const current = [...state.profile.secondaryRoles].sort();
+  const snapshot = [..._otherRolesSnapshot].sort();
+  return current.length !== snapshot.length || current.some((r, i) => r !== snapshot[i]);
+}
+
+function cancelOtherRolesModal() {
+  if (hasOtherRolesUnsavedChanges()) {
+    showNavWarning(() => {
+      state.profile.secondaryRoles = [..._otherRolesSnapshot];
+      closeOtherRolesModal();
+      renderPlayerConfig();
+    });
+  } else {
+    closeOtherRolesModal();
+  }
 }
 
 function initializePlayerConfigControls() {
@@ -12369,6 +12394,12 @@ function attachEvents() {
     state.playerConfig.teamId = buildRolePoolTeamId(state.profile.primaryRole);
     renderPlayerConfig();
   });
+
+  if (elements.profileCancelRoles) {
+    elements.profileCancelRoles.addEventListener("click", () => {
+      cancelOtherRolesModal();
+    });
+  }
 
   elements.profileSaveRoles.addEventListener("click", () => {
     if (!isAuthenticated()) {
