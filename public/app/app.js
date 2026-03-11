@@ -8579,7 +8579,7 @@ function renderProfileRolesSection() {
   for (const role of secondaryCandidates) {
     const btn = runtimeDocument.createElement("button");
     btn.type = "button";
-    btn.className = "ced-role-tab";
+    btn.className = "role-pill";
     if (selectedSecondary.has(role)) btn.classList.add("is-active");
     btn.textContent = role;
     btn.disabled = !authenticated || isSavingRoles;

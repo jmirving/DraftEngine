@@ -2887,7 +2887,7 @@ button.pool-snapshot-order-btn:disabled {
 
 /* --- Role Modals (compact) --- */
 .modal-compact {
-  max-width: 440px;
+  max-width: 320px;
 }
 
 .modal-compact .button-row {
@@ -2930,12 +2930,9 @@ button.pool-snapshot-order-btn:disabled {
 .other-roles-pill-row {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 0.4rem;
   margin-bottom: 0.75rem;
-}
-
-.other-roles-pill-row .ced-role-tab {
-  min-width: 4.75rem;
 }
 
 /* --- Avatar Modal Actions --- */
