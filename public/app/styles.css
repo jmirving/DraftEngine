@@ -2865,12 +2865,13 @@ button.pool-snapshot-order-btn:disabled {
   padding: 0.55rem 0.85rem;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fffefa;
+  background: var(--surface-strong);
+  color: var(--text);
   cursor: pointer;
   font-size: 0.88rem;
   font-weight: 600;
   text-align: left;
-  transition: background 0.12s, border-color 0.12s;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
 .role-modal-option:hover {

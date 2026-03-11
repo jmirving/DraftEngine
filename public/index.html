@@ -878,26 +878,6 @@
                 </li>
               </ul>
 
-              <!-- Primary Role Modal -->
-              <div class="modal-overlay" id="primary-role-modal" hidden>
-                <div class="modal-content modal-compact">
-                  <h3>Set Primary Role</h3>
-                  <div class="role-modal-options" id="primary-role-modal-options"></div>
-                  <p id="primary-role-modal-feedback" class="meta"></p>
-                </div>
-              </div>
-
-              <!-- Other Roles Modal -->
-              <div class="modal-overlay" id="other-roles-modal" hidden>
-                <div class="modal-content modal-compact">
-                  <h3>Set Other Roles</h3>
-                  <div id="profile-secondary-roles"></div>
-                  <div class="button-row">
-                    <button id="profile-save-roles" type="button">Save Roles</button>
-                  </div>
-                  <p id="other-roles-modal-feedback" class="meta"></p>
-                </div>
-              </div>
 
               <!-- Hidden elements needed by existing role JS -->
               <select id="profile-primary-role" hidden></select>
@@ -910,18 +890,6 @@
               </div>
             </div>
 
-            <!-- Avatar Picker Modal -->
-            <div class="modal-overlay" id="avatar-modal" hidden>
-              <div class="modal-content avatar-modal-content">
-                <h3>Select Your Avatar</h3>
-                <input id="avatar-modal-search" type="search" placeholder="Filter champions..." class="avatar-modal-search" />
-                <div class="avatar-modal-grid" id="avatar-modal-grid"></div>
-                <div class="button-row avatar-modal-actions">
-                  <button id="avatar-modal-cancel" class="ghost" type="button">Cancel</button>
-                  <button id="avatar-modal-save" type="button">Save</button>
-                </div>
-              </div>
-            </div>
           </section>
 
           <section id="tab-users" class="tab-panel tab-surface">
@@ -1302,6 +1270,37 @@
               </div>
             </div>
           </section>
+        </div>
+      </div>
+      <!-- Global Modals (outside tab sections so they work from any tab) -->
+      <div class="modal-overlay" id="primary-role-modal" hidden>
+        <div class="modal-content modal-compact">
+          <h3>Set Primary Role</h3>
+          <div class="role-modal-options" id="primary-role-modal-options"></div>
+          <p id="primary-role-modal-feedback" class="meta"></p>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="other-roles-modal" hidden>
+        <div class="modal-content modal-compact">
+          <h3>Set Other Roles</h3>
+          <div id="profile-secondary-roles"></div>
+          <div class="button-row">
+            <button id="profile-save-roles" type="button">Save Roles</button>
+          </div>
+          <p id="other-roles-modal-feedback" class="meta"></p>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="avatar-modal" hidden>
+        <div class="modal-content avatar-modal-content">
+          <h3>Select Your Avatar</h3>
+          <input id="avatar-modal-search" type="search" placeholder="Filter champions..." class="avatar-modal-search" />
+          <div class="avatar-modal-grid" id="avatar-modal-grid"></div>
+          <div class="button-row avatar-modal-actions">
+            <button id="avatar-modal-cancel" class="ghost" type="button">Cancel</button>
+            <button id="avatar-modal-save" type="button">Save</button>
+          </div>
         </div>
       </div>
     </main>
