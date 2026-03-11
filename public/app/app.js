@@ -508,6 +508,7 @@ function createInitialState() {
       roles: [],
       damageTypes: [],
       scaling: "",
+      metadataScopeFilter: "",
       includeTags: [],
       excludeTags: [],
       sortBy: "alpha-asc",
@@ -670,6 +671,7 @@ function createElements() {
     explorerDamage: runtimeDocument.querySelector("#explorer-damage"),
     explorerScaling: runtimeDocument.querySelector("#explorer-scaling"),
     explorerSort: runtimeDocument.querySelector("#explorer-sort"),
+    explorerMetadataScope: runtimeDocument.querySelector("#explorer-metadata-scope"),
     explorerIncludeTags: runtimeDocument.querySelector("#explorer-include-tags"),
     explorerExcludeTags: runtimeDocument.querySelector("#explorer-exclude-tags"),
     explorerFilterToggle: runtimeDocument.querySelector("#explorer-filter-toggle"),
@@ -681,6 +683,7 @@ function createElements() {
     explorerClearDamage: runtimeDocument.querySelector("#explorer-clear-damage"),
     explorerClearScaling: runtimeDocument.querySelector("#explorer-clear-scaling"),
     explorerClearSort: runtimeDocument.querySelector("#explorer-clear-sort"),
+    explorerClearMetadataScope: runtimeDocument.querySelector("#explorer-clear-metadata-scope"),
     explorerClearInclude: runtimeDocument.querySelector("#explorer-clear-include"),
     explorerClearExclude: runtimeDocument.querySelector("#explorer-clear-exclude"),
     explorerCatalogField: runtimeDocument.querySelector("#explorer-catalog-field"),
@@ -696,6 +699,8 @@ function createElements() {
     championTagEditorTitle: runtimeDocument.querySelector("#champion-tag-editor-title"),
     championTagEditorMeta: runtimeDocument.querySelector("#champion-tag-editor-meta"),
     championTagEditorScope: runtimeDocument.querySelector("#champion-tag-editor-scope"),
+    championTagEditorScopeReadout: runtimeDocument.querySelector("#champion-tag-editor-scope-readout"),
+    championTagEditorScopeHelp: runtimeDocument.querySelector("#champion-tag-editor-scope-help"),
     championTagEditorTeamGroup: runtimeDocument.querySelector("#champion-tag-editor-team-group"),
     championTagEditorTeam: runtimeDocument.querySelector("#champion-tag-editor-team"),
     cedChampImage: runtimeDocument.querySelector("#ced-champ-image"),
@@ -1063,6 +1068,32 @@ function getChampionProfileDefaultScope() {
     return "team";
   }
   return "self";
+}
+
+function getExplorerMetadataScopeFilterOptions() {
+  const options = [{ value: "", label: "Any custom metadata" }];
+  if (isAuthenticated()) {
+    options.push({ value: "self-present", label: "User metadata present" });
+    options.push({ value: "self-missing", label: "User metadata not present" });
+  }
+  if (getChampionTagLeadTeamOptions().length > 0) {
+    options.push({ value: "team-present", label: "Team metadata present" });
+    options.push({ value: "team-missing", label: "Team metadata not present" });
+  }
+  return options;
+}
+
+function refreshExplorerMetadataScopeFilterOptions() {
+  if (!elements.explorerMetadataScope) {
+    return;
+  }
+  const options = getExplorerMetadataScopeFilterOptions();
+  const optionValues = new Set(options.map((option) => option.value));
+  if (!optionValues.has(state.explorer.metadataScopeFilter)) {
+    state.explorer.metadataScopeFilter = "";
+  }
+  replaceOptions(elements.explorerMetadataScope, options);
+  elements.explorerMetadataScope.value = state.explorer.metadataScopeFilter;
 }
 
 function normalizeChampionEditorTab(tab) {
@@ -6255,6 +6286,17 @@ function renderChampionTagEditor() {
     ? `Editing ${scopeLabel.toLowerCase()} metadata${teamLabel ? ` for ${teamLabel}` : ""}.`
     : `${scopeLabel}${teamLabel ? ` (${teamLabel})` : ""} is currently using global metadata. Save to create a custom profile.`;
   setChampionTagEditorMeta(scopeMeta);
+  if (elements.championTagEditorScopeReadout) {
+    elements.championTagEditorScopeReadout.textContent =
+      teamLabel && state.api.championTagScope === "team"
+        ? `${scopeLabel}: ${teamLabel}`
+        : scopeLabel;
+  }
+  if (elements.championTagEditorScopeHelp) {
+    elements.championTagEditorScopeHelp.textContent = state.api.championMetadataHasCustom
+      ? `Changes will update this ${scopeLabel.toLowerCase()} profile${teamLabel ? ` for ${teamLabel}` : ""}.`
+      : `No ${scopeLabel.toLowerCase()} profile exists yet${teamLabel ? ` for ${teamLabel}` : ""}. Saving will create one.`;
+  }
 
   renderChampionEditorTabs();
   renderChampionTagEditorTagOptions();
@@ -7068,6 +7110,7 @@ function initializeExplorerControls() {
       { value: "role", label: "Primary Role, then Name" }
     ]
   );
+  refreshExplorerMetadataScopeFilterOptions();
 
   multiSelectControls.explorerIncludeTags = createCheckboxMultiControl({
     root: elements.explorerIncludeTags,
@@ -7117,6 +7160,7 @@ function clearExplorerFilters() {
   state.explorer.roles = [];
   state.explorer.damageTypes = [];
   state.explorer.scaling = "";
+  state.explorer.metadataScopeFilter = "";
   state.explorer.includeTags = [];
   state.explorer.excludeTags = [];
   state.explorer.sortBy = "alpha-asc";
@@ -7126,6 +7170,7 @@ function clearExplorerFilters() {
   multiSelectControls.explorerDamage?.setSelected([NO_FILTER]);
   elements.explorerScaling.value = "";
   elements.explorerSort.value = "alpha-asc";
+  refreshExplorerMetadataScopeFilterOptions();
   multiSelectControls.explorerIncludeTags?.setSelected([]);
   multiSelectControls.explorerExcludeTags?.setSelected([]);
   renderActivePills();
@@ -7149,6 +7194,12 @@ function renderActivePills() {
   if (state.explorer.sortBy !== "alpha-asc") {
     const sortLabels = { "alpha-desc": "Alphabetical (Z-A)", role: "Primary Role, then Name" };
     pills.push({ label: "Sort Cards", values: [sortLabels[state.explorer.sortBy] ?? state.explorer.sortBy] });
+  }
+  if (state.explorer.metadataScopeFilter) {
+    const scopeLabel = getExplorerMetadataScopeFilterOptions().find(
+      (option) => option.value === state.explorer.metadataScopeFilter
+    )?.label ?? state.explorer.metadataScopeFilter;
+    pills.push({ label: "Custom Metadata", values: [scopeLabel] });
   }
   if (state.explorer.includeTags.length > 0) {
     pills.push({ label: "Include Tags", values: state.explorer.includeTags });
@@ -9996,6 +10047,7 @@ function renderMyChampions() {
 }
 
 function renderExplorer() {
+  refreshExplorerMetadataScopeFilterOptions();
   renderActivePills();
   renderChampionTagCatalog();
   renderChampionTagEditor();
@@ -10003,6 +10055,7 @@ function renderExplorer() {
   const query = state.explorer.search.trim().toLowerCase();
   const includeTags = new Set(state.explorer.includeTags);
   const excludeTags = new Set(state.explorer.excludeTags);
+  const metadataScopeFilter = state.explorer.metadataScopeFilter;
 
   const filtered = state.data.champions.filter((champion) => {
     if (query && !champion.name.toLowerCase().includes(query)) {
@@ -10026,6 +10079,19 @@ function renderExplorer() {
       if (champion.tags[tag]) {
         return false;
       }
+    }
+    const metadataScopes = normalizeChampionMetadataScopes(champion.metadataScopes);
+    if (metadataScopeFilter === "self-present" && metadataScopes.self !== true) {
+      return false;
+    }
+    if (metadataScopeFilter === "self-missing" && metadataScopes.self === true) {
+      return false;
+    }
+    if (metadataScopeFilter === "team-present" && metadataScopes.team !== true) {
+      return false;
+    }
+    if (metadataScopeFilter === "team-missing" && metadataScopes.team === true) {
+      return false;
     }
     return true;
   });
@@ -10097,13 +10163,15 @@ function renderExplorer() {
         state.api.championTagScope === scopeOption.value;
       pill.className = [
         "champ-scope-indicator",
-        isOn ? "is-on" : "is-off",
+        isActiveEditorScope ? "is-selected" : (isOn ? "is-present" : "is-missing"),
         isActiveEditorScope ? "is-active-scope" : ""
       ].filter(Boolean).join(" ");
-      pill.textContent = `${scopeOption.label}: ${isOn ? "On" : "Off"}`;
-      pill.title = isOn
-        ? `${scopeOption.label} scope has custom metadata for ${champion.name}.`
-        : `${scopeOption.label} scope is currently using global metadata for ${champion.name}.`;
+      pill.textContent = `${scopeOption.label}: ${isActiveEditorScope ? "Selected" : (isOn ? "Present" : "Not Present")}`;
+      pill.title = isActiveEditorScope
+        ? `${scopeOption.label} scope is currently selected for editing ${champion.name}.`
+        : isOn
+          ? `${scopeOption.label} scope has custom metadata for ${champion.name}.`
+          : `${scopeOption.label} scope is currently using global metadata for ${champion.name}.`;
       scopeIndicators.append(pill);
     }
     nameWrap.append(scopeIndicators);
@@ -12115,6 +12183,11 @@ function attachEvents() {
     renderExplorer();
   });
 
+  elements.explorerMetadataScope?.addEventListener("change", () => {
+    state.explorer.metadataScopeFilter = elements.explorerMetadataScope.value;
+    renderExplorer();
+  });
+
   elements.explorerCatalogSearch.addEventListener("input", () => {
     renderChampionTagCatalog();
   });
@@ -12170,6 +12243,12 @@ function attachEvents() {
   elements.explorerClearSort.addEventListener("click", () => {
     elements.explorerSort.value = "alpha-asc";
     state.explorer.sortBy = "alpha-asc";
+    renderExplorer();
+  });
+
+  elements.explorerClearMetadataScope?.addEventListener("click", () => {
+    state.explorer.metadataScopeFilter = "";
+    refreshExplorerMetadataScopeFilterOptions();
     renderExplorer();
   });
 

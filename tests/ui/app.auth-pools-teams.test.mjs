@@ -1976,6 +1976,24 @@ describe("auth + pools + team management", () => {
                 team: false,
                 all: true
               }
+            },
+            {
+              id: 2,
+              name: "Ashe",
+              role: "ADC",
+              tagIds: [],
+              reviewed: false,
+              metadata: {
+                roles: ["ADC"],
+                roleProfiles: {
+                  ADC: createRoleProfile("ad", "neutral", "strong", "strong")
+                }
+              },
+              metadata_scopes: {
+                self: false,
+                team: false,
+                all: true
+              }
             }
           ]
         });
@@ -2012,9 +2030,18 @@ describe("auth + pools + team management", () => {
     await flush();
 
     const card = doc.querySelector("#explorer-results .champ-card");
-    expect(card.textContent).toContain("User: On");
-    expect(card.textContent).toContain("Team: Off");
-    expect(card.textContent).toContain("Global: On");
+    expect(card.textContent).toContain("User: Present");
+    expect(card.textContent).toContain("Team: Not Present");
+    expect(card.textContent).toContain("Global: Present");
+
+    const metadataFilter = doc.querySelector("#explorer-metadata-scope");
+    expect(metadataFilter).toBeTruthy();
+    metadataFilter.value = "self-present";
+    metadataFilter.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await flush();
+    expect(doc.querySelector("#explorer-count").textContent).toContain("Results: 1");
+    expect(doc.querySelector("#explorer-results").textContent).toContain("Ahri");
+    expect(doc.querySelector("#explorer-results").textContent).not.toContain("Ashe");
 
     const editButton = doc.querySelector("#explorer-results .champ-card-edit-btn");
     expect(editButton).toBeTruthy();
@@ -2025,6 +2052,8 @@ describe("auth + pools + team management", () => {
     expect(scopeSelect).toBeTruthy();
     expect(Array.from(scopeSelect.options, (option) => option.value)).toEqual(["self"]);
     expect(scopeSelect.value).toBe("self");
+    expect(doc.querySelector("#champion-tag-editor-scope-readout").textContent).toContain("User");
+    expect(doc.querySelector("#champion-tag-editor-scope-help").textContent).toContain("Changes will update this user profile");
     expect(doc.querySelector("#champion-tag-editor-meta").textContent).toContain("Editing user metadata");
   });
 

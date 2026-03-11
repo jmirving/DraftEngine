@@ -1349,6 +1349,10 @@ button.ghost {
   color: var(--muted);
 }
 
+.explorer-filters-grid #explorer-metadata-scope {
+  font-weight: 600;
+}
+
 .explorer-catalog-wrapper {
   margin-top: 0.26rem;
   position: relative;
@@ -3306,15 +3310,22 @@ button.pool-snapshot-order-btn:disabled {
   border: 1px solid var(--border);
 }
 
-.champ-scope-indicator.is-on {
+.champ-scope-indicator.is-present {
   background: #dff1e4;
   border-color: #b7d8c0;
   color: #1d5a2f;
 }
 
-.champ-scope-indicator.is-off {
+.champ-scope-indicator.is-missing {
   background: #f3ede8;
   color: #7a6558;
+}
+
+.champ-scope-indicator.is-selected {
+  background: #fff0d8;
+  border-color: #e1a650;
+  color: #7a4300;
+  font-weight: 700;
 }
 
 .champ-scope-indicator.is-active-scope {
@@ -3671,15 +3682,53 @@ button.pool-snapshot-order-btn:disabled {
   margin-bottom: 0.75rem;
 }
 
-.ced-scope-row {
+.ced-scope-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   margin-bottom: 0.75rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid #e1c9aa;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fff8ef 0%, #fff1dc 100%);
+}
+
+.ced-scope-panel-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.16rem;
+}
+
+.ced-scope-panel-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8a5a24;
+}
+
+.ced-scope-panel-value {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #5b2f08;
+}
+
+.ced-scope-panel-help {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #7a5b3c;
 }
 
 .ced-scope-label {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 700;
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 180px;
 }
 
 /* ── Role pill group ───────────────────────────────────── */
@@ -3861,6 +3910,13 @@ button.pool-snapshot-order-btn:disabled {
   }
   .ced-meta-upper {
     grid-template-columns: 1fr;
+  }
+  .ced-scope-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ced-scope-label {
+    min-width: 0;
   }
 }
 
