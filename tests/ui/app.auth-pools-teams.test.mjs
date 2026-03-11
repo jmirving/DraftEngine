@@ -2562,7 +2562,7 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#logo-lightbox").hidden).toBe(true);
   });
 
-  test("profile page renders Riot champion stats from the profile payload", async () => {
+  test("profile page renders a featured Riot top champion from the profile payload", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -2581,15 +2581,24 @@ describe("auth + pools + team management", () => {
           provider: "riot",
           status: "ok",
           fetchedAt: "2026-02-26T17:25:00.000Z",
+          topChampion: {
+            championId: 99,
+            championName: "Lux",
+            championLevel: 7,
+            championPoints: 234567,
+            lastPlayedAt: "2026-02-24T10:00:00.000Z"
+          },
           champions: [
             {
               championId: 99,
+              championName: "Lux",
               championLevel: 7,
               championPoints: 234567,
               lastPlayedAt: "2026-02-24T10:00:00.000Z"
             },
             {
               championId: 266,
+              championName: "Aatrox",
               championLevel: 6,
               championPoints: 123456,
               lastPlayedAt: "2026-02-20T10:00:00.000Z"
@@ -2601,17 +2610,19 @@ describe("auth + pools + team management", () => {
 
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
-    doc.querySelector(".side-menu-link[data-tab='player-config']").click();
+    doc.querySelector(".nav-avatar-link[data-tab='profile']").click();
     await flush();
 
-    expect(doc.querySelector("#profile-riot-stats-summary").textContent).toContain("Top 2 champion mastery entries");
+    expect(doc.querySelector("#profile-riot-stats-summary").textContent).toContain("Most played champion: Lux");
+    expect(doc.querySelector("#profile-riot-top-champion").textContent).toContain("Most Played Champion");
+    expect(doc.querySelector("#profile-riot-top-champion").textContent).toContain("Lux");
+    expect(doc.querySelector("#profile-riot-top-champion").textContent).toContain("Mastery 7");
     const riotStatsText = doc.querySelector("#profile-riot-stats-list").textContent;
-    expect(riotStatsText).toContain("Champion #99");
-    expect(riotStatsText).toContain("Mastery 7");
-    expect(riotStatsText).toContain("Champion #266");
+    expect(riotStatsText).toContain("Aatrox");
+    expect(riotStatsText).toContain("#2");
   });
 
-  test("profile page shows not-implemented placeholder when Riot stats are idle", async () => {
+  test("profile page shows an unavailable message when Riot stats are idle", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -2631,10 +2642,11 @@ describe("auth + pools + team management", () => {
 
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
-    doc.querySelector(".side-menu-link[data-tab='player-config']").click();
+    doc.querySelector(".nav-avatar-link[data-tab='profile']").click();
     await flush();
 
-    expect(doc.querySelector("#profile-riot-stats-summary").textContent).toContain("not implemented yet");
+    expect(doc.querySelector("#profile-riot-stats-summary").textContent).toContain("not available yet");
+    expect(doc.querySelector("#profile-riot-top-champion").textContent.trim()).toBe("");
     expect(doc.querySelector("#profile-riot-stats-list").textContent.trim()).toBe("");
   });
 

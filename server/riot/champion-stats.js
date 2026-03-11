@@ -20,8 +20,46 @@ function buildBaseResult(status) {
     provider: "riot",
     status,
     fetchedAt: nowIsoString(),
+    topChampion: null,
     champions: []
   };
+}
+
+function normalizeChampionName(value) {
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : "";
+}
+
+async function enrichChampionMasteries(championMasteries, lookupChampionById) {
+  if (!Array.isArray(championMasteries) || championMasteries.length === 0) {
+    return [];
+  }
+
+  if (typeof lookupChampionById !== "function") {
+    return championMasteries.map((entry) => ({
+      ...entry,
+      championName: normalizeChampionName(entry?.championName)
+    }));
+  }
+
+  const enriched = await Promise.all(
+    championMasteries.map(async (entry) => {
+      const championId = Number.parseInt(String(entry?.championId), 10);
+      if (!Number.isInteger(championId) || championId <= 0) {
+        return {
+          ...entry,
+          championName: normalizeChampionName(entry?.championName)
+        };
+      }
+
+      const champion = await lookupChampionById(championId);
+      return {
+        ...entry,
+        championName: normalizeChampionName(champion?.name) || normalizeChampionName(entry?.championName)
+      };
+    })
+  );
+
+  return enriched;
 }
 
 function mapHttpErrorMessage(error) {
@@ -39,7 +77,8 @@ function mapHttpErrorMessage(error) {
 
 export function createRiotChampionStatsService({
   riotApiClient,
-  topChampionCount = DEFAULT_TOP_CHAMPION_COUNT
+  topChampionCount = DEFAULT_TOP_CHAMPION_COUNT,
+  lookupChampionById = null
 } = {}) {
   const normalizedTopCount = normalizeTopChampionCount(topChampionCount);
 
@@ -82,16 +121,19 @@ export function createRiotChampionStatsService({
           };
         }
 
-        const champions = await riotApiClient.getTopChampionMasteries({
+        const championMasteries = await riotApiClient.getTopChampionMasteries({
           puuid: account.puuid,
           platformRouting,
           count: normalizedTopCount
         });
+        const champions = await enrichChampionMasteries(championMasteries, lookupChampionById);
+        const topChampion = champions[0] ?? null;
 
         return {
           ...buildBaseResult("ok"),
           platformRouting,
           accountRouting: account.accountRouting ?? null,
+          topChampion,
           champions
         };
       } catch (error) {

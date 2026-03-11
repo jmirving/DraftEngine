@@ -1543,9 +1543,17 @@ describe("API routes", () => {
       provider: "riot",
       status: "ok",
       fetchedAt: "2026-02-26T17:25:00.000Z",
+      topChampion: {
+        championId: 99,
+        championName: "Lux",
+        championLevel: 7,
+        championPoints: 234567,
+        lastPlayedAt: "2026-02-24T10:00:00.000Z"
+      },
       champions: [
         {
           championId: 99,
+          championName: "Lux",
           championLevel: 7,
           championPoints: 234567,
           lastPlayedAt: "2026-02-24T10:00:00.000Z"
@@ -1569,9 +1577,17 @@ describe("API routes", () => {
       provider: "riot",
       status: "ok",
       fetchedAt: "2026-02-26T17:25:00.000Z",
+      topChampion: {
+        championId: 99,
+        championName: "Lux",
+        championLevel: 7,
+        championPoints: 234567,
+        lastPlayedAt: "2026-02-24T10:00:00.000Z"
+      },
       champions: [
         {
           championId: 99,
+          championName: "Lux",
           championLevel: 7,
           championPoints: 234567,
           lastPlayedAt: "2026-02-24T10:00:00.000Z"

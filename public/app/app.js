@@ -849,6 +849,7 @@ function createElements() {
     profileCancelRoles: runtimeDocument.querySelector("#profile-cancel-roles"),
     profileRolesFeedback: runtimeDocument.querySelector("#profile-roles-feedback"),
     profileRiotStatsSummary: runtimeDocument.querySelector("#profile-riot-stats-summary"),
+    profileRiotTopChampion: runtimeDocument.querySelector("#profile-riot-top-champion"),
     profileRiotStatsList: runtimeDocument.querySelector("#profile-riot-stats-list"),
     profileIdentity: runtimeDocument.querySelector("#profile-identity"),
     profileAvatarDisplay: runtimeDocument.querySelector("#profile-avatar-display"),
@@ -1955,9 +1956,30 @@ function createEmptyChampionStatsState() {
   return {
     provider: "riot",
     status: "idle",
+    topChampion: null,
     champions: [],
     fetchedAt: "",
     message: ""
+  };
+}
+
+function normalizeChampionStatsEntry(entry) {
+  const championId = Number.parseInt(String(entry?.championId), 10);
+  const championLevel = Number.parseInt(String(entry?.championLevel), 10);
+  const championPoints = Number.parseInt(String(entry?.championPoints), 10);
+  const championName = typeof entry?.championName === "string" ? entry.championName.trim() : "";
+  const lastPlayedAt = typeof entry?.lastPlayedAt === "string" ? entry.lastPlayedAt : null;
+
+  if (!Number.isInteger(championId)) {
+    return null;
+  }
+
+  return {
+    championId,
+    championName,
+    championLevel: Number.isInteger(championLevel) ? championLevel : 0,
+    championPoints: Number.isInteger(championPoints) ? championPoints : 0,
+    lastPlayedAt
   };
 }
 
@@ -1977,23 +1999,10 @@ function normalizeChampionStats(rawStats) {
   normalized.message = typeof rawStats.message === "string" ? rawStats.message : "";
 
   if (Array.isArray(rawStats.champions)) {
-    normalized.champions = rawStats.champions
-      .map((entry) => {
-        const championId = Number.parseInt(String(entry?.championId), 10);
-        const championLevel = Number.parseInt(String(entry?.championLevel), 10);
-        const championPoints = Number.parseInt(String(entry?.championPoints), 10);
-        const championName = typeof entry?.championName === "string" ? entry.championName.trim() : "";
-        const lastPlayedAt = typeof entry?.lastPlayedAt === "string" ? entry.lastPlayedAt : null;
-        return {
-          championId: Number.isInteger(championId) ? championId : null,
-          championName,
-          championLevel: Number.isInteger(championLevel) ? championLevel : 0,
-          championPoints: Number.isInteger(championPoints) ? championPoints : 0,
-          lastPlayedAt
-        };
-      })
-      .filter((entry) => entry.championId !== null);
+    normalized.champions = rawStats.champions.map(normalizeChampionStatsEntry).filter(Boolean);
   }
+
+  normalized.topChampion = normalizeChampionStatsEntry(rawStats.topChampion) ?? normalized.champions[0] ?? null;
 
   return normalized;
 }
@@ -9037,12 +9046,17 @@ function formatProfileChampionStatsSummary(championStats, authenticated) {
 
   const status = typeof championStats.status === "string" ? championStats.status : "idle";
   const champions = Array.isArray(championStats.champions) ? championStats.champions : [];
+  const topChampion = championStats.topChampion;
 
   if (status === "ok") {
     if (champions.length === 0) {
       return "No Riot champion mastery data returned for this account.";
     }
-    return `Top ${champions.length} champion mastery entr${champions.length === 1 ? "y" : "ies"} from Riot.`;
+    const championLabel =
+      topChampion && typeof topChampion.championName === "string" && topChampion.championName.trim() !== ""
+        ? topChampion.championName
+        : `Champion #${champions[0].championId}`;
+    return `Most played champion: ${championLabel}. Showing top ${champions.length} mastery entr${champions.length === 1 ? "y" : "ies"} from Riot.`;
   }
 
   if (status === "disabled") {
@@ -9058,7 +9072,7 @@ function formatProfileChampionStatsSummary(championStats, authenticated) {
     return championStats.message || "Riot champion stats are temporarily unavailable.";
   }
 
-  return "Riot champion stats are not implemented yet in this workspace.";
+  return "Riot champion stats are not available yet for this profile.";
 }
 
 function formatLastPlayedText(lastPlayedAt) {
@@ -9072,41 +9086,95 @@ function formatLastPlayedText(lastPlayedAt) {
   return `Last played: ${asDate.toLocaleDateString()}`;
 }
 
+function getProfileChampionLabel(champion) {
+  if (champion?.championName && champion.championName.trim() !== "") {
+    return champion.championName;
+  }
+  return `Champion #${champion?.championId}`;
+}
+
+function renderProfileChampionPortrait(champion, className) {
+  const portraitWrap = runtimeDocument.createElement("div");
+  portraitWrap.className = className;
+
+  const label = getProfileChampionLabel(champion);
+  if (champion?.championName && champion.championName.trim() !== "") {
+    const image = runtimeDocument.createElement("img");
+    image.src = getChampionSquareUrl(champion.championName);
+    image.alt = `${champion.championName} portrait`;
+    image.addEventListener("error", () => {
+      image.src = championImageFallback(champion.championName);
+    });
+    portraitWrap.append(image);
+    return portraitWrap;
+  }
+
+  const fallback = runtimeDocument.createElement("span");
+  fallback.textContent = String(label).slice(0, 2).toUpperCase();
+  portraitWrap.append(fallback);
+  return portraitWrap;
+}
+
+function renderProfileChampionStatCard(champion, { rank = null, featured = false } = {}) {
+  const card = runtimeDocument.createElement("article");
+  card.className = featured ? "profile-riot-featured-card" : "summary-card profile-riot-secondary-card";
+
+  const header = runtimeDocument.createElement("div");
+  header.className = featured ? "profile-riot-featured-header" : "profile-riot-secondary-header";
+
+  if (featured) {
+    header.append(renderProfileChampionPortrait(champion, "profile-riot-featured-media"));
+  }
+
+  const body = runtimeDocument.createElement("div");
+  body.className = featured ? "profile-riot-featured-body" : "profile-riot-secondary-body";
+
+  const kicker = runtimeDocument.createElement("p");
+  kicker.className = "panel-kicker";
+  kicker.textContent = featured ? "Most Played Champion" : `#${rank}`;
+
+  const title = runtimeDocument.createElement("strong");
+  title.textContent = getProfileChampionLabel(champion);
+
+  const mastery = runtimeDocument.createElement("p");
+  mastery.className = "meta";
+  mastery.textContent = `Mastery ${champion.championLevel} | ${NUMBER_FORMATTER.format(champion.championPoints)} pts`;
+
+  const played = runtimeDocument.createElement("p");
+  played.className = "meta";
+  played.textContent = formatLastPlayedText(champion.lastPlayedAt);
+
+  body.append(kicker, title, mastery, played);
+  header.append(body);
+  card.append(header);
+
+  return card;
+}
+
 function renderProfileChampionStatsSection() {
-  if (!elements.profileRiotStatsSummary || !elements.profileRiotStatsList) {
+  if (!elements.profileRiotStatsSummary || !elements.profileRiotStatsList || !elements.profileRiotTopChampion) {
     return;
   }
 
   const authenticated = isAuthenticated();
   const championStats = normalizeChampionStats(state.profile.championStats);
   elements.profileRiotStatsSummary.textContent = formatProfileChampionStatsSummary(championStats, authenticated);
+  elements.profileRiotTopChampion.innerHTML = "";
   elements.profileRiotStatsList.innerHTML = "";
 
-  if (!authenticated || championStats.status !== "ok" || championStats.champions.length === 0) {
+  if (!authenticated || championStats.status !== "ok" || championStats.champions.length === 0 || !championStats.topChampion) {
     return;
   }
 
-  for (const champion of championStats.champions) {
-    const card = runtimeDocument.createElement("article");
-    card.className = "summary-card";
+  elements.profileRiotTopChampion.append(
+    renderProfileChampionStatCard(championStats.topChampion, { featured: true })
+  );
 
-    const title = runtimeDocument.createElement("strong");
-    const championLabel =
-      champion.championName && champion.championName.trim() !== ""
-        ? champion.championName
-        : `Champion #${champion.championId}`;
-    title.textContent = championLabel;
-
-    const mastery = runtimeDocument.createElement("p");
-    mastery.className = "meta";
-    mastery.textContent = `Mastery ${champion.championLevel} | ${NUMBER_FORMATTER.format(champion.championPoints)} pts`;
-
-    const played = runtimeDocument.createElement("p");
-    played.className = "meta";
-    played.textContent = formatLastPlayedText(champion.lastPlayedAt);
-
-    card.append(title, mastery, played);
-    elements.profileRiotStatsList.append(card);
+  const secondaryChampions = championStats.champions.slice(1);
+  for (const [index, champion] of secondaryChampions.entries()) {
+    elements.profileRiotStatsList.append(
+      renderProfileChampionStatCard(champion, { rank: index + 2 })
+    );
   }
 }
 

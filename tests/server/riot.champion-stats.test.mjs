@@ -22,6 +22,12 @@ describe("createRiotChampionStatsService", () => {
   });
 
   it("returns champion mastery data for linked Riot IDs", async () => {
+    const lookupChampionById = vi.fn(async (championId) => {
+      if (championId === 99) {
+        return { id: 99, name: "Lux" };
+      }
+      return null;
+    });
     const riotApiClient = {
       isEnabled() {
         return true;
@@ -41,7 +47,11 @@ describe("createRiotChampionStatsService", () => {
         }
       ])
     };
-    const service = createRiotChampionStatsService({ riotApiClient, topChampionCount: 7 });
+    const service = createRiotChampionStatsService({
+      riotApiClient,
+      topChampionCount: 7,
+      lookupChampionById
+    });
 
     const stats = await service.getProfileChampionStats({
       gameName: "LeadPlayer",
@@ -59,7 +69,16 @@ describe("createRiotChampionStatsService", () => {
       count: 7
     });
     expect(stats.status).toBe("ok");
+    expect(lookupChampionById).toHaveBeenCalledWith(99);
+    expect(stats.topChampion).toEqual({
+      championId: 99,
+      championName: "Lux",
+      championLevel: 7,
+      championPoints: 123456,
+      lastPlayedAt: "2026-02-24T10:00:00.000Z"
+    });
     expect(stats.champions).toHaveLength(1);
+    expect(stats.champions[0].championName).toBe("Lux");
   });
 
   it("maps Riot API errors to an error status without throwing", async () => {

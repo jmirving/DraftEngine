@@ -7,12 +7,8 @@ import { createRepositories } from "./repositories/index.js";
 import { createRiotChampionStatsService } from "./riot/champion-stats.js";
 import { createRiotApiClient } from "./riot/client.js";
 
-function createOptionalRiotChampionStatsService(env = process.env) {
+function createRiotChampionStatsServiceForRuntime({ env = process.env, championsRepository } = {}) {
   const riotApiKey = typeof env.RIOT_API_KEY === "string" ? env.RIOT_API_KEY.trim() : "";
-  if (!riotApiKey) {
-    return null;
-  }
-
   const riotApiClient = createRiotApiClient({
     apiKey: riotApiKey,
     defaultPlatformRouting: env.RIOT_PLATFORM_ROUTING,
@@ -22,7 +18,8 @@ function createOptionalRiotChampionStatsService(env = process.env) {
 
   return createRiotChampionStatsService({
     riotApiClient,
-    topChampionCount: env.RIOT_PROFILE_CHAMPION_STATS_LIMIT
+    topChampionCount: env.RIOT_PROFILE_CHAMPION_STATS_LIMIT,
+    lookupChampionById: championsRepository?.getChampionById?.bind(championsRepository)
   });
 }
 
@@ -30,7 +27,10 @@ export function startServer(env = process.env) {
   const config = loadConfig(env);
   const pool = createDbPool(config);
   const repositories = createRepositories(pool);
-  const riotChampionStatsService = createOptionalRiotChampionStatsService(env);
+  const riotChampionStatsService = createRiotChampionStatsServiceForRuntime({
+    env,
+    championsRepository: repositories.champions
+  });
   const app = createApp({
     config,
     usersRepository: repositories.users,
