@@ -407,7 +407,7 @@ body:has(#app-shell.is-nav-collapsed) .nav-desktop-toggle {
 /* --- Nav Avatar Link --- */
 .nav-avatar-link {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   margin-top: 0.45rem;
   padding: 0;
@@ -2888,22 +2888,22 @@ button.pool-snapshot-order-btn:disabled {
 }
 
 /* --- Role Modals (compact) --- */
-.modal-compact {
+.modal-content.modal-compact {
   width: min-content;
   min-width: 0;
   max-width: none;
   padding: 0.75rem;
 }
 
-.modal-compact h3 {
+.modal-content.modal-compact h3 {
   white-space: nowrap;
 }
 
-.modal-compact .other-roles-pill-row {
+.modal-content.modal-compact .other-roles-pill-row {
   flex-wrap: nowrap;
 }
 
-.modal-compact .button-row {
+.modal-content.modal-compact .button-row {
   margin-top: 0.5rem;
   align-self: flex-end;
 }
