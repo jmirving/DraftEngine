@@ -6257,6 +6257,7 @@ async function openChampionTagEditor(championId) {
   initializeChampionMetadataDraft(champion);
   setChampionTagEditorFeedback("Loading champion tags...");
 
+  state.explorer._savedScrollTop = elements.explorerResults ? elements.explorerResults.scrollTop : 0;
   if (elements.championGridPanel) elements.championGridPanel.hidden = true;
   if (elements.championTagEditor) elements.championTagEditor.hidden = false;
 
@@ -6270,6 +6271,12 @@ function closeChampionTagEditor() {
   if (elements.championTagEditor) elements.championTagEditor.hidden = true;
   if (elements.championGridPanel) elements.championGridPanel.hidden = false;
   if (state.data) renderExplorer();
+  const savedScroll = state.explorer._savedScrollTop || 0;
+  if (savedScroll > 0 && elements.explorerResults) {
+    requestAnimationFrame(() => {
+      elements.explorerResults.scrollTop = savedScroll;
+    });
+  }
 }
 
 let _navWarningPendingAction = null;

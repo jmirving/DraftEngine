@@ -2894,8 +2894,12 @@ button.pool-snapshot-order-btn:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
-  justify-content: center;
   margin-bottom: 0.75rem;
+}
+
+.other-roles-pill-row .ced-role-tab {
+  flex: 1 0 0;
+  min-width: 4.75rem;
 }
 
 /* --- Avatar Modal Actions --- */
