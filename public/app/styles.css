@@ -2735,7 +2735,6 @@ button.pool-snapshot-order-btn:disabled {
   height: 100%;
   border-radius: 50%;
   object-fit: cover;
-  object-position: top;
 }
 
 .profile-avatar-placeholder {
@@ -3100,7 +3099,6 @@ button.pool-snapshot-order-btn:disabled {
   height: 56px;
   border-radius: 50%;
   object-fit: cover;
-  object-position: top;
 }
 
 .avatar-option-name {

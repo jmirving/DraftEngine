@@ -8922,7 +8922,7 @@ function renderPlayerConfig() {
       : null;
     if (avatarChampion) {
       const img = runtimeDocument.createElement("img");
-      img.src = getChampionImageUrl(avatarChampion.name);
+      img.src = getChampionSquareUrl(avatarChampion.name);
       img.alt = avatarChampion.name;
       img.className = "profile-avatar-img";
       img.addEventListener("error", () => {
@@ -9102,7 +9102,7 @@ function renderAvatarModalGrid() {
     }
 
     const img = runtimeDocument.createElement("img");
-    img.src = getChampionImageUrl(champion.name);
+    img.src = getChampionSquareUrl(champion.name);
     img.alt = champion.name;
     img.className = "avatar-option-img";
     img.loading = "lazy";
@@ -9610,6 +9610,11 @@ function championImageFallback(name) {
 function getChampionImageUrl(name) {
   const key = championImageKey(name);
   return `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${key}_0.jpg`;
+}
+
+function getChampionSquareUrl(name) {
+  const key = championImageKey(name);
+  return `https://ddragon.leagueoflegends.com/cdn/15.6.1/img/champion/${key}.png`;
 }
 
 function sortChampions(champions) {
