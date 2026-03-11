@@ -217,8 +217,7 @@ async function upsertChampion(client, champion) {
   const metadata = {
     roles: champion.roles,
     damageType: champion.damageType,
-    scaling: champion.scaling,
-    tags: champion.tags
+    scaling: champion.scaling
   };
 
   await client.query(

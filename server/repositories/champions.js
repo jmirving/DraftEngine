@@ -1,7 +1,10 @@
 function normalizeStoredMetadata(rawValue) {
-  return rawValue && typeof rawValue === "object" && !Array.isArray(rawValue)
-    ? rawValue
-    : {};
+  const normalized =
+    rawValue && typeof rawValue === "object" && !Array.isArray(rawValue)
+      ? rawValue
+      : {};
+  const { tags: _legacyTags, ...withoutLegacyTags } = normalized;
+  return withoutLegacyTags;
 }
 
 function mapChampionRow(row) {
@@ -86,12 +89,6 @@ function buildScopedMetadataConfig(scope) {
 
 function buildNextMetadata(currentMetadata, roles, roleProfiles) {
   const normalizedCurrentMetadata = normalizeStoredMetadata(currentMetadata);
-  const currentTags =
-    normalizedCurrentMetadata.tags &&
-    typeof normalizedCurrentMetadata.tags === "object" &&
-    !Array.isArray(normalizedCurrentMetadata.tags)
-      ? normalizedCurrentMetadata.tags
-      : {};
 
   const normalizedRoleProfiles =
     roleProfiles && typeof roleProfiles === "object" && !Array.isArray(roleProfiles)
@@ -111,8 +108,7 @@ function buildNextMetadata(currentMetadata, roles, roleProfiles) {
     roles: [...roles],
     roleProfiles: normalizedRoleProfiles,
     damageType: mapPrimaryDamageTypeToLegacyValue(primaryRoleProfile?.primaryDamageType),
-    scaling: deriveLegacyScalingFromEffectiveness(primaryRoleProfile?.effectiveness),
-    tags: currentTags
+    scaling: deriveLegacyScalingFromEffectiveness(primaryRoleProfile?.effectiveness)
   };
 }
 
