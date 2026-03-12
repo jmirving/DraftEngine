@@ -2761,6 +2761,17 @@ button.pool-snapshot-order-btn:disabled {
   max-width: 100%;
 }
 
+.comfort-select option {
+  background: #fff;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.comfort-select option:checked {
+  background: var(--accent);
+  color: #fff;
+}
+
 /* ── Mastery line on my-champion cards ────────────────── */
 .my-champ-mastery {
   text-align: center;

@@ -1157,6 +1157,8 @@
                   <li>My Champions redesigned: selected champions now display as visual cards with champion portrait, Comfort Level pill selector (S/A/B/C), Riot mastery stats, and collapsible tags.</li>
                   <li>Champion pool selector replaced with a visual two-column modal (Available / Selected) featuring champion portrait icons, search filtering, and click-to-toggle selection.</li>
                   <li>My Champions cards now include name and comfort level filters to quickly find champions in your pool.</li>
+                  <li>Riot mastery stats now load for all champions (not just top 5), so every champion in your pool can display mastery level and points.</li>
+                  <li>Comfort Level dropdown now shows grade letter only (S/A/B/C) with full description on hover tooltip; non-selected options display with a white background.</li>
                   <li>Scope selector on Edit Champions cards now uses a compact "View" pill dropdown in the meta section instead of stacked indicator buttons.</li>
                   <li>Requirements and compositions now support explicit `User`, `Team`, and `Global` scope selection, using the same scope model as champion profile editing.</li>
                   <li>The Requirements and Compositions workspaces now load, create, update, and delete entries within the selected scope instead of forcing all catalog work through the global library.</li>
@@ -1202,61 +1204,6 @@
                   <li>Account settings editor: view email, game name, and tagline; edit first name and last name inline on the Profile page; and change password.</li>
                   <li>Admin Users shortcut moved from the left navigation bar into the Profile settings list (visible to admin users only); Admin Tools section removed from the nav.</li>
                   <li>Profile tab internal route renamed from "player-config" to "profile" for clarity.</li>
-                </ul>
-                <h4>Version 0.7.6 (Shipped)</h4>
-                <ul class="coming-soon-list">
-                  <li>Player Slots section removed — all functionality (pick order badges, status badges, left/right reorder buttons, drag-to-reorder, exclusion and duplicate filtering) is now merged into Pool Snapshot cards.</li>
-                  <li>Pool Snapshot cards now show a two-row header: summoner name + role dropdown on top, reorder arrows + pick order + status badge below.</li>
-                  <li>Pool Snapshot champion lists now filter out excluded champions and champions already selected in other slots.</li>
-                  <li>Advanced Controls restyled: compact 3-column layout with excluded champions list (click-to-toggle), active exclusion pills (click to remove), and scoring controls side by side.</li>
-                  <li>Pool Snapshot filter lists, champion card grid, and excluded champions list now have consistent bordered styling for visual clarity.</li>
-                  <li>Champion card grid now has a visible top border separator from the results count, preventing a cut-off appearance when scrolled.</li>
-                </ul>
-                <h4>Version 0.7.5 (Shipped)</h4>
-                <ul class="coming-soon-list">
-                  <li>Champion tag editor redesigned: identity card and metadata now sit in a two-column row — the header (~25%) on the left, a bordered grouping container (~75%) on the right.</li>
-                  <li>Roles and Damage Type are now displayed above Effectiveness in the metadata container, arranged side-by-side in a 50/50 centered grid.</li>
-                  <li>"All roles same" checkbox renamed to "Apply tags to all selected Roles?" and moved into the Roles section header row.</li>
-                  <li>Role profile selector relabeled from "Profile for:" to "UPDATE ROLE PROFILE:" and repositioned to the bottom of the metadata container.</li>
-                  <li>Role profile selector pills are now equal width, sized to fit the longest role name (Jungle).</li>
-                  <li>Saving champion tags now navigates back to the Champions grid automatically on success.</li>
-                  <li>Damage type buttons in the tag editor now use the same colored pill design as champion cards instead of rectangular toggle buttons, and match the same size as role pills.</li>
-                  <li>Fixed: champion card role pills now always render filled for single-role champions regardless of previously cached active role state.</li>
-                  <li>Fixed: when multiple roles share the same profile, all role pills render filled; when profiles differ, only the leftmost pill is filled.</li>
-                </ul>
-                <h4>Version 0.7.4 (Shipped)</h4>
-                <ul class="coming-soon-list">
-                  <li>Profile now supports per-champion familiarity grading with an explicit S/A/B/C scale in each role pool, including save/load persistence.</li>
-                  <li>Composer tree generation now always expands to the end of the remaining draft instead of exposing a manual depth control.</li>
-                  <li>Composer Advanced Controls now focuses tree tuning on `Min Candidate Score`, `Rank Goal`, and a global `redundancyPenalty` for max-count overflow instead of opaque candidate/composition weight grids.</li>
-                  <li>Composer requirement visibility now shows clause-level match counts, missing coverage, redundancy overflow, and score contributions in Review/Inspect.</li>
-                  <li>Composer top-branch cards now prioritize readable recommendation signals, with rank, viable-finish counts, primary benefits, and collapsed debug metrics instead of leading with raw engine stats.</li>
-                  <li>Composer top-branch cards now surface total immediate coverage gain, explicit unmet clause coverage, and `+N more clause changes` indicators so near-tied recommendations are easier to tell apart.</li>
-                  <li>Users workspace now summarizes scoped self/team/all access for Champion Tags, Champion Metadata, Requirements, and Compositions from the real authorization matrix, alongside the raw permission table.</li>
-                </ul>
-                <h4>Version 0.7.3 (Shipped)</h4>
-                <ul class="coming-soon-list">
-                  <li>Champion cards now show role pills as clickable tab selectors; for champions with distinct per-role profiles, clicking a role switches the Damage Type and Effectiveness Focus display to that role's data.</li>
-                  <li>Effectiveness Focus on champion cards always shows all three phases (Early, Mid, Late) including neutral.</li>
-                  <li>Champion tag editor effectiveness profile redesigned: sliders replaced with Weak / Neutral / Strong pill buttons; damage and effectiveness now display as side-by-side columns; multi-role champions show a role tab row to edit each role's profile individually.</li>
-                  <li>Login screen flash on page refresh eliminated for users with an active session.</li>
-                  <li>Tab navigation flash on page refresh eliminated — the correct workspace is shown immediately on load without a brief flicker to Composer.</li>
-                  <li>Champion results counter now shows "Results: N" instead of verbose sentence text.</li>
-                  <li>Champions page card grid now has a visually separated container with gradient background and border to distinguish it from the filter section above.</li>
-                </ul>
-                <h4>Version 0.7.2 (Shipped)</h4>
-                <ul class="coming-soon-list">
-                  <li>Users workspace now includes an admin-only Roles &amp; Permissions matrix with a unified Roles section and a single Permission Assignments table that combines global and team-membership grants.</li>
-                  <li>Team context is now active-team only; deprecated preferred/default-team persistence and related catalog wording were removed.</li>
-                  <li>Roles labeling in the Users authorization matrix was clarified: global `member` now displays as `user`, and team membership roles display as `team member` and `team lead`.</li>
-                  <li>Compositions now have explicit permission ids in the catalog and assignments (`compositions.read.global`, `compositions.write.global`) instead of being implied under requirements permissions.</li>
-                  <li>Owner allowlisted accounts now resolve to admin access from email allowlist even when legacy stored DB role is `member`, and the Users page now includes an owner-only "Apply Admin to DB" action to persist the DB role back to `admin`.</li>
-                </ul>
-                <h4>Version 0.7.1 (Shipped)</h4>
-                <ul class="coming-soon-list">
-                  <li>Composer can now generate trees from an empty setup; you no longer need a preselected champion to start expansion.</li>
-                  <li>Empty-start generation now branches from the first role in your current pick order, creating root candidates from that role's available pool (subject to normal branch thinning).</li>
-                  <li>Draft-context tree candidates are now role-exact per lane member: secondary-role pools are no longer mixed into future node options.</li>
                 </ul>
               </div>
 
@@ -1321,6 +1268,61 @@
               >
                 <h3>Previous Release Notes</h3>
                 <p class="meta">Historical shipped changes from earlier versions.</p>
+                <h4>Version 0.7.6 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>Player Slots section removed — all functionality (pick order badges, status badges, left/right reorder buttons, drag-to-reorder, exclusion and duplicate filtering) is now merged into Pool Snapshot cards.</li>
+                  <li>Pool Snapshot cards now show a two-row header: summoner name + role dropdown on top, reorder arrows + pick order + status badge below.</li>
+                  <li>Pool Snapshot champion lists now filter out excluded champions and champions already selected in other slots.</li>
+                  <li>Advanced Controls restyled: compact 3-column layout with excluded champions list (click-to-toggle), active exclusion pills (click to remove), and scoring controls side by side.</li>
+                  <li>Pool Snapshot filter lists, champion card grid, and excluded champions list now have consistent bordered styling for visual clarity.</li>
+                  <li>Champion card grid now has a visible top border separator from the results count, preventing a cut-off appearance when scrolled.</li>
+                </ul>
+                <h4>Version 0.7.5 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>Champion tag editor redesigned: identity card and metadata now sit in a two-column row — the header (~25%) on the left, a bordered grouping container (~75%) on the right.</li>
+                  <li>Roles and Damage Type are now displayed above Effectiveness in the metadata container, arranged side-by-side in a 50/50 centered grid.</li>
+                  <li>"All roles same" checkbox renamed to "Apply tags to all selected Roles?" and moved into the Roles section header row.</li>
+                  <li>Role profile selector relabeled from "Profile for:" to "UPDATE ROLE PROFILE:" and repositioned to the bottom of the metadata container.</li>
+                  <li>Role profile selector pills are now equal width, sized to fit the longest role name (Jungle).</li>
+                  <li>Saving champion tags now navigates back to the Champions grid automatically on success.</li>
+                  <li>Damage type buttons in the tag editor now use the same colored pill design as champion cards instead of rectangular toggle buttons, and match the same size as role pills.</li>
+                  <li>Fixed: champion card role pills now always render filled for single-role champions regardless of previously cached active role state.</li>
+                  <li>Fixed: when multiple roles share the same profile, all role pills render filled; when profiles differ, only the leftmost pill is filled.</li>
+                </ul>
+                <h4>Version 0.7.4 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>Profile now supports per-champion familiarity grading with an explicit S/A/B/C scale in each role pool, including save/load persistence.</li>
+                  <li>Composer tree generation now always expands to the end of the remaining draft instead of exposing a manual depth control.</li>
+                  <li>Composer Advanced Controls now focuses tree tuning on `Min Candidate Score`, `Rank Goal`, and a global `redundancyPenalty` for max-count overflow instead of opaque candidate/composition weight grids.</li>
+                  <li>Composer requirement visibility now shows clause-level match counts, missing coverage, redundancy overflow, and score contributions in Review/Inspect.</li>
+                  <li>Composer top-branch cards now prioritize readable recommendation signals, with rank, viable-finish counts, primary benefits, and collapsed debug metrics instead of leading with raw engine stats.</li>
+                  <li>Composer top-branch cards now surface total immediate coverage gain, explicit unmet clause coverage, and `+N more clause changes` indicators so near-tied recommendations are easier to tell apart.</li>
+                  <li>Users workspace now summarizes scoped self/team/all access for Champion Tags, Champion Metadata, Requirements, and Compositions from the real authorization matrix, alongside the raw permission table.</li>
+                </ul>
+                <h4>Version 0.7.3 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>Champion cards now show role pills as clickable tab selectors; for champions with distinct per-role profiles, clicking a role switches the Damage Type and Effectiveness Focus display to that role's data.</li>
+                  <li>Effectiveness Focus on champion cards always shows all three phases (Early, Mid, Late) including neutral.</li>
+                  <li>Champion tag editor effectiveness profile redesigned: sliders replaced with Weak / Neutral / Strong pill buttons; damage and effectiveness now display as side-by-side columns; multi-role champions show a role tab row to edit each role's profile individually.</li>
+                  <li>Login screen flash on page refresh eliminated for users with an active session.</li>
+                  <li>Tab navigation flash on page refresh eliminated — the correct workspace is shown immediately on load without a brief flicker to Composer.</li>
+                  <li>Champion results counter now shows "Results: N" instead of verbose sentence text.</li>
+                  <li>Champions page card grid now has a visually separated container with gradient background and border to distinguish it from the filter section above.</li>
+                </ul>
+                <h4>Version 0.7.2 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>Users workspace now includes an admin-only Roles &amp; Permissions matrix with a unified Roles section and a single Permission Assignments table that combines global and team-membership grants.</li>
+                  <li>Team context is now active-team only; deprecated preferred/default-team persistence and related catalog wording were removed.</li>
+                  <li>Roles labeling in the Users authorization matrix was clarified: global `member` now displays as `user`, and team membership roles display as `team member` and `team lead`.</li>
+                  <li>Compositions now have explicit permission ids in the catalog and assignments (`compositions.read.global`, `compositions.write.global`) instead of being implied under requirements permissions.</li>
+                  <li>Owner allowlisted accounts now resolve to admin access from email allowlist even when legacy stored DB role is `member`, and the Users page now includes an owner-only "Apply Admin to DB" action to persist the DB role back to `admin`.</li>
+                </ul>
+                <h4>Version 0.7.1 (Shipped)</h4>
+                <ul class="coming-soon-list">
+                  <li>Composer can now generate trees from an empty setup; you no longer need a preselected champion to start expansion.</li>
+                  <li>Empty-start generation now branches from the first role in your current pick order, creating root candidates from that role's available pool (subject to normal branch thinning).</li>
+                  <li>Draft-context tree candidates are now role-exact per lane member: secondary-role pools are no longer mixed into future node options.</li>
+                </ul>
                 <h4>Version 0.7.0 (Shipped)</h4>
                 <ul class="coming-soon-list">
                   <li>Composer Setup now includes an Active Composition selector populated from created composition bundles.</li>

@@ -241,6 +241,36 @@ export function createRiotApiClient({
       return null;
     },
 
+    async getAllChampionMasteries({ puuid, platformRouting } = {}) {
+      if (!this.isEnabled()) {
+        return [];
+      }
+
+      const normalizedPuuid = normalizeNonEmptyString(puuid);
+      if (!normalizedPuuid) {
+        return [];
+      }
+
+      const resolvedPlatform = normalizePlatformRouting(platformRouting, normalizedPlatformRouting);
+      const url = new URL(
+        `https://${resolvedPlatform}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodeURIComponent(
+          normalizedPuuid
+        )}`
+      );
+
+      const payload = await requestRiotApi({
+        fetchImpl,
+        apiKey: normalizedApiKey,
+        timeoutMs,
+        url
+      });
+
+      if (!Array.isArray(payload)) {
+        return [];
+      }
+      return payload.map((entry) => normalizeMasteryEntry(entry));
+    },
+
     async getTopChampionMasteries({ puuid, platformRouting, count = 5 } = {}) {
       if (!this.isEnabled()) {
         return [];

@@ -11155,7 +11155,8 @@ function renderMyChampions() {
     for (const grade of FAMILIARITY_GRADES) {
       const opt = runtimeDocument.createElement("option");
       opt.value = grade;
-      opt.textContent = `${grade} — ${FAMILIARITY_GRADE_LABELS[grade] ?? ""}`;
+      opt.textContent = grade;
+      opt.title = FAMILIARITY_GRADE_LABELS[grade] ?? "";
       comfortSelect.append(opt);
     }
     comfortSelect.value = currentGrade;

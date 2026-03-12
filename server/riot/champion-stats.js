@@ -1,16 +1,5 @@
 import { RiotApiHttpError } from "./client.js";
 
-const DEFAULT_TOP_CHAMPION_COUNT = 5;
-const MAX_TOP_CHAMPION_COUNT = 20;
-
-function normalizeTopChampionCount(value, fallback = DEFAULT_TOP_CHAMPION_COUNT) {
-  const parsed = Number.parseInt(String(value), 10);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > MAX_TOP_CHAMPION_COUNT) {
-    return fallback;
-  }
-  return parsed;
-}
-
 function nowIsoString() {
   return new Date().toISOString();
 }
@@ -77,11 +66,8 @@ function mapHttpErrorMessage(error) {
 
 export function createRiotChampionStatsService({
   riotApiClient,
-  topChampionCount = DEFAULT_TOP_CHAMPION_COUNT,
   lookupChampionById = null
 } = {}) {
-  const normalizedTopCount = normalizeTopChampionCount(topChampionCount);
-
   return {
     isEnabled() {
       return Boolean(riotApiClient?.isEnabled?.());
@@ -121,10 +107,9 @@ export function createRiotChampionStatsService({
           };
         }
 
-        const championMasteries = await riotApiClient.getTopChampionMasteries({
+        const championMasteries = await riotApiClient.getAllChampionMasteries({
           puuid: account.puuid,
-          platformRouting,
-          count: normalizedTopCount
+          platformRouting
         });
         const champions = await enrichChampionMasteries(championMasteries, lookupChampionById);
         const topChampion = champions[0] ?? null;

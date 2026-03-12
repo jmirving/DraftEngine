@@ -30,7 +30,6 @@ export function createRiotChampionStatsServiceForRuntime({
 
   return createRiotChampionStatsService({
     riotApiClient,
-    topChampionCount: env.RIOT_PROFILE_CHAMPION_STATS_LIMIT,
     lookupChampionById:
       championCoreRepository?.getChampionCoreByRiotChampionId?.bind(championCoreRepository) ??
       championsRepository?.getChampionById?.bind(championsRepository)
