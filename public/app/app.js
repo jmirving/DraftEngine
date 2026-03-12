@@ -11173,46 +11173,84 @@ function renderExplorer() {
       indicator.append(check, " Human reviewed");
       nameWrap.append(indicator);
     }
-    const scopeIndicators = runtimeDocument.createElement("div");
-    scopeIndicators.className = "champ-card-scope-indicators";
-    for (const scopeOption of [
+    // ── Scope dropdown: "View: [pill ▾]" ──────────────────────────────
+    const scopeOptions = [
       { value: "self", label: "User" },
       { value: "team", label: "Team" },
       { value: "all", label: "Global" }
-    ]) {
-      const pill = runtimeDocument.createElement("button");
-      pill.type = "button";
-      const isPresent = scopeOption.value === "all" || metadataScopes[scopeOption.value] === true;
-      const isSelected = activeMetadataScope === scopeOption.value;
-      const canSelect = scopeOption.value === "all" || (isPresent && canReadExplorerMetadataScope(scopeOption.value));
-      pill.className = [
-        "champ-scope-indicator",
-        isSelected ? "is-selected" : (isPresent ? "is-present" : "is-missing")
-      ].filter(Boolean).join(" ");
-      pill.textContent = scopeOption.label;
-      pill.setAttribute("aria-pressed", String(isSelected));
-      pill.disabled = !canSelect;
-      pill.title = isSelected
-        ? `${scopeOption.label} metadata is currently selected for ${champion.name}.`
-        : isPresent
-          ? `Select ${scopeOption.label.toLowerCase()} metadata for ${champion.name}.`
-          : `${scopeOption.label} metadata is not present for ${champion.name}.`;
-      pill.setAttribute(
-        "aria-label",
-        isSelected
-          ? `${scopeOption.label} metadata selected for ${champion.name}`
-          : isPresent
-            ? `${scopeOption.label} metadata present for ${champion.name}`
-            : `${scopeOption.label} metadata not present for ${champion.name}`
-      );
+    ];
+    const activeOption = scopeOptions.find((o) => o.value === activeMetadataScope) ?? scopeOptions[2];
+
+    const scopeWrap = runtimeDocument.createElement("div");
+    scopeWrap.className = "champ-scope-dropdown";
+
+    const scopeLabel = runtimeDocument.createElement("span");
+    scopeLabel.className = "champ-scope-label";
+    scopeLabel.textContent = "View:";
+
+    const scopeTrigger = runtimeDocument.createElement("button");
+    scopeTrigger.type = "button";
+    scopeTrigger.className = "champ-scope-trigger";
+    scopeTrigger.textContent = activeOption.label;
+    scopeTrigger.setAttribute("aria-haspopup", "listbox");
+    scopeTrigger.setAttribute("aria-expanded", "false");
+    scopeTrigger.setAttribute("aria-label", `Scope: ${activeOption.label}. Click to change.`);
+
+    const scopeMenu = runtimeDocument.createElement("div");
+    scopeMenu.className = "champ-scope-menu";
+    scopeMenu.setAttribute("role", "listbox");
+    scopeMenu.hidden = true;
+
+    for (const opt of scopeOptions) {
+      const isPresent = opt.value === "all" || metadataScopes[opt.value] === true;
+      const isSelected = activeMetadataScope === opt.value;
+      const canSelect = opt.value === "all" || (isPresent && canReadExplorerMetadataScope(opt.value));
+
+      const item = runtimeDocument.createElement("button");
+      item.type = "button";
+      item.className = "champ-scope-option" + (isSelected ? " is-active" : "") + (!isPresent ? " is-unavailable" : "");
+      item.setAttribute("role", "option");
+      item.setAttribute("aria-selected", String(isSelected));
+      item.textContent = opt.label;
+      item.disabled = !canSelect;
+      if (!isPresent) {
+        item.title = `${opt.label} metadata is not present for ${champion.name}.`;
+      }
       if (canSelect && !isSelected) {
-        pill.addEventListener("click", () => {
-          void selectExplorerChampionMetadataScope(champion.id, scopeOption.value);
+        item.addEventListener("click", (e) => {
+          e.stopPropagation();
+          scopeMenu.hidden = true;
+          scopeTrigger.setAttribute("aria-expanded", "false");
+          void selectExplorerChampionMetadataScope(champion.id, opt.value);
         });
       }
-      scopeIndicators.append(pill);
+      scopeMenu.append(item);
     }
-    nameWrap.append(scopeIndicators);
+
+    scopeTrigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const opening = scopeMenu.hidden;
+      // Close any other open scope menus first
+      for (const m of runtimeDocument.querySelectorAll(".champ-scope-menu:not([hidden])")) {
+        m.hidden = true;
+        m.previousElementSibling?.setAttribute("aria-expanded", "false");
+      }
+      scopeMenu.hidden = !opening;
+      scopeTrigger.setAttribute("aria-expanded", String(opening));
+      if (opening) {
+        const closeOnOutside = (ev) => {
+          if (!scopeWrap.contains(ev.target)) {
+            scopeMenu.hidden = true;
+            scopeTrigger.setAttribute("aria-expanded", "false");
+            runtimeDocument.removeEventListener("click", closeOnOutside);
+          }
+        };
+        runtimeDocument.addEventListener("click", closeOnOutside);
+      }
+    });
+
+    scopeWrap.append(scopeLabel, scopeTrigger, scopeMenu);
+    nameWrap.append(scopeWrap);
 
     cardHeader.append(image, nameWrap);
 

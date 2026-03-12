@@ -3387,73 +3387,101 @@ button.pool-snapshot-order-btn:disabled {
   flex-shrink: 0;
 }
 
-.champ-card-scope-indicators {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.28rem;
-}
-
-.champ-scope-indicator {
-  appearance: none;
+/* ── Scope dropdown on champion cards ─────────────────── */
+.champ-scope-dropdown {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+  margin-top: 0.15rem;
+}
+
+.champ-scope-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--ink);
+  opacity: 0.6;
+  letter-spacing: 0.01em;
+}
+
+.champ-scope-trigger {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   border-radius: 999px;
-  padding: 0.18rem 0.58rem;
-  font-size: 0.68rem;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.champ-scope-trigger::after {
+  content: "▾";
+  font-size: 0.55rem;
+  opacity: 0.8;
+}
+
+.champ-scope-trigger:hover {
+  opacity: 0.85;
+}
+
+.champ-scope-trigger:focus-visible {
+  outline: 2px solid rgba(204, 91, 52, 0.4);
+  outline-offset: 2px;
+}
+
+.champ-scope-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  background: #fff;
   border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.25rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  z-index: 90;
+  min-width: 5.5rem;
+}
+
+.champ-scope-option {
+  appearance: none;
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.65rem;
+  font-weight: 600;
   background: transparent;
   color: var(--ink);
-  font-weight: 600;
-  letter-spacing: 0.01em;
   cursor: pointer;
-  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease, background 120ms ease;
+  transition: background 0.1s;
 }
 
-.champ-scope-indicator::before {
-  content: "";
-  width: 0.45rem;
-  height: 0.45rem;
-  border-radius: 999px;
-  background: currentColor;
-  opacity: 0.65;
-  flex-shrink: 0;
+.champ-scope-option:hover:not(:disabled) {
+  background: var(--accent-soft);
 }
 
-.champ-scope-indicator:not(:disabled):hover {
-  transform: translateY(-1px);
+.champ-scope-option.is-active {
+  background: var(--accent);
+  color: #fff;
+  cursor: default;
 }
 
-.champ-scope-indicator.is-present {
-  background: #e6f1e8;
-  border-color: #b8d0bc;
-  color: #335843;
-}
-
-.champ-scope-indicator.is-missing {
-  border-style: dashed;
-  background: transparent;
-  color: #826f63;
-  opacity: 0.58;
+.champ-scope-option.is-unavailable {
+  opacity: 0.4;
   cursor: not-allowed;
-}
-
-.champ-scope-indicator.is-selected {
-  background: #183a33;
-  border-color: #183a33;
-  color: #fff7e6;
-  font-weight: 700;
-  box-shadow: 0 0 0 2px rgba(24, 58, 51, 0.2);
-}
-
-.champ-scope-indicator.is-selected::before {
-  background: #ffd06a;
-  opacity: 1;
-}
-
-.champ-scope-indicator:focus-visible {
-  outline: 2px solid rgba(24, 58, 51, 0.35);
-  outline-offset: 2px;
+  text-decoration: line-through;
 }
 
 /* ── Nav warning toast ────────────────────────────────── */
