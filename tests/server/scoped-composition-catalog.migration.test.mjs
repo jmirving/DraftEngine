@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { up } from "../../server/migrations/1762900000000_scoped_composition_catalog.js";
+import { up } from "../../server/migrations/1763100000000_scoped_composition_catalog.js";
 
 describe("scoped composition catalog migration", () => {
   it("adds scope ownership columns and scoped unique indexes for requirements and compositions", () => {
