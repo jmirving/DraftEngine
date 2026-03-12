@@ -966,6 +966,21 @@
               <p id="requirements-meta" class="meta">
                 Define reusable requirement clauses with condition logic and champion separation constraints.
               </p>
+              <div class="ced-scope-panel">
+                <div class="ced-scope-panel-copy">
+                  <p class="ced-scope-panel-label">Current Scope</p>
+                  <p id="requirements-scope-readout" class="ced-scope-panel-value">Global</p>
+                  <p id="requirements-scope-help" class="ced-scope-panel-help"></p>
+                </div>
+                <label class="ced-scope-label">Switch scope
+                  <select id="requirements-scope"></select>
+                </label>
+              </div>
+              <div id="requirements-team-group" hidden>
+                <label class="ced-team-label">Editing for team
+                  <select id="requirements-team"></select>
+                </label>
+              </div>
             </div>
             <div class="panel draft-board-panel">
               <p class="panel-kicker">Requirement Definitions</p>
@@ -1008,6 +1023,21 @@
               <p id="compositions-meta" class="meta">
                 Group requirement definitions into reusable named composition bundles.
               </p>
+              <div class="ced-scope-panel">
+                <div class="ced-scope-panel-copy">
+                  <p class="ced-scope-panel-label">Current Scope</p>
+                  <p id="compositions-scope-readout" class="ced-scope-panel-value">Global</p>
+                  <p id="compositions-scope-help" class="ced-scope-panel-help"></p>
+                </div>
+                <label class="ced-scope-label">Switch scope
+                  <select id="compositions-scope"></select>
+                </label>
+              </div>
+              <div id="compositions-team-group" hidden>
+                <label class="ced-team-label">Editing for team
+                  <select id="compositions-team"></select>
+                </label>
+              </div>
               <p id="compositions-summary" class="meta"></p>
             </div>
             <div class="panel draft-board-panel">
@@ -1097,6 +1127,8 @@
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
                 <h4>Current Session</h4>
                 <ul class="coming-soon-list">
+                  <li>Requirements and compositions now support explicit `User`, `Team`, and `Global` scope selection, using the same scope model as champion profile editing.</li>
+                  <li>The Requirements and Compositions workspaces now load, create, update, and delete entries within the selected scope instead of forcing all catalog work through the global library.</li>
                   <li>Added a database-backed `champion_core` baseline imported from the provided processor dataset, preserving stable Riot/Data Dragon champion identity and numeric stat fields outside the draft-tag model.</li>
                   <li>Added an admin-only Champion Core inspection workspace so the imported DB rows can be verified directly in the deployed app before draft/API integration work begins.</li>
                 </ul>
@@ -1247,7 +1279,7 @@
                 <h4>Compositions</h4>
                 <ul class="coming-soon-list">
                   <li>Requirement definition version history and diff/audit views are deferred (draftflow-158)</li>
-                  <li>Team-scoped composition requirement workflows plus promotion moderation for leads are still in flight (draftflow-171).</li>
+                  <li>Promotion moderation for scoped requirement/composition changes is still deferred (draftflow-171).</li>
                 </ul>
               </div>
 

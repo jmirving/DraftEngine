@@ -3,7 +3,12 @@ import { Router } from "express";
 import { SLOTS } from "../../src/domain/model.js";
 import { badRequest, conflict, notFound } from "../errors.js";
 import { parsePositiveInteger, requireObject } from "../http/validation.js";
-import { assertScopeWriteAuthorization } from "../scope-authorization.js";
+import {
+  assertScopeReadAuthorization,
+  assertScopeWriteAuthorization,
+  parseScope,
+  resolveScopedTeamId
+} from "../scope-authorization.js";
 
 const SLOT_SET = new Set(SLOTS);
 const MAX_REQUIREMENT_NAME_LENGTH = 80;
@@ -259,6 +264,9 @@ function serializeRequirement(requirement) {
     name: requirement.name,
     definition: requirement.definition,
     rules: Array.isArray(requirement.rules) ? requirement.rules : [],
+    scope: requirement.scope ?? "all",
+    team_id:
+      requirement.team_id === null || requirement.team_id === undefined ? null : Number(requirement.team_id),
     created_by_user_id:
       requirement.created_by_user_id === null || requirement.created_by_user_id === undefined
         ? null
@@ -281,6 +289,9 @@ function serializeComposition(composition) {
       ? composition.requirement_ids.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0)
       : [],
     is_active: composition.is_active === true,
+    scope: composition.scope ?? "all",
+    team_id:
+      composition.team_id === null || composition.team_id === undefined ? null : Number(composition.team_id),
     created_by_user_id:
       composition.created_by_user_id === null || composition.created_by_user_id === undefined
         ? null
@@ -294,16 +305,124 @@ function serializeComposition(composition) {
   };
 }
 
-async function assertRequirementIdsExist(compositionsCatalogRepository, requirementIds) {
-  const missingRequirementIds = await compositionsCatalogRepository.listMissingRequirementIds(requirementIds);
+async function assertRequirementIdsExist(compositionsCatalogRepository, requirementIds, { scope, userId, teamId }) {
+  const missingRequirementIds = await compositionsCatalogRepository.listMissingRequirementIds(requirementIds, {
+    scope,
+    userId,
+    teamId
+  });
   if (missingRequirementIds.length > 0) {
     throw badRequest(`Unknown requirement ids: ${missingRequirementIds.join(", ")}.`);
   }
 }
 
+async function resolveCatalogScopeContext({
+  rawScope,
+  rawTeamId,
+  userId,
+  usersRepository,
+  teamsRepository,
+  write = false,
+  teamReadMessage,
+  teamWriteMessage,
+  teamLeadMessage,
+  globalWriteMessage
+}) {
+  const scope = parseScope(rawScope, {
+    defaultScope: "all",
+    fieldName: "scope"
+  });
+  const teamId = await resolveScopedTeamId({
+    scope,
+    rawTeamId,
+    userId,
+    usersRepository,
+    fieldName: "team_id",
+    contextFieldName: "active_team_id"
+  });
+
+  if (scope !== "team" && rawTeamId !== undefined && rawTeamId !== null && rawTeamId !== "") {
+    throw badRequest("Expected 'team_id' to be omitted unless scope is 'team'.");
+  }
+
+  if (write) {
+    await assertScopeWriteAuthorization({
+      scope,
+      userId,
+      teamId,
+      teamsRepository,
+      usersRepository,
+      teamWriteMessage,
+      teamLeadMessage,
+      globalWriteMessage,
+      allowGlobalRoleWrite: true,
+      allowGlobalWriteWhenNoAdmins: true
+    });
+  } else {
+    await assertScopeReadAuthorization({
+      scope,
+      userId,
+      teamId,
+      teamsRepository,
+      teamReadMessage
+    });
+  }
+
+  return {
+    scope,
+    teamId,
+    userId: scope === "self" ? userId : null
+  };
+}
+
+async function assertRequirementWriteAuthorization({
+  scope,
+  userId,
+  teamId,
+  usersRepository,
+  teamsRepository,
+  action
+}) {
+  await assertScopeWriteAuthorization({
+    scope,
+    userId,
+    teamId,
+    teamsRepository,
+    usersRepository,
+    teamWriteMessage: `You must be on the selected team to ${action} requirements.`,
+    teamLeadMessage: `Only team leads can ${action} team-scoped requirements.`,
+    globalWriteMessage: `Only admins or global editors can ${action} requirements.`,
+    allowGlobalRoleWrite: true,
+    allowGlobalWriteWhenNoAdmins: true
+  });
+}
+
+async function assertCompositionWriteAuthorization({
+  scope,
+  userId,
+  teamId,
+  usersRepository,
+  teamsRepository,
+  action
+}) {
+  await assertScopeWriteAuthorization({
+    scope,
+    userId,
+    teamId,
+    teamsRepository,
+    usersRepository,
+    teamWriteMessage: `You must be on the selected team to ${action} compositions.`,
+    teamLeadMessage: `Only team leads can ${action} team-scoped compositions.`,
+    globalWriteMessage: `Only admins or global editors can ${action} compositions.`,
+    allowGlobalRoleWrite: true,
+    allowGlobalWriteWhenNoAdmins: true
+  });
+}
+
 export function createCompositionsCatalogRouter({
   compositionsCatalogRepository,
   usersRepository,
+  teamsRepository,
   requireAuth
 }) {
   const router = Router();
@@ -311,29 +430,38 @@ export function createCompositionsCatalogRouter({
   router.use("/requirements", requireAuth);
   router.use("/compositions", requireAuth);
 
-  router.get("/requirements", async (_request, response) => {
-    const requirements = await compositionsCatalogRepository.listRequirements();
+  router.get("/requirements", async (request, response) => {
+    const userId = request.user.userId;
+    const scopeContext = await resolveCatalogScopeContext({
+      rawScope: request.query.scope,
+      rawTeamId: request.query.team_id,
+      userId,
+      usersRepository,
+      teamsRepository,
+      teamReadMessage: "You must be on the selected team to read team-scoped requirements."
+    });
+    const requirements = await compositionsCatalogRepository.listRequirements(scopeContext);
     response.json({
+      scope: scopeContext.scope,
+      team_id: scopeContext.teamId,
       requirements: requirements.map(serializeRequirement)
     });
   });
 
   router.post("/requirements", async (request, response) => {
     const userId = request.user.userId;
-    await assertScopeWriteAuthorization({
-      scope: "all",
+    const body = requireObject(request.body);
+    const scopeContext = await resolveCatalogScopeContext({
+      rawScope: body.scope,
+      rawTeamId: body.team_id,
       userId,
-      teamId: null,
-      teamsRepository: null,
       usersRepository,
+      teamsRepository,
+      write: true,
       teamWriteMessage: "You must be on the selected team to create requirements.",
       teamLeadMessage: "Only team leads can create team-scoped requirements.",
-      globalWriteMessage: "Only admins or global editors can create requirements.",
-      allowGlobalRoleWrite: true,
-      allowGlobalWriteWhenNoAdmins: true
+      globalWriteMessage: "Only admins or global editors can create requirements."
     });
-
-    const body = requireObject(request.body);
     const name = normalizeName(body.name, "name", MAX_REQUIREMENT_NAME_LENGTH);
     const definition = normalizeDefinition(body.definition);
     const rules = normalizeRequirementRules(body.rules);
@@ -343,6 +471,9 @@ export function createCompositionsCatalogRouter({
         name,
         definition,
         rules,
+        scope: scopeContext.scope,
+        userId: scopeContext.userId,
+        teamId: scopeContext.teamId,
         actorUserId: userId
       });
       response.status(201).json({
@@ -358,21 +489,20 @@ export function createCompositionsCatalogRouter({
 
   router.put("/requirements/:id", async (request, response) => {
     const userId = request.user.userId;
-    await assertScopeWriteAuthorization({
-      scope: "all",
-      userId,
-      teamId: null,
-      teamsRepository: null,
-      usersRepository,
-      teamWriteMessage: "You must be on the selected team to update requirements.",
-      teamLeadMessage: "Only team leads can update team-scoped requirements.",
-      globalWriteMessage: "Only admins or global editors can update requirements.",
-      allowGlobalRoleWrite: true,
-      allowGlobalWriteWhenNoAdmins: true
-    });
-
     const requirementId = parsePositiveInteger(request.params.id, "id");
     const body = requireObject(request.body);
+    const existing = await compositionsCatalogRepository.getRequirementById(requirementId);
+    if (!existing) {
+      throw notFound("Requirement not found.");
+    }
+    await assertRequirementWriteAuthorization({
+      scope: existing.scope ?? "all",
+      userId,
+      teamId: existing.team_id ?? null,
+      usersRepository,
+      teamsRepository,
+      action: "update"
+    });
 
     const hasName = body.name !== undefined;
     const hasDefinition = body.definition !== undefined;
@@ -390,9 +520,6 @@ export function createCompositionsCatalogRouter({
 
     try {
       const requirement = await compositionsCatalogRepository.updateRequirement(requirementId, updates);
-      if (!requirement) {
-        throw notFound("Requirement not found.");
-      }
       response.json({
         requirement: serializeRequirement(requirement)
       });
@@ -406,46 +533,79 @@ export function createCompositionsCatalogRouter({
 
   router.delete("/requirements/:id", async (request, response) => {
     const userId = request.user.userId;
-    await assertScopeWriteAuthorization({
-      scope: "all",
+    const requirementId = parsePositiveInteger(request.params.id, "id");
+    const existing = await compositionsCatalogRepository.getRequirementById(requirementId);
+    if (!existing) {
+      throw notFound("Requirement not found.");
+    }
+    await assertRequirementWriteAuthorization({
+      scope: existing.scope ?? "all",
       userId,
-      teamId: null,
-      teamsRepository: null,
+      teamId: existing.team_id ?? null,
       usersRepository,
-      teamWriteMessage: "You must be on the selected team to delete requirements.",
-      teamLeadMessage: "Only team leads can delete team-scoped requirements.",
-      globalWriteMessage: "Only admins or global editors can delete requirements.",
-      allowGlobalRoleWrite: true,
-      allowGlobalWriteWhenNoAdmins: true
+      teamsRepository,
+      action: "delete"
     });
 
-    const requirementId = parsePositiveInteger(request.params.id, "id");
     const requirement = await compositionsCatalogRepository.deleteRequirement(requirementId);
     if (!requirement) {
       throw notFound("Requirement not found.");
     }
-    await compositionsCatalogRepository.removeRequirementFromCompositions(requirementId, userId);
+    await compositionsCatalogRepository.removeRequirementFromCompositions(requirementId, {
+      actorUserId: userId,
+      scope: requirement.scope ?? "all",
+      userId: requirement.user_id ?? null,
+      teamId: requirement.team_id ?? null
+    });
     response.status(204).end();
   });
 
-  router.get("/compositions", async (_request, response) => {
-    const compositions = await compositionsCatalogRepository.listCompositions();
+  router.get("/compositions", async (request, response) => {
+    const userId = request.user.userId;
+    const scopeContext = await resolveCatalogScopeContext({
+      rawScope: request.query.scope,
+      rawTeamId: request.query.team_id,
+      userId,
+      usersRepository,
+      teamsRepository,
+      teamReadMessage: "You must be on the selected team to read team-scoped compositions."
+    });
+    const compositions = await compositionsCatalogRepository.listCompositions(scopeContext);
     const activeComposition = compositions.find((composition) => composition.is_active) ?? null;
     response.json({
+      scope: scopeContext.scope,
+      team_id: scopeContext.teamId,
       compositions: compositions.map(serializeComposition),
       active_composition_id: activeComposition ? Number(activeComposition.id) : null
     });
   });
 
-  router.get("/compositions/active", async (_request, response) => {
-    const composition = await compositionsCatalogRepository.getActiveComposition();
+  router.get("/compositions/active", async (request, response) => {
+    const userId = request.user.userId;
+    const scopeContext = await resolveCatalogScopeContext({
+      rawScope: request.query.scope,
+      rawTeamId: request.query.team_id,
+      userId,
+      usersRepository,
+      teamsRepository,
+      teamReadMessage: "You must be on the selected team to read team-scoped compositions."
+    });
+    const composition = await compositionsCatalogRepository.getActiveComposition(scopeContext);
     if (!composition) {
-      response.json({ composition: null, requirements: [] });
+      response.json({
+        scope: scopeContext.scope,
+        team_id: scopeContext.teamId,
+        composition: null,
+        requirements: []
+      });
       return;
     }
 
     const requirementById = new Map(
-      (await compositionsCatalogRepository.listRequirements()).map((requirement) => [Number(requirement.id), requirement])
+      (await compositionsCatalogRepository.listRequirements(scopeContext)).map((requirement) => [
+        Number(requirement.id),
+        requirement
+      ])
     );
     const requirements = composition.requirement_ids
       .map((requirementId) => requirementById.get(Number(requirementId)) ?? null)
@@ -453,6 +613,8 @@ export function createCompositionsCatalogRouter({
       .map(serializeRequirement);
 
     response.json({
+      scope: scopeContext.scope,
+      team_id: scopeContext.teamId,
       composition: serializeComposition(composition),
       requirements
     });
@@ -460,26 +622,24 @@ export function createCompositionsCatalogRouter({
 
   router.post("/compositions", async (request, response) => {
     const userId = request.user.userId;
-    await assertScopeWriteAuthorization({
-      scope: "all",
+    const body = requireObject(request.body);
+    const scopeContext = await resolveCatalogScopeContext({
+      rawScope: body.scope,
+      rawTeamId: body.team_id,
       userId,
-      teamId: null,
-      teamsRepository: null,
       usersRepository,
+      teamsRepository,
+      write: true,
       teamWriteMessage: "You must be on the selected team to create compositions.",
       teamLeadMessage: "Only team leads can create team-scoped compositions.",
-      globalWriteMessage: "Only admins or global editors can create compositions.",
-      allowGlobalRoleWrite: true,
-      allowGlobalWriteWhenNoAdmins: true
+      globalWriteMessage: "Only admins or global editors can create compositions."
     });
-
-    const body = requireObject(request.body);
     const name = normalizeName(body.name, "name", MAX_COMPOSITION_NAME_LENGTH);
     const description = normalizeDescription(body.description);
     const requirementIds = normalizeRequirementIds(body.requirement_ids);
     const isActive = normalizeActiveFlag(body.is_active) ?? false;
 
-    await assertRequirementIdsExist(compositionsCatalogRepository, requirementIds);
+    await assertRequirementIdsExist(compositionsCatalogRepository, requirementIds, scopeContext);
 
     try {
       const composition = await compositionsCatalogRepository.createComposition({
@@ -487,6 +647,9 @@ export function createCompositionsCatalogRouter({
         description,
         requirementIds,
         isActive,
+        scope: scopeContext.scope,
+        userId: scopeContext.userId,
+        teamId: scopeContext.teamId,
         actorUserId: userId
       });
 
@@ -503,21 +666,20 @@ export function createCompositionsCatalogRouter({
 
   router.put("/compositions/:id", async (request, response) => {
     const userId = request.user.userId;
-    await assertScopeWriteAuthorization({
-      scope: "all",
-      userId,
-      teamId: null,
-      teamsRepository: null,
-      usersRepository,
-      teamWriteMessage: "You must be on the selected team to update compositions.",
-      teamLeadMessage: "Only team leads can update team-scoped compositions.",
-      globalWriteMessage: "Only admins or global editors can update compositions.",
-      allowGlobalRoleWrite: true,
-      allowGlobalWriteWhenNoAdmins: true
-    });
-
     const compositionId = parsePositiveInteger(request.params.id, "id");
     const body = requireObject(request.body);
+    const existing = await compositionsCatalogRepository.getCompositionById(compositionId);
+    if (!existing) {
+      throw notFound("Composition not found.");
+    }
+    await assertCompositionWriteAuthorization({
+      scope: existing.scope ?? "all",
+      userId,
+      teamId: existing.team_id ?? null,
+      usersRepository,
+      teamsRepository,
+      action: "update"
+    });
 
     const hasName = body.name !== undefined;
     const hasDescription = body.description !== undefined;
@@ -529,7 +691,11 @@ export function createCompositionsCatalogRouter({
 
     const requirementIds = hasRequirementIds ? normalizeRequirementIds(body.requirement_ids) : undefined;
     if (requirementIds) {
-      await assertRequirementIdsExist(compositionsCatalogRepository, requirementIds);
+      await assertRequirementIdsExist(compositionsCatalogRepository, requirementIds, {
+        scope: existing.scope ?? "all",
+        userId: existing.user_id ?? null,
+        teamId: existing.team_id ?? null
+      });
     }
 
     const updates = {
@@ -542,9 +708,6 @@ export function createCompositionsCatalogRouter({
 
     try {
       const composition = await compositionsCatalogRepository.updateComposition(compositionId, updates);
-      if (!composition) {
-        throw notFound("Composition not found.");
-      }
       response.json({
         composition: serializeComposition(composition)
       });
@@ -558,20 +721,20 @@ export function createCompositionsCatalogRouter({
 
   router.delete("/compositions/:id", async (request, response) => {
     const userId = request.user.userId;
-    await assertScopeWriteAuthorization({
-      scope: "all",
+    const compositionId = parsePositiveInteger(request.params.id, "id");
+    const existing = await compositionsCatalogRepository.getCompositionById(compositionId);
+    if (!existing) {
+      throw notFound("Composition not found.");
+    }
+    await assertCompositionWriteAuthorization({
+      scope: existing.scope ?? "all",
       userId,
-      teamId: null,
-      teamsRepository: null,
+      teamId: existing.team_id ?? null,
       usersRepository,
-      teamWriteMessage: "You must be on the selected team to delete compositions.",
-      teamLeadMessage: "Only team leads can delete team-scoped compositions.",
-      globalWriteMessage: "Only admins or global editors can delete compositions.",
-      allowGlobalRoleWrite: true,
-      allowGlobalWriteWhenNoAdmins: true
+      teamsRepository,
+      action: "delete"
     });
 
-    const compositionId = parsePositiveInteger(request.params.id, "id");
     const composition = await compositionsCatalogRepository.deleteComposition(compositionId);
     if (!composition) {
       throw notFound("Composition not found.");

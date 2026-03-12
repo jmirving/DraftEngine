@@ -98,6 +98,9 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
             minCount: 1
           }
         ],
+        scope: "all",
+        user_id: null,
+        team_id: null,
         created_by_user_id: 1,
         updated_by_user_id: 1,
         created_at: "2026-01-01T00:00:00.000Z",
@@ -111,6 +114,9 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         description: "Baseline composition profile",
         requirement_ids: [1],
         is_active: true,
+        scope: "all",
+        user_id: null,
+        team_id: null,
         created_by_user_id: 1,
         updated_by_user_id: 1,
         created_at: "2026-01-01T00:00:00.000Z",
@@ -639,31 +645,84 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
   };
 
   const compositionsCatalogRepository = {
-    async listRequirements() {
-      return state.requirementDefinitions.map((requirement) => ({
-        ...requirement,
-        rules: Array.isArray(requirement.rules) ? requirement.rules.map((rule) => ({ ...rule })) : []
-      }));
+    normalizeScope(scope) {
+      return scope === "self" || scope === "team" ? scope : "all";
     },
-    async getRequirementById(requirementId) {
-      const requirement = state.requirementDefinitions.find((candidate) => candidate.id === requirementId) ?? null;
-      if (!requirement) {
-        return null;
+
+    normalizeOwner({ scope = "all", userId = null, teamId = null, user_id = null, team_id = null } = {}) {
+      const normalizedScope = this.normalizeScope(scope);
+      return {
+        scope: normalizedScope,
+        userId: normalizedScope === "self" ? (userId ?? user_id) : null,
+        teamId: normalizedScope === "team" ? (teamId ?? team_id) : null
+      };
+    },
+
+    matchesScope(entity, { scope = "all", userId = null, teamId = null } = {}) {
+      const normalized = this.normalizeOwner({ scope, userId, teamId });
+      if ((entity.scope ?? "all") !== normalized.scope) {
+        return false;
       }
+      if (normalized.scope === "self") {
+        return Number(entity.user_id) === Number(normalized.userId);
+      }
+      if (normalized.scope === "team") {
+        return Number(entity.team_id) === Number(normalized.teamId);
+      }
+      return true;
+    },
+
+    cloneRequirement(requirement) {
       return {
         ...requirement,
         rules: Array.isArray(requirement.rules) ? requirement.rules.map((rule) => ({ ...rule })) : []
       };
     },
-    async listMissingRequirementIds(requirementIds = []) {
-      const existingIds = new Set(state.requirementDefinitions.map((requirement) => requirement.id));
+
+    cloneComposition(composition) {
+      return {
+        ...composition,
+        requirement_ids: [...composition.requirement_ids]
+      };
+    },
+
+    async listRequirements({ scope = "all", userId = null, teamId = null } = {}) {
+      return state.requirementDefinitions
+        .filter((requirement) => this.matchesScope(requirement, { scope, userId, teamId }))
+        .map((requirement) => this.cloneRequirement(requirement));
+    },
+
+    async getRequirementById(requirementId, filters = null) {
+      const requirement = state.requirementDefinitions.find((candidate) => candidate.id === requirementId) ?? null;
+      if (!requirement) {
+        return null;
+      }
+      if (filters && !this.matchesScope(requirement, filters)) {
+        return null;
+      }
+      return this.cloneRequirement(requirement);
+    },
+
+    async listMissingRequirementIds(requirementIds = [], { scope = "all", userId = null, teamId = null } = {}) {
+      const existingIds = new Set(
+        state.requirementDefinitions
+          .filter((requirement) => this.matchesScope(requirement, { scope, userId, teamId }))
+          .map((requirement) => requirement.id)
+      );
       const deduped = [...new Set(requirementIds.map((value) => Number.parseInt(String(value), 10)))].filter(
         (value) => Number.isInteger(value) && value > 0
       );
       return deduped.filter((id) => !existingIds.has(id));
     },
-    async createRequirement({ name, definition, rules, actorUserId }) {
-      if (state.requirementDefinitions.some((requirement) => requirement.name.toLowerCase() === name.toLowerCase())) {
+
+    async createRequirement({ name, definition, rules, scope = "all", userId = null, teamId = null, actorUserId }) {
+      const owner = this.normalizeOwner({ scope, userId, teamId });
+      if (
+        state.requirementDefinitions.some(
+          (requirement) =>
+            this.matchesScope(requirement, owner) && requirement.name.toLowerCase() === name.toLowerCase()
+        )
+      ) {
         const error = new Error("duplicate");
         error.code = "23505";
         throw error;
@@ -673,6 +732,9 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         name,
         definition,
         rules: Array.isArray(rules) ? rules.map((rule) => ({ ...rule })) : [],
+        scope: owner.scope,
+        user_id: owner.userId,
+        team_id: owner.teamId,
         created_by_user_id: actorUserId ?? null,
         updated_by_user_id: actorUserId ?? null,
         created_at: "2026-01-01T00:00:00.000Z",
@@ -680,8 +742,9 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       };
       nextRequirementDefinitionId += 1;
       state.requirementDefinitions.push(created);
-      return { ...created, rules: created.rules.map((rule) => ({ ...rule })) };
+      return this.cloneRequirement(created);
     },
+
     async updateRequirement(requirementId, { name, definition, rules, actorUserId }) {
       const requirement = state.requirementDefinitions.find((candidate) => candidate.id === requirementId) ?? null;
       if (!requirement) {
@@ -690,7 +753,10 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       if (
         name &&
         state.requirementDefinitions.some(
-          (candidate) => candidate.id !== requirementId && candidate.name.toLowerCase() === name.toLowerCase()
+          (candidate) =>
+            candidate.id !== requirementId &&
+            this.matchesScope(candidate, requirement) &&
+            candidate.name.toLowerCase() === name.toLowerCase()
         )
       ) {
         const error = new Error("duplicate");
@@ -708,18 +774,26 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       }
       requirement.updated_by_user_id = actorUserId ?? null;
       requirement.updated_at = "2026-01-01T00:00:00.000Z";
-      return { ...requirement, rules: requirement.rules.map((rule) => ({ ...rule })) };
+      return this.cloneRequirement(requirement);
     },
+
     async deleteRequirement(requirementId) {
       const index = state.requirementDefinitions.findIndex((candidate) => candidate.id === requirementId);
       if (index < 0) {
         return null;
       }
       const [deleted] = state.requirementDefinitions.splice(index, 1);
-      return { ...deleted, rules: deleted.rules.map((rule) => ({ ...rule })) };
+      return this.cloneRequirement(deleted);
     },
-    async removeRequirementFromCompositions(requirementId, actorUserId) {
+
+    async removeRequirementFromCompositions(
+      requirementId,
+      { actorUserId = null, scope = "all", userId = null, teamId = null } = {}
+    ) {
       for (const composition of state.compositions) {
+        if (!this.matchesScope(composition, { scope, userId, teamId })) {
+          continue;
+        }
         if (!composition.requirement_ids.includes(requirementId)) {
           continue;
         }
@@ -728,41 +802,57 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         composition.updated_at = "2026-01-01T00:00:00.000Z";
       }
     },
-    async listCompositions() {
-      return state.compositions.map((composition) => ({
-        ...composition,
-        requirement_ids: [...composition.requirement_ids]
-      }));
+
+    async listCompositions({ scope = "all", userId = null, teamId = null } = {}) {
+      return state.compositions
+        .filter((composition) => this.matchesScope(composition, { scope, userId, teamId }))
+        .map((composition) => this.cloneComposition(composition));
     },
-    async getCompositionById(compositionId) {
+
+    async getCompositionById(compositionId, filters = null) {
       const composition = state.compositions.find((candidate) => candidate.id === compositionId) ?? null;
       if (!composition) {
         return null;
       }
-      return {
-        ...composition,
-        requirement_ids: [...composition.requirement_ids]
-      };
-    },
-    async getActiveComposition() {
-      const composition = state.compositions.find((candidate) => candidate.is_active) ?? null;
-      if (!composition) {
+      if (filters && !this.matchesScope(composition, filters)) {
         return null;
       }
-      return {
-        ...composition,
-        requirement_ids: [...composition.requirement_ids]
-      };
+      return this.cloneComposition(composition);
     },
-    async createComposition({ name, description, requirementIds, isActive, actorUserId }) {
-      if (state.compositions.some((composition) => composition.name.toLowerCase() === name.toLowerCase())) {
+
+    async getActiveComposition({ scope = "all", userId = null, teamId = null } = {}) {
+      const composition =
+        state.compositions.find(
+          (candidate) => candidate.is_active && this.matchesScope(candidate, { scope, userId, teamId })
+        ) ?? null;
+      return composition ? this.cloneComposition(composition) : null;
+    },
+
+    async createComposition({
+      name,
+      description,
+      requirementIds,
+      isActive,
+      scope = "all",
+      userId = null,
+      teamId = null,
+      actorUserId
+    }) {
+      const owner = this.normalizeOwner({ scope, userId, teamId });
+      if (
+        state.compositions.some(
+          (composition) => this.matchesScope(composition, owner) && composition.name.toLowerCase() === name.toLowerCase()
+        )
+      ) {
         const error = new Error("duplicate");
         error.code = "23505";
         throw error;
       }
       if (isActive) {
         for (const composition of state.compositions) {
-          composition.is_active = false;
+          if (this.matchesScope(composition, owner)) {
+            composition.is_active = false;
+          }
         }
       }
       const created = {
@@ -771,6 +861,9 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         description,
         requirement_ids: [...new Set(requirementIds)].sort((left, right) => left - right),
         is_active: isActive === true,
+        scope: owner.scope,
+        user_id: owner.userId,
+        team_id: owner.teamId,
         created_by_user_id: actorUserId ?? null,
         updated_by_user_id: actorUserId ?? null,
         created_at: "2026-01-01T00:00:00.000Z",
@@ -778,8 +871,9 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       };
       nextCompositionId += 1;
       state.compositions.push(created);
-      return { ...created, requirement_ids: [...created.requirement_ids] };
+      return this.cloneComposition(created);
     },
+
     async updateComposition(compositionId, { name, description, requirementIds, isActive, actorUserId }) {
       const composition = state.compositions.find((candidate) => candidate.id === compositionId) ?? null;
       if (!composition) {
@@ -788,7 +882,10 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       if (
         name &&
         state.compositions.some(
-          (candidate) => candidate.id !== compositionId && candidate.name.toLowerCase() === name.toLowerCase()
+          (candidate) =>
+            candidate.id !== compositionId &&
+            this.matchesScope(candidate, composition) &&
+            candidate.name.toLowerCase() === name.toLowerCase()
         )
       ) {
         const error = new Error("duplicate");
@@ -797,7 +894,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       }
       if (typeof isActive === "boolean" && isActive) {
         for (const candidate of state.compositions) {
-          if (candidate.id !== compositionId) {
+          if (candidate.id !== compositionId && this.matchesScope(candidate, composition)) {
             candidate.is_active = false;
           }
         }
@@ -816,15 +913,16 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       }
       composition.updated_by_user_id = actorUserId ?? null;
       composition.updated_at = "2026-01-01T00:00:00.000Z";
-      return { ...composition, requirement_ids: [...composition.requirement_ids] };
+      return this.cloneComposition(composition);
     },
+
     async deleteComposition(compositionId) {
       const index = state.compositions.findIndex((candidate) => candidate.id === compositionId);
       if (index < 0) {
         return null;
       }
       const [deleted] = state.compositions.splice(index, 1);
-      return { ...deleted, requirement_ids: [...deleted.requirement_ids] };
+      return this.cloneComposition(deleted);
     }
   };
 
@@ -2409,6 +2507,138 @@ describe("API routes", () => {
       (composition) => composition.name === "Siege Setup"
     );
     expect(siege.requirement_ids).toEqual([1]);
+  });
+
+  it("supports self and team scoped requirement and composition catalogs", async () => {
+    const { app, config } = createMockContext();
+
+    const memberSelfRequirement = await request(app)
+      .post("/requirements")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        scope: "self",
+        name: "Pocket Comfort",
+        definition: "Member-only requirement.",
+        rules: [
+          {
+            id: "self-pocket",
+            expr: { tag: "Frontline" },
+            minCount: 1
+          }
+        ]
+      });
+    expect(memberSelfRequirement.status).toBe(201);
+    expect(memberSelfRequirement.body.requirement.scope).toBe("self");
+
+    const globalRequirements = await request(app)
+      .get("/requirements")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(globalRequirements.status).toBe(200);
+    expect(globalRequirements.body.scope).toBe("all");
+    expect(globalRequirements.body.requirements).toHaveLength(1);
+
+    const selfRequirements = await request(app)
+      .get("/requirements?scope=self")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(selfRequirements.status).toBe(200);
+    expect(selfRequirements.body.scope).toBe("self");
+    expect(selfRequirements.body.requirements).toHaveLength(1);
+    expect(selfRequirements.body.requirements[0].name).toBe("Pocket Comfort");
+
+    const memberSelfComposition = await request(app)
+      .post("/compositions")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        scope: "self",
+        name: "Pocket Comp",
+        description: "Member-only composition.",
+        requirement_ids: [memberSelfRequirement.body.requirement.id],
+        is_active: true
+      });
+    expect(memberSelfComposition.status).toBe(201);
+    expect(memberSelfComposition.body.composition.scope).toBe("self");
+
+    const selfActiveComposition = await request(app)
+      .get("/compositions/active?scope=self")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(selfActiveComposition.status).toBe(200);
+    expect(selfActiveComposition.body.scope).toBe("self");
+    expect(selfActiveComposition.body.composition.name).toBe("Pocket Comp");
+    expect(selfActiveComposition.body.requirements).toHaveLength(1);
+
+    const memberTeamRequirementDenied = await request(app)
+      .post("/requirements")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        scope: "team",
+        team_id: 1,
+        name: "Member Team Requirement",
+        definition: "Should fail for non-lead member.",
+        rules: [
+          {
+            id: "team-member-denied",
+            expr: { tag: "Frontline" },
+            minCount: 1
+          }
+        ]
+      });
+    expect(memberTeamRequirementDenied.status).toBe(403);
+
+    const leadTeamRequirement = await request(app)
+      .post("/requirements")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({
+        scope: "team",
+        team_id: 1,
+        name: "Team Setup",
+        definition: "Lead-managed team requirement.",
+        rules: [
+          {
+            id: "team-setup",
+            expr: { tag: "Frontline" },
+            minCount: 1
+          }
+        ]
+      });
+    expect(leadTeamRequirement.status).toBe(201);
+    expect(leadTeamRequirement.body.requirement.scope).toBe("team");
+    expect(leadTeamRequirement.body.requirement.team_id).toBe(1);
+
+    const leadTeamComposition = await request(app)
+      .post("/compositions")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({
+        scope: "team",
+        team_id: 1,
+        name: "Team Setup Comp",
+        description: "Lead-managed team composition.",
+        requirement_ids: [leadTeamRequirement.body.requirement.id],
+        is_active: true
+      });
+    expect(leadTeamComposition.status).toBe(201);
+    expect(leadTeamComposition.body.composition.scope).toBe("team");
+    expect(leadTeamComposition.body.composition.team_id).toBe(1);
+
+    const memberTeamRequirements = await request(app)
+      .get("/requirements?scope=team&team_id=1")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(memberTeamRequirements.status).toBe(200);
+    expect(memberTeamRequirements.body.scope).toBe("team");
+    expect(memberTeamRequirements.body.team_id).toBe(1);
+    expect(memberTeamRequirements.body.requirements).toHaveLength(1);
+    expect(memberTeamRequirements.body.requirements[0].name).toBe("Team Setup");
+
+    const memberTeamActive = await request(app)
+      .get("/compositions/active?scope=team&team_id=1")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(memberTeamActive.status).toBe(200);
+    expect(memberTeamActive.body.composition.name).toBe("Team Setup Comp");
+    expect(memberTeamActive.body.requirements).toHaveLength(1);
+
+    const outsiderDeniedTeamRead = await request(app)
+      .get("/requirements?scope=team&team_id=1")
+      .set("Authorization", buildAuthHeader(3, config));
+    expect(outsiderDeniedTeamRead.status).toBe(403);
   });
 
   it("enforces per-user pool isolation and idempotent membership updates", async () => {

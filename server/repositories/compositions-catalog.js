@@ -1,3 +1,5 @@
+const CATALOG_SCOPE_SET = new Set(["self", "team", "all"]);
+
 function normalizeRulesJson(rawValue) {
   return Array.isArray(rawValue) ? rawValue : [];
 }
@@ -15,12 +17,84 @@ function normalizeRequirementIdArray(rawValue) {
   return [...deduped].sort((left, right) => left - right);
 }
 
+function normalizeCatalogScope(scope) {
+  return CATALOG_SCOPE_SET.has(scope) ? scope : "all";
+}
+
+function normalizeCatalogOwner({ scope = "all", userId = null, teamId = null } = {}) {
+  const normalizedScope = normalizeCatalogScope(scope);
+  const normalizedUserId =
+    Number.isInteger(userId) && userId > 0 ? userId : Number.parseInt(String(userId ?? ""), 10);
+  const normalizedTeamId =
+    Number.isInteger(teamId) && teamId > 0 ? teamId : Number.parseInt(String(teamId ?? ""), 10);
+
+  if (normalizedScope === "self") {
+    if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0) {
+      throw new Error("Missing user id for self-scoped composition catalog access.");
+    }
+    return {
+      scope: normalizedScope,
+      userId: normalizedUserId,
+      teamId: null
+    };
+  }
+
+  if (normalizedScope === "team") {
+    if (!Number.isInteger(normalizedTeamId) || normalizedTeamId <= 0) {
+      throw new Error("Missing team id for team-scoped composition catalog access.");
+    }
+    return {
+      scope: normalizedScope,
+      userId: null,
+      teamId: normalizedTeamId
+    };
+  }
+
+  return {
+    scope: normalizedScope,
+    userId: null,
+    teamId: null
+  };
+}
+
+function buildScopePredicate(options, startIndex = 1) {
+  const normalized = normalizeCatalogOwner(options);
+  if (normalized.scope === "self") {
+    return {
+      clause: `scope = $${startIndex} AND user_id = $${startIndex + 1}`,
+      values: [normalized.scope, normalized.userId],
+      scope: normalized.scope,
+      userId: normalized.userId,
+      teamId: null
+    };
+  }
+  if (normalized.scope === "team") {
+    return {
+      clause: `scope = $${startIndex} AND team_id = $${startIndex + 1}`,
+      values: [normalized.scope, normalized.teamId],
+      scope: normalized.scope,
+      userId: null,
+      teamId: normalized.teamId
+    };
+  }
+  return {
+    clause: `scope = $${startIndex}`,
+    values: [normalized.scope],
+    scope: normalized.scope,
+    userId: null,
+    teamId: null
+  };
+}
+
 function mapRequirementRow(row) {
   return {
     id: Number(row.id),
     name: row.name,
     definition: typeof row.definition === "string" ? row.definition : "",
     rules: normalizeRulesJson(row.rules_json),
+    scope: normalizeCatalogScope(row.scope),
+    user_id: row.user_id === null || row.user_id === undefined ? null : Number(row.user_id),
+    team_id: row.team_id === null || row.team_id === undefined ? null : Number(row.team_id),
     created_by_user_id:
       row.created_by_user_id === null || row.created_by_user_id === undefined ? null : Number(row.created_by_user_id),
     updated_by_user_id:
@@ -37,6 +111,9 @@ function mapCompositionRow(row) {
     description: typeof row.description === "string" ? row.description : "",
     requirement_ids: normalizeRequirementIdArray(row.requirement_ids_json),
     is_active: row.is_active === true,
+    scope: normalizeCatalogScope(row.scope),
+    user_id: row.user_id === null || row.user_id === undefined ? null : Number(row.user_id),
+    team_id: row.team_id === null || row.team_id === undefined ? null : Number(row.team_id),
     created_by_user_id:
       row.created_by_user_id === null || row.created_by_user_id === undefined ? null : Number(row.created_by_user_id),
     updated_by_user_id:
@@ -61,88 +138,127 @@ async function withTransaction(pool, work) {
   }
 }
 
+function buildRequirementSelectSql(whereClause = "", orderClause = "ORDER BY lower(name) ASC, id ASC") {
+  return `
+    SELECT
+      id,
+      name,
+      definition,
+      rules_json,
+      scope,
+      user_id,
+      team_id,
+      created_by_user_id,
+      updated_by_user_id,
+      created_at,
+      updated_at
+    FROM composition_rule_definitions
+    ${whereClause}
+    ${orderClause}
+  `;
+}
+
+function buildCompositionSelectSql(whereClause = "", orderClause = "ORDER BY lower(name) ASC, id ASC") {
+  return `
+    SELECT
+      id,
+      name,
+      description,
+      requirement_ids_json,
+      is_active,
+      scope,
+      user_id,
+      team_id,
+      created_by_user_id,
+      updated_by_user_id,
+      created_at,
+      updated_at
+    FROM compositions
+    ${whereClause}
+    ${orderClause}
+  `;
+}
+
 export function createCompositionsCatalogRepository(pool) {
   return {
-    async listRequirements() {
+    async listRequirements({ scope = "all", userId = null, teamId = null } = {}) {
+      const predicate = buildScopePredicate({ scope, userId, teamId });
       const result = await pool.query(
-        `
-          SELECT
-            id,
-            name,
-            definition,
-            rules_json,
-            created_by_user_id,
-            updated_by_user_id,
-            created_at,
-            updated_at
-          FROM composition_rule_definitions
-          ORDER BY lower(name) ASC, id ASC
-        `
+        buildRequirementSelectSql(`WHERE ${predicate.clause}`),
+        predicate.values
       );
       return result.rows.map(mapRequirementRow);
     },
 
-    async getRequirementById(requirementId) {
-      const result = await pool.query(
-        `
-          SELECT
-            id,
-            name,
-            definition,
-            rules_json,
-            created_by_user_id,
-            updated_by_user_id,
-            created_at,
-            updated_at
-          FROM composition_rule_definitions
-          WHERE id = $1
-          LIMIT 1
-        `,
-        [requirementId]
-      );
+    async getRequirementById(requirementId, filters = null) {
+      const values = [requirementId];
+      let whereClause = "WHERE id = $1";
+      if (filters && typeof filters === "object") {
+        const predicate = buildScopePredicate(filters, 2);
+        whereClause += ` AND ${predicate.clause}`;
+        values.push(...predicate.values);
+      }
+      const result = await pool.query(buildRequirementSelectSql(whereClause, "LIMIT 1"), values);
       return result.rowCount > 0 ? mapRequirementRow(result.rows[0]) : null;
     },
 
-    async listMissingRequirementIds(requirementIds = []) {
+    async listMissingRequirementIds(requirementIds = [], { scope = "all", userId = null, teamId = null } = {}) {
       const normalizedIds = normalizeRequirementIdArray(requirementIds);
       if (normalizedIds.length < 1) {
         return [];
       }
 
+      const predicate = buildScopePredicate({ scope, userId, teamId }, 2);
       const result = await pool.query(
         `
           SELECT id
           FROM composition_rule_definitions
           WHERE id = ANY($1::bigint[])
+            AND ${predicate.clause}
         `,
-        [normalizedIds]
+        [normalizedIds, ...predicate.values]
       );
       const existingIdSet = new Set(result.rows.map((row) => Number(row.id)));
       return normalizedIds.filter((id) => !existingIdSet.has(id));
     },
 
-    async createRequirement({ name, definition = "", rules = [], actorUserId = null }) {
+    async createRequirement({
+      name,
+      definition = "",
+      rules = [],
+      scope = "all",
+      userId = null,
+      teamId = null,
+      actorUserId = null
+    }) {
+      const owner = normalizeCatalogOwner({ scope, userId, teamId });
       const result = await pool.query(
         `
           INSERT INTO composition_rule_definitions (
             name,
             definition,
             rules_json,
+            scope,
+            user_id,
+            team_id,
             created_by_user_id,
             updated_by_user_id
           )
-          VALUES ($1, $2, $3::jsonb, $4, $4)
+          VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $7)
           RETURNING
             id,
             name,
             definition,
             rules_json,
+            scope,
+            user_id,
+            team_id,
             created_by_user_id,
             updated_by_user_id,
             created_at,
             updated_at
         `,
-        [name, definition, JSON.stringify(rules), actorUserId]
+        [name, definition, JSON.stringify(rules), owner.scope, owner.userId, owner.teamId, actorUserId]
       );
 
       return result.rowCount > 0 ? mapRequirementRow(result.rows[0]) : null;
@@ -172,6 +288,9 @@ export function createCompositionsCatalogRepository(pool) {
             name,
             definition,
             rules_json,
+            scope,
+            user_id,
+            team_id,
             created_by_user_id,
             updated_by_user_id,
             created_at,
@@ -193,6 +312,9 @@ export function createCompositionsCatalogRepository(pool) {
             name,
             definition,
             rules_json,
+            scope,
+            user_id,
+            team_id,
             created_by_user_id,
             updated_by_user_id,
             created_at,
@@ -203,15 +325,21 @@ export function createCompositionsCatalogRepository(pool) {
       return result.rowCount > 0 ? mapRequirementRow(result.rows[0]) : null;
     },
 
-    async removeRequirementFromCompositions(requirementId, actorUserId = null) {
+    async removeRequirementFromCompositions(
+      requirementId,
+      { actorUserId = null, scope = "all", userId = null, teamId = null } = {}
+    ) {
       return withTransaction(pool, async (client) => {
+        const predicate = buildScopePredicate({ scope, userId, teamId });
         const result = await client.query(
           `
             SELECT
               id,
               requirement_ids_json
             FROM compositions
-          `
+            WHERE ${predicate.clause}
+          `,
+          predicate.values
         );
 
         for (const row of result.rows) {
@@ -235,66 +363,35 @@ export function createCompositionsCatalogRepository(pool) {
       });
     },
 
-    async listCompositions() {
+    async listCompositions({ scope = "all", userId = null, teamId = null } = {}) {
+      const predicate = buildScopePredicate({ scope, userId, teamId });
       const result = await pool.query(
-        `
-          SELECT
-            id,
-            name,
-            description,
-            requirement_ids_json,
-            is_active,
-            created_by_user_id,
-            updated_by_user_id,
-            created_at,
-            updated_at
-          FROM compositions
-          ORDER BY lower(name) ASC, id ASC
-        `
+        buildCompositionSelectSql(`WHERE ${predicate.clause}`),
+        predicate.values
       );
       return result.rows.map(mapCompositionRow);
     },
 
-    async getCompositionById(compositionId) {
-      const result = await pool.query(
-        `
-          SELECT
-            id,
-            name,
-            description,
-            requirement_ids_json,
-            is_active,
-            created_by_user_id,
-            updated_by_user_id,
-            created_at,
-            updated_at
-          FROM compositions
-          WHERE id = $1
-          LIMIT 1
-        `,
-        [compositionId]
-      );
+    async getCompositionById(compositionId, filters = null) {
+      const values = [compositionId];
+      let whereClause = "WHERE id = $1";
+      if (filters && typeof filters === "object") {
+        const predicate = buildScopePredicate(filters, 2);
+        whereClause += ` AND ${predicate.clause}`;
+        values.push(...predicate.values);
+      }
+      const result = await pool.query(buildCompositionSelectSql(whereClause, "LIMIT 1"), values);
       return result.rowCount > 0 ? mapCompositionRow(result.rows[0]) : null;
     },
 
-    async getActiveComposition() {
+    async getActiveComposition({ scope = "all", userId = null, teamId = null } = {}) {
+      const predicate = buildScopePredicate({ scope, userId, teamId });
       const result = await pool.query(
-        `
-          SELECT
-            id,
-            name,
-            description,
-            requirement_ids_json,
-            is_active,
-            created_by_user_id,
-            updated_by_user_id,
-            created_at,
-            updated_at
-          FROM compositions
-          WHERE is_active = true
-          ORDER BY id ASC
-          LIMIT 1
-        `
+        buildCompositionSelectSql(
+          `WHERE is_active = true AND ${predicate.clause}`,
+          "ORDER BY id ASC LIMIT 1"
+        ),
+        predicate.values
       );
       return result.rowCount > 0 ? mapCompositionRow(result.rows[0]) : null;
     },
@@ -304,9 +401,14 @@ export function createCompositionsCatalogRepository(pool) {
       description = "",
       requirementIds = [],
       isActive = false,
+      scope = "all",
+      userId = null,
+      teamId = null,
       actorUserId = null
     }) {
       return withTransaction(pool, async (client) => {
+        const owner = normalizeCatalogOwner({ scope, userId, teamId });
+        const predicate = buildScopePredicate(owner);
         if (isActive) {
           await client.query(
             `
@@ -315,8 +417,9 @@ export function createCompositionsCatalogRepository(pool) {
                   updated_by_user_id = $1,
                   updated_at = current_timestamp
               WHERE is_active = true
+                AND ${predicate.clause}
             `,
-            [actorUserId]
+            [actorUserId, ...predicate.values]
           );
         }
 
@@ -327,34 +430,52 @@ export function createCompositionsCatalogRepository(pool) {
               description,
               requirement_ids_json,
               is_active,
+              scope,
+              user_id,
+              team_id,
               created_by_user_id,
               updated_by_user_id
             )
-            VALUES ($1, $2, $3::jsonb, $4, $5, $5)
+            VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8, $8)
             RETURNING
               id,
               name,
               description,
               requirement_ids_json,
               is_active,
+              scope,
+              user_id,
+              team_id,
               created_by_user_id,
               updated_by_user_id,
               created_at,
               updated_at
           `,
-          [name, description, JSON.stringify(normalizeRequirementIdArray(requirementIds)), Boolean(isActive), actorUserId]
+          [
+            name,
+            description,
+            JSON.stringify(normalizeRequirementIdArray(requirementIds)),
+            Boolean(isActive),
+            owner.scope,
+            owner.userId,
+            owner.teamId,
+            actorUserId
+          ]
         );
         return result.rowCount > 0 ? mapCompositionRow(result.rows[0]) : null;
       });
     },
 
-    async updateComposition(compositionId, {
-      name,
-      description,
-      requirementIds,
-      isActive,
-      actorUserId = null
-    }) {
+    async updateComposition(
+      compositionId,
+      {
+        name,
+        description,
+        requirementIds,
+        isActive,
+        actorUserId = null
+      }
+    ) {
       return withTransaction(pool, async (client) => {
         const existing = await this.getCompositionById(compositionId);
         if (!existing) {
@@ -369,6 +490,11 @@ export function createCompositionsCatalogRepository(pool) {
         const nextIsActive = typeof isActive === "boolean" ? isActive : existing.is_active;
 
         if (nextIsActive) {
+          const predicate = buildScopePredicate({
+            scope: existing.scope,
+            userId: existing.user_id,
+            teamId: existing.team_id
+          }, 3);
           await client.query(
             `
               UPDATE compositions
@@ -377,8 +503,9 @@ export function createCompositionsCatalogRepository(pool) {
                   updated_at = current_timestamp
               WHERE is_active = true
                 AND id <> $2
+                AND ${predicate.clause}
             `,
-            [actorUserId, compositionId]
+            [actorUserId, compositionId, ...predicate.values]
           );
         }
 
@@ -398,6 +525,9 @@ export function createCompositionsCatalogRepository(pool) {
               description,
               requirement_ids_json,
               is_active,
+              scope,
+              user_id,
+              team_id,
               created_by_user_id,
               updated_by_user_id,
               created_at,
@@ -428,6 +558,9 @@ export function createCompositionsCatalogRepository(pool) {
             description,
             requirement_ids_json,
             is_active,
+            scope,
+            user_id,
+            team_id,
             created_by_user_id,
             updated_by_user_id,
             created_at,

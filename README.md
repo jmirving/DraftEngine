@@ -83,6 +83,15 @@ MVP API routes:
 - `PUT /admin/users/:id/role` (auth + admin required)
 - `PUT /admin/users/:id/riot-id` (auth + admin required)
 - `DELETE /admin/users/:id` (auth + admin required)
+- `GET /requirements` (auth required; scoped read with `scope=self|team|all`, optional `team_id` for team scope)
+- `POST /requirements` (auth required; scoped create with body `scope=self|team|all`, optional `team_id` for team scope)
+- `PUT /requirements/:id` (auth required; updates the existing requirement in its stored scope)
+- `DELETE /requirements/:id` (auth required; deletes the existing requirement in its stored scope)
+- `GET /compositions` (auth required; scoped read with `scope=self|team|all`, optional `team_id` for team scope)
+- `GET /compositions/active` (auth required; scoped active-composition read with `scope=self|team|all`, optional `team_id` for team scope)
+- `POST /compositions` (auth required; scoped create with body `scope=self|team|all`, optional `team_id` for team scope)
+- `PUT /compositions/:id` (auth required; updates the existing composition in its stored scope)
+- `DELETE /compositions/:id` (auth required; deletes the existing composition in its stored scope)
 
 Team API mutation payloads:
 - `POST /teams` and `PATCH /teams/:id` accept `application/json` and `multipart/form-data`.

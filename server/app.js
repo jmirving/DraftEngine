@@ -122,6 +122,7 @@ export function createApp({
     createCompositionsCatalogRouter({
       compositionsCatalogRepository,
       usersRepository,
+      teamsRepository,
       requireAuth
     })
   );

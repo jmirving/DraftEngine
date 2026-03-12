@@ -157,7 +157,10 @@ function createFetchHarness({
           expr: { tag: "Frontline" },
           minCount: 1
         }
-      ]
+      ],
+      scope: "all",
+      team_id: null,
+      user_id: null
     }
   ];
   let nextRequirementDefinitionId = 2;
@@ -167,10 +170,60 @@ function createFetchHarness({
       name: "Standard Comp",
       description: "Baseline setup",
       requirement_ids: [1],
-      is_active: true
+      is_active: true,
+      scope: "all",
+      team_id: null,
+      user_id: null
     }
   ];
   let nextCompositionId = 2;
+
+  function normalizeCatalogScope(scope) {
+    return scope === "self" || scope === "team" ? scope : "all";
+  }
+
+  function canWriteGlobalCatalog() {
+    const role = String(resolvedLoginUser.role ?? "").trim().toLowerCase();
+    return role === "admin" || role === "global" || role === "";
+  }
+
+  function canReadCatalogScope(scope, teamId) {
+    const normalizedScope = normalizeCatalogScope(scope);
+    if (normalizedScope !== "team") {
+      return true;
+    }
+    return teams.some((team) => Number(team.id) === Number(teamId) && team.membership_role);
+  }
+
+  function canWriteCatalogScope(scope, teamId) {
+    const normalizedScope = normalizeCatalogScope(scope);
+    if (normalizedScope === "self") {
+      return true;
+    }
+    if (normalizedScope === "team") {
+      return teams.some((team) => Number(team.id) === Number(teamId) && team.membership_role === "lead");
+    }
+    return canWriteGlobalCatalog();
+  }
+
+  function resolveCatalogTeamId(rawValue) {
+    const parsed = Number.parseInt(String(rawValue ?? ""), 10);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  function matchesCatalogScope(entity, scope, teamId) {
+    const normalizedScope = normalizeCatalogScope(scope);
+    if ((entity.scope ?? "all") !== normalizedScope) {
+      return false;
+    }
+    if (normalizedScope === "self") {
+      return Number(entity.user_id) === Number(resolvedLoginUser.id);
+    }
+    if (normalizedScope === "team") {
+      return Number(entity.team_id) === Number(teamId);
+    }
+    return true;
+  }
   let joinRequestsByTeam = Object.fromEntries(
     Object.entries(teamJoinRequestsByTeam).map(([teamId, requests]) => [String(teamId), [...(requests ?? [])]])
   );
@@ -914,16 +967,27 @@ function createFetchHarness({
     }
 
     if (path === "/requirements" && method === "GET") {
+      const scope = normalizeCatalogScope(parsedUrl.searchParams.get("scope"));
+      const teamId = resolveCatalogTeamId(parsedUrl.searchParams.get("team_id"));
+      if (!canReadCatalogScope(scope, teamId)) {
+        return createJsonResponse(
+          { error: { code: "FORBIDDEN", message: "You must be on the selected team to read team-scoped requirements." } },
+          403
+        );
+      }
       return createJsonResponse({
-        requirements: [...requirementDefinitions]
+        scope,
+        team_id: scope === "team" ? teamId : null,
+        requirements: requirementDefinitions.filter((requirement) => matchesCatalogScope(requirement, scope, teamId))
       });
     }
 
     if (path === "/requirements" && method === "POST") {
-      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
-      if (!isAdmin) {
+      const scope = normalizeCatalogScope(body?.scope);
+      const teamId = resolveCatalogTeamId(body?.team_id);
+      if (!canWriteCatalogScope(scope, teamId)) {
         return createJsonResponse(
-          { error: { code: "FORBIDDEN", message: "Only admins can create requirements." } },
+          { error: { code: "FORBIDDEN", message: "You do not have access to create requirements in this scope." } },
           403
         );
       }
@@ -931,7 +995,10 @@ function createFetchHarness({
         id: nextRequirementDefinitionId,
         name: body?.name ?? "Untitled Requirement",
         definition: body?.definition ?? "",
-        rules: Array.isArray(body?.rules) ? body.rules : []
+        rules: Array.isArray(body?.rules) ? body.rules : [],
+        scope,
+        team_id: scope === "team" ? teamId : null,
+        user_id: scope === "self" ? resolvedLoginUser.id : null
       };
       nextRequirementDefinitionId += 1;
       requirementDefinitions.push(created);
@@ -940,17 +1007,16 @@ function createFetchHarness({
 
     const requirementDefinitionMatch = path.match(/^\/requirements\/(\d+)$/);
     if (requirementDefinitionMatch && method === "PUT") {
-      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
-      if (!isAdmin) {
-        return createJsonResponse(
-          { error: { code: "FORBIDDEN", message: "Only admins can update requirements." } },
-          403
-        );
-      }
       const requirementId = Number(requirementDefinitionMatch[1]);
       const requirement = requirementDefinitions.find((candidate) => candidate.id === requirementId) ?? null;
       if (!requirement) {
         return createJsonResponse({ error: { code: "NOT_FOUND", message: "Requirement not found." } }, 404);
+      }
+      if (!canWriteCatalogScope(requirement.scope, requirement.team_id)) {
+        return createJsonResponse(
+          { error: { code: "FORBIDDEN", message: "You do not have access to update requirements in this scope." } },
+          403
+        );
       }
       if (typeof body?.name === "string") {
         requirement.name = body.name;
@@ -965,47 +1031,69 @@ function createFetchHarness({
     }
 
     if (requirementDefinitionMatch && method === "DELETE") {
-      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
-      if (!isAdmin) {
+      const requirementId = Number(requirementDefinitionMatch[1]);
+      const requirement = requirementDefinitions.find((candidate) => candidate.id === requirementId) ?? null;
+      if (!requirement) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "Requirement not found." } }, 404);
+      }
+      if (!canWriteCatalogScope(requirement.scope, requirement.team_id)) {
         return createJsonResponse(
-          { error: { code: "FORBIDDEN", message: "Only admins can delete requirements." } },
+          { error: { code: "FORBIDDEN", message: "You do not have access to delete requirements in this scope." } },
           403
         );
       }
-      const requirementId = Number(requirementDefinitionMatch[1]);
       requirementDefinitions = requirementDefinitions.filter((candidate) => candidate.id !== requirementId);
       compositions = compositions.map((composition) => ({
         ...composition,
-        requirement_ids: composition.requirement_ids.filter((id) => id !== requirementId)
+        requirement_ids: matchesCatalogScope(composition, requirement.scope, requirement.team_id)
+          ? composition.requirement_ids.filter((id) => id !== requirementId)
+          : composition.requirement_ids
       }));
       return createJsonResponse({}, 204);
     }
 
     if (path === "/compositions" && method === "GET") {
-      const active = compositions.find((composition) => composition.is_active) ?? null;
+      const scope = normalizeCatalogScope(parsedUrl.searchParams.get("scope"));
+      const teamId = resolveCatalogTeamId(parsedUrl.searchParams.get("team_id"));
+      if (!canReadCatalogScope(scope, teamId)) {
+        return createJsonResponse(
+          { error: { code: "FORBIDDEN", message: "You must be on the selected team to read team-scoped compositions." } },
+          403
+        );
+      }
+      const scopedCompositions = compositions.filter((composition) => matchesCatalogScope(composition, scope, teamId));
+      const active = scopedCompositions.find((composition) => composition.is_active) ?? null;
       return createJsonResponse({
-        compositions: [...compositions],
+        scope,
+        team_id: scope === "team" ? teamId : null,
+        compositions: [...scopedCompositions],
         active_composition_id: active ? active.id : null
       });
     }
 
     if (path === "/compositions" && method === "POST") {
-      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
-      if (!isAdmin) {
+      const scope = normalizeCatalogScope(body?.scope);
+      const teamId = resolveCatalogTeamId(body?.team_id);
+      if (!canWriteCatalogScope(scope, teamId)) {
         return createJsonResponse(
-          { error: { code: "FORBIDDEN", message: "Only admins can create compositions." } },
+          { error: { code: "FORBIDDEN", message: "You do not have access to create compositions in this scope." } },
           403
         );
       }
       if (body?.is_active === true) {
-        compositions = compositions.map((composition) => ({ ...composition, is_active: false }));
+        compositions = compositions.map((composition) =>
+          matchesCatalogScope(composition, scope, teamId) ? { ...composition, is_active: false } : composition
+        );
       }
       const created = {
         id: nextCompositionId,
         name: body?.name ?? "Untitled Composition",
         description: body?.description ?? "",
         requirement_ids: Array.isArray(body?.requirement_ids) ? body.requirement_ids : [],
-        is_active: body?.is_active === true
+        is_active: body?.is_active === true,
+        scope,
+        team_id: scope === "team" ? teamId : null,
+        user_id: scope === "self" ? resolvedLoginUser.id : null
       };
       nextCompositionId += 1;
       compositions.push(created);
@@ -1013,32 +1101,53 @@ function createFetchHarness({
     }
 
     if (path === "/compositions/active" && method === "GET") {
-      const active = compositions.find((composition) => composition.is_active) ?? null;
+      const scope = normalizeCatalogScope(parsedUrl.searchParams.get("scope"));
+      const teamId = resolveCatalogTeamId(parsedUrl.searchParams.get("team_id"));
+      if (!canReadCatalogScope(scope, teamId)) {
+        return createJsonResponse(
+          { error: { code: "FORBIDDEN", message: "You must be on the selected team to read team-scoped compositions." } },
+          403
+        );
+      }
+      const active =
+        compositions.find((composition) => composition.is_active && matchesCatalogScope(composition, scope, teamId)) ??
+        null;
       const requirements = active
         ? active.requirement_ids
-            .map((requirementId) => requirementDefinitions.find((candidate) => candidate.id === requirementId) ?? null)
+            .map(
+              (requirementId) =>
+                requirementDefinitions.find(
+                  (candidate) => candidate.id === requirementId && matchesCatalogScope(candidate, scope, teamId)
+                ) ?? null
+            )
             .filter(Boolean)
         : [];
-      return createJsonResponse({ composition: active, requirements });
+      return createJsonResponse({
+        scope,
+        team_id: scope === "team" ? teamId : null,
+        composition: active,
+        requirements
+      });
     }
 
     const compositionMatch = path.match(/^\/compositions\/(\d+)$/);
     if (compositionMatch && method === "PUT") {
-      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
-      if (!isAdmin) {
-        return createJsonResponse(
-          { error: { code: "FORBIDDEN", message: "Only admins can update compositions." } },
-          403
-        );
-      }
       const compositionId = Number(compositionMatch[1]);
       const composition = compositions.find((candidate) => candidate.id === compositionId) ?? null;
       if (!composition) {
         return createJsonResponse({ error: { code: "NOT_FOUND", message: "Composition not found." } }, 404);
       }
+      if (!canWriteCatalogScope(composition.scope, composition.team_id)) {
+        return createJsonResponse(
+          { error: { code: "FORBIDDEN", message: "You do not have access to update compositions in this scope." } },
+          403
+        );
+      }
       if (body?.is_active === true) {
         compositions = compositions.map((candidate) =>
-          candidate.id === compositionId ? candidate : { ...candidate, is_active: false }
+          candidate.id === compositionId || !matchesCatalogScope(candidate, composition.scope, composition.team_id)
+            ? candidate
+            : { ...candidate, is_active: false }
         );
       }
       if (typeof body?.name === "string") {
@@ -1057,14 +1166,17 @@ function createFetchHarness({
     }
 
     if (compositionMatch && method === "DELETE") {
-      const isAdmin = String(resolvedLoginUser.role ?? "").trim().toLowerCase() === "admin";
-      if (!isAdmin) {
+      const compositionId = Number(compositionMatch[1]);
+      const composition = compositions.find((candidate) => candidate.id === compositionId) ?? null;
+      if (!composition) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "Composition not found." } }, 404);
+      }
+      if (!canWriteCatalogScope(composition.scope, composition.team_id)) {
         return createJsonResponse(
-          { error: { code: "FORBIDDEN", message: "Only admins can delete compositions." } },
+          { error: { code: "FORBIDDEN", message: "You do not have access to delete compositions in this scope." } },
           403
         );
       }
-      const compositionId = Number(compositionMatch[1]);
       compositions = compositions.filter((candidate) => candidate.id !== compositionId);
       return createJsonResponse({}, 204);
     }
@@ -2310,6 +2422,105 @@ describe("auth + pools + team management", () => {
     expect(createCompositionCall).toBeTruthy();
     expect(createCompositionCall.body.name).toBe("Aggro Bundle");
     expect(createCompositionCall.body.is_active).toBe(true);
+  });
+
+  test("compositions workspace supports team-scoped requirement and composition saves", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", role: "member", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness({
+      loginUser: { id: 11, email: "lead@example.com", role: "member", gameName: "LeadPlayer", tagline: "NA1" },
+      teams: [
+        {
+          id: 1,
+          name: "Macro Squad",
+          tag: "MCR",
+          membership_role: "lead",
+          member_count: 5
+        }
+      ],
+      teamContext: {
+        activeTeamId: 1
+      }
+    });
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector(".side-menu-link[data-tab='requirements']").click();
+    await flush();
+
+    const requirementsScope = doc.querySelector("#requirements-scope");
+    expect(Array.from(requirementsScope.options, (option) => option.value)).toEqual(["self", "team"]);
+    expect(requirementsScope.value).toBe("self");
+
+    requirementsScope.value = "team";
+    requirementsScope.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await flush();
+    await flush();
+
+    const requirementsTeam = doc.querySelector("#requirements-team");
+    expect(requirementsTeam.value).toBe("1");
+    expect(doc.querySelector("#requirements-open-editor").disabled).toBe(false);
+
+    doc.querySelector("#requirements-open-editor").click();
+    await flush();
+    expect(doc.querySelector("#requirements-save").disabled).toBe(false);
+
+    const requirementName = doc.querySelector("#requirements-name");
+    requirementName.value = "Team Anchor";
+    requirementName.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+
+    const definitionInput = doc.querySelector("#requirements-definition");
+    definitionInput.value = "Team-only engage coverage";
+    definitionInput.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+
+    const firstClause = doc.querySelector(
+      "#requirements-clauses [data-field='term-option'][data-clause-index='0'][data-kind='tag'][data-value='engage']"
+    );
+    expect(firstClause).toBeTruthy();
+    firstClause.click();
+
+    doc.querySelector("#requirements-save").click();
+    await flush();
+    await flush();
+    await flush();
+    await flush();
+
+    const teamRequirementCall = harness.calls.find((call) => call.path === "/requirements" && call.method === "POST");
+    expect(teamRequirementCall).toBeTruthy();
+    expect(teamRequirementCall.body.scope).toBe("team");
+    expect(teamRequirementCall.body.team_id).toBe(1);
+
+    doc.querySelector(".side-menu-link[data-tab='compositions']").click();
+    await flush();
+
+    const compositionsScope = doc.querySelector("#compositions-scope");
+    expect(compositionsScope.value).toBe("team");
+
+    const compositionName = doc.querySelector("#compositions-name");
+    compositionName.value = "Team Bundle";
+    compositionName.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+
+    const requirementOption = [...doc.querySelectorAll("#compositions-requirement-options input[type='checkbox']")].find(
+      (input) => input.parentElement?.textContent?.includes("Team Anchor")
+    );
+    expect(requirementOption).toBeTruthy();
+    requirementOption.checked = true;
+    requirementOption.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+    doc.querySelector("#compositions-save").click();
+    await flush();
+    await flush();
+    await flush();
+    await flush();
+
+    const teamCompositionCall = harness.calls.find((call) => call.path === "/compositions" && call.method === "POST");
+    expect(teamCompositionCall).toBeTruthy();
+    expect(teamCompositionCall.body.scope).toBe("team");
+    expect(teamCompositionCall.body.team_id).toBe(1);
   });
 
   test("login routes users without defined roles to My Profile tab", async () => {

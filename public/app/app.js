@@ -477,6 +477,8 @@ function createInitialState() {
       selectedChampionTagIds: [],
       championTagScope: "self",
       championTagTeamId: "",
+      compositionCatalogScope: "all",
+      compositionCatalogTeamId: "",
       championEditorTab: CHAMPION_EDITOR_TAB_COMPOSITION,
       championMetadataDraft: createEmptyChampionMetadataDraft(),
       championReviewedDraft: false,
@@ -649,8 +651,18 @@ function createElements() {
     championCoreFeedback: runtimeDocument.querySelector("#champion-core-feedback"),
     requirementsTitle: runtimeDocument.querySelector("#requirements-title"),
     requirementsMeta: runtimeDocument.querySelector("#requirements-meta"),
+    requirementsScope: runtimeDocument.querySelector("#requirements-scope"),
+    requirementsScopeReadout: runtimeDocument.querySelector("#requirements-scope-readout"),
+    requirementsScopeHelp: runtimeDocument.querySelector("#requirements-scope-help"),
+    requirementsTeamGroup: runtimeDocument.querySelector("#requirements-team-group"),
+    requirementsTeam: runtimeDocument.querySelector("#requirements-team"),
     compositionsTitle: runtimeDocument.querySelector("#compositions-title"),
     compositionsMeta: runtimeDocument.querySelector("#compositions-meta"),
+    compositionsScope: runtimeDocument.querySelector("#compositions-scope"),
+    compositionsScopeReadout: runtimeDocument.querySelector("#compositions-scope-readout"),
+    compositionsScopeHelp: runtimeDocument.querySelector("#compositions-scope-help"),
+    compositionsTeamGroup: runtimeDocument.querySelector("#compositions-team-group"),
+    compositionsTeam: runtimeDocument.querySelector("#compositions-team"),
     compositionsSummary: runtimeDocument.querySelector("#compositions-summary"),
     requirementsName: runtimeDocument.querySelector("#requirements-name"),
     requirementsDefinition: runtimeDocument.querySelector("#requirements-definition"),
@@ -1096,6 +1108,171 @@ function getChampionProfileDefaultScope() {
     return "team";
   }
   return "self";
+}
+
+function getCompositionCatalogScopeOptions() {
+  const options = [];
+  if (isAuthenticated()) {
+    options.push({ value: "self", label: "User" });
+  }
+  if (getChampionTagLeadTeamOptions().length > 0) {
+    options.push({ value: "team", label: "Team" });
+  }
+  if (isGlobalTagEditorUser()) {
+    options.push({ value: "all", label: "Global" });
+  }
+  return options;
+}
+
+function getCompositionCatalogDefaultScope() {
+  if (isGlobalTagEditorUser()) {
+    return "all";
+  }
+  return "self";
+}
+
+function resolveCompositionCatalogTeamId() {
+  const teamOptions = getChampionTagLeadTeamOptions();
+  if (teamOptions.length < 1) {
+    return "";
+  }
+
+  const activeTeamId = normalizeTeamEntityId(state.teamConfig.activeTeamId);
+  const activeTeamValue = activeTeamId ? String(activeTeamId) : "";
+  if (activeTeamValue && teamOptions.some((option) => option.value === activeTeamValue)) {
+    return activeTeamValue;
+  }
+
+  const selectedTeamValue = String(state.api.compositionCatalogTeamId ?? "");
+  if (teamOptions.some((option) => option.value === selectedTeamValue)) {
+    return selectedTeamValue;
+  }
+
+  return teamOptions[0]?.value ?? "";
+}
+
+function syncCompositionCatalogScopeState() {
+  const scopeOptions = getCompositionCatalogScopeOptions();
+  const scopeValues = new Set(scopeOptions.map((option) => option.value));
+  if (scopeValues.size < 1) {
+    state.api.compositionCatalogScope = "all";
+    state.api.compositionCatalogTeamId = "";
+    return;
+  }
+
+  const normalizedScope = normalizeChampionTagScope(state.api.compositionCatalogScope);
+  state.api.compositionCatalogScope = scopeValues.has(normalizedScope)
+    ? normalizedScope
+    : getCompositionCatalogDefaultScope();
+
+  if (state.api.compositionCatalogScope === "team") {
+    state.api.compositionCatalogTeamId = resolveCompositionCatalogTeamId();
+    if (!state.api.compositionCatalogTeamId) {
+      state.api.compositionCatalogScope = scopeValues.has("self")
+        ? "self"
+        : scopeValues.has("all")
+          ? "all"
+          : scopeOptions[0].value;
+    }
+  }
+
+  if (state.api.compositionCatalogScope !== "team") {
+    state.api.compositionCatalogTeamId = "";
+  }
+}
+
+function getCompositionCatalogScopeRequestContext() {
+  syncCompositionCatalogScopeState();
+  const scope = normalizeChampionTagScope(state.api.compositionCatalogScope);
+  if (scope === "team") {
+    const teamId = resolveCompositionCatalogTeamId();
+    return {
+      scope,
+      teamId
+    };
+  }
+  return {
+    scope,
+    teamId: ""
+  };
+}
+
+function canWriteCompositionCatalogScope() {
+  if (!isAuthenticated()) {
+    return false;
+  }
+  const context = getCompositionCatalogScopeRequestContext();
+  if (context.scope === "self") {
+    return true;
+  }
+  if (context.scope === "team") {
+    return context.teamId !== "";
+  }
+  return isGlobalTagEditorUser();
+}
+
+function buildCompositionCatalogQuery() {
+  const context = getCompositionCatalogScopeRequestContext();
+  const query = new URLSearchParams({ scope: context.scope });
+  if (context.scope === "team" && context.teamId) {
+    query.set("team_id", context.teamId);
+  }
+  return query;
+}
+
+function renderCompositionCatalogScopeControls() {
+  syncCompositionCatalogScopeState();
+  const scopeOptions = getCompositionCatalogScopeOptions();
+  const teamOptions = getChampionTagLeadTeamOptions();
+  const context = getCompositionCatalogScopeRequestContext();
+  const activeScopeLabel = scopeOptions.find((option) => option.value === context.scope)?.label ?? "Global";
+  const activeTeamLabel = context.teamId
+    ? teamOptions.find((option) => option.value === context.teamId)?.label ?? "Selected team"
+    : "";
+
+  const scopeHelp = context.scope === "team"
+    ? `Reading and writing team-scoped requirements and compositions${activeTeamLabel ? ` for ${activeTeamLabel}` : ""}.`
+    : context.scope === "self"
+      ? "Reading and writing your personal requirement and composition catalog."
+      : "Reading and writing the shared global requirement and composition catalog.";
+
+  for (const controlSet of [
+    {
+      scopeSelect: elements.requirementsScope,
+      scopeReadout: elements.requirementsScopeReadout,
+      scopeHelp: elements.requirementsScopeHelp,
+      teamGroup: elements.requirementsTeamGroup,
+      teamSelect: elements.requirementsTeam
+    },
+    {
+      scopeSelect: elements.compositionsScope,
+      scopeReadout: elements.compositionsScopeReadout,
+      scopeHelp: elements.compositionsScopeHelp,
+      teamGroup: elements.compositionsTeamGroup,
+      teamSelect: elements.compositionsTeam
+    }
+  ]) {
+    if (controlSet.scopeSelect) {
+      replaceOptions(controlSet.scopeSelect, scopeOptions);
+      controlSet.scopeSelect.value = context.scope;
+      controlSet.scopeSelect.disabled = scopeOptions.length <= 1;
+    }
+    if (controlSet.scopeReadout) {
+      controlSet.scopeReadout.textContent =
+        context.scope === "team" && activeTeamLabel ? `${activeScopeLabel}: ${activeTeamLabel}` : activeScopeLabel;
+    }
+    if (controlSet.scopeHelp) {
+      controlSet.scopeHelp.textContent = scopeHelp;
+    }
+    if (controlSet.teamGroup) {
+      controlSet.teamGroup.hidden = context.scope !== "team";
+    }
+    if (controlSet.teamSelect) {
+      replaceOptions(controlSet.teamSelect, teamOptions, false, "No lead teams available");
+      controlSet.teamSelect.value = context.teamId;
+      controlSet.teamSelect.disabled = context.scope !== "team" || teamOptions.length < 1;
+    }
+  }
 }
 
 function getExplorerTeamScopeTeamId() {
@@ -2092,6 +2269,8 @@ function clearAuthSession(feedback = "") {
   state.api.requirementDefinitions = [];
   state.api.selectedRequirementDefinitionId = null;
   state.api.requirementDefinitionDraft = createEmptyRequirementDefinitionDraft();
+  state.api.compositionCatalogScope = "all";
+  state.api.compositionCatalogTeamId = "";
   state.api.isLoadingRequirementDefinitions = false;
   state.api.isSavingRequirementDefinition = false;
   state.api.compositionBundles = [];
@@ -4771,7 +4950,9 @@ function normalizeRequirementDefinition(rawRequirement) {
     id,
     name,
     definition,
-    rules
+    rules,
+    scope: normalizeChampionTagScope(rawRequirement.scope),
+    team_id: normalizeTeamEntityId(rawRequirement.team_id)
   };
 }
 
@@ -4795,7 +4976,9 @@ function normalizeCompositionBundle(rawComposition) {
     name,
     description,
     requirement_ids: requirementIds,
-    is_active: rawComposition.is_active === true
+    is_active: rawComposition.is_active === true,
+    scope: normalizeChampionTagScope(rawComposition.scope),
+    team_id: normalizeTeamEntityId(rawComposition.team_id)
   };
 }
 
@@ -5427,7 +5610,7 @@ function renderCompositionRequirementOptions() {
 
   const selectedIdSet = new Set(normalizeApiTagIdArray(state.api.compositionBundleDraft.requirementIds));
   const controlsDisabled =
-    state.api.isSavingCompositionBundle || state.api.isLoadingCompositionBundles || !isAdminUser();
+    state.api.isSavingCompositionBundle || state.api.isLoadingCompositionBundles || !canWriteCompositionCatalogScope();
 
   for (const requirement of requirements) {
     const label = runtimeDocument.createElement("label");
@@ -5486,7 +5669,7 @@ function renderRequirementClauseEditor() {
   const clauses = Array.isArray(state.api.requirementDefinitionDraft.rules)
     ? state.api.requirementDefinitionDraft.rules
     : [];
-  const controlsDisabled = state.api.isSavingRequirementDefinition || !isAdminUser();
+  const controlsDisabled = state.api.isSavingRequirementDefinition || !canWriteCompositionCatalogScope();
 
   if (clauses.length < 1) {
     const empty = runtimeDocument.createElement("p");
@@ -5877,12 +6060,22 @@ function renderRequirementDefinitionsWorkspace() {
     return;
   }
 
+  renderCompositionCatalogScopeControls();
   syncRequirementDefinitionInputsFromState();
   renderRequirementClauseEditor();
 
   const isEditing = Boolean(normalizeApiEntityId(state.api.selectedRequirementDefinitionId));
   const isEditorOpen = state.api.isRequirementDefinitionEditorOpen === true;
-  const controlsDisabled = state.api.isSavingRequirementDefinition || !isAdminUser();
+  const controlsDisabled = state.api.isSavingRequirementDefinition || !canWriteCompositionCatalogScope();
+  const scopeContext = getCompositionCatalogScopeRequestContext();
+  const scopeLabel =
+    getCompositionCatalogScopeOptions().find((option) => option.value === scopeContext.scope)?.label ?? "Global";
+  if (elements.requirementsMeta) {
+    elements.requirementsMeta.textContent =
+      scopeContext.scope === "team" && scopeContext.teamId
+        ? `Define reusable requirement clauses for ${scopeLabel.toLowerCase()} scope (${getTeamDisplayLabel(scopeContext.teamId)}).`
+        : `Define reusable requirement clauses for ${scopeLabel.toLowerCase()} scope.`;
+  }
   if (elements.requirementsEditor) {
     elements.requirementsEditor.hidden = !isEditorOpen;
   }
@@ -5931,7 +6124,7 @@ function renderRequirementDefinitionsWorkspace() {
   if (requirements.length < 1) {
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
-    empty.textContent = "No requirement definitions yet.";
+    empty.textContent = "No requirement definitions in this scope yet.";
     elements.requirementsList.append(empty);
     return;
   }
@@ -5952,7 +6145,7 @@ function renderRequirementDefinitionsWorkspace() {
     ruleCount.textContent = `${requirement.rules.length} rule clause${requirement.rules.length === 1 ? "" : "s"}.`;
 
     card.append(title, definition, ruleCount);
-    if (isAdminUser()) {
+    if (canWriteCompositionCatalogScope()) {
       const edit = runtimeDocument.createElement("button");
       edit.type = "button";
       edit.className = "ghost requirement-inline-button";
@@ -5978,11 +6171,21 @@ function renderCompositionBundlesWorkspace() {
     return;
   }
 
+  renderCompositionCatalogScopeControls();
   syncCompositionBundleInputsFromState();
   renderCompositionRequirementOptions();
 
   const isEditing = Boolean(normalizeApiEntityId(state.api.selectedCompositionBundleId));
-  const controlsDisabled = state.api.isSavingCompositionBundle || !isAdminUser();
+  const controlsDisabled = state.api.isSavingCompositionBundle || !canWriteCompositionCatalogScope();
+  const scopeContext = getCompositionCatalogScopeRequestContext();
+  const scopeLabel =
+    getCompositionCatalogScopeOptions().find((option) => option.value === scopeContext.scope)?.label ?? "Global";
+  if (elements.compositionsMeta) {
+    elements.compositionsMeta.textContent =
+      scopeContext.scope === "team" && scopeContext.teamId
+        ? `Group requirement definitions into reusable named composition bundles for ${getTeamDisplayLabel(scopeContext.teamId)}.`
+        : `Group requirement definitions into reusable named composition bundles for ${scopeLabel.toLowerCase()} scope.`;
+  }
   if (elements.compositionsName) {
     elements.compositionsName.disabled = controlsDisabled;
   }
@@ -6030,7 +6233,7 @@ function renderCompositionBundlesWorkspace() {
   if (compositions.length < 1) {
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
-    empty.textContent = "No compositions yet.";
+    empty.textContent = "No compositions in this scope yet.";
     elements.compositionsList.append(empty);
     return;
   }
@@ -6066,7 +6269,7 @@ function renderCompositionBundlesWorkspace() {
     activeLabel.textContent = composition.is_active ? "Active composition" : "Inactive composition";
 
     card.append(title, description, included, activeLabel);
-    if (isAdminUser()) {
+    if (canWriteCompositionCatalogScope()) {
       const edit = runtimeDocument.createElement("button");
       edit.type = "button";
       edit.className = "ghost requirement-inline-button";
@@ -6099,10 +6302,19 @@ async function loadRequirementDefinitionsFromApi() {
     return false;
   }
 
+  const scopeContext = getCompositionCatalogScopeRequestContext();
+  if (scopeContext.scope === "team" && !scopeContext.teamId) {
+    state.api.requirementDefinitions = [];
+    setRequirementDefinitionDraft(null);
+    setRequirementsFeedback("Select a team to load team-scoped requirements.");
+    renderCompositionsWorkspace();
+    return false;
+  }
+
   state.api.isLoadingRequirementDefinitions = true;
   renderCompositionsWorkspace();
   try {
-    const payload = await apiRequest("/requirements", { auth: true });
+    const payload = await apiRequest(`/requirements?${buildCompositionCatalogQuery().toString()}`, { auth: true });
     const requirements = Array.isArray(payload?.requirements)
       ? payload.requirements.map(normalizeRequirementDefinition).filter(Boolean)
       : [];
@@ -6135,10 +6347,19 @@ async function loadCompositionBundlesFromApi() {
     return false;
   }
 
+  const scopeContext = getCompositionCatalogScopeRequestContext();
+  if (scopeContext.scope === "team" && !scopeContext.teamId) {
+    state.api.compositionBundles = [];
+    setCompositionBundleDraft(null);
+    setCompositionsFeedback("Select a team to load team-scoped compositions.");
+    renderCompositionsWorkspace();
+    return false;
+  }
+
   state.api.isLoadingCompositionBundles = true;
   renderCompositionsWorkspace();
   try {
-    const payload = await apiRequest("/compositions", { auth: true });
+    const payload = await apiRequest(`/compositions?${buildCompositionCatalogQuery().toString()}`, { auth: true });
     const compositions = Array.isArray(payload?.compositions)
       ? payload.compositions.map(normalizeCompositionBundle).filter(Boolean)
       : [];
@@ -6167,10 +6388,11 @@ async function loadCompositionBundlesFromApi() {
 async function hydrateCompositionsWorkspaceFromApi() {
   await loadRequirementDefinitionsFromApi();
   await loadCompositionBundlesFromApi();
+  renderBuilder();
 }
 
 async function saveRequirementDefinitionFromWorkspace() {
-  if (!isAuthenticated() || !isAdminUser() || state.api.isSavingRequirementDefinition) {
+  if (!isAuthenticated() || !canWriteCompositionCatalogScope() || state.api.isSavingRequirementDefinition) {
     return;
   }
 
@@ -6195,6 +6417,15 @@ async function saveRequirementDefinitionFromWorkspace() {
     definition: String(state.api.requirementDefinitionDraft.definition ?? "").trim(),
     rules: parsedRules
   };
+  const scopeContext = getCompositionCatalogScopeRequestContext();
+  payload.scope = scopeContext.scope;
+  if (scopeContext.scope === "team") {
+    if (!scopeContext.teamId) {
+      setRequirementsFeedback("Select a team before saving team-scoped requirements.");
+      return;
+    }
+    payload.team_id = Number(scopeContext.teamId);
+  }
 
   state.api.isSavingRequirementDefinition = true;
   setRequirementsFeedback(isEditing ? "Saving requirement..." : "Creating requirement...");
@@ -6224,7 +6455,7 @@ async function saveRequirementDefinitionFromWorkspace() {
 }
 
 async function deleteRequirementDefinitionFromWorkspace() {
-  if (!isAuthenticated() || !isAdminUser() || state.api.isSavingRequirementDefinition) {
+  if (!isAuthenticated() || !canWriteCompositionCatalogScope() || state.api.isSavingRequirementDefinition) {
     return;
   }
   const selectedRequirement = getSelectedRequirementDefinition();
@@ -6254,7 +6485,7 @@ async function deleteRequirementDefinitionFromWorkspace() {
 }
 
 async function saveCompositionBundleFromWorkspace() {
-  if (!isAuthenticated() || !isAdminUser() || state.api.isSavingCompositionBundle) {
+  if (!isAuthenticated() || !canWriteCompositionCatalogScope() || state.api.isSavingCompositionBundle) {
     return;
   }
 
@@ -6272,6 +6503,15 @@ async function saveCompositionBundleFromWorkspace() {
     requirement_ids: normalizeApiTagIdArray(state.api.compositionBundleDraft.requirementIds),
     is_active: state.api.compositionBundleDraft.isActive === true
   };
+  const scopeContext = getCompositionCatalogScopeRequestContext();
+  payload.scope = scopeContext.scope;
+  if (scopeContext.scope === "team") {
+    if (!scopeContext.teamId) {
+      setCompositionsFeedback("Select a team before saving team-scoped compositions.");
+      return;
+    }
+    payload.team_id = Number(scopeContext.teamId);
+  }
 
   state.api.isSavingCompositionBundle = true;
   setCompositionsFeedback(isEditing ? "Saving composition..." : "Creating composition...");
@@ -6300,7 +6540,7 @@ async function saveCompositionBundleFromWorkspace() {
 }
 
 async function deleteCompositionBundleFromWorkspace() {
-  if (!isAuthenticated() || !isAdminUser() || state.api.isSavingCompositionBundle) {
+  if (!isAuthenticated() || !canWriteCompositionCatalogScope() || state.api.isSavingCompositionBundle) {
     return;
   }
   const selectedComposition = getSelectedCompositionBundle();
@@ -12811,6 +13051,44 @@ function attachEvents() {
   if (elements.championCoreRefresh) {
     elements.championCoreRefresh.addEventListener("click", () => {
       void loadChampionCoreFromApi();
+    });
+  }
+
+  for (const scopeSelect of [elements.requirementsScope, elements.compositionsScope]) {
+    if (!scopeSelect) {
+      continue;
+    }
+    scopeSelect.addEventListener("change", () => {
+      const selectedScope = normalizeChampionTagScope(scopeSelect.value);
+      state.api.compositionCatalogScope = selectedScope;
+      if (selectedScope !== "team") {
+        state.api.compositionCatalogTeamId = "";
+      } else {
+        state.api.compositionCatalogTeamId = resolveCompositionCatalogTeamId();
+      }
+      state.api.isRequirementDefinitionEditorOpen = false;
+      setRequirementDefinitionDraft(null);
+      setCompositionBundleDraft(null);
+      setRequirementsFeedback("Loading requirement definitions...");
+      setCompositionsFeedback("Loading compositions...");
+      renderCompositionsWorkspace();
+      void hydrateCompositionsWorkspaceFromApi();
+    });
+  }
+
+  for (const teamSelect of [elements.requirementsTeam, elements.compositionsTeam]) {
+    if (!teamSelect) {
+      continue;
+    }
+    teamSelect.addEventListener("change", () => {
+      state.api.compositionCatalogTeamId = normalizeTeamEntityId(teamSelect.value) ?? "";
+      state.api.isRequirementDefinitionEditorOpen = false;
+      setRequirementDefinitionDraft(null);
+      setCompositionBundleDraft(null);
+      setRequirementsFeedback("Loading team-scoped requirement definitions...");
+      setCompositionsFeedback("Loading team-scoped compositions...");
+      renderCompositionsWorkspace();
+      void hydrateCompositionsWorkspaceFromApi();
     });
   }
 
