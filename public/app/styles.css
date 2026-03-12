@@ -2749,22 +2749,24 @@ button.pool-snapshot-order-btn:disabled {
   display: block;
   margin: 0 auto;
   border-radius: 999px;
-  padding: 0.2rem 0.6rem;
-  font-size: 0.78rem;
-  font-weight: 600;
+  padding: 0.18rem 0.58rem;
+  font-size: 0.68rem;
+  font-weight: 700;
   border: 1px solid var(--accent);
   background: var(--accent);
   color: #fff;
   cursor: pointer;
   text-align: center;
   text-align-last: center;
-  max-width: 100%;
+  width: auto;
+  max-width: 5.5rem;
 }
 
 .comfort-select option {
-  background: #fff;
-  color: var(--text);
+  background: #f8f5f2;
+  color: var(--ink);
   font-weight: 600;
+  border-radius: 0;
 }
 
 .comfort-select option:checked {
