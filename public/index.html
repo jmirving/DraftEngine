@@ -1166,7 +1166,7 @@
                   <li>My Roles setting: "Set primary role" and "Set other role(s)" text links open compact modals for quick role editing; same links are duplicated in the My Champions tab header.</li>
                   <li>My Champions moved from Profile to the Champions tab with a persistent sub-navigation header (My Champions / Edit Champions toggle).</li>
                   <li>Champions tab now defaults to "My Champions" when navigated to.</li>
-                  <li>Account settings editor: view and edit email, game name, tagline, first name, and last name inline on the Profile page, plus change password.</li>
+                  <li>Account settings editor: view email, game name, and tagline; edit first name and last name inline on the Profile page; and change password.</li>
                   <li>Admin Users shortcut moved from the left navigation bar into the Profile settings list (visible to admin users only); Admin Tools section removed from the nav.</li>
                   <li>Profile tab internal route renamed from "player-config" to "profile" for clarity.</li>
                 </ul>
@@ -1238,15 +1238,15 @@
                 <p class="meta">Deferred and planned follow-up work by workspace page.</p>
                 <h4>General</h4>
                 <ul class="coming-soon-list">
-                  <li>In-app issue reporting: replace the external GitHub link with an on-site form (title, description, type) that submits directly to the repo via the GitHub API using a server-stored PAT, so users without a GitHub account can report issues. Requires a GitHub PAT with Issues: Read and write scope stored as GITHUB_ISSUES_TOKEN in the server environment. The nav "Report an issue" link should open this form instead of redirecting externally. Falls back to the external GitHub link if the token is not configured. Submitted issues should include the reporter's email or game name in the issue body.</li>
-                  <li>Champion core baseline data is now viewable in the admin workspace, but refresh/import is still a manual operation; automatic release ingestion is not enabled yet (draftflow-129)</li>
+                  <li>In-app issue reporting: replace the external GitHub link with an on-site form (title, description, type) that submits directly to the repo via the GitHub API using a server-stored PAT, so users without a GitHub account can report issues. Requires a GitHub PAT with Issues: Read and write scope stored as GITHUB_ISSUES_TOKEN in the server environment. The nav "Report an issue" link should open this form instead of redirecting externally. Falls back to the external GitHub link if the token is not configured. Submitted issues should include the reporter's email or game name in the issue body (draftflow-217).</li>
+                  <li>Champion core baseline data is now viewable in the admin workspace, but release ingestion is still manual and broader champion_core baseline adoption across champion/Riot lookup flows is still in progress (draftflow-129, draftflow-212).</li>
                   <li>Admin safeguards and governance guardrails still need hardening for high-impact global edits (draftflow-147)</li>
                 </ul>
                 <h4>Profile</h4>
                 <ul class="coming-soon-list">
-                  <li>Avatar selection persists locally; a full backend persistence endpoint for avatar champion ID is not yet implemented.</li>
-                  <li>Display team preference is frontend-only; backend persistence for team display selection is not yet implemented.</li>
-                  <li>Account settings: email, game name, and tagline are read-only for now; only first/last name are editable and persisted via the API.</li>
+                  <li>Avatar selection persists locally; a full backend persistence endpoint for avatar champion ID is not yet implemented (draftflow-218).</li>
+                  <li>Display team preference is frontend-only; backend persistence for team display selection is not yet implemented (draftflow-215).</li>
+                  <li>Account settings: email, game name, and tagline are read-only for now; only first/last name are editable and persisted via the API (draftflow-219).</li>
                   <li>Get champion pool suggestions based on your real League match history (draftflow-145)</li>
                   <li>Profile Riot stats currently feature top mastery results only; literal most-played champion by match count would require match-history aggregation and is still deferred (draftflow-208).</li>
                 </ul>
@@ -1259,8 +1259,7 @@
                 <h4>Teams</h4>
                 <ul class="coming-soon-list">
                   <li>Teams member actions require exact Riot ID entry (`GameName#Tagline`); search/autocomplete is not implemented yet (draftflow-139)</li>
-                  <li>Join request controls currently require manual refresh actions for discover/review lists; live auto-refresh is deferred.</li>
-                  <li>Invite/request lifecycle polish, including improved lead-review telemetry, is on deck (draftflow-169).</li>
+                  <li>Invitation and join-request review lists still require manual refresh actions; live refresh and richer review telemetry are deferred (draftflow-216).</li>
                 </ul>
                 <h4>Champions</h4>
                 <ul class="coming-soon-list">
@@ -1270,12 +1269,12 @@
                 <h4>Tags</h4>
                 <ul class="coming-soon-list">
                   <li>Global editor now covers all currently defined `*.global` permissions; custom per-permission role policy editing is deferred (draftflow-161)</li>
-                  <li>Champion-tag promotion review controls and governance surfaces remain pending (draftflow-170).</li>
+                  <li>Champion-tag promotion review moderation remains pending alongside the broader scoped-promotion workflow (draftflow-171).</li>
                 </ul>
                 <h4>Users</h4>
                 <ul class="coming-soon-list">
                   <li>User search, filtering, and bulk permission updates are not implemented yet (draftflow-157)</li>
-                  <li>User deletion is currently hard-delete only; restore/undo and deletion audit history are deferred</li>
+                  <li>User deletion is currently hard-delete only; restore/undo and deletion audit history are deferred (draftflow-214).</li>
                 </ul>
                 <h4>Compositions</h4>
                 <ul class="coming-soon-list">
