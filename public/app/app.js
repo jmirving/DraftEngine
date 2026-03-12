@@ -539,7 +539,11 @@ function createInitialState() {
       teamId: null,
       byTeam: {},
       dirtyPoolByTeamId: {},
-      isSavingPool: false
+      isSavingPool: false,
+      selectorFilter: "",
+      selectorPending: [],
+      cardFilter: "",
+      comfortFilter: ""
     },
     builder: {
       stage: "setup",
@@ -922,6 +926,17 @@ function createElements() {
     playerConfigSavePool: runtimeDocument.querySelector("#player-config-save-pool"),
     playerConfigFeedback: runtimeDocument.querySelector("#player-config-feedback"),
     playerConfigGrid: runtimeDocument.querySelector("#player-config-grid"),
+    myChampionsAddBtn: runtimeDocument.querySelector("#my-champions-add-btn"),
+    myChampionsCardGrid: runtimeDocument.querySelector("#my-champions-card-grid"),
+    myChampionsSearch: runtimeDocument.querySelector("#my-champions-search"),
+    myChampionsComfortFilter: runtimeDocument.querySelector("#my-champions-comfort-filter"),
+    championSelectorModal: runtimeDocument.querySelector("#champion-selector-modal"),
+    championSelectorSearch: runtimeDocument.querySelector("#champion-selector-search"),
+    championSelectorAvailable: runtimeDocument.querySelector("#champion-selector-available"),
+    championSelectorSelected: runtimeDocument.querySelector("#champion-selector-selected"),
+    championSelectorClear: runtimeDocument.querySelector("#champion-selector-clear"),
+    championSelectorCancel: runtimeDocument.querySelector("#champion-selector-cancel"),
+    championSelectorDone: runtimeDocument.querySelector("#champion-selector-done"),
     logoLightbox: runtimeDocument.querySelector("#logo-lightbox"),
     logoLightboxClose: runtimeDocument.querySelector("#logo-lightbox-close"),
     logoLightboxImage: runtimeDocument.querySelector("#logo-lightbox-image"),
@@ -10913,6 +10928,106 @@ function applyExplorerSubTab() {
   }
 }
 
+// ── Champion Selector Modal ──────────────────────────────────────────
+
+function getMyChampionsActivePlayer() {
+  const activeRole = parseRolePoolTeamId(state.playerConfig.teamId) ?? state.profile.primaryRole;
+  const players = state.playerConfig.byTeam[state.playerConfig.teamId] ?? [];
+  return players.find((player) => player.role === activeRole) ?? null;
+}
+
+function openChampionSelectorModal() {
+  const activePlayer = getMyChampionsActivePlayer();
+  if (!activePlayer) return;
+  state.playerConfig.selectorPending = [...activePlayer.champions];
+  state.playerConfig.selectorFilter = "";
+  if (elements.championSelectorSearch) elements.championSelectorSearch.value = "";
+  if (elements.championSelectorModal) elements.championSelectorModal.hidden = false;
+  renderChampionSelectorGrid();
+}
+
+function closeChampionSelectorModal(cancel) {
+  if (elements.championSelectorModal) elements.championSelectorModal.hidden = true;
+  if (cancel) return;
+
+  const activePlayer = getMyChampionsActivePlayer();
+  if (!activePlayer) return;
+  activePlayer.champions = Array.from(new Set(state.playerConfig.selectorPending)).sort((a, b) => a.localeCompare(b));
+  activePlayer.familiarityByChampion = normalizeFamiliarityByChampion(
+    activePlayer.champions,
+    activePlayer.familiarityByChampion
+  );
+  setPlayerPoolDirty(state.playerConfig.teamId, true);
+  syncDerivedTeamDataFromPlayerConfig();
+  syncConfiguredTeamSelection();
+  setBuilderStage("setup");
+  resetBuilderTreeState();
+  validateTeamSelections();
+  renderTeamConfig();
+  renderBuilder();
+  renderMyChampions();
+  renderPlayerConfigFeedback("Unsaved champion changes. Click Save Champions.");
+}
+
+function renderChampionSelectorGrid() {
+  if (!elements.championSelectorAvailable || !elements.championSelectorSelected) return;
+  const activeRole = parseRolePoolTeamId(state.playerConfig.teamId) ?? state.profile.primaryRole;
+  const roleEligible = (state.data.noneTeamPools[activeRole] ?? []).slice().sort((a, b) => a.localeCompare(b));
+  const filter = state.playerConfig.selectorFilter.trim().toLowerCase();
+  const pendingSet = new Set(state.playerConfig.selectorPending);
+
+  const filtered = filter
+    ? roleEligible.filter((name) => name.toLowerCase().includes(filter))
+    : roleEligible;
+  const available = filtered.filter((name) => !pendingSet.has(name));
+  const selected = filtered.filter((name) => pendingSet.has(name));
+
+  const renderColumn = (container, names, isSelectedColumn) => {
+    container.innerHTML = "";
+    if (names.length === 0) {
+      const empty = runtimeDocument.createElement("p");
+      empty.className = "meta";
+      empty.textContent = isSelectedColumn ? "No champions selected." : "No champions available.";
+      container.append(empty);
+      return;
+    }
+    for (const championName of names) {
+      const btn = runtimeDocument.createElement("button");
+      btn.type = "button";
+      btn.className = "champion-selector-option" + (isSelectedColumn ? " is-selected" : "");
+
+      const img = runtimeDocument.createElement("img");
+      img.className = "avatar-option-img";
+      img.src = getChampionSquareUrl(championName);
+      img.alt = championName;
+      img.loading = "lazy";
+      img.addEventListener("error", () => { img.src = championImageFallback(championName); }, { once: true });
+
+      const label = runtimeDocument.createElement("span");
+      label.className = "avatar-option-name";
+      label.textContent = championName;
+
+      btn.append(img, label);
+      btn.addEventListener("click", () => {
+        const pending = new Set(state.playerConfig.selectorPending);
+        if (isSelectedColumn) {
+          pending.delete(championName);
+        } else {
+          pending.add(championName);
+        }
+        state.playerConfig.selectorPending = [...pending];
+        renderChampionSelectorGrid();
+      });
+      container.append(btn);
+    }
+  };
+
+  renderColumn(elements.championSelectorAvailable, available, false);
+  renderColumn(elements.championSelectorSelected, selected, true);
+}
+
+// ── My Champions Card Grid ───────────────────────────────────────────
+
 function renderMyChampions() {
   state.playerConfig.teamId = normalizePlayerConfigTeamId(state.playerConfig.teamId);
   const teamOptions = getConfiguredProfileRoles().map((role) => ({
@@ -10926,8 +11041,7 @@ function renderMyChampions() {
   const activeRole = parseRolePoolTeamId(state.playerConfig.teamId) ?? state.profile.primaryRole;
   const poolDirty = isPlayerPoolDirty(state.playerConfig.teamId);
 
-  const players = state.playerConfig.byTeam[state.playerConfig.teamId] ?? [];
-  const activePlayer = players.find((player) => player.role === activeRole) ?? null;
+  const activePlayer = getMyChampionsActivePlayer();
   if (activePlayer) {
     activePlayer.familiarityByChampion = normalizeFamiliarityByChampion(
       activePlayer.champions,
@@ -10938,43 +11052,93 @@ function renderMyChampions() {
     elements.playerConfigSavePool.disabled = !activePlayer || !poolDirty || state.playerConfig.isSavingPool;
     elements.playerConfigSavePool.textContent = state.playerConfig.isSavingPool ? "Saving..." : "Save Champions";
   }
+  if (elements.myChampionsAddBtn) {
+    const count = activePlayer ? activePlayer.champions.length : 0;
+    elements.myChampionsAddBtn.textContent = `Add Champions (${count} selected)`;
+  }
 
-  elements.playerConfigGrid.innerHTML = "";
-  if (!activePlayer) {
+  const grid = elements.myChampionsCardGrid ?? elements.playerConfigGrid;
+  grid.innerHTML = "";
+  if (!activePlayer || activePlayer.champions.length === 0) {
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
-    empty.textContent = isAuthenticated()
-      ? `No champions selected for ${activeRole}.`
-      : "Sign in to load API-backed pools.";
-    elements.playerConfigGrid.append(empty);
+    empty.textContent = !activePlayer
+      ? (isAuthenticated() ? `No champions selected for ${activeRole}.` : "Sign in to load API-backed pools.")
+      : `No champions selected for ${activeRole}. Click "Add Champions" to get started.`;
+    grid.append(empty);
     return;
   }
 
-  const card = runtimeDocument.createElement("article");
-  card.className = "player-config-card";
-
-  const poolControlHost = runtimeDocument.createElement("div");
-  poolControlHost.className = "player-pool-control";
-
-  const roleEligible = state.data.noneTeamPools[activeRole] ?? [];
-  createCheckboxMultiControl({
-    root: poolControlHost,
-    options: roleEligible.map((championName) => ({
-      value: championName,
-      label: championName
-    })),
-    selectedValues: activePlayer.champions,
-    placeholder: "No champions selected",
-    searchable: true,
-    searchPlaceholder: "Filter champions",
-    summaryFormatter(selectedValues) {
-      if (selectedValues.length === 0) {
-        return "No champions selected";
+  // Build mastery lookup
+  const masteryByName = {};
+  if (state.profile.championStats?.status === "ok" && Array.isArray(state.profile.championStats.champions)) {
+    for (const entry of state.profile.championStats.champions) {
+      if (entry.championName) {
+        masteryByName[entry.championName] = entry;
       }
-      return `${selectedValues.length} champion${selectedValues.length === 1 ? "" : "s"} selected`;
-    },
-    onChange(selectedValues) {
-      activePlayer.champions = Array.from(new Set(selectedValues)).sort((left, right) => left.localeCompare(right));
+    }
+  }
+
+  // Apply card filters
+  const nameFilter = (state.playerConfig.cardFilter ?? "").trim().toLowerCase();
+  const comfortFilter = (state.playerConfig.comfortFilter ?? "").trim().toUpperCase();
+
+  const sortedNames = [...activePlayer.champions].sort((a, b) => a.localeCompare(b));
+  const filteredNames = sortedNames.filter((championName) => {
+    if (nameFilter && !championName.toLowerCase().includes(nameFilter)) return false;
+    if (comfortFilter) {
+      const grade = getFamiliarityGrade(normalizeFamiliarityLevel(activePlayer.familiarityByChampion[championName]));
+      if (grade !== comfortFilter) return false;
+    }
+    return true;
+  });
+
+  if (filteredNames.length === 0) {
+    const noMatch = runtimeDocument.createElement("p");
+    noMatch.className = "meta";
+    noMatch.textContent = "No champions match the current filters.";
+    grid.append(noMatch);
+    return;
+  }
+
+  for (const championName of filteredNames) {
+    const champion = state.data.championsByName?.[championName] ?? null;
+    const mastery = masteryByName[championName] ?? null;
+    const currentLevel = normalizeFamiliarityLevel(activePlayer.familiarityByChampion[championName]);
+    const currentGrade = getFamiliarityGrade(currentLevel);
+
+    const card = runtimeDocument.createElement("article");
+    card.className = "champ-card my-champ-card";
+
+    // ── Header: image + name ──────────────────────────────────────────
+    const cardHeader = runtimeDocument.createElement("div");
+    cardHeader.className = "champ-card-header";
+
+    const image = runtimeDocument.createElement("img");
+    image.className = "champ-thumb";
+    image.alt = `${championName} portrait`;
+    image.src = getChampionImageUrl(championName);
+    image.loading = "lazy";
+    image.addEventListener("error", () => { image.src = championImageFallback(championName); }, { once: true });
+
+    const nameWrap = runtimeDocument.createElement("div");
+    nameWrap.className = "champ-card-name-wrap";
+    const nameEl = runtimeDocument.createElement("p");
+    nameEl.className = "champ-name";
+    nameEl.textContent = championName;
+    nameWrap.append(nameEl);
+
+    cardHeader.append(image, nameWrap);
+
+    // ── Remove button (top-right) ─────────────────────────────────────
+    const removeBtn = runtimeDocument.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "champ-card-edit-btn my-champ-remove-btn";
+    removeBtn.title = "Remove from pool";
+    removeBtn.setAttribute("aria-label", `Remove ${championName} from pool`);
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", () => {
+      activePlayer.champions = activePlayer.champions.filter((c) => c !== championName);
       activePlayer.familiarityByChampion = normalizeFamiliarityByChampion(
         activePlayer.champions,
         activePlayer.familiarityByChampion
@@ -10987,86 +11151,116 @@ function renderMyChampions() {
       validateTeamSelections();
       renderTeamConfig();
       renderBuilder();
-      if (elements.playerConfigSavePool) {
-        elements.playerConfigSavePool.disabled = state.playerConfig.isSavingPool;
-      }
+      renderMyChampions();
       renderPlayerConfigFeedback("Unsaved champion changes. Click Save Champions.");
-    }
-  });
+    });
+    cardHeader.append(removeBtn);
 
-  const familiarityHost = runtimeDocument.createElement("div");
-  familiarityHost.className = "player-familiarity";
+    // ── Comfort Level pills ───────────────────────────────────────────
+    const comfortSection = runtimeDocument.createElement("div");
+    comfortSection.className = "champ-meta-section";
+    const comfortLabel = runtimeDocument.createElement("p");
+    comfortLabel.className = "champ-meta-label";
+    comfortLabel.textContent = "Comfort Level";
+    const comfortPills = runtimeDocument.createElement("div");
+    comfortPills.className = "champ-meta-pills comfort-pill-group";
 
-  const familiarityTitle = runtimeDocument.createElement("h3");
-  familiarityTitle.textContent = "Familiarity Grade";
-  const familiarityMeta = runtimeDocument.createElement("p");
-  familiarityMeta.className = "meta";
-  familiarityMeta.textContent = "S = one-trick detail mastery, A = high execution, B = misses some nuance, C = basic understanding.";
-  familiarityHost.append(familiarityTitle, familiarityMeta);
-
-  const selectedChampionNames = [...activePlayer.champions].sort((left, right) => left.localeCompare(right));
-  if (selectedChampionNames.length === 0) {
-    const emptyFamiliarity = runtimeDocument.createElement("p");
-    emptyFamiliarity.className = "meta";
-    emptyFamiliarity.textContent = "Select champions above to set familiarity.";
-    familiarityHost.append(emptyFamiliarity);
-  } else {
-    const familiarityList = runtimeDocument.createElement("div");
-    familiarityList.className = "player-familiarity-list";
-    for (const championName of selectedChampionNames) {
-      const familiarityRow = runtimeDocument.createElement("div");
-      familiarityRow.className = "player-familiarity-row";
-
-      const championLabel = runtimeDocument.createElement("strong");
-      championLabel.className = "player-familiarity-name";
-      championLabel.textContent = championName;
-
-      const familiarityControl = runtimeDocument.createElement("div");
-      familiarityControl.className = "player-familiarity-control";
-      const familiaritySelect = runtimeDocument.createElement("select");
-      familiaritySelect.className = "player-familiarity-select";
-
-      for (const grade of FAMILIARITY_GRADES) {
-        familiaritySelect.append(createOption(grade, grade));
-      }
-
-      const currentFamiliarity = normalizeFamiliarityLevel(activePlayer.familiarityByChampion[championName]);
-      familiaritySelect.value = getFamiliarityGrade(currentFamiliarity);
-
-      const familiarityDescription = runtimeDocument.createElement("span");
-      familiarityDescription.className = "meta player-familiarity-description";
-      const setDescriptionText = () => {
-        const nextLevel = familiarityGradeToLevel(familiaritySelect.value);
-        familiarityDescription.textContent = getFamiliarityLabel(nextLevel);
-      };
-      setDescriptionText();
-
-      familiaritySelect.addEventListener("change", () => {
-        const nextLevel = familiarityGradeToLevel(familiaritySelect.value);
+    for (const grade of FAMILIARITY_GRADES) {
+      const pill = runtimeDocument.createElement("button");
+      pill.type = "button";
+      pill.className = "comfort-pill" + (grade === currentGrade ? " is-active" : "");
+      pill.textContent = grade;
+      pill.title = getFamiliarityLabel(familiarityGradeToLevel(grade));
+      pill.addEventListener("click", () => {
+        const nextLevel = familiarityGradeToLevel(grade);
         activePlayer.familiarityByChampion = normalizeFamiliarityByChampion(
           activePlayer.champions,
-          {
-            ...(activePlayer.familiarityByChampion ?? {}),
-            [championName]: nextLevel
-          }
+          { ...(activePlayer.familiarityByChampion ?? {}), [championName]: nextLevel }
         );
-        setDescriptionText();
+        // Toggle pill classes locally without full re-render
+        for (const p of comfortPills.querySelectorAll(".comfort-pill")) {
+          p.classList.toggle("is-active", p.textContent === grade);
+        }
         setPlayerPoolDirty(state.playerConfig.teamId, true);
         if (elements.playerConfigSavePool) {
           elements.playerConfigSavePool.disabled = state.playerConfig.isSavingPool;
         }
-        renderPlayerConfigFeedback("Unsaved familiarity changes. Click Save Champions.");
+        renderPlayerConfigFeedback("Unsaved comfort level changes. Click Save Champions.");
       });
-
-      familiarityControl.append(familiaritySelect, familiarityDescription);
-      familiarityRow.append(championLabel, familiarityControl);
-      familiarityList.append(familiarityRow);
+      comfortPills.append(pill);
     }
-    familiarityHost.append(familiarityList);
-  }
+    comfortSection.append(comfortLabel, comfortPills);
 
-  card.append(poolControlHost, familiarityHost);
-  elements.playerConfigGrid.append(card);
+    // ── Mastery stats (if available) ──────────────────────────────────
+    const metaSection = runtimeDocument.createElement("div");
+    metaSection.className = "champ-card-meta";
+    metaSection.append(comfortSection);
+
+    if (mastery) {
+      const masterySection = runtimeDocument.createElement("div");
+      masterySection.className = "champ-meta-section my-champ-mastery";
+      const masteryLabel = runtimeDocument.createElement("p");
+      masteryLabel.className = "champ-meta-label";
+      masteryLabel.textContent = "Mastery";
+      const masteryText = runtimeDocument.createElement("p");
+      masteryText.className = "my-champ-mastery-text";
+      masteryText.textContent = `Level ${mastery.championLevel} | ${NUMBER_FORMATTER.format(mastery.championPoints)} pts`;
+      masterySection.append(masteryLabel, masteryText);
+      metaSection.append(masterySection);
+    }
+
+    // ── Tags panel (read-only, collapsible) ───────────────────────────
+    const tagDetails = runtimeDocument.createElement("details");
+    tagDetails.className = "champ-card-tags-panel";
+    const tagSummary = runtimeDocument.createElement("summary");
+
+    const tagIds = champion?.tagIds ?? [];
+    const tagNames = Array.isArray(tagIds)
+      ? tagIds
+          .map((tagId) => {
+            const tag = state.api.tagById[String(tagId)];
+            return tag ? { name: tag.name, definition: tag.definition ?? "" } : null;
+          })
+          .filter(Boolean)
+      : [];
+    tagSummary.textContent = `Champion Tags (${tagNames.length})`;
+    tagDetails.append(tagSummary);
+
+    const tagFilter = runtimeDocument.createElement("input");
+    tagFilter.type = "search";
+    tagFilter.className = "champ-card-tag-filter";
+    tagFilter.placeholder = "Filter tags\u2026";
+    tagDetails.append(tagFilter);
+
+    const tagList = runtimeDocument.createElement("div");
+    tagList.className = "champ-card-tag-list";
+    if (tagNames.length > 0) {
+      for (const { name: tagName, definition } of tagNames) {
+        const chip = runtimeDocument.createElement("span");
+        chip.className = "chip champ-tag-chip";
+        chip.dataset.tagName = tagName.toLowerCase();
+        chip.textContent = tagName;
+        if (definition) chip.title = definition;
+        tagList.append(chip);
+      }
+    } else {
+      const emptyTags = runtimeDocument.createElement("span");
+      emptyTags.className = "meta";
+      emptyTags.textContent = "No tags assigned.";
+      tagList.append(emptyTags);
+    }
+    tagDetails.append(tagList);
+
+    tagFilter.addEventListener("input", () => {
+      const q = tagFilter.value.trim().toLowerCase();
+      for (const chip of tagList.querySelectorAll(".champ-tag-chip")) {
+        chip.hidden = q.length > 0 && !chip.dataset.tagName.includes(q);
+      }
+    });
+
+    card.append(cardHeader, metaSection, tagDetails);
+    grid.append(card);
+  }
 }
 
 function renderExplorer() {
@@ -13800,6 +13994,51 @@ function attachEvents() {
   if (elements.playerConfigSavePool) {
     elements.playerConfigSavePool.addEventListener("click", () => {
       void saveActivePlayerPoolSelection();
+    });
+  }
+
+  if (elements.myChampionsAddBtn) {
+    elements.myChampionsAddBtn.addEventListener("click", () => {
+      openChampionSelectorModal();
+    });
+  }
+  if (elements.championSelectorSearch) {
+    elements.championSelectorSearch.addEventListener("input", () => {
+      state.playerConfig.selectorFilter = elements.championSelectorSearch.value;
+      renderChampionSelectorGrid();
+    });
+  }
+  if (elements.championSelectorDone) {
+    elements.championSelectorDone.addEventListener("click", () => {
+      closeChampionSelectorModal(false);
+    });
+  }
+  if (elements.championSelectorCancel) {
+    elements.championSelectorCancel.addEventListener("click", () => {
+      closeChampionSelectorModal(true);
+    });
+  }
+  if (elements.championSelectorClear) {
+    elements.championSelectorClear.addEventListener("click", () => {
+      state.playerConfig.selectorPending = [];
+      renderChampionSelectorGrid();
+    });
+  }
+  if (elements.championSelectorModal) {
+    elements.championSelectorModal.addEventListener("click", (e) => {
+      if (e.target === elements.championSelectorModal) closeChampionSelectorModal(true);
+    });
+  }
+  if (elements.myChampionsSearch) {
+    elements.myChampionsSearch.addEventListener("input", () => {
+      state.playerConfig.cardFilter = elements.myChampionsSearch.value;
+      renderMyChampions();
+    });
+  }
+  if (elements.myChampionsComfortFilter) {
+    elements.myChampionsComfortFilter.addEventListener("change", () => {
+      state.playerConfig.comfortFilter = elements.myChampionsComfortFilter.value;
+      renderMyChampions();
     });
   }
 

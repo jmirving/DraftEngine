@@ -178,11 +178,24 @@
                   <a href="#" class="profile-role-link" id="my-champions-set-others">Set other role(s)</a>
                 </div>
               </div>
-              <label>
-                Role
-                <select id="player-config-team"></select>
-              </label>
-              <div id="player-config-grid" class="player-pools-grid"></div>
+              <div class="my-champions-controls">
+                <label>
+                  Role
+                  <select id="player-config-team"></select>
+                </label>
+                <button id="my-champions-add-btn" type="button">Add Champions</button>
+              </div>
+              <div class="my-champions-filter-row">
+                <input id="my-champions-search" type="search" placeholder="Filter by name..." />
+                <select id="my-champions-comfort-filter">
+                  <option value="">All Comfort Levels</option>
+                  <option value="S">S</option>
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                </select>
+              </div>
+              <div id="my-champions-card-grid" class="card-grid"></div>
               <div class="button-row">
                 <button id="player-config-save-pool" type="button">Save Champions</button>
               </div>
@@ -1144,6 +1157,10 @@
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
                 <h4>Current Session</h4>
                 <ul class="coming-soon-list">
+                  <li>My Champions redesigned: selected champions now display as visual cards with champion portrait, Comfort Level pill selector (S/A/B/C), Riot mastery stats, and collapsible tags.</li>
+                  <li>Champion pool selector replaced with a visual two-column modal (Available / Selected) featuring champion portrait icons, search filtering, and click-to-toggle selection.</li>
+                  <li>My Champions cards now include name and comfort level filters to quickly find champions in your pool.</li>
+                  <li>Scope selector on Edit Champions cards now uses a compact "View" pill dropdown in the meta section instead of stacked indicator buttons.</li>
                   <li>Requirements and compositions now support explicit `User`, `Team`, and `Global` scope selection, using the same scope model as champion profile editing.</li>
                   <li>The Requirements and Compositions workspaces now load, create, update, and delete entries within the selected scope instead of forcing all catalog work through the global library.</li>
                   <li>Added a database-backed `champion_core` baseline imported from the provided processor dataset, preserving stable Riot/Data Dragon champion identity and numeric stat fields outside the draft-tag model.</li>
@@ -1423,6 +1440,28 @@
           <div class="button-row avatar-modal-actions">
             <button id="avatar-modal-cancel" class="ghost" type="button">Cancel</button>
             <button id="avatar-modal-save" type="button">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="champion-selector-modal" hidden>
+        <div class="modal-content champion-selector-modal-content">
+          <h3>Select Champions</h3>
+          <input id="champion-selector-search" type="search" placeholder="Filter champions..." class="champion-selector-search" />
+          <div class="champion-selector-columns">
+            <div class="champion-selector-column">
+              <p class="champion-selector-column-label">Available</p>
+              <div id="champion-selector-available" class="champion-selector-grid"></div>
+            </div>
+            <div class="champion-selector-column">
+              <p class="champion-selector-column-label">Selected</p>
+              <div id="champion-selector-selected" class="champion-selector-grid"></div>
+            </div>
+          </div>
+          <div class="button-row champion-selector-actions">
+            <button id="champion-selector-clear" class="ghost" type="button">Clear All</button>
+            <button id="champion-selector-cancel" class="ghost" type="button">Cancel</button>
+            <button id="champion-selector-done" type="button">Done</button>
           </div>
         </div>
       </div>
