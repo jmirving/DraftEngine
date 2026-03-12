@@ -46,6 +46,7 @@ Database checks and migrations:
 npm run db:check
 npm run migrate:up
 npm run migrate:down
+npm run seed:champion-core
 npm run seed:champions
 ```
 
@@ -76,6 +77,7 @@ MVP API routes:
 - `DELETE /teams/:id/members/:user_id` (auth + lead required)
 - `PUT /teams/:id/members/:user_id/role` (auth + lead required)
 - `PUT /teams/:id/members/:user_id/team-role` (auth + lead required)
+- `GET /admin/champion-core` (auth + admin required)
 - `GET /admin/users` (auth + admin required)
 - `GET /admin/authorization` (auth + admin required)
 - `PUT /admin/users/:id/role` (auth + admin required)
@@ -155,11 +157,19 @@ Runtime data comes from API/DB for auth flows:
 Champion catalog artifacts:
 - `docs/champion-catalog/champions.full.csv`
 - `docs/champion-catalog/manifest.json`
+- `server/data/champion-core.seed.json`
 
 Refresh full catalog artifact:
 ```bash
 npm run catalog:refresh
 ```
+
+Seed champion core baseline into Postgres:
+```bash
+npm run seed:champion-core
+```
+
+`champion_core` is populated from the checked-in JSON seed artifact derived once from `docs/champion-core-example.csv`. Runtime/API code does not read the CSV file.
 
 ## Defaults
 

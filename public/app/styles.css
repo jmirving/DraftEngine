@@ -2364,6 +2364,27 @@ button.pool-snapshot-order-btn:disabled {
   cursor: pointer;
   margin-bottom: 0.35rem;
 }
+.champion-core-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 0.7rem;
+  align-items: end;
+  margin-bottom: 0.8rem;
+}
+.champion-core-actions {
+  justify-content: flex-end;
+}
+.champion-core-json {
+  margin: 0.55rem 0 0;
+  padding: 0.65rem;
+  border-radius: 10px;
+  background: #fff7eb;
+  border: 1px solid var(--border);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.78rem;
+}
 .user-detail-content {
   display: grid;
   gap: 0.5rem;
@@ -2379,6 +2400,15 @@ button.pool-snapshot-order-btn:disabled {
   padding: 0;
   display: grid;
   gap: 0.3rem;
+}
+@media (max-width: 699px) {
+  .champion-core-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .champion-core-actions {
+    justify-content: stretch;
+  }
 }
 .user-detail-list li {
   padding-bottom: 0.25rem;

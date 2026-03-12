@@ -42,6 +42,7 @@ export function startServer(env = process.env) {
   const app = createApp({
     config,
     usersRepository: repositories.users,
+    championCoreRepository: repositories.championCore,
     championsRepository: repositories.champions,
     tagsRepository: repositories.tags,
     compositionsCatalogRepository: repositories.compositionsCatalog,

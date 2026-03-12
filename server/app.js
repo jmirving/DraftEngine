@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { createOptionalAuth, createRequireAuth } from "./auth/middleware.js";
 import { ApiError, badRequest, formatErrorResponse } from "./errors.js";
 import { createAuthRouter } from "./routes/auth.js";
+import { createAdminChampionCoreRouter } from "./routes/admin-champion-core.js";
 import { createAdminUsersRouter } from "./routes/admin-users.js";
 import { createChampionsRouter } from "./routes/champions.js";
 import { createCompositionsCatalogRouter } from "./routes/compositions-catalog.js";
@@ -26,6 +27,7 @@ function requireDependency(value, name) {
 export function createApp({
   config,
   usersRepository,
+  championCoreRepository,
   championsRepository,
   tagsRepository,
   compositionsCatalogRepository,
@@ -36,6 +38,7 @@ export function createApp({
 }) {
   requireDependency(config, "config");
   requireDependency(usersRepository, "usersRepository");
+  requireDependency(championCoreRepository, "championCoreRepository");
   requireDependency(championsRepository, "championsRepository");
   requireDependency(tagsRepository, "tagsRepository");
   requireDependency(compositionsCatalogRepository, "compositionsCatalogRepository");
@@ -75,6 +78,14 @@ export function createApp({
   });
 
   app.use("/auth", createAuthRouter({ config, usersRepository }));
+  app.use(
+    "/",
+    createAdminChampionCoreRouter({
+      championCoreRepository,
+      usersRepository,
+      requireAuth
+    })
+  );
   app.use(
     "/",
     createAdminUsersRouter({

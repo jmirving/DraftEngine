@@ -133,6 +133,38 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         tagIds: []
       }
     ],
+    championCore: [
+      {
+        id: 1,
+        normalized_name: "ahri",
+        name: "Ahri",
+        ddragon_id: "Ahri",
+        riot_champion_id: 103,
+        riot_tags: ["Mage", "Assassin"],
+        resource_type: "Mana",
+        attackrange: 550,
+        hp: 590,
+        armor: 21,
+        movespeed: 330,
+        imported_at: "2026-03-11T00:00:00.000Z",
+        updated_at: "2026-03-11T00:00:00.000Z"
+      },
+      {
+        id: 2,
+        normalized_name: "braum",
+        name: "Braum",
+        ddragon_id: "Braum",
+        riot_champion_id: 201,
+        riot_tags: ["Tank", "Support"],
+        resource_type: "Mana",
+        attackrange: 125,
+        hp: 630,
+        armor: 35,
+        movespeed: 335,
+        imported_at: "2026-03-11T00:00:00.000Z",
+        updated_at: "2026-03-11T00:00:00.000Z"
+      }
+    ],
     tags: [
       { id: 1, name: "engage", definition: "Helps a team start fights decisively." },
       { id: 2, name: "frontline", definition: "Provides durable front-to-back pressure." }
@@ -474,6 +506,15 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       };
       champion.reviewed = reviewed === true;
       return champion;
+    }
+  };
+
+  const championCoreRepository = {
+    async listChampionCore() {
+      return state.championCore.map((champion) => ({
+        ...champion,
+        riot_tags: [...champion.riot_tags]
+      }));
     }
   };
 
@@ -1392,6 +1433,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
   const app = createApp({
     config,
     usersRepository,
+    championCoreRepository,
     championsRepository,
     tagsRepository,
     compositionsCatalogRepository,
@@ -2171,6 +2213,31 @@ describe("API routes", () => {
     expect(adminListAfterDelete.status).toBe(200);
     expect(adminListAfterDelete.body.users).toHaveLength(4);
     expect(adminListAfterDelete.body.users.some((user) => Number(user.id) === 2)).toBe(false);
+  });
+
+  it("serves champion core rows to admins only", async () => {
+    const { app, config } = createMockContext();
+
+    const memberDenied = await request(app)
+      .get("/admin/champion-core")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(memberDenied.status).toBe(403);
+
+    const adminResponse = await request(app)
+      .get("/admin/champion-core")
+      .set("Authorization", buildAuthHeader(1, config));
+    expect(adminResponse.status).toBe(200);
+    expect(adminResponse.body.count).toBe(2);
+    expect(adminResponse.body.champions[0]).toEqual(
+      expect.objectContaining({
+        normalized_name: "ahri",
+        name: "Ahri",
+        ddragon_id: "Ahri",
+        riot_champion_id: 103,
+        riot_tags: ["Mage", "Assassin"],
+        attackrange: 550
+      })
+    );
   });
 
   it("treats owner allowlisted email as admin even when stored role is member", async () => {

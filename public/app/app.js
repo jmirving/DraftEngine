@@ -217,6 +217,10 @@ const UI_COPY = Object.freeze({
         title: "Users",
         subtitle: "Admin-only directory for permissions and one-time Riot ID corrections."
       },
+      "champion-core": {
+        title: "Champion Core",
+        subtitle: "Verify the imported Riot/Data Dragon baseline champion dataset."
+      },
       requirements: {
         title: "Requirements",
         subtitle: "Manage reusable requirement definitions and clause rules."
@@ -233,7 +237,7 @@ const UI_COPY = Object.freeze({
   },
   nav: {
     title: "DraftEngine",
-    meta: "Jump between Composer, Teams, Profile, Champions, Tags, Users, Requirements, Compositions, and Updates.",
+    meta: "Jump between Composer, Teams, Profile, Champions, Tags, Users, Champion Core, Requirements, Compositions, and Updates.",
     toggleClosed: "Menu",
     toggleOpen: "Close Menu",
     desktopCollapseIcon: "◀",
@@ -260,6 +264,8 @@ const UI_COPY = Object.freeze({
     tagsMeta: "Manage shared tag definitions and current champion coverage.",
     usersTitle: "Users",
     usersMeta: "Admin-only user directory, permission management, one-time Riot ID corrections, and authorization matrix visibility.",
+    championCoreTitle: "Champion Core",
+    championCoreMeta: "Admin-only verification view for the imported Riot/Data Dragon champion baseline.",
     requirementsTitle: "Requirements",
     requirementsMeta: "Define reusable requirement rules and clause logic.",
     compositionsTitle: "Compositions",
@@ -300,6 +306,7 @@ const TAB_ROUTES = Object.freeze([
   "explorer",
   "tags",
   "users",
+  "champion-core",
   "requirements",
   "compositions",
   "coming-soon"
@@ -482,6 +489,9 @@ function createInitialState() {
       selectedTagManagerId: null,
       isSavingTagCatalog: false,
       users: [],
+      championCore: [],
+      championCoreSearch: "",
+      isLoadingChampionCore: false,
       isLoadingUsers: false,
       authorizationMatrix: null,
       isLoadingAuthorizationMatrix: false,
@@ -630,6 +640,13 @@ function createElements() {
     usersAuthorizationPermissions: runtimeDocument.querySelector("#users-authorization-permissions"),
     usersAuthorizationAssignments: runtimeDocument.querySelector("#users-authorization-assignments"),
     usersFeedback: runtimeDocument.querySelector("#users-feedback"),
+    championCoreTitle: runtimeDocument.querySelector("#champion-core-title"),
+    championCoreMeta: runtimeDocument.querySelector("#champion-core-meta"),
+    championCoreSearch: runtimeDocument.querySelector("#champion-core-search"),
+    championCoreRefresh: runtimeDocument.querySelector("#champion-core-refresh"),
+    championCoreAccess: runtimeDocument.querySelector("#champion-core-access"),
+    championCoreList: runtimeDocument.querySelector("#champion-core-list"),
+    championCoreFeedback: runtimeDocument.querySelector("#champion-core-feedback"),
     requirementsTitle: runtimeDocument.querySelector("#requirements-title"),
     requirementsMeta: runtimeDocument.querySelector("#requirements-meta"),
     compositionsTitle: runtimeDocument.querySelector("#compositions-title"),
@@ -661,6 +678,7 @@ function createElements() {
     tabWorkflow: runtimeDocument.querySelector("#tab-workflow"),
     tabTags: runtimeDocument.querySelector("#tab-tags"),
     tabUsers: runtimeDocument.querySelector("#tab-users"),
+    tabChampionCore: runtimeDocument.querySelector("#tab-champion-core"),
     tabRequirements: runtimeDocument.querySelector("#tab-requirements"),
     tabCompositions: runtimeDocument.querySelector("#tab-compositions"),
     tabTeamConfig: runtimeDocument.querySelector("#tab-team-config"),
@@ -877,6 +895,7 @@ function createElements() {
     profileSaveAccount: runtimeDocument.querySelector("#profile-save-account"),
     profileAccountFeedback: runtimeDocument.querySelector("#profile-account-feedback"),
     profileAdminLink: runtimeDocument.querySelector("#profile-admin-link"),
+    profileAdminChampionCoreLink: runtimeDocument.querySelector("#profile-admin-champion-core-link"),
     avatarModal: runtimeDocument.querySelector("#avatar-modal"),
     avatarModalSearch: runtimeDocument.querySelector("#avatar-modal-search"),
     avatarModalGrid: runtimeDocument.querySelector("#avatar-modal-grid"),
@@ -1004,6 +1023,12 @@ function setTagsManageFeedback(message) {
 function setUsersFeedback(message) {
   if (elements.usersFeedback) {
     elements.usersFeedback.textContent = message;
+  }
+}
+
+function setChampionCoreFeedback(message) {
+  if (elements.championCoreFeedback) {
+    elements.championCoreFeedback.textContent = message;
   }
 }
 
@@ -2056,6 +2081,9 @@ function clearAuthSession(feedback = "") {
   state.api.joinRequestsByTeamId = {};
   state.api.selectedDiscoverTeamId = "";
   state.api.users = [];
+  state.api.championCore = [];
+  state.api.championCoreSearch = "";
+  state.api.isLoadingChampionCore = false;
   state.api.isLoadingUsers = false;
   state.api.authorizationMatrix = null;
   state.api.isLoadingAuthorizationMatrix = false;
@@ -2076,6 +2104,7 @@ function clearAuthSession(feedback = "") {
   clearChampionTagEditorState();
   clearTagsManagerState();
   setUsersFeedback("");
+  setChampionCoreFeedback("");
   setRequirementsFeedback("");
   setCompositionsFeedback("");
   setTeamJoinFeedback("");
@@ -2283,6 +2312,12 @@ function applyUiCopy() {
   }
   if (elements.usersMeta) {
     elements.usersMeta.textContent = UI_COPY.panels.usersMeta;
+  }
+  if (elements.championCoreTitle) {
+    elements.championCoreTitle.textContent = UI_COPY.panels.championCoreTitle;
+  }
+  if (elements.championCoreMeta) {
+    elements.championCoreMeta.textContent = UI_COPY.panels.championCoreMeta;
   }
   if (elements.requirementsTitle) {
     elements.requirementsTitle.textContent = UI_COPY.panels.requirementsTitle;
@@ -2723,6 +2758,7 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
   elements.tabWorkflow.classList.toggle("is-active", resolvedTab === "workflow");
   elements.tabTags.classList.toggle("is-active", resolvedTab === "tags");
   elements.tabUsers.classList.toggle("is-active", resolvedTab === "users");
+  elements.tabChampionCore.classList.toggle("is-active", resolvedTab === "champion-core");
   elements.tabRequirements.classList.toggle("is-active", resolvedTab === "requirements");
   elements.tabCompositions.classList.toggle("is-active", resolvedTab === "compositions");
   elements.tabTeamConfig.classList.toggle("is-active", resolvedTab === "team-config");
@@ -2753,6 +2789,12 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
       void loadAuthorizationMatrixFromApi();
     }
     renderUsersWorkspace();
+  }
+  if (resolvedTab === "champion-core") {
+    if (isAdminUser() && state.api.championCore.length === 0 && !state.api.isLoadingChampionCore) {
+      void loadChampionCoreFromApi();
+    }
+    renderChampionCoreWorkspace();
   }
   if (resolvedTab === "requirements") {
     if (isAuthenticated() && state.api.requirementDefinitions.length === 0 && !state.api.isLoadingRequirementDefinitions) {
@@ -3963,6 +4005,33 @@ async function loadUsersFromApi() {
   }
 }
 
+async function loadChampionCoreFromApi() {
+  if (!isAuthenticated() || !isAdminUser()) {
+    state.api.championCore = [];
+    state.api.isLoadingChampionCore = false;
+    setChampionCoreFeedback("");
+    return false;
+  }
+
+  state.api.isLoadingChampionCore = true;
+  renderChampionCoreWorkspace();
+  try {
+    const payload = await apiRequest("/admin/champion-core", { auth: true });
+    state.api.championCore = Array.isArray(payload?.champions)
+      ? payload.champions.map(normalizeChampionCoreRow).filter(Boolean)
+      : [];
+    setChampionCoreFeedback("");
+    return true;
+  } catch (error) {
+    state.api.championCore = [];
+    setChampionCoreFeedback(normalizeApiErrorMessage(error, "Failed to load champion core data."));
+    return false;
+  } finally {
+    state.api.isLoadingChampionCore = false;
+    renderChampionCoreWorkspace();
+  }
+}
+
 async function loadAuthorizationMatrixFromApi() {
   if (!isAuthenticated() || !isAdminUser()) {
     state.api.authorizationMatrix = null;
@@ -4593,6 +4662,97 @@ function renderUsersWorkspace() {
   }
 }
 
+function renderChampionCoreWorkspace() {
+  if (!elements.championCoreList || !elements.championCoreAccess) {
+    return;
+  }
+
+  elements.championCoreList.innerHTML = "";
+
+  if (elements.championCoreSearch && elements.championCoreSearch.value !== state.api.championCoreSearch) {
+    elements.championCoreSearch.value = state.api.championCoreSearch;
+  }
+  if (elements.championCoreRefresh) {
+    elements.championCoreRefresh.disabled = !isAuthenticated() || !isAdminUser() || state.api.isLoadingChampionCore;
+    elements.championCoreRefresh.textContent = state.api.isLoadingChampionCore ? "Refreshing..." : "Refresh";
+  }
+
+  if (!isAuthenticated()) {
+    elements.championCoreAccess.textContent = "Sign in to access champion core.";
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "Champion Core is available to admins only.";
+    elements.championCoreList.append(empty);
+    return;
+  }
+
+  if (!isAdminUser()) {
+    elements.championCoreAccess.textContent = "Champion Core is admin-only.";
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "Your account does not have admin access.";
+    elements.championCoreList.append(empty);
+    return;
+  }
+
+  if (state.api.isLoadingChampionCore) {
+    elements.championCoreAccess.textContent = "Loading champion core rows...";
+    return;
+  }
+
+  const rows = getFilteredChampionCoreRows();
+  const totalRows = Array.isArray(state.api.championCore) ? state.api.championCore.length : 0;
+  elements.championCoreAccess.textContent = `${rows.length} of ${totalRows} champion core rows shown.`;
+
+  if (rows.length === 0) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = totalRows === 0 ? "No champion core rows found." : "No champion core rows match the current search.";
+    elements.championCoreList.append(empty);
+    return;
+  }
+
+  for (const champion of rows) {
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card";
+
+    const title = runtimeDocument.createElement("strong");
+    title.textContent = champion.name;
+
+    const identity = runtimeDocument.createElement("p");
+    identity.className = "meta";
+    identity.textContent = `Riot ID ${champion.riot_champion_id} | Data Dragon ${champion.ddragon_id} | normalized ${champion.normalized_name}`;
+
+    const tagRow = runtimeDocument.createElement("div");
+    tagRow.className = "chip-row";
+    for (const tag of champion.riot_tags) {
+      const chip = runtimeDocument.createElement("span");
+      chip.className = "tag-chip";
+      chip.textContent = tag;
+      tagRow.append(chip);
+    }
+
+    const factualSummary = runtimeDocument.createElement("p");
+    factualSummary.className = "meta";
+    const attackProfile = Number(champion.attackrange) > 200 ? "Ranged" : "Melee";
+    factualSummary.textContent =
+      `${attackProfile} (${champion.attackrange}) | ${champion.resource_type ?? "No resource"} | ` +
+      `HP ${champion.hp} | Armor ${champion.armor} | Move ${champion.movespeed}`;
+
+    const detailPanel = runtimeDocument.createElement("details");
+    detailPanel.className = "user-detail-panel";
+    const detailSummary = runtimeDocument.createElement("summary");
+    detailSummary.textContent = "Raw row";
+    const rawPre = runtimeDocument.createElement("pre");
+    rawPre.className = "champion-core-json";
+    rawPre.textContent = JSON.stringify(champion, null, 2);
+    detailPanel.append(detailSummary, rawPre);
+
+    card.append(title, identity, tagRow, factualSummary, detailPanel);
+    elements.championCoreList.append(card);
+  }
+}
+
 function normalizeRequirementDefinition(rawRequirement) {
   if (!rawRequirement || typeof rawRequirement !== "object" || Array.isArray(rawRequirement)) {
     return null;
@@ -4637,6 +4797,51 @@ function normalizeCompositionBundle(rawComposition) {
     requirement_ids: requirementIds,
     is_active: rawComposition.is_active === true
   };
+}
+
+function normalizeChampionCoreRow(rawChampion) {
+  if (!rawChampion || typeof rawChampion !== "object" || Array.isArray(rawChampion)) {
+    return null;
+  }
+  const id = normalizeApiEntityId(rawChampion.id);
+  const name = typeof rawChampion.name === "string" ? rawChampion.name.trim() : "";
+  const normalizedName = typeof rawChampion.normalized_name === "string" ? rawChampion.normalized_name.trim() : "";
+  const ddragonId = typeof rawChampion.ddragon_id === "string" ? rawChampion.ddragon_id.trim() : "";
+  const riotChampionId = Number.parseInt(String(rawChampion.riot_champion_id ?? ""), 10);
+  if (!id || !name || !normalizedName || !ddragonId || !Number.isInteger(riotChampionId)) {
+    return null;
+  }
+
+  return {
+    ...rawChampion,
+    id,
+    name,
+    normalized_name: normalizedName,
+    ddragon_id: ddragonId,
+    riot_champion_id: riotChampionId,
+    riot_tags: Array.isArray(rawChampion.riot_tags) ? rawChampion.riot_tags.filter((value) => typeof value === "string") : []
+  };
+}
+
+function getFilteredChampionCoreRows() {
+  const rows = Array.isArray(state.api.championCore) ? state.api.championCore : [];
+  const query = String(state.api.championCoreSearch ?? "").trim().toLowerCase();
+  if (!query) {
+    return rows;
+  }
+
+  return rows.filter((champion) => {
+    const haystack = [
+      champion.name,
+      champion.normalized_name,
+      champion.ddragon_id,
+      String(champion.riot_champion_id),
+      ...(Array.isArray(champion.riot_tags) ? champion.riot_tags : [])
+    ]
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(query);
+  });
 }
 
 function getSelectedRequirementDefinition() {
@@ -9503,6 +9708,9 @@ function renderPlayerConfig() {
   if (elements.profileAdminLink) {
     elements.profileAdminLink.hidden = !isAdminUser();
   }
+  if (elements.profileAdminChampionCoreLink) {
+    elements.profileAdminChampionCoreLink.hidden = !isAdminUser();
+  }
 
   // --- Toggle editors ---
   const openSetting = state.profile.openSetting;
@@ -12314,6 +12522,10 @@ function attachEvents() {
         setTab("users", { syncRoute: true });
         return;
       }
+      if (settingName === "admin-champion-core") {
+        setTab("champion-core", { syncRoute: true });
+        return;
+      }
 
       // Toggle accordion
       state.profile.openSetting = state.profile.openSetting === settingName ? null : settingName;
@@ -12586,6 +12798,19 @@ function attachEvents() {
     elements.tagsManageCancel.addEventListener("click", () => {
       clearTagsManagerState();
       renderTagsWorkspace();
+    });
+  }
+
+  if (elements.championCoreSearch) {
+    elements.championCoreSearch.addEventListener("input", () => {
+      state.api.championCoreSearch = elements.championCoreSearch.value;
+      renderChampionCoreWorkspace();
+    });
+  }
+
+  if (elements.championCoreRefresh) {
+    elements.championCoreRefresh.addEventListener("click", () => {
+      void loadChampionCoreFromApi();
     });
   }
 
@@ -13579,6 +13804,7 @@ async function init() {
       setTeamJoinFeedback("Sign in to request or review team join requests.");
       setProfileRolesFeedback("");
       setUsersFeedback("Sign in as admin to manage users.");
+      setChampionCoreFeedback("Sign in as admin to inspect champion core rows.");
       setRequirementsFeedback("Sign in to load requirement definitions.");
       setCompositionsFeedback("Sign in to load compositions.");
     }
@@ -13605,6 +13831,7 @@ async function init() {
     renderChampionTagCatalog();
     renderTagsWorkspace();
     renderUsersWorkspace();
+    renderChampionCoreWorkspace();
     renderCompositionsWorkspace();
     renderChampionTagEditor();
     renderAuth();
