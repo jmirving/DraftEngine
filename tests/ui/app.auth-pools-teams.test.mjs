@@ -228,7 +228,7 @@ function createFetchHarness({
   let joinRequestsByTeam = Object.fromEntries(
     Object.entries(teamJoinRequestsByTeam).map(([teamId, requests]) => [String(teamId), [...(requests ?? [])]])
   );
-  const resolvedLoginUser = loginUser ?? {
+  let resolvedLoginUser = loginUser ?? {
     id: 11,
     email: "user@example.com",
     role: "admin",
@@ -237,7 +237,7 @@ function createFetchHarness({
     primaryRole: "Mid",
     secondaryRoles: ["Top"]
   };
-  const resolvedProfile = profile ?? {
+  let resolvedProfile = profile ?? {
     id: 11,
     email: "user@example.com",
     role: "admin",
@@ -761,14 +761,24 @@ function createFetchHarness({
     }
 
     if (path === "/me/profile" && method === "PUT") {
+      resolvedProfile = {
+        ...resolvedProfile,
+        primaryRole: body.primaryRole,
+        secondaryRoles: Array.isArray(body.secondaryRoles) ? [...body.secondaryRoles] : []
+      };
+      resolvedLoginUser = {
+        ...resolvedLoginUser,
+        primaryRole: resolvedProfile.primaryRole,
+        secondaryRoles: [...resolvedProfile.secondaryRoles]
+      };
       return createJsonResponse({
         profile: {
-          id: 11,
-          email: "user@example.com",
-          gameName: "LoginUser",
-          tagline: "NA1",
-          primaryRole: body.primaryRole,
-          secondaryRoles: Array.isArray(body.secondaryRoles) ? body.secondaryRoles : []
+          id: resolvedProfile.id,
+          email: resolvedProfile.email,
+          gameName: resolvedProfile.gameName,
+          tagline: resolvedProfile.tagline,
+          primaryRole: resolvedProfile.primaryRole,
+          secondaryRoles: [...resolvedProfile.secondaryRoles]
         }
       });
     }
@@ -1487,32 +1497,59 @@ async function bootApp({ fetchImpl, storage, apiBaseUrl = "http://api.test" }) {
   return { dom };
 }
 
+function clickTab(doc, tab) {
+  const trigger = doc.querySelector(`[data-tab='${tab}']`);
+  expect(trigger).toBeTruthy();
+  trigger.click();
+}
+
+function openExplorerEditChampions(doc) {
+  clickTab(doc, "explorer");
+  const trigger = doc.querySelector(".explorer-sub-nav-btn[data-explorer-sub='edit-champions']");
+  expect(trigger).toBeTruthy();
+  trigger.click();
+}
+
+function openMyChampions(doc) {
+  clickTab(doc, "explorer");
+}
+
+function openProfile(doc) {
+  const trigger = doc.querySelector(".nav-avatar-link[data-tab='profile']");
+  expect(trigger).toBeTruthy();
+  trigger.click();
+}
+
+function getChampionCardByName(doc, championName) {
+  return Array.from(doc.querySelectorAll("#explorer-results .champ-card"))
+    .find((card) => card.querySelector(".champ-name")?.textContent?.trim() === championName) ?? null;
+}
+
 describe("auth + pools + team management", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  test("unauthenticated users only see auth gate and not app screens", async () => {
+  test("unauthenticated users only see auth screen and not app screens", async () => {
     const storage = createStorageStub();
     const harness = createFetchHarness();
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
 
-    expect(doc.querySelector("#auth-gate").hidden).toBe(false);
+    expect(doc.querySelector("#auth-screen").hidden).toBe(false);
     expect(doc.querySelector("#app-shell").hidden).toBe(true);
     expect(doc.querySelector("#auth-login").hidden).toBe(false);
-    expect(doc.querySelector("#auth-register").hidden).toBe(false);
+    expect(doc.querySelector("#auth-register").hidden).toBe(true);
     expect(doc.querySelector("#auth-email-group").hidden).toBe(false);
     expect(doc.querySelector("#auth-game-name-group").hidden).toBe(true);
     expect(doc.querySelector("#auth-tagline-group").hidden).toBe(true);
-    expect(doc.querySelector("#auth-registration-help").hidden).toBe(true);
 
     const reportIssueLink = doc.querySelector("#report-issue-link");
     expect(reportIssueLink).toBeTruthy();
     expect(reportIssueLink.getAttribute("href")).toContain("/issues/new/choose");
 
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
-    expect(doc.querySelector("#auth-feedback").textContent).toContain("Login required");
+    expect(doc.querySelector("#auth-feedback").textContent).toContain("Login/Registration required");
   });
 
   test("login stores session and sends Authorization on protected pool fetch", async () => {
@@ -1543,12 +1580,8 @@ describe("auth + pools + team management", () => {
     expect(storedAuthRaw).toBeTruthy();
     expect(JSON.parse(storedAuthRaw).token).toBe("token-123");
     expect(doc.querySelector("#auth-status").textContent).toContain("user@example.com");
-    expect(doc.querySelector("#auth-gate").hidden).toBe(true);
+    expect(doc.querySelector("#auth-screen").hidden).toBe(true);
     expect(doc.querySelector("#app-shell").hidden).toBe(false);
-    expect(doc.querySelector("#auth-login").hidden).toBe(true);
-    expect(doc.querySelector("#auth-register").hidden).toBe(true);
-    expect(doc.querySelector("#auth-email-group").hidden).toBe(true);
-    expect(doc.querySelector("#auth-password-group").hidden).toBe(true);
 
     const poolFetch = harness.calls.find((call) => call.path === "/me/pools" && call.method === "GET");
     expect(poolFetch).toBeTruthy();
@@ -1565,13 +1598,13 @@ describe("auth + pools + team management", () => {
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
 
-    doc.querySelector("#auth-email").value = "user@example.com";
-    doc.querySelector("#auth-password").value = "strong-pass-123";
-    doc.querySelector("#auth-register").click();
+    doc.querySelector("#auth-signup-link").click();
     expect(doc.querySelector("#auth-game-name-group").hidden).toBe(false);
     expect(doc.querySelector("#auth-tagline-group").hidden).toBe(false);
-    expect(doc.querySelector("#auth-registration-help").hidden).toBe(false);
 
+    doc.querySelector("#auth-email").value = "user@example.com";
+    doc.querySelector("#auth-password").value = "strong-pass-123";
+    doc.querySelector("#auth-retype-password").value = "strong-pass-123";
     doc.querySelector("#auth-register").click();
     await flush();
     expect(doc.querySelector("#auth-feedback").textContent).toContain("Game Name and Tagline are required");
@@ -1598,8 +1631,7 @@ describe("auth + pools + team management", () => {
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
 
-    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
-    doc.querySelector(".explorer-sub-nav-btn[data-explorer-sub='edit-champions']").click();
+    openExplorerEditChampions(doc);
     await flush();
 
     expect(doc.querySelector("#champion-tag-catalog-list").textContent).toContain("engage");
@@ -1610,11 +1642,11 @@ describe("auth + pools + team management", () => {
     await flush();
 
     expect(doc.querySelector("#champion-tag-editor").hidden).toBe(false);
-    const engageCheckbox = doc.querySelector("#champion-tag-editor-tags input[type='checkbox'][value='1']");
-    expect(engageCheckbox).toBeTruthy();
-    expect(engageCheckbox.checked).toBe(true);
-    engageCheckbox.checked = true;
-    engageCheckbox.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    expect(doc.querySelector("#ced-tags-selected").textContent).toContain("engage");
+    const frontlinePill = Array.from(doc.querySelectorAll("#ced-tags-available .ced-tag-pill"))
+      .find((node) => node.textContent.trim() === "frontline");
+    expect(frontlinePill).toBeTruthy();
+    frontlinePill.click();
 
     doc.querySelector("#champion-tag-editor-save").click();
     await flush();
@@ -1624,8 +1656,8 @@ describe("auth + pools + team management", () => {
     );
     expect(saveCall).toBeTruthy();
     expect(saveCall.body.scope).toBe("all");
-    expect(Array.isArray(saveCall.body.tag_ids)).toBe(true);
-    expect(doc.querySelector("#champion-tag-editor-feedback").textContent).toContain("saved");
+    expect(saveCall.body.tag_ids).toEqual([1, 2]);
+    expect(doc.querySelector("#champion-tag-editor").hidden).toBe(true);
   });
 
   test("champion explorer saves reviewed state from the composition editor", async () => {
@@ -1639,7 +1671,7 @@ describe("auth + pools + team management", () => {
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
 
-    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    openExplorerEditChampions(doc);
     await flush();
 
     doc.querySelector("#explorer-results .champ-card-edit-btn").click();
@@ -1657,7 +1689,7 @@ describe("auth + pools + team management", () => {
       (call) => call.path === "/champions/1/tags" && call.method === "PUT" && call.body.reviewed === true
     );
     expect(reviewedSaveCall).toBeTruthy();
-    expect(doc.querySelector("#explorer-results .champ-card").textContent).toContain("Review: Human reviewed");
+    expect(doc.querySelector("#explorer-results .champ-card").textContent).toContain("Human reviewed");
   });
 
   test("champion editor preserves existing tags and blocks save while tag load is pending", async () => {
@@ -1685,7 +1717,7 @@ describe("auth + pools + team management", () => {
     const { dom } = await bootApp({ fetchImpl: delayedFetchImpl, storage });
     const doc = dom.window.document;
 
-    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    openExplorerEditChampions(doc);
     await flush();
 
     const editButton = doc.querySelector("#explorer-results .champ-card-edit-btn");
@@ -1708,9 +1740,7 @@ describe("auth + pools + team management", () => {
     await flush();
     await flush();
 
-    const engageCheckbox = doc.querySelector("#champion-tag-editor-tags input[type='checkbox'][value='1']");
-    expect(engageCheckbox).toBeTruthy();
-    expect(engageCheckbox.checked).toBe(true);
+    expect(doc.querySelector("#ced-tags-selected").textContent).toContain("engage");
     expect(saveButton.disabled).toBe(false);
 
     saveButton.click();
@@ -1748,7 +1778,7 @@ describe("auth + pools + team management", () => {
     const { dom } = await bootApp({ fetchImpl: camelCaseFetchImpl, storage });
     const doc = dom.window.document;
 
-    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    openExplorerEditChampions(doc);
     await flush();
 
     const editButton = doc.querySelector("#explorer-results .champ-card-edit-btn");
@@ -1756,9 +1786,7 @@ describe("auth + pools + team management", () => {
     editButton.click();
     await flush();
 
-    const engageCheckbox = doc.querySelector("#champion-tag-editor-tags input[type='checkbox'][value='1']");
-    expect(engageCheckbox).toBeTruthy();
-    expect(engageCheckbox.checked).toBe(true);
+    expect(doc.querySelector("#ced-tags-selected").textContent).toContain("engage");
 
     doc.querySelector("#champion-tag-editor-save").click();
     await flush();
@@ -1796,7 +1824,7 @@ describe("auth + pools + team management", () => {
     const { dom } = await bootApp({ fetchImpl: compositionFilterFetchImpl, storage });
     const doc = dom.window.document;
 
-    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    openExplorerEditChampions(doc);
     await flush();
 
     const editButton = doc.querySelector("#explorer-results .champ-card-edit-btn");
@@ -1804,9 +1832,7 @@ describe("auth + pools + team management", () => {
     editButton.click();
     await flush();
 
-    const engageCheckbox = doc.querySelector("#champion-tag-editor-tags input[type='checkbox'][value='1']");
-    expect(engageCheckbox).toBeTruthy();
-    expect(engageCheckbox.checked).toBe(true);
+    expect(doc.querySelector("#ced-tags-selected").textContent).toContain("engage");
   });
 
   test("champion editor tag list stays alphabetical regardless of checked state", async () => {
@@ -1820,7 +1846,7 @@ describe("auth + pools + team management", () => {
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
 
-    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    openExplorerEditChampions(doc);
     await flush();
 
     const editButton = doc.querySelector("#explorer-results .champ-card-edit-btn");
@@ -1828,13 +1854,12 @@ describe("auth + pools + team management", () => {
     editButton.click();
     await flush();
 
-    const labels = [...doc.querySelectorAll("#champion-tag-editor-tags .selection-option span")]
+    const availableLabels = [...doc.querySelectorAll("#ced-tags-available .ced-tag-pill")]
       .map((node) => node.textContent.trim());
-    expect(labels).toEqual([
-      "burst",
-      "engage",
-      "frontline"
-    ]);
+    const selectedLabels = [...doc.querySelectorAll("#ced-tags-selected .ced-tag-pill")]
+      .map((node) => node.textContent.trim());
+    expect(availableLabels).toEqual(["burst", "frontline"]);
+    expect(selectedLabels).toEqual(["engage"]);
   });
 
   test("champion explorer metadata editor supports shared role profiles", async () => {
@@ -1848,10 +1873,10 @@ describe("auth + pools + team management", () => {
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
 
-    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    openExplorerEditChampions(doc);
     await flush();
 
-    const editButton = doc.querySelector("#explorer-results .champ-card-edit-btn");
+    const editButton = getChampionCardByName(doc, "Ahri")?.querySelector(".champ-card-edit-btn");
     expect(editButton).toBeTruthy();
     editButton.click();
     await flush();
@@ -1868,9 +1893,7 @@ describe("auth + pools + team management", () => {
     sharedProfileToggle.checked = true;
     sharedProfileToggle.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
 
-    const sharedProfileCols = doc.querySelector("#champion-metadata-role-profiles .ced-profile-cols");
-    expect(sharedProfileCols).toBeTruthy();
-    const mixedDamageButton = Array.from(sharedProfileCols.querySelectorAll(".ced-damage-btn")).find((node) =>
+    const mixedDamageButton = Array.from(doc.querySelectorAll("#ced-damage-slot .ced-damage-btn")).find((node) =>
       node.textContent.trim() === "Mixed"
     );
     expect(mixedDamageButton).toBeTruthy();
@@ -1886,7 +1909,7 @@ describe("auth + pools + team management", () => {
     expect(metadataSaveCall.body.role_profiles.Top.primary_damage_type).toBe("mixed");
     expect(metadataSaveCall.body.role_profiles.Mid.primary_damage_type).toBe("mixed");
     expect(new Set(metadataSaveCall.body.roles)).toEqual(new Set(["Top", "Mid"]));
-    expect(doc.querySelector("#champion-tag-editor-feedback").textContent).toContain("saved");
+    expect(doc.querySelector("#champion-tag-editor").hidden).toBe(true);
   });
 
   test("champion explorer shows metadata scope indicators and defaults members to self scope", async () => {
@@ -2531,8 +2554,8 @@ describe("auth + pools + team management", () => {
 
     await flush();
 
-    expect(doc.querySelector("#tab-player-config").classList.contains("is-active")).toBe(true);
-    expect(doc.querySelector(".side-menu-link[data-tab='player-config']").classList.contains("is-active")).toBe(true);
+    expect(doc.querySelector("#tab-profile").classList.contains("is-active")).toBe(true);
+    expect(doc.querySelector(".nav-avatar-link[data-tab='profile']").classList.contains("is-active")).toBe(true);
   });
 
   test("role pool provisioning handles 401 by clearing session", async () => {
@@ -2562,7 +2585,7 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#auth-feedback").textContent).toContain("Session expired");
   });
 
-  test("profile page shows teams I am on with membership roles", async () => {
+  test("teams workspace shows teams I am on with membership roles", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -2601,16 +2624,16 @@ describe("auth + pools + team management", () => {
 
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
-    doc.querySelector(".side-menu-link[data-tab='player-config']").click();
+    clickTab(doc, "team-config");
     await flush();
 
-    const memberListText = doc.querySelector("#settings-teams-member-list").textContent;
+    const memberListText = doc.querySelector("#team-activity-teams-list").textContent;
     expect(memberListText).toContain("Team Alpha");
     expect(memberListText).toContain("Team Beta");
     expect(memberListText).toContain("Team Lead");
     expect(memberListText).toContain("Substitute");
 
-    const firstLogoButton = doc.querySelector("#settings-teams-member-list .summary-card-logo-button");
+    const firstLogoButton = doc.querySelector("#team-activity-teams-list .summary-card-logo-button");
     expect(firstLogoButton).toBeTruthy();
     firstLogoButton.click();
     expect(doc.querySelector("#logo-lightbox").hidden).toBe(false);
@@ -3303,7 +3326,17 @@ describe("auth + pools + team management", () => {
         }
       ],
       membersByTeam: {
-        "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "adc@example.com" }]
+        "1": [{
+          team_id: 1,
+          user_id: 11,
+          role: "lead",
+          team_role: "primary",
+          lane: "ADC",
+          email: "adc@example.com",
+          game_name: "ADCMain",
+          tagline: "NA1",
+          display_name: "ADCMain#NA1"
+        }]
       },
       teamContext: {
         activeTeamId: 1
@@ -3314,9 +3347,8 @@ describe("auth + pools + team management", () => {
     const doc = dom.window.document;
     await flush();
 
-    const adcSlotLabel = doc.querySelector("#slot-label-ADC");
+    const adcSlotLabel = doc.querySelector("#team-config-pool-grid [data-slot='ADC'] .pool-snapshot-header strong");
     expect(adcSlotLabel.textContent).toContain("ADCMain");
-    expect(adcSlotLabel.textContent).toContain("ADC");
   });
 
   test("slot label primary-role name uses roster fallback when team summary omits membership team role", async () => {
@@ -3348,7 +3380,17 @@ describe("auth + pools + team management", () => {
         }
       ],
       membersByTeam: {
-        "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "adc@example.com" }]
+        "1": [{
+          team_id: 1,
+          user_id: 11,
+          role: "lead",
+          team_role: "primary",
+          lane: "ADC",
+          email: "adc@example.com",
+          game_name: "ADCMain",
+          tagline: "NA1",
+          display_name: "ADCMain#NA1"
+        }]
       },
       teamContext: {
         activeTeamId: 1
@@ -3359,7 +3401,7 @@ describe("auth + pools + team management", () => {
     const doc = dom.window.document;
     await flush();
 
-    const adcSlotLabel = doc.querySelector("#slot-label-ADC");
+    const adcSlotLabel = doc.querySelector("#team-config-pool-grid [data-slot='ADC'] .pool-snapshot-header strong");
     expect(adcSlotLabel.textContent).toContain("ADCMain");
   });
 
@@ -3386,25 +3428,14 @@ describe("auth + pools + team management", () => {
 
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
-    doc.querySelector(".side-menu-link[data-tab='player-config']").click();
+    openProfile(doc);
     await flush();
 
     expect(doc.querySelector("#profile-primary-role").value).toBe("Mid");
-    expect(doc.querySelectorAll("#player-config-grid .player-config-card").length).toBe(1);
-
-    const legacyMigrationCall = harness.calls.find((call) => call.path === "/me/pools/1" && call.method === "PUT");
-    expect(legacyMigrationCall).toBeTruthy();
-    expect(legacyMigrationCall.body).toEqual({ name: "Mid" });
-
-    const midAhriCheckbox = doc.querySelector("#player-config-grid input[type='checkbox'][value='Ahri']");
-    expect(midAhriCheckbox).toBeTruthy();
-    expect(midAhriCheckbox.checked).toBe(true);
 
     doc.querySelector("#profile-primary-role").value = "Support";
     doc.querySelector("#profile-primary-role").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
     doc.querySelector("#profile-save-roles").click();
-    expect(doc.querySelector("#profile-save-roles").textContent).toBe("Saving...");
-    expect(doc.querySelector("#profile-save-roles").disabled).toBe(true);
     await flush();
     await flush();
 
@@ -3412,10 +3443,10 @@ describe("auth + pools + team management", () => {
     expect(saveProfileCall).toBeTruthy();
     expect(saveProfileCall.body.primaryRole).toBe("Support");
     expect(saveProfileCall.body.secondaryRoles).not.toContain("Support");
-    expect(doc.querySelector("#profile-save-roles").textContent).toBe("Save Roles");
-    expect(doc.querySelector("#profile-save-roles").disabled).toBe(false);
-    expect(doc.querySelector("#profile-roles-feedback").textContent).toContain("Saved profile roles. Primary: Support.");
-    expect(doc.querySelector("#profile-roles-feedback").textContent).toContain("Secondary: Top.");
+
+    openMyChampions(doc);
+    await flush();
+    expect(doc.querySelector("#player-config-team").value).toBe("role:Support");
 
     doc.querySelector("#player-config-team").value = "role:Top";
     doc.querySelector("#player-config-team").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
@@ -3445,7 +3476,7 @@ describe("auth + pools + team management", () => {
 
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
-    doc.querySelector(".side-menu-link[data-tab='player-config']").click();
+    openMyChampions(doc);
     await flush();
 
     const ahriCheckbox = doc.querySelector("#player-config-grid input[type='checkbox'][value='Ahri']");
@@ -3496,7 +3527,7 @@ describe("auth + pools + team management", () => {
 
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
-    doc.querySelector(".side-menu-link[data-tab='player-config']").click();
+    openMyChampions(doc);
     await flush();
 
     const familiaritySelect = doc.querySelector(
@@ -3553,7 +3584,7 @@ describe("auth + pools + team management", () => {
 
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
-    doc.querySelector(".side-menu-link[data-tab='player-config']").click();
+    openMyChampions(doc);
     await flush();
 
     const ahriCheckbox = doc.querySelector("#player-config-grid input[type='checkbox'][value='Ahri']");

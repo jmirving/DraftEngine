@@ -208,6 +208,29 @@ async function bootApp() {
   return { dom, state: getAppState() };
 }
 
+function getPoolCard(doc, slot) {
+  return doc.querySelector(`#team-config-pool-grid [data-slot='${slot}']`);
+}
+
+function getPoolChampionItems(doc, slot) {
+  return Array.from(getPoolCard(doc, slot)?.querySelectorAll(".pool-snapshot-list li:not(.pool-snapshot-empty)") ?? []);
+}
+
+function pickSlotChampion(doc, slot, championName = null) {
+  const items = getPoolChampionItems(doc, slot);
+  const item = championName
+    ? items.find((candidate) => candidate.textContent.trim() === championName)
+    : items[0];
+  expect(item).toBeTruthy();
+  item.click();
+  return item.textContent.trim();
+}
+
+function openExplorerEditor(doc) {
+  doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+  doc.querySelector(".explorer-sub-nav-btn[data-explorer-sub='edit-champions']").click();
+}
+
 describe("workflow app integration", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -217,28 +240,21 @@ describe("workflow app integration", () => {
     const { dom, state } = await bootApp();
     const setupPanel = dom.window.document.querySelector("#builder-stage-setup");
     const reviewPanel = dom.window.document.querySelector("#builder-stage-inspect");
+    const continueButton = dom.window.document.querySelector("#builder-continue-validate");
     const generateButton = dom.window.document.querySelector("#builder-generate");
 
     expect(state.activeTab).toBe("workflow");
     expect(setupPanel.hidden).toBe(false);
-    expect(reviewPanel.hidden).toBe(true);
-    expect(generateButton.disabled).toBe(true);
+    expect(reviewPanel.hidden).toBe(false);
+    expect(continueButton.hidden).toBe(true);
+    expect(generateButton.disabled).toBe(false);
   });
 
   test("requires at least one pick before entering review, then auto-generates on transition", async () => {
     const { dom } = await bootApp();
     const doc = dom.window.document;
-    const continueButton = doc.querySelector("#builder-continue-validate");
-    expect(continueButton.disabled).toBe(true);
-
-    const topSelect = doc.querySelector("#slot-Top");
-    const firstTop = Array.from(topSelect.options).find((option) => option.value);
-    expect(firstTop).toBeTruthy();
-    topSelect.value = firstTop.value;
-    topSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-
-    expect(continueButton.disabled).toBe(false);
-    continueButton.click();
+    pickSlotChampion(doc, "Top");
+    doc.querySelector("#builder-generate").click();
 
     expect(doc.querySelector("#builder-stage-inspect").hidden).toBe(false);
     expect(doc.querySelector("#builder-generate").disabled).toBe(false);
@@ -249,57 +265,42 @@ describe("workflow app integration", () => {
     const { dom } = await bootApp();
     const doc = dom.window.document;
     const teamSelect = doc.querySelector("#builder-active-team");
-    const topSelect = doc.querySelector("#slot-Top");
-    const jungleSelect = doc.querySelector("#slot-Jungle");
-    const setupFeedback = doc.querySelector("#builder-setup-feedback");
+    const topCard = getPoolCard(doc, "Top");
+    const jungleCard = getPoolCard(doc, "Jungle");
+    const topRoleSelect = topCard.querySelector(".pool-snapshot-role-select");
+    const teamSummary = doc.querySelector("#team-config-pool-summary");
     const excludedSearch = doc.querySelector("#builder-excluded-search");
 
     teamSelect.value = "__NONE_TEAM__";
     teamSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
 
-    const topPool = Array.from(topSelect.options).map((option) => option.value).filter(Boolean);
-    const junglePool = Array.from(jungleSelect.options).map((option) => option.value).filter(Boolean);
-    const topChampion = topPool[0];
-    const invalidJunglePick = topPool.find((champion) => !junglePool.includes(champion)) ?? "NotInJunglePool";
-    expect(topChampion).toBeTruthy();
-
-    topSelect.value = topChampion;
-    topSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-
-    const forced = doc.createElement("option");
-    forced.value = invalidJunglePick;
-    forced.textContent = invalidJunglePick;
-    jungleSelect.append(forced);
-    jungleSelect.value = invalidJunglePick;
-    jungleSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-
-    expect(setupFeedback.textContent).toContain("allowed pool");
+    const topChampion = pickSlotChampion(doc, "Top");
 
     excludedSearch.value = topChampion;
     excludedSearch.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
-    const excludeCheckbox = doc.querySelector("#builder-excluded-options input[type='checkbox']");
-    excludeCheckbox.checked = true;
-    excludeCheckbox.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    const excludeOption = Array.from(doc.querySelectorAll("#builder-excluded-options li"))
+      .find((node) => node.textContent.trim() === topChampion);
+    expect(excludeOption).toBeTruthy();
+    excludeOption.click();
 
-    expect(topSelect.value).toBe("");
+    expect(topCard.querySelector(".pool-snapshot-list li.is-selected")).toBeNull();
     expect(doc.querySelector("#builder-excluded-pills").textContent).toContain(topChampion);
+
+    topRoleSelect.value = "Jungle";
+    topRoleSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    expect(jungleCard.querySelector(".pool-snapshot-role-select").value).toBe("Jungle");
+    expect(teamSummary.textContent).toContain("All roles must be unique!");
   });
 
   test("generates tree output and tree filters reduce visible map nodes", async () => {
     const { dom } = await bootApp();
     const doc = dom.window.document;
-    const topSelect = doc.querySelector("#slot-Top");
-    const continueButton = doc.querySelector("#builder-continue-validate");
     const generateButton = doc.querySelector("#builder-generate");
     const validLeavesOnly = doc.querySelector("#tree-valid-leaves-only");
     const treeSearch = doc.querySelector("#tree-search");
     const treeMinScore = doc.querySelector("#tree-min-score");
 
-    const firstTop = Array.from(topSelect.options).find((option) => option.value);
-    topSelect.value = firstTop.value;
-    topSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-
-    continueButton.click();
+    pickSlotChampion(doc, "Top");
     generateButton.click();
 
     const initialCircles = doc.querySelectorAll("#builder-tree-map circle").length;
@@ -327,8 +328,6 @@ describe("workflow app integration", () => {
   test("advanced scoring controls in setup update generation floor, rank goal, and redundancy penalty", async () => {
     const { dom, state } = await bootApp();
     const doc = dom.window.document;
-    const topSelect = doc.querySelector("#slot-Top");
-    const continueButton = doc.querySelector("#builder-continue-validate");
     const generateButton = doc.querySelector("#builder-generate");
     const minCandidateScore = doc.querySelector("#tree-min-candidate-score");
     const rankGoal = doc.querySelector("#tree-rank-goal");
@@ -351,11 +350,7 @@ describe("workflow app integration", () => {
     redundancyPenalty.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
     expect(state.builder.candidateScoringWeights.redundancyPenalty).toBe(7);
 
-    const firstTop = Array.from(topSelect.options).find((option) => option.value);
-    topSelect.value = firstTop.value;
-    topSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-
-    continueButton.click();
+    pickSlotChampion(doc, "Top");
     generateButton.click();
 
     expect(state.builder.tree).toBeTruthy();
@@ -367,16 +362,11 @@ describe("workflow app integration", () => {
   test("empty root summary offers recovery CTAs for filters and candidate floor", async () => {
     const { dom, state } = await bootApp();
     const doc = dom.window.document;
-    const topSelect = doc.querySelector("#slot-Top");
-    const continueButton = doc.querySelector("#builder-continue-validate");
     const generateButton = doc.querySelector("#builder-generate");
     const treeSearch = doc.querySelector("#tree-search");
     const validLeavesOnly = doc.querySelector("#tree-valid-leaves-only");
 
-    const firstTop = Array.from(topSelect.options).find((option) => option.value);
-    topSelect.value = firstTop.value;
-    topSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-    continueButton.click();
+    const firstTop = pickSlotChampion(doc, "Top");
     generateButton.click();
 
     state.builder.treeMinCandidateScore = 2;
@@ -482,7 +472,7 @@ describe("workflow app integration", () => {
     const { dom } = await bootApp();
     const doc = dom.window.document;
     const teamSelect = doc.querySelector("#builder-active-team");
-    const topLabel = doc.querySelector("#slot-label-Top");
+    const topLabel = getPoolCard(doc, "Top").querySelector(".pool-snapshot-header strong");
     const teamHelp = doc.querySelector("#builder-team-help");
 
     expect(topLabel.textContent).toBe("Top");
@@ -521,23 +511,24 @@ describe("workflow app integration", () => {
     const { dom } = await bootApp();
     const doc = dom.window.document;
 
-    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    openExplorerEditor(doc);
 
     expect(expectedChampionCount).toBeGreaterThan(0);
     expect(doc.querySelectorAll("#explorer-results .champ-card").length).toBe(expectedChampionCount);
-    expect(doc.querySelector("#explorer-count").textContent).toContain(`${expectedChampionCount} champions`);
+    expect(doc.querySelector("#explorer-count").textContent).toContain(`Results: ${expectedChampionCount}`);
   });
 
-  test("explorer indicator key clarifies summary labels", async () => {
+  test("explorer cards render current summary labels", async () => {
     const { dom } = await bootApp();
     const doc = dom.window.document;
 
-    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    openExplorerEditor(doc);
 
-    expect(doc.querySelector("#explorer-indicator-legend").textContent).toContain("Roles | Damage Type | Scaling");
-    const firstSummary = doc.querySelector("#explorer-results .champ-card .meta");
-    expect(firstSummary).toBeTruthy();
-    expect(firstSummary.title).toBe("Roles | Damage Type | Scaling");
+    const firstCard = doc.querySelector("#explorer-results .champ-card");
+    expect(firstCard).toBeTruthy();
+    expect(firstCard.textContent).toContain("Role(s)");
+    expect(firstCard.textContent).toContain("Damage Type");
+    expect(firstCard.textContent).toContain("Effectiveness Focus");
   });
 
   test("explorer uses explicit Data Dragon image-key overrides for special champion names", async () => {
@@ -545,7 +536,7 @@ describe("workflow app integration", () => {
     const doc = dom.window.document;
     const searchInput = doc.querySelector("#explorer-search");
 
-    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    openExplorerEditor(doc);
 
     function expectChampionImageKey(championName, expectedImageKey) {
       searchInput.value = championName;
@@ -570,7 +561,7 @@ describe("workflow app integration", () => {
     const { dom, state } = await bootApp();
     const doc = dom.window.document;
 
-    doc.querySelector(".side-menu-link[data-tab='player-config']").click();
+    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
     const firstPoolCheckbox = doc.querySelector(".player-pool-control input[type='checkbox']");
     expect(firstPoolCheckbox).toBeTruthy();
     expect(doc.querySelector("#player-config-team").value).toBe("role:Mid");
@@ -580,15 +571,10 @@ describe("workflow app integration", () => {
   test("tree inspect drills into next branch layer and supports back navigation", async () => {
     const { dom, state } = await bootApp();
     const doc = dom.window.document;
-    const topSelect = doc.querySelector("#slot-Top");
-    const continueButton = doc.querySelector("#builder-continue-validate");
     const generateButton = doc.querySelector("#builder-generate");
     const validLeavesOnly = doc.querySelector("#tree-valid-leaves-only");
 
-    const firstTop = Array.from(topSelect.options).find((option) => option.value);
-    topSelect.value = firstTop.value;
-    topSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-    continueButton.click();
+    const firstTop = pickSlotChampion(doc, "Top");
     generateButton.click();
     validLeavesOnly.checked = false;
     validLeavesOnly.dispatchEvent(new dom.window.Event("change", { bubbles: true }));

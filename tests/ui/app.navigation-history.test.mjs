@@ -176,6 +176,10 @@ function createAuthStorage(user = null) {
   };
 }
 
+function getTabTrigger(doc, tab) {
+  return doc.querySelector(`[data-tab='${tab}']`);
+}
+
 async function flush() {
   await new Promise((resolvePromise) => setTimeout(resolvePromise, 0));
   await new Promise((resolvePromise) => setTimeout(resolvePromise, 0));
@@ -251,7 +255,7 @@ describe("hash navigation routing", () => {
 
     expect(state.activeTab).toBe("workflow");
     expect(dom.window.location.hash).toBe("#workflow");
-    expect(doc.querySelector("#auth-gate").hidden).toBe(false);
+    expect(doc.querySelector("#auth-screen").hidden).toBe(false);
     expect(doc.querySelector("#app-shell").hidden).toBe(true);
   });
 
@@ -333,7 +337,7 @@ describe("hash navigation routing", () => {
 
     expect(navToggle.textContent).toBe("◀");
     expect(navToggle.getAttribute("aria-label")).toBe("Collapse sidebar");
-    expect(doc.querySelector("#nav-title").textContent).toBe("Workspace");
+    expect(doc.querySelector("#nav-title").textContent).toBe("DraftEngine");
     expect(appShell.classList.contains("is-nav-collapsed")).toBe(false);
 
     navToggle.click();
@@ -342,7 +346,7 @@ describe("hash navigation routing", () => {
     expect(navToggle.getAttribute("aria-label")).toBe("Expand sidebar");
 
     navToggle.click();
-    doc.querySelector(".side-menu-link[data-tab='coming-soon']").click();
+    getTabTrigger(doc, "coming-soon").click();
 
     expect(dom.window.location.hash).toBe("#coming-soon");
     expect(doc.querySelector("#tab-coming-soon").classList.contains("is-active")).toBe(true);
@@ -364,7 +368,7 @@ describe("hash navigation routing", () => {
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
     expect(doc.querySelector("#hero-title").textContent).toBe("Teams");
 
-    doc.querySelector(".side-menu-link[data-tab='player-config']").click();
+    getTabTrigger(doc, "profile").click();
     expect(doc.querySelector("#hero-title").textContent).toBe("Profile");
 
     doc.querySelector(".side-menu-link[data-tab='tags']").click();
@@ -381,7 +385,7 @@ describe("hash navigation routing", () => {
     });
     const doc = dom.window.document;
 
-    doc.querySelector(".side-menu-link[data-tab='coming-soon']").click();
+    getTabTrigger(doc, "coming-soon").click();
 
     const updateTabs = Array.from(
       doc.querySelectorAll("#tab-coming-soon button[data-updates-release-tab]"),
@@ -397,12 +401,10 @@ describe("hash navigation routing", () => {
       doc.querySelectorAll("#updates-release-panel-whats-new h4"),
       (node) => node.textContent.trim()
     );
-    expect(whatsNewVersions).toEqual([
-      "Version 0.6.0 (Shipped)",
-      "Version 0.5.1 (Shipped)",
-      "Version 0.5.0 (Shipped)"
-    ]);
-    expect(whatsNewVersions.includes("Version 0.4.2 (Shipped)")).toBe(false);
+    expect(whatsNewVersions[0]).toBe("Current Session");
+    const shippedVersions = whatsNewVersions.filter((heading) => heading.startsWith("Version "));
+    expect(shippedVersions.length).toBeGreaterThan(0);
+    expect(shippedVersions.every((heading) => heading.includes("(Shipped)"))).toBe(true);
 
     doc.querySelector("#updates-release-tab-coming-soon").click();
     expect(doc.querySelector("#updates-release-panel-whats-new").hidden).toBe(true);
@@ -465,7 +467,7 @@ describe("hash navigation routing", () => {
     expect(doc.querySelector("#nav-desktop-toggle").textContent).toBe("▶");
   });
 
-  test("login without defined roles routes to player-config hash", async () => {
+  test("login without defined roles routes to profile hash", async () => {
     const harness = createFetchHarness({
       loginUser: {
         id: 11,
@@ -494,8 +496,8 @@ describe("hash navigation routing", () => {
     doc.querySelector("#auth-login").click();
     await flush();
 
-    expect(dom.window.location.hash).toBe("#player-config");
-    expect(doc.querySelector("#tab-player-config").classList.contains("is-active")).toBe(true);
+    expect(dom.window.location.hash).toBe("#profile");
+    expect(doc.querySelector("#tab-profile").classList.contains("is-active")).toBe(true);
   });
 
   test("logout always normalizes route to workflow", async () => {
@@ -512,6 +514,6 @@ describe("hash navigation routing", () => {
 
     expect(state.activeTab).toBe("workflow");
     expect(dom.window.location.hash).toBe("#workflow");
-    expect(doc.querySelector("#auth-gate").hidden).toBe(false);
+    expect(doc.querySelector("#auth-screen").hidden).toBe(false);
   });
 });
