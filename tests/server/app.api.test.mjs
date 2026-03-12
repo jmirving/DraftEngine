@@ -2,6 +2,7 @@ import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../../server/app.js";
+import { getAuthorizationMatrix } from "../../server/authorization-matrix.js";
 import { signAccessToken } from "../../server/auth/tokens.js";
 import { OWNER_ADMIN_EMAILS } from "../../server/user-roles.js";
 
@@ -2216,9 +2217,19 @@ describe("API routes", () => {
       .get("/admin/authorization")
       .set("Authorization", buildAuthHeader(1, config));
     expect(adminAuthorizationMatrix.status).toBe(200);
+    expect(adminAuthorizationMatrix.body.authorization).toEqual(getAuthorizationMatrix());
     expect(Array.isArray(adminAuthorizationMatrix.body.authorization.global_roles)).toBe(true);
     expect(Array.isArray(adminAuthorizationMatrix.body.authorization.permissions)).toBe(true);
     expect(adminAuthorizationMatrix.body.authorization.assignments.global_roles.admin).toContain("admin.users.read");
+    expect(adminAuthorizationMatrix.body.authorization.assignments.global_roles.member).toContain("requirements.read.self");
+    expect(adminAuthorizationMatrix.body.authorization.assignments.global_roles.member).toContain("compositions.write.self");
+    expect(adminAuthorizationMatrix.body.authorization.assignments.global_roles.global).toContain("requirements.write.global");
+    expect(adminAuthorizationMatrix.body.authorization.assignments.team_membership_roles.member).toContain(
+      "requirements.read.team"
+    );
+    expect(adminAuthorizationMatrix.body.authorization.assignments.team_membership_roles.lead).toContain(
+      "compositions.write.team"
+    );
     const permissionsWithGlobal = adminAuthorizationMatrix.body.authorization.permissions
       .map((permission) => permission.id)
       .filter((permissionId) => String(permissionId).includes(".global"));

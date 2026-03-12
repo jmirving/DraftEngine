@@ -215,7 +215,7 @@ const UI_COPY = Object.freeze({
       },
       users: {
         title: "Users",
-        subtitle: "Admin-only directory for permissions and one-time Riot ID corrections."
+        subtitle: "Admin-only directory for permissions, scoped access, and one-time Riot ID corrections."
       },
       "champion-core": {
         title: "Champion Core",
@@ -263,7 +263,7 @@ const UI_COPY = Object.freeze({
     tagsTitle: "Tags",
     tagsMeta: "Manage shared tag definitions and current champion coverage.",
     usersTitle: "Users",
-    usersMeta: "Admin-only user directory, permission management, one-time Riot ID corrections, and authorization matrix visibility.",
+    usersMeta: "Admin-only user directory, permission management, scoped access visibility, one-time Riot ID corrections, and authorization matrix visibility.",
     championCoreTitle: "Champion Core",
     championCoreMeta: "Admin-only verification view for the imported Riot/Data Dragon champion baseline.",
     requirementsTitle: "Requirements",
@@ -4428,6 +4428,9 @@ function renderUsersAuthorizationWorkspace() {
       return [role.key, assigned];
     })
   );
+  const rolePermissionSets = new Map(
+    combinedRoles.map((role) => [role.key, new Set(Array.isArray(combinedAssignments[role.key]) ? combinedAssignments[role.key] : [])])
+  );
 
   elements.usersAuthorizationAccess.textContent = [
     `${combinedRoles.length} role${combinedRoles.length === 1 ? "" : "s"}`,
@@ -4506,6 +4509,106 @@ function renderUsersAuthorizationWorkspace() {
 
   elements.usersAuthorizationRoles.append(createRoleCard("Roles", combinedRoles, combinedAssignments));
 
+  const SCOPED_PERMISSION_RESOURCE_LABELS = Object.freeze({
+    champion_tags: "Champion Tags",
+    champion_metadata: "Champion Metadata",
+    requirements: "Requirements",
+    compositions: "Compositions"
+  });
+  const parseScopedPermissionId = (permissionId) => {
+    const parts = String(permissionId ?? "").split(".");
+    if (parts.length !== 3) {
+      return null;
+    }
+    const [resourceId, action, scope] = parts;
+    if (!Object.prototype.hasOwnProperty.call(SCOPED_PERMISSION_RESOURCE_LABELS, resourceId)) {
+      return null;
+    }
+    if ((action !== "read" && action !== "write") || (scope !== "self" && scope !== "team" && scope !== "global")) {
+      return null;
+    }
+    return {
+      resourceId,
+      action,
+      scope
+    };
+  };
+  const formatGrantedRoleLabels = (roles) => {
+    const labels = [...new Set((Array.isArray(roles) ? roles : []).map((role) => role.label || role.id).filter(Boolean))];
+    return labels.length > 0 ? labels.join(", ") : "no roles";
+  };
+  const createScopedAccessCard = (title, scopedPermissions) => {
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card users-authz-block";
+    const scopedResourceIds = [...scopedPermissions.keys()];
+    card.append(
+      createBlockHeader(
+        title,
+        scopedResourceIds.length,
+        "Effective access is the union of a user's global role and, when applicable, their team membership role on a team."
+      )
+    );
+    if (scopedResourceIds.length === 0) {
+      card.append(createMetaParagraph("No scoped permissions defined."));
+      return card;
+    }
+
+    const scopeLabels = {
+      self: "Self",
+      team: "Team",
+      global: "All"
+    };
+    const resourceGrid = runtimeDocument.createElement("div");
+    resourceGrid.className = "users-authz-role-grid";
+
+    scopedResourceIds.sort((left, right) => {
+      const leftLabel = SCOPED_PERMISSION_RESOURCE_LABELS[left] ?? left;
+      const rightLabel = SCOPED_PERMISSION_RESOURCE_LABELS[right] ?? right;
+      return leftLabel.localeCompare(rightLabel);
+    });
+
+    for (const resourceId of scopedResourceIds) {
+      const resourceSummary = scopedPermissions.get(resourceId);
+      const resourceCard = runtimeDocument.createElement("article");
+      resourceCard.className = "users-authz-role-card";
+      const heading = runtimeDocument.createElement("strong");
+      heading.textContent = SCOPED_PERMISSION_RESOURCE_LABELS[resourceId] ?? resourceId;
+      resourceCard.append(heading);
+      for (const scope of ["self", "team", "global"]) {
+        const scopeSummary = resourceSummary?.[scope] ?? {};
+        const copy = runtimeDocument.createElement("p");
+        copy.className = "meta";
+        copy.textContent = `${scopeLabels[scope]}: Read by ${formatGrantedRoleLabels(scopeSummary.read)}. Write by ${formatGrantedRoleLabels(scopeSummary.write)}.`;
+        resourceCard.append(copy);
+      }
+      resourceGrid.append(resourceCard);
+    }
+
+    card.append(resourceGrid);
+    return card;
+  };
+
+  const scopedPermissionsByResource = permissions.reduce((acc, permission) => {
+    const parsedPermission = parseScopedPermissionId(permission.id);
+    if (!parsedPermission) {
+      return acc;
+    }
+    if (!acc.has(parsedPermission.resourceId)) {
+      acc.set(parsedPermission.resourceId, {
+        self: { read: [], write: [] },
+        team: { read: [], write: [] },
+        global: { read: [], write: [] }
+      });
+    }
+    const grantedRoles = combinedRoles.filter((role) => (rolePermissionSets.get(role.key) ?? new Set()).has(permission.id));
+    acc.get(parsedPermission.resourceId)[parsedPermission.scope][parsedPermission.action] = grantedRoles;
+    return acc;
+  }, new Map());
+  if (scopedPermissionsByResource.size > 0) {
+    elements.usersAuthorizationPermissions.hidden = false;
+    elements.usersAuthorizationPermissions.append(createScopedAccessCard("Scoped Access", scopedPermissionsByResource));
+  }
+
   const normalizePermissionDomainLabel = (domain) => {
     const normalized = typeof domain === "string" ? domain.trim() : "";
     if (!normalized) {
@@ -4545,9 +4648,6 @@ function renderUsersAuthorizationWorkspace() {
       return card;
     }
 
-    const rolePermissionSets = new Map(
-      roles.map((role) => [role.key, new Set(Array.isArray(assignments[role.key]) ? assignments[role.key] : [])])
-    );
     const unknownPermissionIds = [...new Set([...rolePermissionSets.values()].flatMap((set) => [...set]))]
       .filter((permissionId) => !permissionById.has(permissionId))
       .sort((left, right) => left.localeCompare(right));

@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { JSDOM } from "jsdom";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
+import { getAuthorizationMatrix } from "../../server/authorization-matrix.js";
 import { BOOLEAN_TAGS } from "../../src/index.js";
 
 const htmlFixture = readFileSync(resolve("public/index.html"), "utf8");
@@ -804,38 +805,7 @@ function createFetchHarness({
         );
       }
       return createJsonResponse({
-        authorization: {
-          global_roles: [
-            { id: "member", label: "user", description: "Default authenticated user role." },
-            { id: "global", label: "global", description: "Global editor role." },
-            { id: "admin", label: "admin", description: "Administrator role." }
-          ],
-          team_membership_roles: [
-            { id: "member", label: "team member", description: "Standard team membership role." },
-            { id: "lead", label: "team lead", description: "Team management role." }
-          ],
-          team_roster_roles: [
-            { id: "primary", label: "primary", description: "Primary roster designation." },
-            { id: "substitute", label: "substitute", description: "Substitute roster designation." }
-          ],
-          permissions: [
-            { id: "admin.users.read", description: "Read admin users directory." },
-            { id: "admin.users.write", description: "Update user role and Riot ID correction." },
-            { id: "admin.users.delete", description: "Delete non-owner user accounts." },
-            { id: "champion_tags.write.global", description: "Edit global champion tags." }
-          ],
-          assignments: {
-            global_roles: {
-              member: ["admin.users.read"],
-              global: ["admin.users.read", "champion_tags.write.global"],
-              admin: ["admin.users.read", "admin.users.write", "admin.users.delete", "champion_tags.write.global"]
-            },
-            team_membership_roles: {
-              member: [],
-              lead: ["champion_tags.write.global"]
-            }
-          }
-        }
+        authorization: getAuthorizationMatrix()
       });
     }
 
@@ -2171,7 +2141,9 @@ describe("auth + pools + team management", () => {
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
 
-    doc.querySelector(".side-menu-link[data-tab='users']").click();
+    doc.querySelector(".nav-avatar-link[data-tab='profile']").click();
+    await flush();
+    doc.querySelector("#profile-admin-link .profile-setting-row").click();
     await flush();
 
     expect(doc.querySelector("#users-access").textContent).toContain("users loaded");
@@ -2180,9 +2152,16 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#users-authorization-roles").textContent).toContain("global.member");
     expect(doc.querySelector("#users-authorization-roles").textContent).toContain("team_membership.member");
     expect(doc.querySelector("#users-authorization-roles").textContent).not.toContain("Team Roster Roles");
-    expect(doc.querySelector("#users-authorization-permissions").hidden).toBe(true);
+    expect(doc.querySelector("#users-authorization-permissions").hidden).toBe(false);
+    expect(doc.querySelector("#users-authorization-permissions").textContent).toContain("Scoped Access");
+    expect(doc.querySelector("#users-authorization-permissions").textContent).toContain("Requirements");
+    expect(doc.querySelector("#users-authorization-permissions").textContent).toContain("Self: Read by user, global, admin. Write by user, global, admin.");
+    expect(doc.querySelector("#users-authorization-permissions").textContent).toContain("Team: Read by team member, team lead. Write by team lead.");
+    expect(doc.querySelector("#users-authorization-permissions").textContent).toContain("All: Read by user, global, admin. Write by global, admin.");
     expect(doc.querySelector("#users-authorization-assignments").textContent).toContain("Permission Assignments");
     expect(doc.querySelector("#users-authorization-assignments").textContent).not.toContain("Team Roster Assignments");
+    expect(doc.querySelector("#users-authorization-assignments").textContent).toContain("requirements.write.team");
+    expect(doc.querySelector("#users-authorization-assignments").textContent).toContain("compositions.write.global");
     const matrixCall = harness.calls.find((call) => call.path === "/admin/authorization" && call.method === "GET");
     expect(matrixCall).toBeTruthy();
     const roleSelects = [...doc.querySelectorAll("#users-list select")];
@@ -2284,7 +2263,9 @@ describe("auth + pools + team management", () => {
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
 
-    doc.querySelector(".side-menu-link[data-tab='users']").click();
+    doc.querySelector(".nav-avatar-link[data-tab='profile']").click();
+    await flush();
+    doc.querySelector("#profile-admin-link .profile-setting-row").click();
     await flush();
 
     let ownerCard = [...doc.querySelectorAll("#users-list .summary-card")].find((card) =>

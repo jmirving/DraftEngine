@@ -44,6 +44,78 @@ const TEAM_ROSTER_ROLE_DEFINITIONS = Object.freeze([
   }
 ]);
 
+const SCOPED_RESOURCE_DEFINITIONS = Object.freeze([
+  {
+    id: "champion_tags",
+    label: "champion-tag assignments"
+  },
+  {
+    id: "champion_metadata",
+    label: "champion role/damage/effectiveness metadata"
+  },
+  {
+    id: "requirements",
+    label: "requirement definitions"
+  },
+  {
+    id: "compositions",
+    label: "compositions"
+  }
+]);
+
+function createScopedPermissionId(resourceId, action, scope) {
+  return `${resourceId}.${action}.${scope}`;
+}
+
+function createScopedPermissions({ id, label }) {
+  return [
+    {
+      id: createScopedPermissionId(id, "read", "self"),
+      description: `Read your own ${label}.`
+    },
+    {
+      id: createScopedPermissionId(id, "write", "self"),
+      description: `Create/update/delete your own ${label}.`
+    },
+    {
+      id: createScopedPermissionId(id, "read", "team"),
+      description: `Read team-scoped ${label} for teams where you are a member.`
+    },
+    {
+      id: createScopedPermissionId(id, "write", "team"),
+      description: `Create/update/delete team-scoped ${label} where you are a lead.`
+    },
+    {
+      id: createScopedPermissionId(id, "read", "global"),
+      description: `Read all/global ${label}.`
+    },
+    {
+      id: createScopedPermissionId(id, "write", "global"),
+      description: `Create/update/delete all/global ${label}.`
+    }
+  ];
+}
+
+function createScopedGlobalAssignments(resourceId, { includeGlobalWrite = false } = {}) {
+  const assignments = [
+    createScopedPermissionId(resourceId, "read", "self"),
+    createScopedPermissionId(resourceId, "write", "self"),
+    createScopedPermissionId(resourceId, "read", "global")
+  ];
+  if (includeGlobalWrite) {
+    assignments.push(createScopedPermissionId(resourceId, "write", "global"));
+  }
+  return assignments;
+}
+
+function createScopedTeamAssignments(resourceId, { includeTeamWrite = false } = {}) {
+  const assignments = [createScopedPermissionId(resourceId, "read", "team")];
+  if (includeTeamWrite) {
+    assignments.push(createScopedPermissionId(resourceId, "write", "team"));
+  }
+  return assignments;
+}
+
 const PERMISSIONS = Object.freeze([
   {
     id: "profile.read.self",
@@ -110,45 +182,10 @@ const PERMISSIONS = Object.freeze([
     description: "Read global tag catalog."
   },
   {
-    id: "champion_tags.read.global",
-    description: "Read global champion-tag assignments."
-  },
-  {
-    id: "champion_tags.read.team",
-    description: "Read team champion-tag assignments for member teams."
-  },
-  {
-    id: "champion_tags.write.team",
-    description: "Edit team champion-tag assignments where you are a lead."
-  },
-  {
-    id: "champion_tags.write.global",
-    description: "Edit global champion-tag assignments."
-  },
-  {
     id: "tags.catalog.write.global",
     description: "Create/update/delete global tag definitions."
   },
-  {
-    id: "champion_metadata.write.global",
-    description: "Edit global champion role/damage/effectiveness metadata."
-  },
-  {
-    id: "requirements.read.global",
-    description: "Read requirement definitions."
-  },
-  {
-    id: "requirements.write.global",
-    description: "Create/update/delete requirement definitions."
-  },
-  {
-    id: "compositions.read.global",
-    description: "Read compositions catalog."
-  },
-  {
-    id: "compositions.write.global",
-    description: "Create/update/delete compositions."
-  },
+  ...SCOPED_RESOURCE_DEFINITIONS.flatMap(createScopedPermissions),
   {
     id: "admin.users.read",
     description: "Read admin users directory and per-user details."
@@ -177,10 +214,7 @@ const GLOBAL_ROLE_ASSIGNMENTS = Object.freeze({
     "teams.invitations.respond.self",
     "champions.read",
     "tags.catalog.read",
-    "champion_tags.read.global",
-    "champion_tags.read.team",
-    "requirements.read.global",
-    "compositions.read.global"
+    ...SCOPED_RESOURCE_DEFINITIONS.flatMap(({ id }) => createScopedGlobalAssignments(id))
   ]),
   [USER_ROLE_GLOBAL]: Object.freeze([
     "profile.read.self",
@@ -195,15 +229,12 @@ const GLOBAL_ROLE_ASSIGNMENTS = Object.freeze({
     "teams.invitations.respond.self",
     "champions.read",
     "tags.catalog.read",
-    "champion_tags.read.global",
-    "champion_tags.read.team",
-    "champion_tags.write.global",
     "tags.catalog.write.global",
-    "champion_metadata.write.global",
-    "requirements.read.global",
-    "requirements.write.global",
-    "compositions.read.global",
-    "compositions.write.global"
+    ...SCOPED_RESOURCE_DEFINITIONS.flatMap(({ id }) =>
+      createScopedGlobalAssignments(id, {
+        includeGlobalWrite: true
+      })
+    )
   ]),
   [USER_ROLE_ADMIN]: Object.freeze([
     "profile.read.self",
@@ -218,15 +249,12 @@ const GLOBAL_ROLE_ASSIGNMENTS = Object.freeze({
     "teams.invitations.respond.self",
     "champions.read",
     "tags.catalog.read",
-    "champion_tags.read.global",
-    "champion_tags.read.team",
-    "champion_tags.write.global",
     "tags.catalog.write.global",
-    "champion_metadata.write.global",
-    "requirements.read.global",
-    "requirements.write.global",
-    "compositions.read.global",
-    "compositions.write.global",
+    ...SCOPED_RESOURCE_DEFINITIONS.flatMap(({ id }) =>
+      createScopedGlobalAssignments(id, {
+        includeGlobalWrite: true
+      })
+    ),
     "admin.users.read",
     "admin.users.write",
     "admin.users.delete"
@@ -236,7 +264,7 @@ const GLOBAL_ROLE_ASSIGNMENTS = Object.freeze({
 const TEAM_MEMBERSHIP_ROLE_ASSIGNMENTS = Object.freeze({
   member: Object.freeze([
     "teams.read.member",
-    "champion_tags.read.team"
+    ...SCOPED_RESOURCE_DEFINITIONS.flatMap(({ id }) => createScopedTeamAssignments(id))
   ]),
   lead: Object.freeze([
     "teams.read.member",
@@ -244,8 +272,11 @@ const TEAM_MEMBERSHIP_ROLE_ASSIGNMENTS = Object.freeze({
     "teams.members.manage.lead",
     "teams.join_requests.review.lead",
     "teams.invitations.manage.lead",
-    "champion_tags.read.team",
-    "champion_tags.write.team"
+    ...SCOPED_RESOURCE_DEFINITIONS.flatMap(({ id }) =>
+      createScopedTeamAssignments(id, {
+        includeTeamWrite: true
+      })
+    )
   ])
 });
 
