@@ -28,6 +28,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         secondary_roles: ["Top"],
         default_team_id: null,
         active_team_id: null,
+        avatar_champion_id: null,
         riot_id_correction_count: 0,
         created_at: "2026-01-01T00:00:00.000Z"
       },
@@ -42,6 +43,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         secondary_roles: ["ADC"],
         default_team_id: null,
         active_team_id: null,
+        avatar_champion_id: null,
         riot_id_correction_count: 0,
         created_at: "2026-01-01T00:00:00.000Z"
       },
@@ -56,6 +58,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         secondary_roles: [],
         default_team_id: null,
         active_team_id: null,
+        avatar_champion_id: null,
         riot_id_correction_count: 0,
         created_at: "2026-01-01T00:00:00.000Z"
       },
@@ -70,6 +73,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         secondary_roles: [],
         default_team_id: null,
         active_team_id: null,
+        avatar_champion_id: null,
         riot_id_correction_count: 0,
         created_at: "2026-01-01T00:00:00.000Z"
       },
@@ -84,6 +88,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         secondary_roles: ["Top"],
         default_team_id: null,
         active_team_id: null,
+        avatar_champion_id: null,
         riot_id_correction_count: 0,
         created_at: "2026-01-01T00:00:00.000Z"
       }
@@ -274,6 +279,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         secondary_roles: [],
         default_team_id: null,
         active_team_id: null,
+        avatar_champion_id: null,
         riot_id_correction_count: 0,
         created_at: "2026-01-01T00:00:00.000Z"
       };
@@ -287,6 +293,8 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
         role: user.role,
         primary_role: user.primary_role,
         secondary_roles: user.secondary_roles,
+        default_team_id: user.default_team_id,
+        avatar_champion_id: user.avatar_champion_id,
         riot_id_correction_count: user.riot_id_correction_count,
         created_at: user.created_at
       };
@@ -362,6 +370,24 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
       }
       user.primary_role = primaryRole;
       user.secondary_roles = [...secondaryRoles];
+      return user;
+    },
+
+    async updateProfileDisplayTeam(userId, { displayTeamId }) {
+      const user = state.users.find((candidate) => candidate.id === userId) ?? null;
+      if (!user) {
+        return null;
+      }
+      user.default_team_id = displayTeamId;
+      return user;
+    },
+
+    async updateProfileAvatar(userId, { avatarChampionId }) {
+      const user = state.users.find((candidate) => candidate.id === userId) ?? null;
+      if (!user) {
+        return null;
+      }
+      user.avatar_champion_id = avatarChampionId;
       return user;
     },
 
@@ -1735,6 +1761,91 @@ describe("API routes", () => {
         }
       ]
     });
+  });
+
+  it("reads and updates persisted profile display-team preference with membership validation", async () => {
+    const { app, config, state } = createMockContext();
+    const leadAuth = buildAuthHeader(1, config);
+    state.teams.push({
+      id: 2,
+      name: "Team Bravo",
+      tag: "BRAVO",
+      logo_data_url: null,
+      created_by: 2,
+      created_at: "2026-01-02T00:00:00.000Z"
+    });
+    state.teamMembers.push({
+      team_id: 2,
+      user_id: 1,
+      role: "member",
+      team_role: "substitute",
+      created_at: "2026-01-02T00:00:00.000Z"
+    });
+
+    const initial = await request(app).get("/me/profile").set("Authorization", leadAuth);
+    expect(initial.status).toBe(200);
+    expect(initial.body.profile.displayTeamId).toBe(null);
+
+    const updated = await request(app)
+      .put("/me/profile/display-team")
+      .set("Authorization", leadAuth)
+      .send({ displayTeamId: 2 });
+    expect(updated.status).toBe(200);
+    expect(updated.body.profile.displayTeamId).toBe(2);
+
+    const persisted = await request(app).get("/me/profile").set("Authorization", leadAuth);
+    expect(persisted.status).toBe(200);
+    expect(persisted.body.profile.displayTeamId).toBe(2);
+
+    const invalidMembership = await request(app)
+      .put("/me/profile/display-team")
+      .set("Authorization", leadAuth)
+      .send({ displayTeamId: 999 });
+    expect(invalidMembership.status).toBe(400);
+    expect(invalidMembership.body.error.code).toBe("BAD_REQUEST");
+
+    const leadUser = state.users.find((candidate) => candidate.id === 1);
+    leadUser.default_team_id = 999;
+
+    const normalized = await request(app).get("/me/profile").set("Authorization", leadAuth);
+    expect(normalized.status).toBe(200);
+    expect(normalized.body.profile.displayTeamId).toBe(null);
+    expect(leadUser.default_team_id).toBe(null);
+  });
+
+  it("reads and updates persisted profile avatar preference with champion validation", async () => {
+    const { app, config, state } = createMockContext();
+    const leadAuth = buildAuthHeader(1, config);
+
+    const initial = await request(app).get("/me/profile").set("Authorization", leadAuth);
+    expect(initial.status).toBe(200);
+    expect(initial.body.profile.avatarChampionId).toBe(null);
+
+    const updated = await request(app)
+      .put("/me/profile/avatar")
+      .set("Authorization", leadAuth)
+      .send({ avatarChampionId: 2 });
+    expect(updated.status).toBe(200);
+    expect(updated.body.profile.avatarChampionId).toBe(2);
+
+    const persisted = await request(app).get("/me/profile").set("Authorization", leadAuth);
+    expect(persisted.status).toBe(200);
+    expect(persisted.body.profile.avatarChampionId).toBe(2);
+
+    const invalidChampion = await request(app)
+      .put("/me/profile/avatar")
+      .set("Authorization", leadAuth)
+      .send({ avatarChampionId: 999 });
+    expect(invalidChampion.status).toBe(400);
+    expect(invalidChampion.body.error.code).toBe("BAD_REQUEST");
+
+    const cleared = await request(app)
+      .put("/me/profile/avatar")
+      .set("Authorization", leadAuth)
+      .send({ avatarChampionId: null });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.profile.avatarChampionId).toBe(null);
+    expect(state.users.find((candidate) => candidate.id === 1)?.avatar_champion_id).toBe(null);
   });
 
   it("reads and updates active team-context with membership validation", async () => {

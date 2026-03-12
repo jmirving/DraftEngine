@@ -14,6 +14,11 @@ function hashResetToken(rawToken) {
   return createHash("sha256").update(rawToken).digest("hex");
 }
 
+function serializeNullablePositiveInteger(value) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
 function serializeAuthUser(user) {
   return {
     id: Number(user.id),
@@ -23,6 +28,8 @@ function serializeAuthUser(user) {
     tagline: user.tagline ?? "",
     firstName: user.first_name ?? "",
     lastName: user.last_name ?? "",
+    displayTeamId: serializeNullablePositiveInteger(user.default_team_id),
+    avatarChampionId: serializeNullablePositiveInteger(user.avatar_champion_id),
     primaryRole: user.primary_role ?? "Mid",
     secondaryRoles: Array.isArray(user.secondary_roles) ? user.secondary_roles : []
   };

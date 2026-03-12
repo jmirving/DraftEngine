@@ -13,6 +13,11 @@ const PROFILE_ROLE_ALIASES = Object.freeze({
   SUP: "Support"
 });
 
+function serializeNullablePositiveInteger(value) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
 function parseProfileRole(rawRole, fieldName = "primaryRole") {
   if (typeof rawRole !== "string" || rawRole.trim() === "") {
     throw badRequest(`Expected '${fieldName}' to be one of: ${PROFILE_ROLES.join(", ")}.`);
@@ -49,6 +54,8 @@ function serializeProfile(user, championStats = undefined) {
     email: user.email,
     gameName: user.game_name ?? "",
     tagline: user.tagline ?? "",
+    displayTeamId: serializeNullablePositiveInteger(user.default_team_id),
+    avatarChampionId: serializeNullablePositiveInteger(user.avatar_champion_id),
     primaryRole: user.primary_role,
     secondaryRoles: Array.isArray(user.secondary_roles) ? user.secondary_roles : []
   };
@@ -61,6 +68,18 @@ function serializeProfile(user, championStats = undefined) {
 }
 
 function parseNullableTeamId(rawValue, fieldName) {
+  if (rawValue === null) {
+    return null;
+  }
+
+  if (rawValue === undefined) {
+    throw badRequest(`Expected '${fieldName}' to be a positive integer or null.`);
+  }
+
+  return parsePositiveInteger(rawValue, fieldName);
+}
+
+function parseNullableChampionId(rawValue, fieldName) {
   if (rawValue === null) {
     return null;
   }
@@ -92,17 +111,37 @@ async function assertTeamMembershipOrNull(teamId, userId, teamsRepository, field
   }
 }
 
-export function createProfileRouter({ usersRepository, teamsRepository, requireAuth, riotChampionStatsService = null }) {
+export function createProfileRouter({
+  usersRepository,
+  championsRepository,
+  teamsRepository,
+  requireAuth,
+  riotChampionStatsService = null
+}) {
   const router = Router();
   router.use("/me/profile", requireAuth);
   router.use("/me/account", requireAuth);
   router.use("/me/team-context", requireAuth);
+  router.use("/me/profile/avatar", requireAuth);
+  router.use("/me/profile/display-team", requireAuth);
 
   router.get("/me/profile", async (request, response) => {
     const userId = request.user.userId;
-    const profile = await usersRepository.findProfileById(userId);
+    let profile = await usersRepository.findProfileById(userId);
     if (!profile) {
       throw notFound("User not found.");
+    }
+    const displayTeamId = serializeNullablePositiveInteger(profile.default_team_id);
+    if (displayTeamId !== null) {
+      const membership = await teamsRepository.getMembership(displayTeamId, userId);
+      if (!membership) {
+        profile = await usersRepository.updateProfileDisplayTeam(userId, {
+          displayTeamId: null
+        });
+        if (!profile) {
+          throw notFound("User not found.");
+        }
+      }
     }
     let championStats;
     if (riotChampionStatsService?.getProfileChampionStats) {
@@ -147,6 +186,41 @@ export function createProfileRouter({ usersRepository, teamsRepository, requireA
     if (!updated) {
       throw notFound("User not found.");
     }
+    response.json({ profile: serializeProfile(updated) });
+  });
+
+  router.put("/me/profile/display-team", async (request, response) => {
+    const userId = request.user.userId;
+    const body = requireObject(request.body);
+    const displayTeamId = parseNullableTeamId(body.displayTeamId, "displayTeamId");
+
+    await assertTeamMembershipOrNull(displayTeamId, userId, teamsRepository, "displayTeamId");
+
+    const updated = await usersRepository.updateProfileDisplayTeam(userId, { displayTeamId });
+    if (!updated) {
+      throw notFound("User not found.");
+    }
+
+    response.json({ profile: serializeProfile(updated) });
+  });
+
+  router.put("/me/profile/avatar", async (request, response) => {
+    const userId = request.user.userId;
+    const body = requireObject(request.body);
+    const avatarChampionId = parseNullableChampionId(body.avatarChampionId, "avatarChampionId");
+
+    if (avatarChampionId !== null) {
+      const champion = await championsRepository.getChampionById(avatarChampionId);
+      if (!champion) {
+        throw badRequest("Expected 'avatarChampionId' to reference a valid champion.");
+      }
+    }
+
+    const updated = await usersRepository.updateProfileAvatar(userId, { avatarChampionId });
+    if (!updated) {
+      throw notFound("User not found.");
+    }
+
     response.json({ profile: serializeProfile(updated) });
   });
 

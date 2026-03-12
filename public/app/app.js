@@ -450,6 +450,8 @@ function createInitialState() {
       primaryRole: DEFAULT_PRIMARY_ROLE,
       secondaryRoles: [],
       isSavingRoles: false,
+      isSavingAvatar: false,
+      isSavingDisplayTeam: false,
       championStats: createEmptyChampionStatsState(),
       openSetting: null,
       avatarChampionId: null,
@@ -890,8 +892,10 @@ function createElements() {
     profileSettingsList: runtimeDocument.querySelector("#profile-settings-list"),
     profileSettingRolesValue: runtimeDocument.querySelector("#profile-setting-roles-value"),
     profileSettingAccountValue: runtimeDocument.querySelector("#profile-setting-account-value"),
+    profileSettingDisplayTeamValue: runtimeDocument.querySelector("#profile-setting-display-team-value"),
     profileSettingRolesEditor: runtimeDocument.querySelector("#profile-setting-roles-editor"),
     profileSettingAccountEditor: runtimeDocument.querySelector("#profile-setting-account-editor"),
+    profileSettingDisplayTeamEditor: runtimeDocument.querySelector("#profile-setting-display-team-editor"),
     profileSetPrimaryRole: runtimeDocument.querySelector("#profile-set-primary-role"),
     profileSetOtherRoles: runtimeDocument.querySelector("#profile-set-other-roles"),
     primaryRoleModal: runtimeDocument.querySelector("#primary-role-modal"),
@@ -903,9 +907,13 @@ function createElements() {
     myChampionsSetOthers: runtimeDocument.querySelector("#my-champions-set-others"),
     avatarModalCancel: runtimeDocument.querySelector("#avatar-modal-cancel"),
     avatarModalSave: runtimeDocument.querySelector("#avatar-modal-save"),
+    avatarModalFeedback: runtimeDocument.querySelector("#avatar-modal-feedback"),
     profileAccountFields: runtimeDocument.querySelector("#profile-account-fields"),
     profileSaveAccount: runtimeDocument.querySelector("#profile-save-account"),
     profileAccountFeedback: runtimeDocument.querySelector("#profile-account-feedback"),
+    profileDisplayTeamSelect: runtimeDocument.querySelector("#profile-display-team-select"),
+    profileSaveDisplayTeam: runtimeDocument.querySelector("#profile-save-display-team"),
+    profileDisplayTeamFeedback: runtimeDocument.querySelector("#profile-display-team-feedback"),
     profileAdminLink: runtimeDocument.querySelector("#profile-admin-link"),
     profileAdminChampionCoreLink: runtimeDocument.querySelector("#profile-admin-champion-core-link"),
     avatarModal: runtimeDocument.querySelector("#avatar-modal"),
@@ -1759,17 +1767,22 @@ function formatTeamCardTitle(team) {
   return tag ? `${name} (${tag})` : name;
 }
 
-function normalizeTeamEntityId(rawValue) {
+function normalizePositiveInteger(rawValue) {
   if (typeof rawValue === "string" && rawValue.trim() !== "") {
     const parsed = Number.parseInt(rawValue, 10);
     if (Number.isInteger(parsed) && parsed > 0) {
-      return String(parsed);
+      return parsed;
     }
   }
   if (Number.isInteger(rawValue) && rawValue > 0) {
-    return String(rawValue);
+    return rawValue;
   }
   return null;
+}
+
+function normalizeTeamEntityId(rawValue) {
+  const normalizedId = normalizePositiveInteger(rawValue);
+  return normalizedId === null ? null : String(normalizedId);
 }
 
 function toApiTeamContextId(teamId) {
@@ -2252,7 +2265,13 @@ function clearAuthSession(feedback = "") {
   state.profile.primaryRole = DEFAULT_PRIMARY_ROLE;
   state.profile.secondaryRoles = [];
   state.profile.isSavingRoles = false;
+  state.profile.isSavingAvatar = false;
+  state.profile.isSavingDisplayTeam = false;
   state.profile.championStats = createEmptyChampionStatsState();
+  state.profile.avatarChampionId = null;
+  state.profile.pendingAvatarId = null;
+  state.profile.displayTeamId = null;
+  state.profile.avatarFilter = "";
   state.api.isCreatingTeam = false;
   state.api.discoverTeams = [];
   state.api.joinRequestsByTeamId = {};
@@ -7621,6 +7640,10 @@ async function loadProfileFromApi() {
     state.profile.primaryRole = DEFAULT_PRIMARY_ROLE;
     state.profile.secondaryRoles = [];
     state.profile.championStats = createEmptyChampionStatsState();
+    syncProfilePreferenceSessionFields({
+      avatarChampionId: null,
+      displayTeamId: null
+    });
     return false;
   }
 
@@ -7628,9 +7651,16 @@ async function loadProfileFromApi() {
     const payload = await apiRequest("/me/profile", { auth: true });
     const profile = payload?.profile ?? {};
     const primaryRole = normalizeProfileRole(profile.primaryRole);
+    const apiAvatarChampionId = normalizePositiveInteger(profile.avatarChampionId);
+    const nextAvatarChampionId = apiAvatarChampionId ?? state.profile.avatarChampionId;
+    const displayTeamId = normalizeTeamEntityId(profile.displayTeamId);
     state.profile.primaryRole = primaryRole;
     state.profile.secondaryRoles = normalizeSecondaryRoles(profile.secondaryRoles, primaryRole);
     state.profile.championStats = normalizeChampionStats(profile.championStats);
+    syncProfilePreferenceSessionFields({
+      avatarChampionId: nextAvatarChampionId,
+      displayTeamId
+    });
     if (state.auth.user && typeof state.auth.user === "object") {
       state.auth.user.primaryRole = state.profile.primaryRole;
       state.auth.user.secondaryRoles = [...state.profile.secondaryRoles];
@@ -7641,6 +7671,53 @@ async function loadProfileFromApi() {
     state.profile.championStats = createEmptyChampionStatsState();
     setProfileRolesFeedback(normalizeApiErrorMessage(error, "Failed to load profile roles."), true);
     return false;
+  }
+}
+
+async function saveProfileDisplayTeamPreference() {
+  if (!isAuthenticated()) {
+    return false;
+  }
+  if (state.profile.isSavingDisplayTeam) {
+    return false;
+  }
+  const selectedDisplayTeamId = normalizeTeamEntityId(elements.profileDisplayTeamSelect?.value);
+
+  state.profile.isSavingDisplayTeam = true;
+  if (elements.profileDisplayTeamFeedback) {
+    elements.profileDisplayTeamFeedback.textContent = "Saving...";
+    elements.profileDisplayTeamFeedback.style.color = "";
+  }
+  renderPlayerConfig();
+
+  try {
+    const payload = await apiRequest("/me/profile/display-team", {
+      method: "PUT",
+      auth: true,
+      body: {
+        displayTeamId: selectedDisplayTeamId ? Number.parseInt(selectedDisplayTeamId, 10) : null
+      }
+    });
+    const profile = payload?.profile ?? {};
+    syncProfilePreferenceSessionFields({
+      avatarChampionId: normalizePositiveInteger(profile.avatarChampionId),
+      displayTeamId: normalizeTeamEntityId(profile.displayTeamId)
+    });
+    if (elements.profileDisplayTeamFeedback) {
+      elements.profileDisplayTeamFeedback.textContent = "Display team saved.";
+      elements.profileDisplayTeamFeedback.style.color = "";
+    }
+    renderPlayerConfig();
+    return true;
+  } catch (error) {
+    if (elements.profileDisplayTeamFeedback) {
+      elements.profileDisplayTeamFeedback.textContent = normalizeApiErrorMessage(error, "Failed to save display team.");
+      elements.profileDisplayTeamFeedback.style.color = "var(--warn)";
+    }
+    return false;
+  } finally {
+    state.profile.isSavingDisplayTeam = false;
+    renderPlayerConfig();
   }
 }
 
@@ -10013,7 +10090,7 @@ function renderPlayerConfig() {
     elements.profileTeamDisplay.innerHTML = "";
     const allTeams = [...state.api.teams].sort((a, b) => a.name.localeCompare(b.name));
     const displayTeam = state.profile.displayTeamId
-      ? allTeams.find((t) => t.id === state.profile.displayTeamId)
+      ? allTeams.find((team) => normalizeTeamEntityId(team.id) === state.profile.displayTeamId)
       : allTeams[0] || null;
     if (displayTeam) {
       const teamName = runtimeDocument.createElement("span");
@@ -10042,6 +10119,17 @@ function renderPlayerConfig() {
 
   if (elements.profileSettingAccountValue) {
     elements.profileSettingAccountValue.textContent = authenticated && user ? user.email : "Not signed in";
+  }
+  if (elements.profileSettingDisplayTeamValue) {
+    const allTeams = [...state.api.teams].sort((a, b) => a.name.localeCompare(b.name));
+    const displayTeam = state.profile.displayTeamId
+      ? allTeams.find((team) => normalizeTeamEntityId(team.id) === state.profile.displayTeamId)
+      : allTeams[0] || null;
+    elements.profileSettingDisplayTeamValue.textContent = displayTeam
+      ? displayTeam.name
+      : authenticated
+        ? "No team"
+        : "Not signed in";
   }
 
   // Admin link visibility
@@ -10093,6 +10181,27 @@ function renderPlayerConfig() {
     }
   }
 
+  if (openSetting === "display-team" && elements.profileDisplayTeamSelect) {
+    const allTeams = [...state.api.teams].sort((a, b) => a.name.localeCompare(b.name));
+    elements.profileDisplayTeamSelect.innerHTML = "";
+    const automaticOption = runtimeDocument.createElement("option");
+    automaticOption.value = "";
+    automaticOption.textContent = allTeams.length > 0 ? "Automatic (first available team)" : "No teams available";
+    elements.profileDisplayTeamSelect.append(automaticOption);
+    for (const team of allTeams) {
+      const option = runtimeDocument.createElement("option");
+      option.value = String(team.id);
+      option.textContent = team.name;
+      elements.profileDisplayTeamSelect.append(option);
+    }
+    elements.profileDisplayTeamSelect.value = state.profile.displayTeamId ?? "";
+    elements.profileDisplayTeamSelect.disabled = !authenticated || state.profile.isSavingDisplayTeam || allTeams.length === 0;
+    if (elements.profileSaveDisplayTeam) {
+      elements.profileSaveDisplayTeam.disabled = !authenticated || state.profile.isSavingDisplayTeam || allTeams.length === 0;
+      elements.profileSaveDisplayTeam.textContent = state.profile.isSavingDisplayTeam ? "Saving..." : "Save Display Team";
+    }
+  }
+
   // --- Sub-renders ---
   renderProfileRolesSection();
   renderProfileChampionStatsSection();
@@ -10102,19 +10211,78 @@ function openAvatarModal() {
   state.profile.avatarFilter = "";
   state.profile.pendingAvatarId = state.profile.avatarChampionId;
   if (elements.avatarModalSearch) elements.avatarModalSearch.value = "";
+  if (elements.avatarModalFeedback) {
+    elements.avatarModalFeedback.textContent = "";
+    elements.avatarModalFeedback.style.color = "";
+  }
   if (elements.avatarModal) elements.avatarModal.hidden = false;
   renderAvatarModalGrid();
 }
 
 function closeAvatarModal() {
   if (elements.avatarModal) elements.avatarModal.hidden = true;
+  if (elements.avatarModalFeedback) {
+    elements.avatarModalFeedback.textContent = "";
+    elements.avatarModalFeedback.style.color = "";
+  }
 }
 
-function saveAvatarSelection() {
-  state.profile.avatarChampionId = state.profile.pendingAvatarId;
-  persistAvatarChampionId();
-  closeAvatarModal();
-  renderPlayerConfig();
+async function saveAvatarSelection() {
+  const avatarChampionId = normalizePositiveInteger(state.profile.pendingAvatarId);
+
+  if (!isAuthenticated()) {
+    syncProfilePreferenceSessionFields({
+      avatarChampionId,
+      displayTeamId: state.profile.displayTeamId
+    });
+    persistAvatarChampionId();
+    closeAvatarModal();
+    renderPlayerConfig();
+    return;
+  }
+
+  if (state.profile.isSavingAvatar) {
+    return;
+  }
+
+  state.profile.isSavingAvatar = true;
+  if (elements.avatarModalSave) {
+    elements.avatarModalSave.disabled = true;
+    elements.avatarModalSave.textContent = "Saving...";
+  }
+  if (elements.avatarModalFeedback) {
+    elements.avatarModalFeedback.textContent = "Saving...";
+    elements.avatarModalFeedback.style.color = "";
+  }
+
+  try {
+    const payload = await apiRequest("/me/profile/avatar", {
+      method: "PUT",
+      auth: true,
+      body: {
+        avatarChampionId
+      }
+    });
+    const profile = payload?.profile ?? {};
+    syncProfilePreferenceSessionFields({
+      avatarChampionId: normalizePositiveInteger(profile.avatarChampionId),
+      displayTeamId: normalizeTeamEntityId(profile.displayTeamId)
+    });
+    persistAvatarChampionId();
+    closeAvatarModal();
+    renderPlayerConfig();
+  } catch (error) {
+    if (elements.avatarModalFeedback) {
+      elements.avatarModalFeedback.textContent = normalizeApiErrorMessage(error, "Failed to save avatar.");
+      elements.avatarModalFeedback.style.color = "var(--warn)";
+    }
+  } finally {
+    state.profile.isSavingAvatar = false;
+    if (elements.avatarModalSave) {
+      elements.avatarModalSave.disabled = false;
+      elements.avatarModalSave.textContent = "Save";
+    }
+  }
 }
 
 const AVATAR_STORAGE_KEY = "draftengine_avatar_champion_id";
@@ -10132,13 +10300,12 @@ function persistAvatarChampionId() {
 
 function restoreAvatarChampionId() {
   if (!runtimeStorage) return;
+  if (state.profile.avatarChampionId != null) return;
   try {
     const stored = runtimeStorage.getItem(AVATAR_STORAGE_KEY);
-    if (stored != null && stored !== "") {
-      const parsed = Number(stored);
-      if (Number.isInteger(parsed) && parsed > 0) {
-        state.profile.avatarChampionId = parsed;
-      }
+    const parsed = normalizePositiveInteger(stored);
+    if (parsed !== null) {
+      state.profile.avatarChampionId = parsed;
     }
   } catch { /* ignore storage errors */ }
 }
@@ -10354,6 +10521,19 @@ function saveUiState() {
   });
 }
 
+function syncProfilePreferenceSessionFields({
+  avatarChampionId = null,
+  displayTeamId = null
+} = {}) {
+  state.profile.avatarChampionId = avatarChampionId;
+  state.profile.displayTeamId = displayTeamId;
+  if (state.auth.user && typeof state.auth.user === "object") {
+    state.auth.user.avatarChampionId = avatarChampionId;
+    state.auth.user.displayTeamId = displayTeamId;
+    saveAuthSession();
+  }
+}
+
 function loadStoredAuthSession() {
   const stored = readStoredAuthSession();
   state.auth.token = stored.token;
@@ -10362,6 +10542,10 @@ function loadStoredAuthSession() {
   const primaryRole = normalizeProfileRole(stored.user?.primaryRole);
   state.profile.primaryRole = primaryRole;
   state.profile.secondaryRoles = normalizeSecondaryRoles(stored.user?.secondaryRoles, primaryRole);
+  syncProfilePreferenceSessionFields({
+    avatarChampionId: normalizePositiveInteger(stored.user?.avatarChampionId),
+    displayTeamId: normalizeTeamEntityId(stored.user?.displayTeamId)
+  });
 }
 
 function loadStoredPlayerConfig() {
@@ -12885,7 +13069,9 @@ function attachEvents() {
     elements.avatarModalCancel.addEventListener("click", closeAvatarModal);
   }
   if (elements.avatarModalSave) {
-    elements.avatarModalSave.addEventListener("click", saveAvatarSelection);
+    elements.avatarModalSave.addEventListener("click", () => {
+      void saveAvatarSelection();
+    });
   }
   if (elements.avatarModal) {
     elements.avatarModal.addEventListener("click", (event) => {
@@ -12896,6 +13082,11 @@ function attachEvents() {
     elements.avatarModalSearch.addEventListener("input", () => {
       state.profile.avatarFilter = elements.avatarModalSearch.value;
       renderAvatarModalGrid();
+    });
+  }
+  if (elements.profileSaveDisplayTeam) {
+    elements.profileSaveDisplayTeam.addEventListener("click", () => {
+      void saveProfileDisplayTeamPreference();
     });
   }
 

@@ -234,6 +234,8 @@ function createFetchHarness({
     role: "admin",
     gameName: "LoginUser",
     tagline: "NA1",
+    displayTeamId: null,
+    avatarChampionId: null,
     primaryRole: "Mid",
     secondaryRoles: ["Top"]
   };
@@ -243,6 +245,8 @@ function createFetchHarness({
     role: "admin",
     gameName: "LoginUser",
     tagline: "NA1",
+    displayTeamId: null,
+    avatarChampionId: null,
     primaryRole: "Mid",
     secondaryRoles: ["Top"]
   };
@@ -748,6 +752,8 @@ function createFetchHarness({
           email: body.email,
           gameName: body.gameName,
           tagline: body.tagline,
+          displayTeamId: null,
+          avatarChampionId: null,
           primaryRole: "Mid",
           secondaryRoles: []
         }
@@ -777,6 +783,54 @@ function createFetchHarness({
           email: resolvedProfile.email,
           gameName: resolvedProfile.gameName,
           tagline: resolvedProfile.tagline,
+          displayTeamId: resolvedProfile.displayTeamId ?? null,
+          avatarChampionId: resolvedProfile.avatarChampionId ?? null,
+          primaryRole: resolvedProfile.primaryRole,
+          secondaryRoles: [...resolvedProfile.secondaryRoles]
+        }
+      });
+    }
+
+    if (path === "/me/profile/display-team" && method === "PUT") {
+      resolvedProfile = {
+        ...resolvedProfile,
+        displayTeamId: body.displayTeamId ?? null
+      };
+      resolvedLoginUser = {
+        ...resolvedLoginUser,
+        displayTeamId: resolvedProfile.displayTeamId
+      };
+      return createJsonResponse({
+        profile: {
+          id: resolvedProfile.id,
+          email: resolvedProfile.email,
+          gameName: resolvedProfile.gameName,
+          tagline: resolvedProfile.tagline,
+          displayTeamId: resolvedProfile.displayTeamId,
+          avatarChampionId: resolvedProfile.avatarChampionId ?? null,
+          primaryRole: resolvedProfile.primaryRole,
+          secondaryRoles: [...resolvedProfile.secondaryRoles]
+        }
+      });
+    }
+
+    if (path === "/me/profile/avatar" && method === "PUT") {
+      resolvedProfile = {
+        ...resolvedProfile,
+        avatarChampionId: body.avatarChampionId ?? null
+      };
+      resolvedLoginUser = {
+        ...resolvedLoginUser,
+        avatarChampionId: resolvedProfile.avatarChampionId
+      };
+      return createJsonResponse({
+        profile: {
+          id: resolvedProfile.id,
+          email: resolvedProfile.email,
+          gameName: resolvedProfile.gameName,
+          tagline: resolvedProfile.tagline,
+          displayTeamId: resolvedProfile.displayTeamId ?? null,
+          avatarChampionId: resolvedProfile.avatarChampionId,
           primaryRole: resolvedProfile.primaryRole,
           secondaryRoles: [...resolvedProfile.secondaryRoles]
         }
@@ -3295,6 +3349,138 @@ describe("auth + pools + team management", () => {
     await flush();
 
     expect(secondDoc.querySelector("#builder-active-team").value).toBe("1");
+  });
+
+  test("profile display team selection persists across reload via API", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const harness = createFetchHarness({
+      profile: {
+        id: 11,
+        email: "lead@example.com",
+        gameName: "LeadPlayer",
+        tagline: "NA1",
+        displayTeamId: null,
+        avatarChampionId: null,
+        primaryRole: "Mid",
+        secondaryRoles: ["Top"]
+      },
+      teams: [
+        {
+          id: 1,
+          name: "Team Alpha",
+          tag: "ALPHA",
+          logo_data_url: "data:image/png;base64,bW9jazE=",
+          created_by: 11,
+          membership_role: "lead",
+          membership_team_role: "primary",
+          created_at: "2026-01-01T00:00:00.000Z"
+        },
+        {
+          id: 2,
+          name: "Team Bravo",
+          tag: "BRAVO",
+          logo_data_url: null,
+          created_by: 22,
+          membership_role: "member",
+          membership_team_role: "substitute",
+          created_at: "2026-01-02T00:00:00.000Z"
+        }
+      ],
+      membersByTeam: {
+        "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "lead@example.com" }],
+        "2": [{ team_id: 2, user_id: 11, role: "member", team_role: "substitute", email: "lead@example.com" }]
+      }
+    });
+
+    const firstBoot = await bootApp({ fetchImpl: harness.impl, storage });
+    const firstDoc = firstBoot.dom.window.document;
+    openProfile(firstDoc);
+    await flush();
+
+    firstDoc.querySelector("[data-setting='display-team'] .profile-setting-row").click();
+    await flush();
+    firstDoc.querySelector("#profile-display-team-select").value = "2";
+    firstDoc.querySelector("#profile-save-display-team").click();
+    await flush();
+    await flush();
+
+    const saveCall = harness.calls.find((call) => call.path === "/me/profile/display-team" && call.method === "PUT");
+    expect(saveCall).toBeTruthy();
+    expect(saveCall.body.displayTeamId).toBe(2);
+    expect(firstDoc.querySelector("#profile-team-display").textContent).toContain("Team Bravo");
+
+    const secondStorage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const secondBoot = await bootApp({ fetchImpl: harness.impl, storage: secondStorage });
+    const secondDoc = secondBoot.dom.window.document;
+    openProfile(secondDoc);
+    await flush();
+
+    expect(secondDoc.querySelector("#profile-team-display").textContent).toContain("Team Bravo");
+  });
+
+  test("profile avatar selection persists via API for authenticated users", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const harness = createFetchHarness({
+      profile: {
+        id: 11,
+        email: "lead@example.com",
+        gameName: "LeadPlayer",
+        tagline: "NA1",
+        displayTeamId: null,
+        avatarChampionId: null,
+        primaryRole: "Mid",
+        secondaryRoles: ["Top"]
+      }
+    });
+
+    const firstBoot = await bootApp({ fetchImpl: harness.impl, storage });
+    const firstDoc = firstBoot.dom.window.document;
+    openProfile(firstDoc);
+    await flush();
+
+    firstDoc.querySelector("#profile-avatar-display").click();
+    await flush();
+    const braumOption = Array.from(firstDoc.querySelectorAll("#avatar-modal-grid .avatar-option"))
+      .find((button) => button.textContent.includes("Braum"));
+    expect(braumOption).toBeTruthy();
+    braumOption.click();
+    firstDoc.querySelector("#avatar-modal-save").click();
+    await flush();
+    await flush();
+
+    const saveCall = harness.calls.find((call) => call.path === "/me/profile/avatar" && call.method === "PUT");
+    expect(saveCall).toBeTruthy();
+    expect(Number.isInteger(saveCall.body.avatarChampionId)).toBe(true);
+    expect(saveCall.body.avatarChampionId).toBeGreaterThan(0);
+    expect(firstDoc.querySelector("#profile-avatar-display img")?.getAttribute("alt")).toBe("Braum");
+
+    const secondStorage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const secondBoot = await bootApp({ fetchImpl: harness.impl, storage: secondStorage });
+    const secondDoc = secondBoot.dom.window.document;
+    openProfile(secondDoc);
+    await flush();
+
+    expect(secondDoc.querySelector("#profile-avatar-display img")?.getAttribute("alt")).toBe("Braum");
   });
 
   test("selected team shows signed-in user name on their primary role slot label", async () => {

@@ -100,6 +100,7 @@ export function createApp({
     "/",
     createProfileRouter({
       usersRepository,
+      championsRepository,
       teamsRepository,
       requireAuth,
       riotChampionStatsService

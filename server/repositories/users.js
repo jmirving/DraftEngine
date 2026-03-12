@@ -7,7 +7,7 @@ export function createUsersRepository(pool) {
         `
           INSERT INTO users (email, password_hash, game_name, tagline, first_name, last_name, role)
           VALUES ($1, $2, $3, $4, $5, $6, $7)
-          RETURNING id, email, game_name, tagline, first_name, last_name, role, primary_role, secondary_roles, riot_id_correction_count, created_at
+          RETURNING id, email, game_name, tagline, first_name, last_name, role, primary_role, secondary_roles, default_team_id, avatar_champion_id, riot_id_correction_count, created_at
         `,
         [email, passwordHash, gameName, tagline, firstName || null, lastName || null, role]
       );
@@ -17,7 +17,7 @@ export function createUsersRepository(pool) {
     async findByEmail(email) {
       const result = await pool.query(
         `
-          SELECT id, email, password_hash, game_name, tagline, first_name, last_name, role, primary_role, secondary_roles, riot_id_correction_count, created_at
+          SELECT id, email, password_hash, game_name, tagline, first_name, last_name, role, primary_role, secondary_roles, default_team_id, avatar_champion_id, riot_id_correction_count, created_at
           FROM users
           WHERE email = $1
         `,
@@ -29,7 +29,7 @@ export function createUsersRepository(pool) {
     async findById(userId) {
       const result = await pool.query(
         `
-          SELECT id, email, password_hash, game_name, tagline, first_name, last_name, role, primary_role, secondary_roles, active_team_id, riot_id_correction_count, created_at
+          SELECT id, email, password_hash, game_name, tagline, first_name, last_name, role, primary_role, secondary_roles, default_team_id, active_team_id, avatar_champion_id, riot_id_correction_count, created_at
           FROM users
           WHERE id = $1
         `,
@@ -41,7 +41,7 @@ export function createUsersRepository(pool) {
     async findByRiotId(gameName, tagline) {
       const result = await pool.query(
         `
-          SELECT id, email, password_hash, game_name, tagline, first_name, last_name, role, primary_role, secondary_roles, riot_id_correction_count, created_at
+          SELECT id, email, password_hash, game_name, tagline, first_name, last_name, role, primary_role, secondary_roles, default_team_id, avatar_champion_id, riot_id_correction_count, created_at
           FROM users
           WHERE lower(game_name) = lower($1)
             AND lower(tagline) = lower($2)
@@ -83,7 +83,7 @@ export function createUsersRepository(pool) {
           UPDATE users
           SET role = $2
           WHERE id = $1
-          RETURNING id, email, game_name, tagline, role, primary_role, secondary_roles, riot_id_correction_count, created_at
+          RETURNING id, email, game_name, tagline, role, primary_role, secondary_roles, default_team_id, avatar_champion_id, riot_id_correction_count, created_at
         `,
         [userId, role]
       );
@@ -99,7 +99,7 @@ export function createUsersRepository(pool) {
               riot_id_correction_count = riot_id_correction_count + 1
           WHERE id = $1
             AND riot_id_correction_count < 1
-          RETURNING id, email, game_name, tagline, role, primary_role, secondary_roles, riot_id_correction_count, created_at
+          RETURNING id, email, game_name, tagline, role, primary_role, secondary_roles, default_team_id, avatar_champion_id, riot_id_correction_count, created_at
         `,
         [userId, gameName, tagline]
       );
@@ -120,7 +120,7 @@ export function createUsersRepository(pool) {
     async findProfileById(userId) {
       const result = await pool.query(
         `
-          SELECT id, email, game_name, tagline, role, primary_role, secondary_roles, riot_id_correction_count, created_at
+          SELECT id, email, game_name, tagline, role, primary_role, secondary_roles, default_team_id, avatar_champion_id, riot_id_correction_count, created_at
           FROM users
           WHERE id = $1
         `,
@@ -148,7 +148,7 @@ export function createUsersRepository(pool) {
           SET first_name = $2,
               last_name = $3
           WHERE id = $1
-          RETURNING id, email, game_name, tagline, first_name, last_name, role, primary_role, secondary_roles, riot_id_correction_count, created_at
+          RETURNING id, email, game_name, tagline, first_name, last_name, role, primary_role, secondary_roles, default_team_id, avatar_champion_id, riot_id_correction_count, created_at
         `,
         [userId, firstName || null, lastName || null]
       );
@@ -162,9 +162,35 @@ export function createUsersRepository(pool) {
           SET primary_role = $2,
               secondary_roles = $3
           WHERE id = $1
-          RETURNING id, email, game_name, tagline, primary_role, secondary_roles, riot_id_correction_count, created_at
+          RETURNING id, email, game_name, tagline, primary_role, secondary_roles, default_team_id, avatar_champion_id, riot_id_correction_count, created_at
         `,
         [userId, primaryRole, secondaryRoles]
+      );
+      return result.rows[0] ?? null;
+    },
+
+    async updateProfileDisplayTeam(userId, { displayTeamId }) {
+      const result = await pool.query(
+        `
+          UPDATE users
+          SET default_team_id = $2
+          WHERE id = $1
+          RETURNING id, email, game_name, tagline, primary_role, secondary_roles, default_team_id, avatar_champion_id, riot_id_correction_count, created_at
+        `,
+        [userId, displayTeamId]
+      );
+      return result.rows[0] ?? null;
+    },
+
+    async updateProfileAvatar(userId, { avatarChampionId }) {
+      const result = await pool.query(
+        `
+          UPDATE users
+          SET avatar_champion_id = $2
+          WHERE id = $1
+          RETURNING id, email, game_name, tagline, primary_role, secondary_roles, default_team_id, avatar_champion_id, riot_id_correction_count, created_at
+        `,
+        [userId, avatarChampionId]
       );
       return result.rows[0] ?? null;
     },
