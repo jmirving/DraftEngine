@@ -2744,48 +2744,21 @@ button.pool-snapshot-order-btn:disabled {
   position: relative;
 }
 
-.my-champ-remove-btn {
-  font-size: 1.1rem;
-  line-height: 1;
-  color: var(--muted);
-  opacity: 0.6;
-}
-
-.my-champ-remove-btn:hover {
-  opacity: 1;
-  color: #c44a26;
-}
-
-/* ── Comfort Level pills ─────────────────────────────── */
-.comfort-pill-group {
-  display: flex;
-  gap: 0.35rem;
-  justify-content: center;
-}
-
-.comfort-pill {
-  appearance: none;
+/* ── Comfort Level select (pill-styled) ──────────────── */
+.comfort-select {
+  display: block;
+  margin: 0 auto;
   border-radius: 999px;
   padding: 0.2rem 0.6rem;
   font-size: 0.78rem;
   font-weight: 600;
   border: 1px solid var(--accent);
-  background: transparent;
-  color: var(--accent);
-  cursor: pointer;
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
-  opacity: 0.6;
-}
-
-.comfort-pill:hover:not(.is-active) {
-  opacity: 1;
-}
-
-.comfort-pill.is-active {
   background: var(--accent);
-  border-color: var(--accent);
   color: #fff;
-  opacity: 1;
+  cursor: pointer;
+  text-align: center;
+  text-align-last: center;
+  max-width: 100%;
 }
 
 /* ── Mastery line on my-champion cards ────────────────── */
@@ -2827,6 +2800,13 @@ button.pool-snapshot-order-btn:disabled {
   gap: 0.25rem;
 }
 
+.champion-selector-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
 .champion-selector-column-label {
   font-size: 0.75rem;
   font-weight: 600;
@@ -2834,6 +2814,11 @@ button.pool-snapshot-order-btn:disabled {
   margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.champion-selector-clear-btn {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
 }
 
 .champion-selector-grid {

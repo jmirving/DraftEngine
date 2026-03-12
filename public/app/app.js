@@ -10946,9 +10946,25 @@ function openChampionSelectorModal() {
   renderChampionSelectorGrid();
 }
 
+function hasChampionSelectorChanges() {
+  const activePlayer = getMyChampionsActivePlayer();
+  if (!activePlayer) return false;
+  const current = [...activePlayer.champions].sort().join(",");
+  const pending = [...state.playerConfig.selectorPending].sort().join(",");
+  return current !== pending;
+}
+
 function closeChampionSelectorModal(cancel) {
-  if (elements.championSelectorModal) elements.championSelectorModal.hidden = true;
-  if (cancel) return;
+  if (cancel) {
+    if (hasChampionSelectorChanges()) {
+      showNavWarning(() => {
+        if (elements.championSelectorModal) elements.championSelectorModal.hidden = true;
+      });
+      return;
+    }
+    if (elements.championSelectorModal) elements.championSelectorModal.hidden = true;
+    return;
+  }
 
   const activePlayer = getMyChampionsActivePlayer();
   if (!activePlayer) return;
@@ -10966,7 +10982,8 @@ function closeChampionSelectorModal(cancel) {
   renderTeamConfig();
   renderBuilder();
   renderMyChampions();
-  renderPlayerConfigFeedback("Unsaved champion changes. Click Save Champions.");
+  if (elements.championSelectorModal) elements.championSelectorModal.hidden = true;
+  void saveActivePlayerPoolSelection();
 }
 
 function renderChampionSelectorGrid() {
@@ -11048,10 +11065,6 @@ function renderMyChampions() {
       activePlayer.familiarityByChampion
     );
   }
-  if (elements.playerConfigSavePool) {
-    elements.playerConfigSavePool.disabled = !activePlayer || !poolDirty || state.playerConfig.isSavingPool;
-    elements.playerConfigSavePool.textContent = state.playerConfig.isSavingPool ? "Saving..." : "Save Champions";
-  }
   if (elements.myChampionsAddBtn) {
     const count = activePlayer ? activePlayer.champions.length : 0;
     elements.myChampionsAddBtn.textContent = `Add Champions (${count} selected)`;
@@ -11130,66 +11143,32 @@ function renderMyChampions() {
 
     cardHeader.append(image, nameWrap);
 
-    // ── Remove button (top-right) ─────────────────────────────────────
-    const removeBtn = runtimeDocument.createElement("button");
-    removeBtn.type = "button";
-    removeBtn.className = "champ-card-edit-btn my-champ-remove-btn";
-    removeBtn.title = "Remove from pool";
-    removeBtn.setAttribute("aria-label", `Remove ${championName} from pool`);
-    removeBtn.textContent = "×";
-    removeBtn.addEventListener("click", () => {
-      activePlayer.champions = activePlayer.champions.filter((c) => c !== championName);
-      activePlayer.familiarityByChampion = normalizeFamiliarityByChampion(
-        activePlayer.champions,
-        activePlayer.familiarityByChampion
-      );
-      setPlayerPoolDirty(state.playerConfig.teamId, true);
-      syncDerivedTeamDataFromPlayerConfig();
-      syncConfiguredTeamSelection();
-      setBuilderStage("setup");
-      resetBuilderTreeState();
-      validateTeamSelections();
-      renderTeamConfig();
-      renderBuilder();
-      renderMyChampions();
-      renderPlayerConfigFeedback("Unsaved champion changes. Click Save Champions.");
-    });
-    cardHeader.append(removeBtn);
-
-    // ── Comfort Level pills ───────────────────────────────────────────
+    // ── Comfort Level select dropdown (pill-styled) ───────────────────
     const comfortSection = runtimeDocument.createElement("div");
     comfortSection.className = "champ-meta-section";
     const comfortLabel = runtimeDocument.createElement("p");
     comfortLabel.className = "champ-meta-label";
     comfortLabel.textContent = "Comfort Level";
-    const comfortPills = runtimeDocument.createElement("div");
-    comfortPills.className = "champ-meta-pills comfort-pill-group";
 
+    const comfortSelect = runtimeDocument.createElement("select");
+    comfortSelect.className = "comfort-select";
     for (const grade of FAMILIARITY_GRADES) {
-      const pill = runtimeDocument.createElement("button");
-      pill.type = "button";
-      pill.className = "comfort-pill" + (grade === currentGrade ? " is-active" : "");
-      pill.textContent = grade;
-      pill.title = getFamiliarityLabel(familiarityGradeToLevel(grade));
-      pill.addEventListener("click", () => {
-        const nextLevel = familiarityGradeToLevel(grade);
-        activePlayer.familiarityByChampion = normalizeFamiliarityByChampion(
-          activePlayer.champions,
-          { ...(activePlayer.familiarityByChampion ?? {}), [championName]: nextLevel }
-        );
-        // Toggle pill classes locally without full re-render
-        for (const p of comfortPills.querySelectorAll(".comfort-pill")) {
-          p.classList.toggle("is-active", p.textContent === grade);
-        }
-        setPlayerPoolDirty(state.playerConfig.teamId, true);
-        if (elements.playerConfigSavePool) {
-          elements.playerConfigSavePool.disabled = state.playerConfig.isSavingPool;
-        }
-        renderPlayerConfigFeedback("Unsaved comfort level changes. Click Save Champions.");
-      });
-      comfortPills.append(pill);
+      const opt = runtimeDocument.createElement("option");
+      opt.value = grade;
+      opt.textContent = `${grade} — ${FAMILIARITY_GRADE_LABELS[grade] ?? ""}`;
+      comfortSelect.append(opt);
     }
-    comfortSection.append(comfortLabel, comfortPills);
+    comfortSelect.value = currentGrade;
+    comfortSelect.addEventListener("change", () => {
+      const nextLevel = familiarityGradeToLevel(comfortSelect.value);
+      activePlayer.familiarityByChampion = normalizeFamiliarityByChampion(
+        activePlayer.champions,
+        { ...(activePlayer.familiarityByChampion ?? {}), [championName]: nextLevel }
+      );
+      setPlayerPoolDirty(state.playerConfig.teamId, true);
+      void saveActivePlayerPoolSelection();
+    });
+    comfortSection.append(comfortLabel, comfortSelect);
 
     // ── Mastery stats (if available) ──────────────────────────────────
     const metaSection = runtimeDocument.createElement("div");

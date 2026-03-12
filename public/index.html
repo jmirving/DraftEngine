@@ -196,9 +196,6 @@
                 </select>
               </div>
               <div id="my-champions-card-grid" class="card-grid"></div>
-              <div class="button-row">
-                <button id="player-config-save-pool" type="button">Save Champions</button>
-              </div>
               <p id="player-config-feedback" class="meta"></p>
             </div>
             <div id="champion-grid-panel" class="panel draft-board-panel" hidden>
@@ -1454,14 +1451,16 @@
               <div id="champion-selector-available" class="champion-selector-grid"></div>
             </div>
             <div class="champion-selector-column">
-              <p class="champion-selector-column-label">Selected</p>
+              <div class="champion-selector-column-header">
+                <p class="champion-selector-column-label">Selected</p>
+                <button id="champion-selector-clear" class="ghost champion-selector-clear-btn" type="button">Clear All</button>
+              </div>
               <div id="champion-selector-selected" class="champion-selector-grid"></div>
             </div>
           </div>
           <div class="button-row champion-selector-actions">
-            <button id="champion-selector-clear" class="ghost" type="button">Clear All</button>
             <button id="champion-selector-cancel" class="ghost" type="button">Cancel</button>
-            <button id="champion-selector-done" type="button">Done</button>
+            <button id="champion-selector-done" type="button">Save</button>
           </div>
         </div>
       </div>
