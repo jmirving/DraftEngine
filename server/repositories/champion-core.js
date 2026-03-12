@@ -81,6 +81,52 @@ export function createChampionCoreRepository(pool) {
       );
 
       return result.rows.map(mapChampionCoreRow);
+    },
+
+    async getChampionCoreByRiotChampionId(riotChampionId) {
+      const result = await pool.query(
+        `
+          SELECT
+            id,
+            normalized_name,
+            name,
+            ddragon_id,
+            riot_champion_id,
+            riot_tags,
+            resource_type,
+            info_attack,
+            info_defense,
+            info_magic,
+            info_difficulty,
+            hp,
+            hpperlevel,
+            mp,
+            mpperlevel,
+            movespeed,
+            armor,
+            armorperlevel,
+            spellblock,
+            spellblockperlevel,
+            attackrange,
+            hpregen,
+            hpregenperlevel,
+            mpregen,
+            mpregenperlevel,
+            crit,
+            critperlevel,
+            attackdamage,
+            attackdamageperlevel,
+            attackspeedperlevel,
+            attackspeed,
+            imported_at,
+            updated_at
+          FROM champion_core
+          WHERE riot_champion_id = $1
+        `,
+        [riotChampionId]
+      );
+
+      return result.rows[0] ? mapChampionCoreRow(result.rows[0]) : null;
     }
   };
 }

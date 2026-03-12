@@ -15,7 +15,11 @@ export function resolveRiotApiKey(env = process.env) {
   return typeof env.RIOT_API_KEY === "string" ? env.RIOT_API_KEY.trim() : "";
 }
 
-export function createRiotChampionStatsServiceForRuntime({ env = process.env, championsRepository } = {}) {
+export function createRiotChampionStatsServiceForRuntime({
+  env = process.env,
+  championCoreRepository,
+  championsRepository
+} = {}) {
   const riotApiKey = resolveRiotApiKey(env);
   const riotApiClient = createRiotApiClient({
     apiKey: riotApiKey,
@@ -27,7 +31,9 @@ export function createRiotChampionStatsServiceForRuntime({ env = process.env, ch
   return createRiotChampionStatsService({
     riotApiClient,
     topChampionCount: env.RIOT_PROFILE_CHAMPION_STATS_LIMIT,
-    lookupChampionById: championsRepository?.getChampionById?.bind(championsRepository)
+    lookupChampionById:
+      championCoreRepository?.getChampionCoreByRiotChampionId?.bind(championCoreRepository) ??
+      championsRepository?.getChampionById?.bind(championsRepository)
   });
 }
 
@@ -37,6 +43,7 @@ export function startServer(env = process.env) {
   const repositories = createRepositories(pool);
   const riotChampionStatsService = createRiotChampionStatsServiceForRuntime({
     env,
+    championCoreRepository: repositories.championCore,
     championsRepository: repositories.champions
   });
   const app = createApp({
