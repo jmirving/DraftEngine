@@ -77,6 +77,7 @@ function createFetchHarness({
   membersByTeam = {},
   teamJoinRequestsByTeam = {},
   memberInvitationsByTeam = {},
+  failMemberInvitationTeamIds = [],
   userInvitationsSeed = null,
   failCreatePoolWith401 = false,
   championIdsAsStrings = false,
@@ -88,6 +89,7 @@ function createFetchHarness({
 } = {}) {
   const calls = [];
   let nextPoolId = pools.length + 1;
+  const failedMemberInvitationTeamIds = new Set((failMemberInvitationTeamIds ?? []).map((teamId) => String(teamId)));
   const memberInvitations = new Map(
     Object.entries(memberInvitationsByTeam).map(([teamId, invitations]) => [String(teamId), [...(invitations ?? [])]])
   );
@@ -1544,6 +1546,9 @@ function createFetchHarness({
     const teamInvitationCollectionMatch = path.match(/^\/teams\/(\d+)\/member-invitations$/);
     if (teamInvitationCollectionMatch && method === "GET") {
       const teamId = teamInvitationCollectionMatch[1];
+      if (failedMemberInvitationTeamIds.has(String(teamId))) {
+        return createJsonResponse({ error: { code: "INTERNAL_ERROR", message: "An unexpected error occurred." } }, 500);
+      }
       const invitations = memberInvitations.get(String(teamId)) ?? [];
       const status = query.get("status");
       return createJsonResponse({
@@ -3582,7 +3587,64 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#team-workspace-manage").textContent).toContain("Teams I Manage");
   });
 
-  test("teams member workspace replaces raw internal invite errors with stable feedback", async () => {
+  test("opening Teams after login auto-refreshes invite sections", async () => {
+    const storage = createStorageStub();
+    const harness = createFetchHarness({
+      loginUser: { id: 11, email: "lead@example.com", role: "member", gameName: "Lead", tagline: "NA1" },
+      profile: {
+        id: 11,
+        email: "lead@example.com",
+        role: "member",
+        gameName: "Lead",
+        tagline: "NA1",
+        primaryRole: "Mid",
+        secondaryRoles: ["Top"]
+      },
+      pools: [],
+      teams: [
+        {
+          id: 1,
+          name: "Team Alpha",
+          tag: "ALPHA",
+          created_by: 11,
+          membership_role: "lead",
+          membership_team_role: "primary",
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      memberInvitationsByTeam: {
+        "1": []
+      },
+      userInvitationsSeed: [],
+      membersByTeam: {
+        "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", display_name: "Lead#NA1", lane: "Mid" }]
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector("#auth-email").value = "lead@example.com";
+    doc.querySelector("#auth-password").value = "strong-pass-123";
+    doc.querySelector("#auth-login").click();
+    await flush();
+
+    doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    await flush();
+
+    expect(doc.querySelector("#team-invite-list-meta").textContent).toContain("Last refreshed");
+    expect(doc.querySelector("#team-invite-user-meta").textContent).toContain("Last refreshed");
+
+    const discoverCalls = harness.calls.filter((call) => call.path === "/teams/discover" && call.method === "GET");
+    const userInviteCalls = harness.calls.filter((call) => call.path === "/me/member-invitations" && call.method === "GET");
+    const sentInviteCalls = harness.calls.filter((call) => call.path === "/teams/1/member-invitations" && call.method === "GET");
+
+    expect(discoverCalls.length).toBeGreaterThan(0);
+    expect(userInviteCalls.length).toBeGreaterThan(0);
+    expect(sentInviteCalls.length).toBeGreaterThan(0);
+  });
+
+  test("teams member workspace shows refresh failures instead of stale not-refreshed copy", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -3612,6 +3674,7 @@ describe("auth + pools + team management", () => {
           created_at: "2026-01-01T00:00:00.000Z"
         }
       ],
+      failMemberInvitationTeamIds: [1],
       membersByTeam: {
         "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", display_name: "Lead#NA1", lane: "Mid" }]
       }
@@ -3622,6 +3685,10 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
     await flush();
 
+    expect(doc.querySelector("#team-invite-list-meta").textContent).toBe("Refresh failed.");
+    expect(doc.querySelector("#team-invite-list-feedback").textContent).toBe("Couldn't refresh sent invites. Try again.");
+    expect(doc.querySelector("#team-invite-list-meta").textContent).not.toContain("Not refreshed yet");
+    expect(doc.querySelector("#team-invite-user-meta").textContent).toBe("Refresh failed.");
     expect(doc.querySelector("#team-invite-user-feedback").textContent).toBe("Couldn't refresh invites. Try again.");
     expect(doc.querySelector("#team-invite-user-feedback").textContent).not.toContain("An unexpected error occurred");
   });

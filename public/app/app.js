@@ -528,8 +528,10 @@ function createInitialState() {
       isLoadingJoinRequests: false,
       invitationsByTeamId: {},
       teamInvitationsLoadedAtByTeamId: {},
+      teamInvitationsLoadErrorByTeamId: {},
       userInvitations: [],
       userInvitationsLoadedAt: null,
+      userInvitationsLoadError: false,
       isLoadingTeamInvitations: false,
       isLoadingUserInvitations: false,
       issueReporting: createEmptyIssueReportingState(),
@@ -915,6 +917,7 @@ function createElements() {
     teamInviteRefresh: runtimeDocument.querySelector("#team-invite-refresh"),
     teamInviteList: runtimeDocument.querySelector("#team-invite-list"),
     teamInviteListMeta: runtimeDocument.querySelector("#team-invite-list-meta"),
+    teamInviteListFeedback: runtimeDocument.querySelector("#team-invite-list-feedback"),
     teamInviteUserRefresh: runtimeDocument.querySelector("#team-invite-user-refresh"),
     teamInviteUserMeta: runtimeDocument.querySelector("#team-invite-user-meta"),
     teamInviteUserList: runtimeDocument.querySelector("#team-invite-user-list"),
@@ -1115,6 +1118,12 @@ function setTeamJoinFeedback(message) {
 function setTeamInviteFeedback(message) {
   if (elements.teamInviteFeedback) {
     elements.teamInviteFeedback.textContent = message;
+  }
+}
+
+function setTeamInviteListFeedback(message) {
+  if (elements.teamInviteListFeedback) {
+    elements.teamInviteListFeedback.textContent = message;
   }
 }
 
@@ -2477,8 +2486,10 @@ function clearAuthSession(feedback = "") {
   state.api.isLoadingJoinRequests = false;
   state.api.invitationsByTeamId = {};
   state.api.teamInvitationsLoadedAtByTeamId = {};
+  state.api.teamInvitationsLoadErrorByTeamId = {};
   state.api.userInvitations = [];
   state.api.userInvitationsLoadedAt = null;
+  state.api.userInvitationsLoadError = false;
   state.api.selectedDiscoverTeamId = "";
   state.api.users = [];
   state.api.championCore = [];
@@ -3177,6 +3188,9 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
   if (resolvedTab === "team-config" && state.data) {
     renderTeamConfig();
     renderTeamAdmin();
+    if (isAuthenticated() && tabChanged) {
+      void refreshTeamWorkspaceDataForActiveTab();
+    }
   }
   if (resolvedTab === "profile" && state.data) {
     renderPlayerConfig();
@@ -9720,6 +9734,7 @@ function renderTeamInviteList(selectedTeam) {
     return;
   }
   elements.teamInviteList.innerHTML = "";
+  const selectedTeamId = selectedTeam ? String(selectedTeam.id) : "";
 
   const isAuth = isAuthenticated();
   if (elements.teamInviteRefresh) {
@@ -9732,11 +9747,22 @@ function renderTeamInviteList(selectedTeam) {
     } else if (!selectedTeam) {
       elements.teamInviteListMeta.textContent = "Select a managed team.";
     } else {
-      const invitations = getTeamInviteList(selectedTeam);
-      const loadedAt = formatTimestampMeta(state.api.teamInvitationsLoadedAtByTeamId[String(selectedTeam.id)]);
+      const loadedAt = formatTimestampMeta(state.api.teamInvitationsLoadedAtByTeamId[selectedTeamId]);
+      const loadFailed = state.api.teamInvitationsLoadErrorByTeamId[selectedTeamId] === true;
       elements.teamInviteListMeta.textContent = loadedAt
         ? `Last refreshed ${loadedAt}.`
-        : (state.api.isLoadingTeamInvitations ? "Refreshing..." : "Not refreshed yet.");
+        : state.api.isLoadingTeamInvitations
+          ? "Refreshing..."
+          : loadFailed
+            ? "Refresh failed."
+            : "Not refreshed yet.";
+    }
+  }
+
+  if (elements.teamInviteListFeedback) {
+    const hasVisibleError = Boolean(selectedTeamId) && state.api.teamInvitationsLoadErrorByTeamId[selectedTeamId] === true;
+    if (!isAuth || !hasVisibleError) {
+      elements.teamInviteListFeedback.textContent = "";
     }
   }
 
@@ -9862,7 +9888,11 @@ function renderTeamInviteUserList() {
     const loadedAt = formatTimestampMeta(state.api.userInvitationsLoadedAt);
     elements.teamInviteUserMeta.textContent = loadedAt
       ? `Last refreshed ${loadedAt}.`
-      : (state.api.isLoadingUserInvitations ? "Refreshing..." : "Not refreshed yet.");
+      : state.api.isLoadingUserInvitations
+        ? "Refreshing..."
+        : state.api.userInvitationsLoadError
+          ? "Refresh failed."
+          : "Not refreshed yet.";
   }
   if (invitations.length === 0) {
     const empty = runtimeDocument.createElement("p");
@@ -9945,6 +9975,7 @@ async function loadMemberInvitationsForSelectedTeam({ status = "pending" } = {})
 
   const teamId = selectedTeam.id;
   state.api.isLoadingTeamInvitations = true;
+  state.api.teamInvitationsLoadErrorByTeamId[String(teamId)] = false;
   renderTeamInviteList(selectedTeam);
 
   try {
@@ -9953,10 +9984,14 @@ async function loadMemberInvitationsForSelectedTeam({ status = "pending" } = {})
     state.api.invitationsByTeamId[String(teamId)] = invitations;
     state.api.teamInvitationsLoadedAtByTeamId[String(teamId)] = new Date().toISOString();
     setTeamInviteFeedback("");
+    setTeamInviteListFeedback("");
     return true;
   } catch (error) {
+    const message = normalizePassiveApiErrorMessage(error, "Couldn't refresh sent invites. Try again.");
     state.api.invitationsByTeamId[String(teamId)] = [];
-    setTeamInviteFeedback(normalizeApiErrorMessage(error, "Failed to load team invitations."));
+    state.api.teamInvitationsLoadErrorByTeamId[String(teamId)] = true;
+    setTeamInviteFeedback(message);
+    setTeamInviteListFeedback(message);
     return false;
   } finally {
     state.api.isLoadingTeamInvitations = false;
@@ -9968,21 +10003,25 @@ async function loadInvitationsForUser({ status = "pending" } = {}) {
   if (!isAuthenticated()) {
     state.api.userInvitations = [];
     state.api.userInvitationsLoadedAt = null;
+    state.api.userInvitationsLoadError = false;
     return false;
   }
 
   state.api.isLoadingUserInvitations = true;
+  state.api.userInvitationsLoadError = false;
   renderTeamInviteUserList();
 
   try {
     const payload = await apiRequest(`/me/member-invitations?status=${status}`, { auth: true });
     state.api.userInvitations = Array.isArray(payload?.invitations) ? payload.invitations : [];
     state.api.userInvitationsLoadedAt = new Date().toISOString();
+    state.api.userInvitationsLoadError = false;
     setTeamInviteUserFeedback("");
     return true;
   } catch (error) {
     state.api.userInvitations = [];
     state.api.userInvitationsLoadedAt = null;
+    state.api.userInvitationsLoadError = true;
     setTeamInviteUserFeedback(normalizePassiveApiErrorMessage(error, "Couldn't refresh invites. Try again."));
     return false;
   } finally {
@@ -13913,7 +13952,15 @@ async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAd
   await loadTeamContextFromApi();
   await loadTagCatalogFromApi();
   await hydrateCompositionsWorkspaceFromApi();
-  await loadInvitationsForUser();
+  const teamWorkspaceRefreshJobs = [
+    loadDiscoverTeamsFromApi(),
+    loadInvitationsForUser()
+  ];
+  if (canReviewSelectedTeam()) {
+    teamWorkspaceRefreshJobs.push(loadPendingJoinRequestsForSelectedTeam());
+    teamWorkspaceRefreshJobs.push(loadMemberInvitationsForSelectedTeam());
+  }
+  await Promise.all(teamWorkspaceRefreshJobs);
   if (isAdminUser()) {
     await loadUsersFromApi();
   } else {
