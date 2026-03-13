@@ -3940,11 +3940,11 @@ button.pool-snapshot-order-btn:disabled {
 .ced-scope-panel {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 0.35rem;
   padding: 0.5rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--bg);
   flex: 1;
 }
 
