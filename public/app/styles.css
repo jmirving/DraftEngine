@@ -4117,10 +4117,10 @@ body.has-modal-open {
   flex-direction: column;
   justify-content: center;
   gap: 0.35rem;
-  padding: 0.5rem 0.6rem;
+  padding: 0.25rem 0.35rem 0.5rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: 10px;
-  flex: 1;
+  flex: 0 0 auto;
 }
 
 /* Inline row: "Editing [select] [i]" */
