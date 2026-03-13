@@ -2729,6 +2729,8 @@ button.pool-snapshot-order-btn:disabled {
   gap: 0.5rem;
   margin-bottom: 0.65rem;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 5;
 }
 
 .my-champions-filter-row input[type="search"] {
@@ -4204,12 +4206,14 @@ button.pool-snapshot-order-btn:disabled {
 /* ── Card ruler-style level bar ────────────────────────────────────── */
 .champ-ruler {
   width: 100%;
+  padding: 0 0.15rem;
 }
 .champ-ruler-track {
   position: relative;
-  height: 6px;
+  height: 8px;
   background: var(--surface-strong, #eae6dc);
-  border-radius: 3px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
   overflow: hidden;
 }
 .champ-ruler-bar {
@@ -4217,26 +4221,20 @@ button.pool-snapshot-order-btn:disabled {
   top: 0;
   height: 100%;
   background: #6dbe82;
-  border-radius: 3px;
 }
 .champ-ruler-ticks {
   display: flex;
   justify-content: space-between;
-  padding: 0 1px;
-  margin-top: 1px;
+  padding: 0;
+  margin-top: 2px;
 }
 .champ-ruler-tick {
-  font-size: 0.5rem;
+  font-size: 0.55rem;
+  font-weight: 600;
   color: var(--muted);
   text-align: center;
-  width: 0;
-  overflow: visible;
+  flex: 1 1 0;
   white-space: nowrap;
-}
-.champ-spike-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
 }
 
 @media (max-width: 680px) {

@@ -11670,36 +11670,6 @@ function renderExplorer() {
       if (cardPowerSpikes.length === 0 && profile?.effectiveness) {
         cardPowerSpikes = powerSpikesFromLegacyEffectiveness(profile.effectiveness);
       }
-      // Power Spikes: ruler-style level bar
-      const spikeElements = [];
-      {
-        const ruler = runtimeDocument.createElement("div");
-        ruler.className = "champ-ruler";
-        const track = runtimeDocument.createElement("div");
-        track.className = "champ-ruler-track";
-        // Green progress bar segments for active ranges
-        for (const range of cardPowerSpikes) {
-          const bar = runtimeDocument.createElement("div");
-          bar.className = "champ-ruler-bar";
-          const leftPct = ((range.start - 1) / POWER_SPIKE_MAX_LEVEL) * 100;
-          const widthPct = ((range.end - range.start + 1) / POWER_SPIKE_MAX_LEVEL) * 100;
-          bar.style.left = `${leftPct}%`;
-          bar.style.width = `${widthPct}%`;
-          track.append(bar);
-        }
-        ruler.append(track);
-        // Tick marks with numbers
-        const ticks = runtimeDocument.createElement("div");
-        ticks.className = "champ-ruler-ticks";
-        for (let lvl = POWER_SPIKE_MIN_LEVEL; lvl <= POWER_SPIKE_MAX_LEVEL; lvl++) {
-          const tick = runtimeDocument.createElement("span");
-          tick.className = "champ-ruler-tick";
-          tick.textContent = String(lvl);
-          ticks.append(tick);
-        }
-        ruler.append(ticks);
-        spikeElements.push(ruler);
-      }
 
       const damagePills = damageType
         ? [makePill(damageType, `champ-damage-${damageType.toLowerCase()}`)]
@@ -11707,9 +11677,38 @@ function renderExplorer() {
 
       meta.append(
         makeMetaSection("Role(s)", roleBtns, "champ-role-pill-row"),
-        makeMetaSection("Damage Type", damagePills),
-        makeMetaSection("Power Spikes", spikeElements, "champ-spike-section")
+        makeMetaSection("Damage Type", damagePills)
       );
+
+      // Power Spikes: ruler-style level bar — appended directly to meta for full width
+      const spikeLabel = runtimeDocument.createElement("p");
+      spikeLabel.className = "champ-meta-label";
+      spikeLabel.textContent = "Power Spikes";
+      const ruler = runtimeDocument.createElement("div");
+      ruler.className = "champ-ruler";
+      const track = runtimeDocument.createElement("div");
+      track.className = "champ-ruler-track";
+      for (const range of cardPowerSpikes) {
+        const bar = runtimeDocument.createElement("div");
+        bar.className = "champ-ruler-bar";
+        const leftPct = ((range.start - 1) / POWER_SPIKE_MAX_LEVEL) * 100;
+        const widthPct = ((range.end - range.start + 1) / POWER_SPIKE_MAX_LEVEL) * 100;
+        bar.style.left = `${leftPct}%`;
+        bar.style.width = `${widthPct}%`;
+        track.append(bar);
+      }
+      ruler.append(track);
+      // Tick marks with level numbers
+      const ticks = runtimeDocument.createElement("div");
+      ticks.className = "champ-ruler-ticks";
+      for (let lvl = POWER_SPIKE_MIN_LEVEL; lvl <= POWER_SPIKE_MAX_LEVEL; lvl++) {
+        const tick = runtimeDocument.createElement("span");
+        tick.className = "champ-ruler-tick";
+        tick.textContent = String(lvl);
+        ticks.append(tick);
+      }
+      ruler.append(ticks);
+      meta.append(spikeLabel, ruler);
       return meta;
     };
 
