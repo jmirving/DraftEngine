@@ -28,8 +28,25 @@ function buildIssueBody({
   description,
   reporterEmail,
   reporterGameName,
-  authenticatedEmail
+  authenticatedEmail,
+  sourceContext
 }) {
+  const sourceLines = [];
+  if (sourceContext && typeof sourceContext === "object") {
+    if (sourceContext.pageLabel || sourceContext.page) {
+      sourceLines.push(`Source page: ${sourceContext.pageLabel || sourceContext.page}`);
+    }
+    if (sourceContext.tabLabel || sourceContext.tab) {
+      sourceLines.push(`Source tab: ${sourceContext.tabLabel || sourceContext.tab}`);
+    }
+    if (sourceContext.detailLabel) {
+      sourceLines.push(`Source detail: ${sourceContext.detailLabel}`);
+    }
+    if (sourceContext.routeHash) {
+      sourceLines.push(`Source route: ${sourceContext.routeHash}`);
+    }
+  }
+
   const lines = [
     "Submitted from the DraftEngine in-app issue form.",
     "",
@@ -37,6 +54,7 @@ function buildIssueBody({
     `Reporter email: ${reporterEmail || "(not provided)"}`,
     `Reporter game name: ${reporterGameName || "(not provided)"}`,
     `Authenticated account email: ${authenticatedEmail || "(not provided)"}`,
+    ...sourceLines,
     "",
     "Description:",
     description
@@ -113,7 +131,8 @@ export function createGitHubIssueReporter({
       type,
       reporterEmail = "",
       reporterGameName = "",
-      authenticatedEmail = ""
+      authenticatedEmail = "",
+      sourceContext = null
     } = {}) {
       const normalizedTitle = normalizeOptionalString(title);
       const normalizedDescription = normalizeOptionalString(description);
@@ -147,7 +166,8 @@ export function createGitHubIssueReporter({
             description: normalizedDescription,
             reporterEmail: normalizedReporterEmail,
             reporterGameName: normalizedReporterGameName,
-            authenticatedEmail: normalizedAuthenticatedEmail
+            authenticatedEmail: normalizedAuthenticatedEmail,
+            sourceContext
           })
         })
       });

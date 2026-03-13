@@ -313,6 +313,46 @@ const TAB_ROUTES = Object.freeze([
 const TAB_ROUTE_SET = new Set(TAB_ROUTES);
 const LANE_ORDER = Object.freeze(["Top", "Jungle", "Mid", "ADC", "Support"]);
 const DEFAULT_ISSUE_REPORTING_FALLBACK_URL = "https://github.com/jmirving/DraftEngine/issues/new/choose";
+const ISSUE_REPORT_PAGE_LABELS = Object.freeze({
+  workflow: "Composer",
+  "team-config": "Teams",
+  profile: "Profile",
+  explorer: "Champions",
+  tags: "Champion Tags",
+  users: "Users",
+  "champion-core": "Champion Core",
+  requirements: "Requirements",
+  compositions: "Compositions",
+  "coming-soon": "Updates"
+});
+const ISSUE_REPORT_TEAM_TAB_LABELS = Object.freeze({
+  [TEAM_WORKSPACE_TAB_MEMBER]: "Member",
+  [TEAM_WORKSPACE_TAB_MANAGE]: "Manage",
+  [TEAM_WORKSPACE_TAB_CREATE]: "Create"
+});
+const ISSUE_REPORT_UPDATES_TAB_LABELS = Object.freeze({
+  [UPDATES_RELEASE_TAB_WHATS_NEW]: "What's New",
+  [UPDATES_RELEASE_TAB_COMING_SOON]: "Coming Soon",
+  [UPDATES_RELEASE_TAB_PREVIOUS]: "Previous Release Notes"
+});
+const ISSUE_REPORT_EXPLORER_TAB_LABELS = Object.freeze({
+  "my-champions": "My Champions",
+  "edit-champions": "Edit Champions"
+});
+const ISSUE_REPORT_PROFILE_TAB_LABELS = Object.freeze({
+  account: "Account",
+  "display-team": "Display Team",
+  roles: "Roles",
+  "admin-users": "Admin Users",
+  "admin-champion-core": "Champion Core"
+});
+const ISSUE_REPORT_TEAM_ACTION_LABELS = Object.freeze({
+  [TEAM_MANAGE_ACTION_TEAM_SETTINGS]: "Team Settings",
+  [TEAM_MANAGE_ACTION_ADD_MEMBER]: "Add Member",
+  [TEAM_MANAGE_ACTION_UPDATE_MEMBER_ROLE]: "Update Member Role",
+  [TEAM_MANAGE_ACTION_UPDATE_TEAM_ROLE]: "Update Team Role",
+  [TEAM_MANAGE_ACTION_REMOVE_MEMBER]: "Remove Member"
+});
 
 let runtimeWindow = null;
 let runtimeDocument = null;
@@ -438,7 +478,9 @@ function createEmptyIssueReportingState() {
     fallbackUrl: DEFAULT_ISSUE_REPORTING_FALLBACK_URL,
     isLoading: false,
     isSubmitting: false,
-    lastIssueUrl: ""
+    isOpen: false,
+    lastIssueUrl: "",
+    sourceContext: null
   };
 }
 
@@ -855,7 +897,7 @@ function createElements() {
     teamJoinRequest: runtimeDocument.querySelector("#team-join-request"),
     teamJoinCancel: runtimeDocument.querySelector("#team-join-cancel"),
     teamJoinDiscoverMeta: runtimeDocument.querySelector("#team-join-discover-meta"),
-    teamJoinLoadReview: runtimeDocument.querySelector("#team-join-load-review"),
+    teamJoinReviewRefresh: runtimeDocument.querySelector("#team-join-review-refresh"),
     teamJoinReviewMeta: runtimeDocument.querySelector("#team-join-review-meta"),
     teamJoinReviewList: runtimeDocument.querySelector("#team-join-review-list"),
     teamJoinFeedback: runtimeDocument.querySelector("#team-join-feedback"),
@@ -867,24 +909,26 @@ function createElements() {
     teamInviteSend: runtimeDocument.querySelector("#team-invite-send"),
     teamInviteClear: runtimeDocument.querySelector("#team-invite-clear"),
     teamInviteFeedback: runtimeDocument.querySelector("#team-invite-feedback"),
-    teamInviteLoad: runtimeDocument.querySelector("#team-invite-load"),
+    teamInviteRefresh: runtimeDocument.querySelector("#team-invite-refresh"),
     teamInviteList: runtimeDocument.querySelector("#team-invite-list"),
     teamInviteListMeta: runtimeDocument.querySelector("#team-invite-list-meta"),
-    teamInviteUserLoad: runtimeDocument.querySelector("#team-invite-user-load"),
+    teamInviteUserRefresh: runtimeDocument.querySelector("#team-invite-user-refresh"),
     teamInviteUserMeta: runtimeDocument.querySelector("#team-invite-user-meta"),
     teamInviteUserList: runtimeDocument.querySelector("#team-invite-user-list"),
     teamInviteUserFeedback: runtimeDocument.querySelector("#team-invite-user-feedback"),
+    issueReportModal: runtimeDocument.querySelector("#issue-report-modal"),
     issueReportPanel: runtimeDocument.querySelector("#issue-report-panel"),
     issueReportTitle: runtimeDocument.querySelector("#issue-report-title"),
     issueReportMeta: runtimeDocument.querySelector("#issue-report-meta"),
+    issueReportSource: runtimeDocument.querySelector("#issue-report-source"),
     issueReportFallbackLink: runtimeDocument.querySelector("#issue-report-fallback-link"),
     issueReportType: runtimeDocument.querySelector("#issue-report-type"),
     issueReportEmail: runtimeDocument.querySelector("#issue-report-email"),
     issueReportGameName: runtimeDocument.querySelector("#issue-report-game-name"),
     issueReportSubject: runtimeDocument.querySelector("#issue-report-subject"),
     issueReportDescription: runtimeDocument.querySelector("#issue-report-description"),
+    issueReportCancel: runtimeDocument.querySelector("#issue-report-cancel"),
     issueReportSubmit: runtimeDocument.querySelector("#issue-report-submit"),
-    issueReportReset: runtimeDocument.querySelector("#issue-report-reset"),
     issueReportFeedback: runtimeDocument.querySelector("#issue-report-feedback"),
     teamActivityTeamsSummary: runtimeDocument.querySelector("#team-activity-teams-summary"),
     teamActivityTeamsList: runtimeDocument.querySelector("#team-activity-teams-list"),
@@ -2436,6 +2480,13 @@ function clearAuthSession(feedback = "") {
   state.api.championCoreSearch = "";
   state.api.isLoadingChampionCore = false;
   state.api.isLoadingUsers = false;
+  state.api.issueReporting = {
+    ...state.api.issueReporting,
+    isOpen: false,
+    isSubmitting: false,
+    lastIssueUrl: "",
+    sourceContext: null
+  };
   state.api.usersSearch = "";
   state.api.usersRoleFilter = "";
   state.api.bulkUserRole = "member";
@@ -2463,6 +2514,7 @@ function clearAuthSession(feedback = "") {
   clearTagsManagerState();
   resetIssueReportForm({ preserveIdentity: false });
   setIssueReportFeedback("");
+  updateBodyModalState();
   setUsersFeedback("");
   setChampionCoreFeedback("");
   setRequirementsFeedback("");
@@ -4074,6 +4126,67 @@ function normalizeIssueReportingConfig(rawIssueReporting) {
   };
 }
 
+function buildIssueSourceSummary(sourceContext) {
+  if (!sourceContext || typeof sourceContext !== "object") {
+    return "";
+  }
+  const parts = [
+    typeof sourceContext.pageLabel === "string" ? sourceContext.pageLabel.trim() : "",
+    typeof sourceContext.tabLabel === "string" ? sourceContext.tabLabel.trim() : "",
+    typeof sourceContext.detailLabel === "string" ? sourceContext.detailLabel.trim() : ""
+  ].filter(Boolean);
+  return parts.join(" / ");
+}
+
+function captureIssueReportingSourceContext() {
+  const page = resolveTabRoute(state.activeTab);
+  const pageLabel = ISSUE_REPORT_PAGE_LABELS[page] ?? "DraftEngine";
+  let tab = "";
+  let tabLabel = "";
+  let detailLabel = "";
+
+  if (page === "team-config") {
+    tab = TEAM_WORKSPACE_TAB_SET.has(state.ui.teamWorkspaceTab) ? state.ui.teamWorkspaceTab : TEAM_WORKSPACE_TAB_DEFAULT;
+    tabLabel = ISSUE_REPORT_TEAM_TAB_LABELS[tab] ?? "Teams";
+    if (tab === TEAM_WORKSPACE_TAB_MANAGE && TEAM_MANAGE_ACTION_SET.has(state.ui.teamManageAction)) {
+      detailLabel = ISSUE_REPORT_TEAM_ACTION_LABELS[state.ui.teamManageAction] ?? "";
+    }
+  } else if (page === "coming-soon") {
+    tab = UPDATES_RELEASE_TAB_SET.has(state.ui.updatesReleaseTab) ? state.ui.updatesReleaseTab : UPDATES_RELEASE_TAB_DEFAULT;
+    tabLabel = ISSUE_REPORT_UPDATES_TAB_LABELS[tab] ?? "Updates";
+  } else if (page === "explorer") {
+    tab = typeof state.explorer.subTab === "string" ? state.explorer.subTab : "";
+    tabLabel = ISSUE_REPORT_EXPLORER_TAB_LABELS[tab] ?? "";
+  } else if (page === "profile") {
+    tab = typeof state.profile.openSetting === "string" ? state.profile.openSetting : "";
+    tabLabel = ISSUE_REPORT_PROFILE_TAB_LABELS[tab] ?? "";
+  }
+
+  const context = {
+    page,
+    pageLabel,
+    routeHash: formatTabRouteHash(page)
+  };
+  if (tab) {
+    context.tab = tab;
+  }
+  if (tabLabel) {
+    context.tabLabel = tabLabel;
+  }
+  if (detailLabel) {
+    context.detailLabel = detailLabel;
+  }
+  return context;
+}
+
+function updateBodyModalState() {
+  if (!runtimeDocument?.body) {
+    return;
+  }
+  const issueModalOpen = state?.api?.issueReporting?.isOpen === true;
+  runtimeDocument.body.classList.toggle("has-modal-open", issueModalOpen);
+}
+
 function getAuthenticatedReporterGameName() {
   const gameName = typeof state?.auth?.user?.gameName === "string" ? state.auth.user.gameName.trim() : "";
   const tagline = typeof state?.auth?.user?.tagline === "string" ? state.auth.user.tagline.trim() : "";
@@ -4420,13 +4533,17 @@ function renderUserDetailContent(userId, container) {
 }
 
 function renderIssueReportingPanel() {
-  if (!elements.issueReportPanel) {
+  if (!elements.issueReportPanel || !elements.issueReportModal) {
     return;
   }
 
   seedIssueReportIdentityFields();
   const issueReporting = state.api.issueReporting ?? createEmptyIssueReportingState();
   const fallbackUrl = issueReporting.fallbackUrl || DEFAULT_ISSUE_REPORTING_FALLBACK_URL;
+  const sourceSummary = buildIssueSourceSummary(issueReporting.sourceContext);
+
+  elements.issueReportModal.hidden = !issueReporting.isOpen;
+  updateBodyModalState();
 
   if (elements.issueReportFallbackLink) {
     elements.issueReportFallbackLink.href = fallbackUrl;
@@ -4441,6 +4558,11 @@ function renderIssueReportingPanel() {
     } else {
       elements.issueReportMeta.textContent = "Direct submission is unavailable on this deployment. Use the GitHub fallback link instead.";
     }
+  }
+  if (elements.issueReportSource) {
+    elements.issueReportSource.textContent = sourceSummary
+      ? `Opened from ${sourceSummary}.`
+      : "Opened from DraftEngine.";
   }
 
   const canSubmit = issueReporting.enabled && !issueReporting.isLoading && !issueReporting.isSubmitting;
@@ -4459,19 +4581,28 @@ function renderIssueReportingPanel() {
     elements.issueReportSubmit.disabled = !canSubmit;
     elements.issueReportSubmit.textContent = issueReporting.isSubmitting ? "Submitting..." : "Submit Issue";
   }
-  if (elements.issueReportReset) {
-    elements.issueReportReset.disabled = issueReporting.isSubmitting;
+  if (elements.issueReportCancel) {
+    elements.issueReportCancel.disabled = issueReporting.isSubmitting;
   }
 }
 
 function openIssueReportingPanel() {
-  setTab("coming-soon", { syncRoute: true });
-  if (elements.issueReportPanel?.scrollIntoView) {
-    elements.issueReportPanel.scrollIntoView({ block: "start", behavior: "smooth" });
-  }
+  state.api.issueReporting.sourceContext = captureIssueReportingSourceContext();
+  state.api.issueReporting.isOpen = true;
+  setIssueReportFeedback("");
+  resetIssueReportForm();
+  renderIssueReportingPanel();
   if (elements.issueReportSubject) {
     elements.issueReportSubject.focus();
   }
+}
+
+function closeIssueReportingPanel() {
+  state.api.issueReporting.isOpen = false;
+  state.api.issueReporting.isSubmitting = false;
+  resetIssueReportForm();
+  setIssueReportFeedback("");
+  renderIssueReportingPanel();
 }
 
 async function loadIssueReportingStatusFromApi() {
@@ -4531,7 +4662,8 @@ async function submitIssueReport() {
         description,
         type,
         reporterEmail,
-        reporterGameName
+        reporterGameName,
+        sourceContext: state.api.issueReporting.sourceContext
       }
     });
     const issueUrl = typeof payload?.issue?.url === "string" ? payload.issue.url.trim() : "";
@@ -9430,14 +9562,14 @@ function renderTeamJoinWorkspace(selectedTeam) {
   }
 
   const canReview = Boolean(selectedTeam) && (selectedTeam.membership_role === "lead" || isAdminUser());
-  if (elements.teamJoinLoadReview) {
-    elements.teamJoinLoadReview.disabled = !isAuthenticated() || !canReview;
+  if (elements.teamJoinReviewRefresh) {
+    elements.teamJoinReviewRefresh.disabled = !isAuthenticated() || !canReview || state.api.isLoadingJoinRequests;
   }
   if (elements.teamJoinReviewMeta) {
     if (!isAuthenticated()) {
-      elements.teamJoinReviewMeta.textContent = "Sign in to load join request review data.";
+      elements.teamJoinReviewMeta.textContent = "Sign in to review join requests.";
     } else if (!selectedTeam) {
-      elements.teamJoinReviewMeta.textContent = "Select a managed team to review pending requests.";
+      elements.teamJoinReviewMeta.textContent = "Select a managed team.";
     } else if (!canReview) {
       elements.teamJoinReviewMeta.textContent = "Only leads and admins can review requests for this team.";
     } else {
@@ -9446,7 +9578,7 @@ function renderTeamJoinWorkspace(selectedTeam) {
       const countLabel = `${requests.length} pending request${requests.length === 1 ? "" : "s"}`;
       elements.teamJoinReviewMeta.textContent = loadedAt
         ? `${countLabel}. Last refreshed ${loadedAt}.`
-        : `${countLabel}. Auto-refresh runs when you open or switch team context.`;
+        : `${countLabel}. Auto-refresh on open or team switch.`;
     }
   }
   if (!elements.teamJoinReviewList) {
@@ -9558,25 +9690,29 @@ function renderTeamInviteList(selectedTeam) {
   elements.teamInviteList.innerHTML = "";
 
   const isAuth = isAuthenticated();
+  if (elements.teamInviteRefresh) {
+    elements.teamInviteRefresh.disabled =
+      !isAuth || !selectedTeam || state.api.isLoadingTeamInvitations;
+  }
   if (elements.teamInviteListMeta) {
     if (!isAuth) {
-      elements.teamInviteListMeta.textContent = "Sign in to view team invitations.";
+      elements.teamInviteListMeta.textContent = "Sign in to view sent invites.";
     } else if (!selectedTeam) {
-      elements.teamInviteListMeta.textContent = "Select a team to view invitations.";
+      elements.teamInviteListMeta.textContent = "Select a managed team.";
     } else {
       const invitations = getTeamInviteList(selectedTeam);
       const loadedAt = formatTimestampMeta(state.api.teamInvitationsLoadedAtByTeamId[String(selectedTeam.id)]);
-      const countLabel = `${invitations.length} invite${invitations.length === 1 ? "" : "s"} loaded`;
+      const countLabel = `${invitations.length} sent invite${invitations.length === 1 ? "" : "s"}`;
       elements.teamInviteListMeta.textContent = loadedAt
-        ? `${countLabel} for ${formatTeamCardTitle(selectedTeam)}. Last refreshed ${loadedAt}.`
-        : `Auto-refresh runs when you open Manage or switch teams.`;
+        ? `${countLabel}. Last refreshed ${loadedAt}.`
+        : "Auto-refresh on open or team switch.";
     }
   }
 
   if (!isAuth) {
     const message = runtimeDocument.createElement("p");
     message.className = "meta";
-    message.textContent = "Sign in to view team invitations.";
+    message.textContent = "Sign in to view sent invites.";
     elements.teamInviteList.append(message);
     return;
   }
@@ -9584,7 +9720,7 @@ function renderTeamInviteList(selectedTeam) {
   if (!selectedTeam) {
     const message = runtimeDocument.createElement("p");
     message.className = "meta";
-    message.textContent = "Select a team to view pending invitations.";
+    message.textContent = "Select a managed team.";
     elements.teamInviteList.append(message);
     return;
   }
@@ -9601,7 +9737,7 @@ function renderTeamInviteList(selectedTeam) {
   if (invitations.length === 0) {
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
-    empty.textContent = "No pending invitations. Send a new invite to get started.";
+    empty.textContent = "No sent invites.";
     elements.teamInviteList.append(empty);
     return;
   }
@@ -9667,14 +9803,17 @@ function renderTeamInviteUserList() {
   if (elements.teamInviteUserFeedback && !isAuthenticated()) {
     elements.teamInviteUserFeedback.textContent = "";
   }
+  if (elements.teamInviteUserRefresh) {
+    elements.teamInviteUserRefresh.disabled = !isAuthenticated() || state.api.isLoadingUserInvitations;
+  }
   if (elements.teamInviteUserMeta && !isAuthenticated()) {
-    elements.teamInviteUserMeta.textContent = "Sign in to review incoming invitations.";
+    elements.teamInviteUserMeta.textContent = "Sign in to review invites.";
   }
 
   if (!isAuthenticated()) {
     const message = runtimeDocument.createElement("p");
     message.className = "meta";
-    message.textContent = "Sign in to review incoming invitations.";
+    message.textContent = "Sign in to review invites.";
     elements.teamInviteUserList.append(message);
     return;
   }
@@ -9690,10 +9829,10 @@ function renderTeamInviteUserList() {
   const invitations = Array.isArray(state.api.userInvitations) ? state.api.userInvitations : [];
   if (elements.teamInviteUserMeta) {
     const loadedAt = formatTimestampMeta(state.api.userInvitationsLoadedAt);
-    const countLabel = `${invitations.length} invitation${invitations.length === 1 ? "" : "s"} loaded`;
+    const countLabel = `${invitations.length} invite${invitations.length === 1 ? "" : "s"}`;
     elements.teamInviteUserMeta.textContent = loadedAt
       ? `${countLabel}. Last refreshed ${loadedAt}.`
-      : "Auto-refresh runs when you open Teams or respond to an invitation.";
+      : "Auto-refresh on open or response.";
   }
   if (invitations.length === 0) {
     const empty = runtimeDocument.createElement("p");
@@ -9783,7 +9922,7 @@ async function loadMemberInvitationsForSelectedTeam({ status = "pending" } = {})
     const invitations = Array.isArray(payload?.invitations) ? payload.invitations : [];
     state.api.invitationsByTeamId[String(teamId)] = invitations;
     state.api.teamInvitationsLoadedAtByTeamId[String(teamId)] = new Date().toISOString();
-    setTeamInviteFeedback("Team invitations loaded.");
+    setTeamInviteFeedback("");
     return true;
   } catch (error) {
     state.api.invitationsByTeamId[String(teamId)] = [];
@@ -14421,17 +14560,23 @@ function attachEvents() {
     });
   }
 
-  if (elements.issueReportReset) {
-    elements.issueReportReset.addEventListener("click", () => {
-      resetIssueReportForm();
-      setIssueReportFeedback("");
-      renderIssueReportingPanel();
+  if (elements.issueReportCancel) {
+    elements.issueReportCancel.addEventListener("click", () => {
+      closeIssueReportingPanel();
     });
   }
 
   if (elements.issueReportFallbackLink) {
     elements.issueReportFallbackLink.addEventListener("click", () => {
       setIssueReportFeedback("");
+    });
+  }
+
+  if (elements.issueReportModal) {
+    elements.issueReportModal.addEventListener("click", (event) => {
+      if (event.target === elements.issueReportModal && !state.api.issueReporting.isSubmitting) {
+        closeIssueReportingPanel();
+      }
     });
   }
 
@@ -15058,10 +15203,10 @@ function attachEvents() {
     });
   }
 
-  if (elements.teamJoinLoadReview) {
-    elements.teamJoinLoadReview.addEventListener("click", () => {
+  if (elements.teamJoinReviewRefresh) {
+    elements.teamJoinReviewRefresh.addEventListener("click", () => {
       void loadPendingJoinRequestsForSelectedTeam().then(() => {
-        setTeamJoinFeedback("Pending join requests loaded.");
+        setTeamJoinFeedback("");
         renderTeamAdmin();
       });
     });
@@ -15107,8 +15252,8 @@ function attachEvents() {
     });
   }
 
-  if (elements.teamInviteLoad) {
-    elements.teamInviteLoad.addEventListener("click", () => {
+  if (elements.teamInviteRefresh) {
+    elements.teamInviteRefresh.addEventListener("click", () => {
       void loadMemberInvitationsForSelectedTeam().then(() => {
         renderTeamInviteList(getSelectedAdminTeam());
       });
@@ -15149,8 +15294,8 @@ function attachEvents() {
     });
   }
 
-  if (elements.teamInviteUserLoad) {
-    elements.teamInviteUserLoad.addEventListener("click", () => {
+  if (elements.teamInviteUserRefresh) {
+    elements.teamInviteUserRefresh.addEventListener("click", () => {
       void loadInvitationsForUser().then(() => {
         renderTeamInviteUserList();
       });

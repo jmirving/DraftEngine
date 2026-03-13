@@ -530,32 +530,30 @@
 
                 <div id="team-workspace-member" class="team-workspace-panel" role="tabpanel" aria-labelledby="team-workspace-tab-member">
                   <div class="team-admin-group">
-                    <p class="panel-kicker">View My Team Activity</p>
+                    <p class="panel-kicker">Teams I'm On</p>
                     <div class="team-admin-block">
-                      <h3>Current Teams</h3>
+                      <h3>My Teams</h3>
                       <p id="team-activity-teams-summary" class="meta"></p>
                       <div id="team-activity-teams-list" class="summary-card-list"></div>
                     </div>
 
                     <div class="team-admin-block">
                       <h3>Team Invitations</h3>
-                      <p class="meta">Pending invites are your outgoing offers; My Invitations are response requests for you.</p>
+                      <p class="meta">Sent invites and invites for you.</p>
                       <div class="team-invite-section">
-                        <p class="panel-kicker">Pending Invites</p>
-                        <p class="meta">Leads can view and cancel invites they have sent to players.</p>
-                        <div class="button-row">
-                          <button id="team-invite-load" class="ghost" type="button">Load Pending Invites</button>
+                        <p class="panel-kicker">Sent Invites</p>
+                        <div class="meta-action-row">
+                          <p id="team-invite-list-meta" class="meta"></p>
+                          <button id="team-invite-refresh" class="ghost icon-button" type="button" aria-label="Refresh sent invites" title="Refresh sent invites">&#x21bb;</button>
                         </div>
                         <div id="team-invite-list" class="summary-card-list"></div>
-                        <p id="team-invite-list-meta" class="meta"></p>
                       </div>
                       <div class="team-invite-section">
-                        <p class="panel-kicker">My Invitations</p>
-                        <p class="meta">These are the invitations you have received from team leads.</p>
-                        <div class="button-row">
-                          <button id="team-invite-user-load" class="ghost" type="button">Load My Invitations</button>
+                        <p class="panel-kicker">Invites for You</p>
+                        <div class="meta-action-row">
+                          <p id="team-invite-user-meta" class="meta"></p>
+                          <button id="team-invite-user-refresh" class="ghost icon-button" type="button" aria-label="Refresh my invites" title="Refresh my invites">&#x21bb;</button>
                         </div>
-                        <p id="team-invite-user-meta" class="meta"></p>
                         <div id="team-invite-user-list" class="summary-card-list"></div>
                         <p id="team-invite-user-feedback" class="meta"></p>
                       </div>
@@ -591,7 +589,7 @@
                   hidden
                 >
                   <div class="team-admin-group">
-                    <p class="panel-kicker">Manage a Team I Lead</p>
+                    <p class="panel-kicker">Teams I Manage</p>
                     <div class="team-admin-block">
                       <h3>Manage Team</h3>
                       <div class="grid grid-2">
@@ -608,10 +606,10 @@
 
                     <div class="team-admin-block">
                       <h3>Review Incoming Join Requests</h3>
-                      <div class="button-row">
-                        <button id="team-join-load-review" class="ghost" type="button">Load Pending Requests</button>
+                      <div class="meta-action-row">
+                        <p id="team-join-review-meta" class="meta"></p>
+                        <button id="team-join-review-refresh" class="ghost icon-button" type="button" aria-label="Refresh join requests" title="Refresh join requests">&#x21bb;</button>
                       </div>
-                      <p id="team-join-review-meta" class="meta"></p>
                       <div id="team-join-review-list" class="summary-card-list"></div>
                       <p id="team-join-feedback" class="meta"></p>
                     </div>
@@ -1119,55 +1117,6 @@
               <h2 id="coming-soon-title">Updates &amp; Roadmap</h2>
               <p id="coming-soon-meta" class="meta">Latest shipped changes plus known gaps and planned follow-up grouped by workspace page.</p>
             </div>
-            <div class="panel draft-board-panel issue-report-panel" id="issue-report-panel">
-              <div class="issue-report-head">
-                <div>
-                  <p class="panel-kicker">Feedback</p>
-                  <h3 id="issue-report-title">Report an issue</h3>
-                  <p id="issue-report-meta" class="meta">Submit feedback from inside DraftEngine or fall back to GitHub when direct submission is unavailable.</p>
-                </div>
-                <a
-                  id="issue-report-fallback-link"
-                  class="report-issue-link"
-                  href="https://github.com/jmirving/DraftEngine/issues/new/choose"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                >
-                  Open GitHub Issues &#x2197;
-                </a>
-              </div>
-              <div class="grid grid-2">
-                <label>
-                  Issue Type
-                  <select id="issue-report-type">
-                    <option value="bug">bug</option>
-                    <option value="feature">feature</option>
-                    <option value="task">task</option>
-                  </select>
-                </label>
-                <label>
-                  Reporter Email
-                  <input id="issue-report-email" type="email" placeholder="you@example.com" />
-                </label>
-              </div>
-              <label>
-                Reporter Game Name / Riot ID
-                <input id="issue-report-game-name" type="text" placeholder="Summoner#NA1" />
-              </label>
-              <label>
-                Title
-                <input id="issue-report-subject" type="text" placeholder="Short summary of the issue" />
-              </label>
-              <label>
-                Description
-                <textarea id="issue-report-description" rows="6" placeholder="What happened, what you expected, and any useful reproduction steps"></textarea>
-              </label>
-              <div class="button-row">
-                <button id="issue-report-submit" type="button">Submit Issue</button>
-                <button id="issue-report-reset" class="ghost" type="button">Clear</button>
-              </div>
-              <p id="issue-report-feedback" class="meta"></p>
-            </div>
             <div class="panel draft-board-panel">
               <div class="updates-release-tabs" role="tablist" aria-label="Updates sections">
                 <button
@@ -1218,9 +1167,9 @@
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
                 <h4>Current Session</h4>
                 <ul class="coming-soon-list">
-                  <li>Report an issue now opens an in-app form on the Updates page and can submit directly to GitHub when server-side issue reporting is configured; otherwise it falls back to the external GitHub issues page.</li>
+                  <li>Report an issue now opens a blocking in-app modal from any page, captures the current page/tab context, and can submit directly to GitHub when server-side issue reporting is configured; otherwise it falls back to the external GitHub issues page.</li>
                   <li>Users workspace now supports search, role filtering, and bulk member/global permission updates from the existing admin directory.</li>
-                  <li>Teams join-request and invitation lists now auto-refresh when you open the relevant workspace views or switch managed teams, and each list shows clearer refresh/status telemetry.</li>
+                  <li>Teams join-request and invitation lists now auto-refresh when you open the relevant workspace views or switch managed teams, and each list uses compact last-refreshed telemetry with inline refresh controls.</li>
                 </ul>
                 <h4>Version 0.8.7</h4>
                 <ul class="coming-soon-list">
@@ -1533,6 +1482,59 @@
             <button id="avatar-modal-cancel" class="ghost" type="button">Cancel</button>
             <button id="avatar-modal-save" type="button">Save</button>
           </div>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="issue-report-modal" hidden>
+        <div class="modal-content issue-report-modal-content" id="issue-report-panel" role="dialog" aria-modal="true" aria-labelledby="issue-report-title">
+          <div class="issue-report-head">
+            <div>
+              <p class="panel-kicker">Feedback</p>
+              <h3 id="issue-report-title">Report an issue</h3>
+              <p id="issue-report-meta" class="meta">Submit feedback from inside DraftEngine or fall back to GitHub when direct submission is unavailable.</p>
+              <p id="issue-report-source" class="meta"></p>
+            </div>
+            <a
+              id="issue-report-fallback-link"
+              class="report-issue-link"
+              href="https://github.com/jmirving/DraftEngine/issues/new/choose"
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              Open GitHub Issues &#x2197;
+            </a>
+          </div>
+          <div class="grid grid-2">
+            <label>
+              Issue Type
+              <select id="issue-report-type">
+                <option value="bug">bug</option>
+                <option value="feature">feature</option>
+                <option value="task">task</option>
+              </select>
+            </label>
+            <label>
+              Reporter Email
+              <input id="issue-report-email" type="email" placeholder="you@example.com" />
+            </label>
+          </div>
+          <label>
+            Reporter Game Name / Riot ID
+            <input id="issue-report-game-name" type="text" placeholder="Summoner#NA1" />
+          </label>
+          <label>
+            Title
+            <input id="issue-report-subject" type="text" placeholder="Short summary of the issue" />
+          </label>
+          <label>
+            Description
+            <textarea id="issue-report-description" rows="6" placeholder="What happened, what you expected, and any useful reproduction steps"></textarea>
+          </label>
+          <div class="button-row">
+            <button id="issue-report-cancel" class="ghost" type="button">Cancel</button>
+            <button id="issue-report-submit" type="button">Submit Issue</button>
+          </div>
+          <p id="issue-report-feedback" class="meta"></p>
         </div>
       </div>
 

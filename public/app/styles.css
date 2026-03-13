@@ -2474,6 +2474,24 @@ button.pool-snapshot-order-btn:disabled {
   margin-bottom: 0.45rem;
 }
 
+.meta-action-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.meta-action-row .meta {
+  margin: 0;
+}
+
+.icon-button {
+  min-width: 2rem;
+  padding: 0.3rem 0.45rem;
+  line-height: 1;
+  font-size: 1rem;
+}
+
 .user-detail-panel summary {
   font-weight: 600;
   cursor: pointer;
@@ -2520,6 +2538,10 @@ button.pool-snapshot-order-btn:disabled {
 .issue-report-panel textarea {
   resize: vertical;
   min-height: 8rem;
+}
+
+.issue-report-modal-content {
+  max-width: 720px;
 }
 
 .issue-report-head {
@@ -3449,6 +3471,10 @@ button.pool-snapshot-order-btn:disabled {
 
 .modal-overlay[hidden] {
   display: none;
+}
+
+body.has-modal-open {
+  overflow: hidden;
 }
 
 .modal-content {

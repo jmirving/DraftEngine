@@ -17,6 +17,47 @@ function parseIssueType(value) {
   return normalized;
 }
 
+function parseIssueSourceContext(value) {
+  if (value == null) {
+    return null;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw badRequest("Expected 'sourceContext' to be an object when provided.");
+  }
+  const page = normalizeOptionalString(value.page);
+  const pageLabel = normalizeOptionalString(value.pageLabel);
+  const tab = normalizeOptionalString(value.tab);
+  const tabLabel = normalizeOptionalString(value.tabLabel);
+  const detailLabel = normalizeOptionalString(value.detailLabel);
+  const routeHash = normalizeOptionalString(value.routeHash);
+
+  if (!page && !pageLabel && !tab && !tabLabel && !detailLabel && !routeHash) {
+    return null;
+  }
+
+  const sourceContext = {};
+  if (page) {
+    sourceContext.page = page;
+  }
+  if (pageLabel) {
+    sourceContext.pageLabel = pageLabel;
+  }
+  if (tab) {
+    sourceContext.tab = tab;
+  }
+  if (tabLabel) {
+    sourceContext.tabLabel = tabLabel;
+  }
+  if (detailLabel) {
+    sourceContext.detailLabel = detailLabel;
+  }
+  if (routeHash) {
+    sourceContext.routeHash = routeHash;
+  }
+
+  return sourceContext;
+}
+
 export function createIssueReportingRouter({ issueReporter, optionalAuth = (_request, _response, next) => next() }) {
   const router = Router();
   const reporter = issueReporter;
@@ -45,6 +86,7 @@ export function createIssueReportingRouter({ issueReporter, optionalAuth = (_req
     const reporterEmail = normalizeOptionalString(body.reporterEmail);
     const reporterGameName = normalizeOptionalString(body.reporterGameName);
     const authenticatedEmail = normalizeOptionalString(request.user?.email);
+    const sourceContext = parseIssueSourceContext(body.sourceContext);
 
     const issue = await reporter.submitIssue({
       title,
@@ -52,7 +94,8 @@ export function createIssueReportingRouter({ issueReporter, optionalAuth = (_req
       type,
       reporterEmail,
       reporterGameName,
-      authenticatedEmail
+      authenticatedEmail,
+      sourceContext
     });
 
     response.status(201).json({ issue });

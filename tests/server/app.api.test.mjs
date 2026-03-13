@@ -1614,7 +1614,14 @@ describe("API routes", () => {
         title: "Composer tree bug",
         description: "Root branches duplicate after refresh.",
         type: "bug",
-        reporterEmail: "tester@example.com"
+        reporterEmail: "tester@example.com",
+        sourceContext: {
+          page: "team-config",
+          pageLabel: "Teams",
+          tab: "manage",
+          tabLabel: "Manage",
+          routeHash: "#team-config"
+        }
       });
 
     expect(response.status).toBe(201);
@@ -1625,7 +1632,14 @@ describe("API routes", () => {
       type: "bug",
       reporterEmail: "tester@example.com",
       reporterGameName: "",
-      authenticatedEmail: ""
+      authenticatedEmail: "",
+      sourceContext: {
+        page: "team-config",
+        pageLabel: "Teams",
+        tab: "manage",
+        tabLabel: "Manage",
+        routeHash: "#team-config"
+      }
     });
   });
 

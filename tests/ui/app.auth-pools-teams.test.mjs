@@ -2510,7 +2510,7 @@ describe("auth + pools + team management", () => {
     expect(ownerCard.textContent).toContain("Owner admin DB role is synced.");
   });
 
-  test("report issue link opens the in-app form and submits through the API when enabled", async () => {
+  test("report issue link opens a blocking modal and submits source context", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -2524,12 +2524,29 @@ describe("auth + pools + team management", () => {
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
 
+    doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    await flush();
+    doc.querySelector("#team-workspace-tab-manage").click();
+    await flush();
+
     doc.querySelector("#report-issue-link").click();
     await flush();
 
-    expect(doc.querySelector("#tab-coming-soon").hidden).toBe(false);
+    expect(doc.querySelector("#tab-team-config").classList.contains("is-active")).toBe(true);
+    expect(doc.querySelector("#issue-report-modal").hidden).toBe(false);
+    expect(doc.body.classList.contains("has-modal-open")).toBe(true);
     expect(doc.querySelector("#issue-report-email").value).toBe("lead@example.com");
     expect(doc.querySelector("#issue-report-game-name").value).toBe("LeadPlayer#NA1");
+    expect(doc.querySelector("#issue-report-source").textContent).toContain("Teams");
+    expect(doc.querySelector("#issue-report-source").textContent).toContain("Manage");
+
+    doc.querySelector("#issue-report-cancel").click();
+    await flush();
+    expect(doc.querySelector("#issue-report-modal").hidden).toBe(true);
+    expect(doc.body.classList.contains("has-modal-open")).toBe(false);
+
+    doc.querySelector("#report-issue-link").click();
+    await flush();
 
     doc.querySelector("#issue-report-subject").value = "Invite list is stale";
     doc.querySelector("#issue-report-description").value = "The invite list needed a manual refresh.";
@@ -2544,7 +2561,14 @@ describe("auth + pools + team management", () => {
       description: "The invite list needed a manual refresh.",
       type: "bug",
       reporterEmail: "lead@example.com",
-      reporterGameName: "LeadPlayer#NA1"
+      reporterGameName: "LeadPlayer#NA1",
+      sourceContext: {
+        page: "team-config",
+        pageLabel: "Teams",
+        tab: "manage",
+        tabLabel: "Manage",
+        routeHash: "#team-config"
+      }
     });
     expect(doc.querySelector("#issue-report-feedback").textContent).toContain("Issue submitted successfully");
   });
@@ -3409,9 +3433,6 @@ describe("auth + pools + team management", () => {
     const doc = dom.window.document;
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
     await flush();
-
-    doc.querySelector("#team-join-load-review").click();
-    await flush();
     await flush();
     expect(doc.querySelector("#team-join-review-list").textContent).toContain("Outsider#NA1");
 
@@ -3426,6 +3447,57 @@ describe("auth + pools + team management", () => {
     );
     expect(approveCall).toBeTruthy();
     expect(approveCall.body).toEqual({ status: "approved" });
+  });
+
+  test("team invite and review sections use refresh icons instead of load buttons", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", role: "member", gameName: "Lead", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness({
+      loginUser: { id: 11, email: "lead@example.com", role: "member", gameName: "Lead", tagline: "NA1" },
+      profile: {
+        id: 11,
+        email: "lead@example.com",
+        role: "member",
+        gameName: "Lead",
+        tagline: "NA1",
+        primaryRole: "Mid",
+        secondaryRoles: []
+      },
+      pools: [],
+      teams: [
+        {
+          id: 1,
+          name: "Team Alpha",
+          tag: "ALPHA",
+          created_by: 11,
+          membership_role: "lead",
+          membership_team_role: "primary",
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      membersByTeam: {
+        "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", display_name: "Lead#NA1", lane: "Mid" }]
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    await flush();
+
+    expect(doc.querySelector("#team-join-load-review")).toBeNull();
+    expect(doc.querySelector("#team-invite-load")).toBeNull();
+    expect(doc.querySelector("#team-invite-user-load")).toBeNull();
+    expect(doc.querySelector("#team-join-review-refresh")).toBeTruthy();
+    expect(doc.querySelector("#team-invite-refresh")).toBeTruthy();
+    expect(doc.querySelector("#team-invite-user-refresh")).toBeTruthy();
+    expect(doc.querySelector("#team-workspace-member").textContent).toContain("Sent invites");
+    expect(doc.querySelector("#team-workspace-member").textContent).toContain("Invites for You");
+    expect(doc.querySelector("#team-workspace-manage").textContent).toContain("Teams I Manage");
   });
 
   test("team update remove-logo action sends JSON remove_logo contract", async () => {
