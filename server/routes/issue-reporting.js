@@ -11,6 +11,9 @@ function normalizeOptionalString(value) {
 
 function parseIssueType(value) {
   const normalized = normalizeOptionalString(value).toLowerCase();
+  if (normalized === "feature_request" || normalized === "feature-request" || normalized === "feature request") {
+    return "feature";
+  }
   if (!ISSUE_TYPES.has(normalized)) {
     throw badRequest("Expected 'type' to be one of: bug, feature, task.");
   }

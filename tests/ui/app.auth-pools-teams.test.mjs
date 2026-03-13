@@ -2539,6 +2539,13 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#issue-report-game-name").value).toBe("LeadPlayer#NA1");
     expect(doc.querySelector("#issue-report-source").textContent).toContain("Teams");
     expect(doc.querySelector("#issue-report-source").textContent).toContain("Manage");
+    expect([...doc.querySelector("#issue-report-type").options].map((option) => ({
+      value: option.value,
+      label: option.textContent.trim()
+    }))).toEqual([
+      { value: "bug", label: "Bug" },
+      { value: "feature_request", label: "Feature Request" }
+    ]);
 
     doc.querySelector("#issue-report-cancel").click();
     await flush();

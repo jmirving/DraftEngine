@@ -1613,7 +1613,7 @@ describe("API routes", () => {
       .send({
         title: "Composer tree bug",
         description: "Root branches duplicate after refresh.",
-        type: "bug",
+        type: "feature_request",
         reporterEmail: "tester@example.com",
         sourceContext: {
           page: "team-config",
@@ -1629,7 +1629,7 @@ describe("API routes", () => {
     expect(submitIssue).toHaveBeenCalledWith({
       title: "Composer tree bug",
       description: "Root branches duplicate after refresh.",
-      type: "bug",
+      type: "feature",
       reporterEmail: "tester@example.com",
       reporterGameName: "",
       authenticatedEmail: "",

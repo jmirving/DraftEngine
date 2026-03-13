@@ -9,6 +9,9 @@ function normalizeOptionalString(value) {
 
 function normalizeIssueType(value) {
   const normalized = normalizeOptionalString(value).toLowerCase();
+  if (normalized === "feature_request" || normalized === "feature-request" || normalized === "feature request") {
+    return "feature";
+  }
   if (normalized === "bug" || normalized === "feature" || normalized === "task") {
     return normalized;
   }
