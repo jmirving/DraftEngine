@@ -7032,27 +7032,51 @@ function renderChampionMetadataRoleProfileEditors() {
 
     let dragStart = null;
     let isDragging = false;
+    let editingRangeIndex = -1;
 
     const getCellLevel = (el) => {
       const cell = el.closest?.(".ced-level-cell");
       return cell ? parseInt(cell.dataset.level, 10) : null;
     };
 
+    const findRangeIndex = (lvl) => currentSpikes.findIndex((r) => lvl >= r.start && lvl <= r.end);
+
     const updatePreview = (startLvl, endLvl) => {
       const lo = Math.min(startLvl, endLvl);
       const hi = Math.max(startLvl, endLvl);
       for (const cell of levelBar.children) {
         const lvl = parseInt(cell.dataset.level, 10);
-        const inExisting = levelInPowerSpikes(lvl, currentSpikes);
+        let active = false;
+        for (let i = 0; i < currentSpikes.length; i++) {
+          if (i === editingRangeIndex) continue;
+          if (lvl >= currentSpikes[i].start && lvl <= currentSpikes[i].end) active = true;
+        }
         const inPreview = lvl >= lo && lvl <= hi;
-        cell.classList.toggle("is-active", inExisting || inPreview);
-        cell.classList.toggle("is-preview", inPreview && !inExisting);
+        cell.classList.toggle("is-active", active || inPreview);
+        cell.classList.toggle("is-preview", inPreview && !active);
       }
     };
 
     const commitDrag = (startLvl, endLvl) => {
       const lo = Math.min(startLvl, endLvl);
       const hi = Math.max(startLvl, endLvl);
+
+      // Editing an existing range
+      if (editingRangeIndex >= 0) {
+        // Single-click on a single-level range removes it
+        if (startLvl === endLvl && currentSpikes[editingRangeIndex].start === currentSpikes[editingRangeIndex].end) {
+          const next = currentSpikes.filter((_, i) => i !== editingRangeIndex);
+          onPowerSpikesChange(next);
+          return;
+        }
+        // Replace the range being edited
+        const next = [...currentSpikes];
+        next[editingRangeIndex] = { start: lo, end: hi };
+        onPowerSpikesChange(next);
+        return;
+      }
+
+      // New range on unselected territory
       const newRange = { start: lo, end: hi };
       if (currentSpikes.length < POWER_SPIKE_MAX_RANGES) {
         onPowerSpikesChange([...currentSpikes, newRange]);
@@ -7082,6 +7106,7 @@ function renderChampionMetadataRoleProfileEditors() {
         if (lvl == null) return;
         isDragging = true;
         dragStart = lvl;
+        editingRangeIndex = findRangeIndex(lvl);
         levelBar.setPointerCapture(e.pointerId);
         updatePreview(lvl, lvl);
         e.preventDefault();
@@ -7089,7 +7114,6 @@ function renderChampionMetadataRoleProfileEditors() {
 
       levelBar.addEventListener("pointermove", (e) => {
         if (!isDragging || dragStart == null) return;
-        // Find cell under pointer via elementFromPoint
         const el = runtimeDocument.elementFromPoint(e.clientX, e.clientY);
         const lvl = getCellLevel(el);
         if (lvl != null) {
@@ -7104,12 +7128,13 @@ function renderChampionMetadataRoleProfileEditors() {
         const endLvl = getCellLevel(el) ?? dragStart;
         commitDrag(dragStart, endLvl);
         dragStart = null;
+        editingRangeIndex = -1;
       });
 
       levelBar.addEventListener("pointercancel", () => {
         isDragging = false;
         dragStart = null;
-        // Reset preview
+        editingRangeIndex = -1;
         for (const cell of levelBar.children) {
           const lvl = parseInt(cell.dataset.level, 10);
           cell.classList.toggle("is-active", levelInPowerSpikes(lvl, currentSpikes));
