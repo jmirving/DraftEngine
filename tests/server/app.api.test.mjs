@@ -6,7 +6,7 @@ import { getAuthorizationMatrix } from "../../server/authorization-matrix.js";
 import { signAccessToken } from "../../server/auth/tokens.js";
 import { OWNER_ADMIN_EMAILS } from "../../server/user-roles.js";
 
-function createMockContext({ riotChampionStatsService = null } = {}) {
+function createMockContext({ riotChampionStatsService = null, issueReporter = null } = {}) {
   function makeLogoDataUrl(logoBlob, logoMimeType) {
     if (!logoBlob || typeof logoMimeType !== "string" || logoMimeType.trim() === "") {
       return null;
@@ -1561,7 +1561,8 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
     promotionRequestsRepository,
     poolsRepository,
     teamsRepository,
-    riotChampionStatsService
+    riotChampionStatsService,
+    issueReporter
   });
 
   return { app, config, state, usersRepository };
@@ -1580,6 +1581,52 @@ describe("API routes", () => {
     expect(response.status).toBe(200);
     expect(response.headers["content-type"]).toContain("text/html");
     expect(response.text).toContain("<title>DraftEngine</title>");
+  });
+
+  it("reports issue-reporting availability with fallback metadata", async () => {
+    const { app } = createMockContext();
+
+    const response = await request(app).get("/issue-reporting");
+
+    expect(response.status).toBe(200);
+    expect(response.body.issueReporting.enabled).toBe(false);
+    expect(response.body.issueReporting.fallback_url).toContain("github.com/jmirving/DraftEngine/issues/new/choose");
+  });
+
+  it("submits an issue through the configured reporter", async () => {
+    const submitIssue = vi.fn().mockResolvedValue({
+      number: 42,
+      url: "https://github.com/jmirving/DraftEngine/issues/42",
+      title: "Composer tree bug"
+    });
+    const { app } = createMockContext({
+      issueReporter: {
+        isEnabled: () => true,
+        getRepositoryLabel: () => "jmirving/DraftEngine",
+        getFallbackUrl: () => "https://github.com/jmirving/DraftEngine/issues/new/choose",
+        submitIssue
+      }
+    });
+
+    const response = await request(app)
+      .post("/issue-reporting/issues")
+      .send({
+        title: "Composer tree bug",
+        description: "Root branches duplicate after refresh.",
+        type: "bug",
+        reporterEmail: "tester@example.com"
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body.issue.number).toBe(42);
+    expect(submitIssue).toHaveBeenCalledWith({
+      title: "Composer tree bug",
+      description: "Root branches duplicate after refresh.",
+      type: "bug",
+      reporterEmail: "tester@example.com",
+      reporterGameName: "",
+      authenticatedEmail: ""
+    });
   });
 
   it("registers, hashes password, and logs in", async () => {

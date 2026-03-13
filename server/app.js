@@ -9,6 +9,7 @@ import { createAdminChampionCoreRouter } from "./routes/admin-champion-core.js";
 import { createAdminUsersRouter } from "./routes/admin-users.js";
 import { createChampionsRouter } from "./routes/champions.js";
 import { createCompositionsCatalogRouter } from "./routes/compositions-catalog.js";
+import { createIssueReportingRouter } from "./routes/issue-reporting.js";
 import { createProfileRouter } from "./routes/profile.js";
 import { createPoolsRouter } from "./routes/pools.js";
 import { createTeamsRouter } from "./routes/teams.js";
@@ -34,7 +35,8 @@ export function createApp({
   promotionRequestsRepository,
   poolsRepository,
   teamsRepository,
-  riotChampionStatsService = null
+  riotChampionStatsService = null,
+  issueReporter = null
 }) {
   requireDependency(config, "config");
   requireDependency(usersRepository, "usersRepository");
@@ -76,6 +78,14 @@ export function createApp({
   app.get("/health", (_request, response) => {
     response.json({ ok: true });
   });
+
+  app.use(
+    "/",
+    createIssueReportingRouter({
+      issueReporter,
+      optionalAuth
+    })
+  );
 
   app.use("/auth", createAuthRouter({ config, usersRepository }));
   app.use(

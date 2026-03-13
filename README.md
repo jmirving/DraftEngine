@@ -29,6 +29,10 @@ Required environment variables:
 
 Optional environment variables:
 - `CORS_ORIGIN` (default `*`; set to your frontend URL when deployed separately)
+- `GITHUB_ISSUES_TOKEN` (enables in-app issue submission from the Updates page)
+- `GITHUB_ISSUES_OWNER` (optional override; defaults to `jmirving`)
+- `GITHUB_ISSUES_REPO` (optional override; defaults to `DraftEngine`)
+- `GITHUB_ISSUES_FALLBACK_URL` (optional override for the external issues page URL)
 - `NEXUS_API_KEY` (preferred Riot API key env var; enables Riot profile champion-mastery enrichment on `GET /me/profile`)
 - `RIOT_API_KEY` (legacy fallback Riot API key env var)
 - `RIOT_PLATFORM_ROUTING` (default `na1`)

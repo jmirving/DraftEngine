@@ -2083,6 +2083,18 @@ button.pool-snapshot-order-btn:disabled {
   gap: 0.7rem;
 }
 
+.users-toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.7rem;
+  align-items: end;
+  margin-bottom: 0.8rem;
+}
+
+.users-toolbar-actions {
+  justify-content: flex-end;
+}
+
 .requirements-clause-list {
   display: flex;
   flex-direction: column;
@@ -2370,6 +2382,11 @@ button.pool-snapshot-order-btn:disabled {
   border-top: 1px dashed var(--border);
   padding-top: 0.5rem;
 }
+
+.user-selection-toggle {
+  margin-bottom: 0.45rem;
+}
+
 .user-detail-panel summary {
   font-weight: 600;
   cursor: pointer;
@@ -2412,6 +2429,20 @@ button.pool-snapshot-order-btn:disabled {
   display: grid;
   gap: 0.3rem;
 }
+
+.issue-report-panel textarea {
+  resize: vertical;
+  min-height: 8rem;
+}
+
+.issue-report-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+
 @media (max-width: 699px) {
   .champion-core-toolbar {
     grid-template-columns: 1fr;
@@ -2419,6 +2450,14 @@ button.pool-snapshot-order-btn:disabled {
 
   .champion-core-actions {
     justify-content: stretch;
+  }
+
+  .users-toolbar-actions {
+    justify-content: stretch;
+  }
+
+  .issue-report-head {
+    flex-direction: column;
   }
 }
 .user-detail-list li {

@@ -81,10 +81,20 @@ function createFetchHarness({
   loginUser = null,
   profile = null,
   teamContext = null,
-  adminUsersSeed = null
+  adminUsersSeed = null,
+  issueReporting = null
 } = {}) {
   const calls = [];
   let nextPoolId = pools.length + 1;
+  const issueReportingState = {
+    enabled: issueReporting?.enabled === true,
+    repository: typeof issueReporting?.repository === "string" && issueReporting.repository.trim() !== ""
+      ? issueReporting.repository.trim()
+      : "jmirving/DraftEngine",
+    fallbackUrl: typeof issueReporting?.fallbackUrl === "string" && issueReporting.fallbackUrl.trim() !== ""
+      ? issueReporting.fallbackUrl.trim()
+      : "https://github.com/jmirving/DraftEngine/issues/new/choose"
+  };
   const tags = [
     { id: 1, name: "engage", definition: "Helps your comp start fights." },
     { id: 2, name: "frontline", definition: "Adds durable front line presence." },
@@ -750,6 +760,43 @@ function createFetchHarness({
           secondaryRoles: []
         }
       }, 201);
+    }
+
+    if (path === "/issue-reporting" && method === "GET") {
+      return createJsonResponse({
+        issueReporting: {
+          enabled: issueReportingState.enabled,
+          repository: issueReportingState.repository,
+          fallback_url: issueReportingState.fallbackUrl
+        }
+      });
+    }
+
+    if (path === "/issue-reporting/issues" && method === "POST") {
+      if (!issueReportingState.enabled) {
+        return createJsonResponse(
+          {
+            error: {
+              code: "ISSUE_REPORTING_DISABLED",
+              message: "In-app issue reporting is not configured.",
+              details: {
+                fallback_url: issueReportingState.fallbackUrl
+              }
+            }
+          },
+          503
+        );
+      }
+      return createJsonResponse(
+        {
+          issue: {
+            number: 17,
+            url: "https://github.com/jmirving/DraftEngine/issues/17",
+            title: typeof body?.title === "string" ? body.title : "Submitted issue"
+          }
+        },
+        201
+      );
     }
 
     if (path === "/me/profile" && method === "GET") {
@@ -1592,7 +1639,7 @@ describe("auth + pools + team management", () => {
 
     const reportIssueLink = doc.querySelector("#report-issue-link");
     expect(reportIssueLink).toBeTruthy();
-    expect(reportIssueLink.getAttribute("href")).toContain("/issues/new/choose");
+    expect(reportIssueLink.getAttribute("href")).toBe("#");
 
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
     expect(doc.querySelector("#auth-feedback").textContent).toContain("Login/Registration required");
@@ -2215,7 +2262,7 @@ describe("auth + pools + team management", () => {
     doc.querySelector("#profile-admin-link .profile-setting-row").click();
     await flush();
 
-    expect(doc.querySelector("#users-access").textContent).toContain("users loaded");
+    expect(doc.querySelector("#users-access").textContent).toContain("users shown");
     expect(doc.querySelector("#users-authorization-access").textContent).toContain("roles");
     expect(doc.querySelector("#users-authorization-roles").textContent).toContain("Roles");
     expect(doc.querySelector("#users-authorization-roles").textContent).toContain("global.member");
@@ -2287,6 +2334,106 @@ describe("auth + pools + team management", () => {
     const deleteUserCall = harness.calls.find((call) => call.path === "/admin/users/22" && call.method === "DELETE");
     expect(deleteUserCall).toBeTruthy();
     expect(doc.querySelector("#users-list").textContent).not.toContain("member@example.com");
+  });
+
+  test("users workspace filters rows and applies bulk role updates", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", role: "admin", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness({
+      loginUser: { id: 11, email: "lead@example.com", role: "admin", gameName: "LeadPlayer", tagline: "NA1" },
+      adminUsersSeed: [
+        {
+          id: 11,
+          email: "lead@example.com",
+          role: "admin",
+          stored_role: "admin",
+          is_owner_admin: false,
+          game_name: "LeadPlayer",
+          tagline: "NA1",
+          riot_id: "LeadPlayer#NA1",
+          riot_id_correction_count: 0,
+          can_update_riot_id: true
+        },
+        {
+          id: 22,
+          email: "member@example.com",
+          role: "member",
+          stored_role: "member",
+          is_owner_admin: false,
+          game_name: "Member",
+          tagline: "NA1",
+          riot_id: "Member#NA1",
+          riot_id_correction_count: 0,
+          can_update_riot_id: true
+        },
+        {
+          id: 33,
+          email: "coach@example.com",
+          role: "member",
+          stored_role: "member",
+          is_owner_admin: false,
+          game_name: "Coach",
+          tagline: "NA1",
+          riot_id: "Coach#NA1",
+          riot_id_correction_count: 0,
+          can_update_riot_id: true
+        }
+      ]
+    });
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector(".nav-avatar-link[data-tab='profile']").click();
+    await flush();
+    doc.querySelector("#profile-admin-link .profile-setting-row").click();
+    await flush();
+
+    const search = doc.querySelector("#users-search");
+    search.value = "coach";
+    search.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+    expect(doc.querySelector("#users-list").textContent).toContain("coach@example.com");
+    expect(doc.querySelector("#users-list").textContent).not.toContain("member@example.com");
+
+    search.value = "";
+    search.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+    const roleFilter = doc.querySelector("#users-role-filter");
+    roleFilter.value = "member";
+    roleFilter.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    expect(doc.querySelector("#users-list").textContent).toContain("member@example.com");
+    expect(doc.querySelector("#users-list").textContent).toContain("coach@example.com");
+    expect(doc.querySelector("#users-list").textContent).not.toContain("lead@example.com");
+
+    roleFilter.value = "";
+    roleFilter.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    for (const userId of ["22", "33"]) {
+      const checkbox = doc.querySelector(`#users-list input[type='checkbox'][data-user-id='${userId}']`);
+      expect(checkbox).toBeTruthy();
+      checkbox.click();
+      await flush();
+    }
+
+    const bulkRole = doc.querySelector("#users-bulk-role");
+    bulkRole.value = "global";
+    bulkRole.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    doc.querySelector("#users-bulk-apply").click();
+    await flush();
+    await flush();
+    await flush();
+
+    const bulkCalls = harness.calls.filter((call) =>
+      /^\/admin\/users\/(22|33)\/role$/.test(call.path) && call.method === "PUT"
+    );
+    expect(bulkCalls).toHaveLength(2);
+
+    const memberCard = doc.querySelector("#users-list .summary-card[data-user-id='22']");
+    const coachCard = doc.querySelector("#users-list .summary-card[data-user-id='33']");
+    expect(memberCard?.querySelector("select")?.value).toBe("global");
+    expect(coachCard?.querySelector("select")?.value).toBe("global");
+    expect(doc.querySelector("#users-selection-meta").textContent).toContain("Select users");
   });
 
   test("users workspace can reapply owner admin to sync stored DB role", async () => {
@@ -2361,6 +2508,45 @@ describe("auth + pools + team management", () => {
       card.textContent.includes("tylerjtriplett@gmail.com")
     );
     expect(ownerCard.textContent).toContain("Owner admin DB role is synced.");
+  });
+
+  test("report issue link opens the in-app form and submits through the API when enabled", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", role: "admin", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness({
+      loginUser: { id: 11, email: "lead@example.com", role: "admin", gameName: "LeadPlayer", tagline: "NA1" },
+      issueReporting: { enabled: true }
+    });
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector("#report-issue-link").click();
+    await flush();
+
+    expect(doc.querySelector("#tab-coming-soon").hidden).toBe(false);
+    expect(doc.querySelector("#issue-report-email").value).toBe("lead@example.com");
+    expect(doc.querySelector("#issue-report-game-name").value).toBe("LeadPlayer#NA1");
+
+    doc.querySelector("#issue-report-subject").value = "Invite list is stale";
+    doc.querySelector("#issue-report-description").value = "The invite list needed a manual refresh.";
+    doc.querySelector("#issue-report-submit").click();
+    await flush();
+    await flush();
+
+    const reportCall = harness.calls.find((call) => call.path === "/issue-reporting/issues" && call.method === "POST");
+    expect(reportCall).toBeTruthy();
+    expect(reportCall.body).toEqual({
+      title: "Invite list is stale",
+      description: "The invite list needed a manual refresh.",
+      type: "bug",
+      reporterEmail: "lead@example.com",
+      reporterGameName: "LeadPlayer#NA1"
+    });
+    expect(doc.querySelector("#issue-report-feedback").textContent).toContain("Issue submitted successfully");
   });
 
   test("compositions workspace creates requirement definitions and compositions", async () => {
@@ -2953,7 +3139,8 @@ describe("auth + pools + team management", () => {
     expect(saveTeamContextCall).toBeTruthy();
     expect(saveTeamContextCall.body.activeTeamId).toBe(1);
 
-    inlineAddAction.click();
+    const refreshedInlineAddAction = doc.querySelector("button[data-roster-quick-action='open-add-member']");
+    refreshedInlineAddAction.click();
     expect(editPanel.hidden).toBe(true);
     expect(addPanel.hidden).toBe(false);
 

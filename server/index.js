@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { createApp } from "./app.js";
 import { ConfigError, loadConfig } from "./config.js";
 import { createDbPool } from "./db/pool.js";
+import { createGitHubIssueReporter } from "./github/issues.js";
 import { createRepositories } from "./repositories/index.js";
 import { createRiotChampionStatsService } from "./riot/champion-stats.js";
 import { createRiotApiClient } from "./riot/client.js";
@@ -40,6 +41,12 @@ export function startServer(env = process.env) {
   const config = loadConfig(env);
   const pool = createDbPool(config);
   const repositories = createRepositories(pool);
+  const issueReporter = createGitHubIssueReporter({
+    token: env.GITHUB_ISSUES_TOKEN,
+    owner: env.GITHUB_ISSUES_OWNER,
+    repo: env.GITHUB_ISSUES_REPO,
+    fallbackUrl: env.GITHUB_ISSUES_FALLBACK_URL
+  });
   const riotChampionStatsService = createRiotChampionStatsServiceForRuntime({
     env,
     championCoreRepository: repositories.championCore,
@@ -55,7 +62,8 @@ export function startServer(env = process.env) {
     promotionRequestsRepository: repositories.promotionRequests,
     poolsRepository: repositories.pools,
     teamsRepository: repositories.teams,
-    riotChampionStatsService
+    riotChampionStatsService,
+    issueReporter
   });
 
   const server = app.listen(config.port, () => {

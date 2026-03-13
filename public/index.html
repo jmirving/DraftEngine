@@ -59,11 +59,9 @@
         <a
           id="report-issue-link"
           class="report-issue-link"
-          href="https://github.com/jmirving/DraftEngine/issues/new/choose"
-          target="_blank"
-          rel="noreferrer noopener"
+          href="#"
         >
-          Report an issue &#x2197;
+          Report an issue
         </a>
       </nav>
     </aside>
@@ -559,6 +557,7 @@
                         <div class="button-row">
                           <button id="team-invite-user-load" class="ghost" type="button">Load My Invitations</button>
                         </div>
+                        <p id="team-invite-user-meta" class="meta"></p>
                         <div id="team-invite-user-list" class="summary-card-list"></div>
                         <p id="team-invite-user-feedback" class="meta"></p>
                       </div>
@@ -614,6 +613,7 @@
                       <div class="button-row">
                         <button id="team-join-load-review" class="ghost" type="button">Load Pending Requests</button>
                       </div>
+                      <p id="team-join-review-meta" class="meta"></p>
                       <div id="team-join-review-list" class="summary-card-list"></div>
                       <p id="team-join-feedback" class="meta"></p>
                     </div>
@@ -943,6 +943,33 @@
               <p id="users-meta" class="meta">Admin-only user directory, permission management, scoped access visibility, and one-time Riot ID corrections.</p>
             </div>
             <div class="panel draft-board-panel">
+              <div class="users-toolbar">
+                <label>
+                  Search
+                  <input id="users-search" type="search" placeholder="Email, Riot ID, game name..." />
+                </label>
+                <label>
+                  Filter Role
+                  <select id="users-role-filter">
+                    <option value="">All roles</option>
+                    <option value="member">member</option>
+                    <option value="global">global</option>
+                    <option value="admin">admin</option>
+                  </select>
+                </label>
+                <label>
+                  Bulk Role
+                  <select id="users-bulk-role">
+                    <option value="member">member</option>
+                    <option value="global">global</option>
+                  </select>
+                </label>
+                <div class="button-row users-toolbar-actions">
+                  <button id="users-bulk-apply" type="button">Apply to Selected</button>
+                  <button id="users-selection-clear" class="ghost" type="button">Clear Selection</button>
+                </div>
+              </div>
+              <p id="users-selection-meta" class="meta"></p>
               <p id="users-access" class="meta"></p>
               <div id="users-list" class="summary-card-list"></div>
               <p class="panel-kicker">Roles &amp; Permissions</p>
@@ -1094,6 +1121,55 @@
               <h2 id="coming-soon-title">Updates &amp; Roadmap</h2>
               <p id="coming-soon-meta" class="meta">Latest shipped changes plus known gaps and planned follow-up grouped by workspace page.</p>
             </div>
+            <div class="panel draft-board-panel issue-report-panel" id="issue-report-panel">
+              <div class="issue-report-head">
+                <div>
+                  <p class="panel-kicker">Feedback</p>
+                  <h3 id="issue-report-title">Report an issue</h3>
+                  <p id="issue-report-meta" class="meta">Submit feedback from inside DraftEngine or fall back to GitHub when direct submission is unavailable.</p>
+                </div>
+                <a
+                  id="issue-report-fallback-link"
+                  class="report-issue-link"
+                  href="https://github.com/jmirving/DraftEngine/issues/new/choose"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  Open GitHub Issues &#x2197;
+                </a>
+              </div>
+              <div class="grid grid-2">
+                <label>
+                  Issue Type
+                  <select id="issue-report-type">
+                    <option value="bug">bug</option>
+                    <option value="feature">feature</option>
+                    <option value="task">task</option>
+                  </select>
+                </label>
+                <label>
+                  Reporter Email
+                  <input id="issue-report-email" type="email" placeholder="you@example.com" />
+                </label>
+              </div>
+              <label>
+                Reporter Game Name / Riot ID
+                <input id="issue-report-game-name" type="text" placeholder="Summoner#NA1" />
+              </label>
+              <label>
+                Title
+                <input id="issue-report-subject" type="text" placeholder="Short summary of the issue" />
+              </label>
+              <label>
+                Description
+                <textarea id="issue-report-description" rows="6" placeholder="What happened, what you expected, and any useful reproduction steps"></textarea>
+              </label>
+              <div class="button-row">
+                <button id="issue-report-submit" type="button">Submit Issue</button>
+                <button id="issue-report-reset" class="ghost" type="button">Clear</button>
+              </div>
+              <p id="issue-report-feedback" class="meta"></p>
+            </div>
             <div class="panel draft-board-panel">
               <div class="updates-release-tabs" role="tablist" aria-label="Updates sections">
                 <button
@@ -1142,6 +1218,12 @@
               >
                 <h3>What's New</h3>
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
+                <h4>Current Session</h4>
+                <ul class="coming-soon-list">
+                  <li>Report an issue now opens an in-app form on the Updates page and can submit directly to GitHub when server-side issue reporting is configured; otherwise it falls back to the external GitHub issues page.</li>
+                  <li>Users workspace now supports search, role filtering, and bulk member/global permission updates from the existing admin directory.</li>
+                  <li>Teams join-request and invitation lists now auto-refresh when you open the relevant workspace views or switch managed teams, and each list shows clearer refresh/status telemetry.</li>
+                </ul>
                 <h4>Version 0.8.6 (Shipped)</h4>
                 <ul class="coming-soon-list">
                   <li>Comfort Level dropdown restyled to match role-pill color scheme and compact View pill sizing.</li>
@@ -1224,7 +1306,6 @@
                 <p class="meta">Deferred and planned follow-up work by workspace page.</p>
                 <h4>General</h4>
                 <ul class="coming-soon-list">
-                  <li>In-app issue reporting: replace the external GitHub link with an on-site form (title, description, type) that submits directly to the repo via the GitHub API using a server-stored PAT, so users without a GitHub account can report issues. Requires a GitHub PAT with Issues: Read and write scope stored as GITHUB_ISSUES_TOKEN in the server environment. The nav "Report an issue" link should open this form instead of redirecting externally. Falls back to the external GitHub link if the token is not configured. Submitted issues should include the reporter's email or game name in the issue body (draftflow-217).</li>
                   <li>Champion core baseline data is now viewable in the admin workspace, but release ingestion is still manual and broader champion_core baseline adoption across champion/Riot lookup flows is still in progress (draftflow-129, draftflow-212).</li>
                   <li>Admin safeguards and governance guardrails still need hardening for high-impact global edits (draftflow-147)</li>
                 </ul>
@@ -1241,7 +1322,6 @@
                 <h4>Teams</h4>
                 <ul class="coming-soon-list">
                   <li>Teams member actions require exact Riot ID entry (`GameName#Tagline`); search/autocomplete is not implemented yet (draftflow-139)</li>
-                  <li>Invitation and join-request review lists still require manual refresh actions; live refresh and richer review telemetry are deferred (draftflow-216).</li>
                 </ul>
                 <h4>Champions</h4>
                 <ul class="coming-soon-list">
@@ -1255,7 +1335,6 @@
                 </ul>
                 <h4>Users</h4>
                 <ul class="coming-soon-list">
-                  <li>User search, filtering, and bulk permission updates are not implemented yet (draftflow-157)</li>
                   <li>User deletion is currently hard-delete only; restore/undo and deletion audit history are deferred (draftflow-214).</li>
                 </ul>
                 <h4>Compositions</h4>

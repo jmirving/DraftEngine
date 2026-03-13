@@ -312,6 +312,7 @@ const TAB_ROUTES = Object.freeze([
 ]);
 const TAB_ROUTE_SET = new Set(TAB_ROUTES);
 const LANE_ORDER = Object.freeze(["Top", "Jungle", "Mid", "ADC", "Support"]);
+const DEFAULT_ISSUE_REPORTING_FALLBACK_URL = "https://github.com/jmirving/DraftEngine/issues/new/choose";
 
 let runtimeWindow = null;
 let runtimeDocument = null;
@@ -430,6 +431,17 @@ function createEmptyCompositionBundleDraft() {
   };
 }
 
+function createEmptyIssueReportingState() {
+  return {
+    enabled: false,
+    repository: "jmirving/DraftEngine",
+    fallbackUrl: DEFAULT_ISSUE_REPORTING_FALLBACK_URL,
+    isLoading: false,
+    isSubmitting: false,
+    lastIssueUrl: ""
+  };
+}
+
 function createInitialState() {
   return {
     data: null,
@@ -468,10 +480,15 @@ function createInitialState() {
       discoverTeams: [],
       membersByTeamId: {},
       joinRequestsByTeamId: {},
+      joinRequestsLoadedAtByTeamId: {},
+      isLoadingJoinRequests: false,
       invitationsByTeamId: {},
+      teamInvitationsLoadedAtByTeamId: {},
       userInvitations: [],
+      userInvitationsLoadedAt: null,
       isLoadingTeamInvitations: false,
       isLoadingUserInvitations: false,
+      issueReporting: createEmptyIssueReportingState(),
       selectedTeamId: "",
       selectedDiscoverTeamId: "",
       isCreatingTeam: false,
@@ -501,6 +518,11 @@ function createInitialState() {
       isLoadingUsers: false,
       authorizationMatrix: null,
       isLoadingAuthorizationMatrix: false,
+      usersSearch: "",
+      usersRoleFilter: "",
+      selectedUserIds: new Set(),
+      bulkUserRole: "member",
+      isBulkSavingUserRoles: false,
       savingUserRoleId: null,
       savingUserRiotIdId: null,
       deletingUserId: null,
@@ -585,6 +607,7 @@ function createElements() {
     authLoginLinkWrap: runtimeDocument.querySelector("#auth-login-link-wrap"),
     authToLogin: runtimeDocument.querySelector("#auth-to-login"),
     updatesNavLink: runtimeDocument.querySelector(".updates-nav-link"),
+    reportIssueLink: runtimeDocument.querySelector("#report-issue-link"),
     siteHero: runtimeDocument.querySelector("#site-hero"),
     navToggle: runtimeDocument.querySelector("#nav-toggle"),
     navDesktopToggle: runtimeDocument.querySelector("#nav-desktop-toggle"),
@@ -643,6 +666,12 @@ function createElements() {
     tagsManageFeedback: runtimeDocument.querySelector("#tags-manage-feedback"),
     usersTitle: runtimeDocument.querySelector("#users-title"),
     usersMeta: runtimeDocument.querySelector("#users-meta"),
+    usersSearch: runtimeDocument.querySelector("#users-search"),
+    usersRoleFilter: runtimeDocument.querySelector("#users-role-filter"),
+    usersBulkRole: runtimeDocument.querySelector("#users-bulk-role"),
+    usersBulkApply: runtimeDocument.querySelector("#users-bulk-apply"),
+    usersSelectionClear: runtimeDocument.querySelector("#users-selection-clear"),
+    usersSelectionMeta: runtimeDocument.querySelector("#users-selection-meta"),
     usersAccess: runtimeDocument.querySelector("#users-access"),
     usersList: runtimeDocument.querySelector("#users-list"),
     usersAuthorizationAccess: runtimeDocument.querySelector("#users-authorization-access"),
@@ -827,6 +856,7 @@ function createElements() {
     teamJoinCancel: runtimeDocument.querySelector("#team-join-cancel"),
     teamJoinDiscoverMeta: runtimeDocument.querySelector("#team-join-discover-meta"),
     teamJoinLoadReview: runtimeDocument.querySelector("#team-join-load-review"),
+    teamJoinReviewMeta: runtimeDocument.querySelector("#team-join-review-meta"),
     teamJoinReviewList: runtimeDocument.querySelector("#team-join-review-list"),
     teamJoinFeedback: runtimeDocument.querySelector("#team-join-feedback"),
     teamInviteRiotId: runtimeDocument.querySelector("#team-invite-riot-id"),
@@ -841,8 +871,21 @@ function createElements() {
     teamInviteList: runtimeDocument.querySelector("#team-invite-list"),
     teamInviteListMeta: runtimeDocument.querySelector("#team-invite-list-meta"),
     teamInviteUserLoad: runtimeDocument.querySelector("#team-invite-user-load"),
+    teamInviteUserMeta: runtimeDocument.querySelector("#team-invite-user-meta"),
     teamInviteUserList: runtimeDocument.querySelector("#team-invite-user-list"),
     teamInviteUserFeedback: runtimeDocument.querySelector("#team-invite-user-feedback"),
+    issueReportPanel: runtimeDocument.querySelector("#issue-report-panel"),
+    issueReportTitle: runtimeDocument.querySelector("#issue-report-title"),
+    issueReportMeta: runtimeDocument.querySelector("#issue-report-meta"),
+    issueReportFallbackLink: runtimeDocument.querySelector("#issue-report-fallback-link"),
+    issueReportType: runtimeDocument.querySelector("#issue-report-type"),
+    issueReportEmail: runtimeDocument.querySelector("#issue-report-email"),
+    issueReportGameName: runtimeDocument.querySelector("#issue-report-game-name"),
+    issueReportSubject: runtimeDocument.querySelector("#issue-report-subject"),
+    issueReportDescription: runtimeDocument.querySelector("#issue-report-description"),
+    issueReportSubmit: runtimeDocument.querySelector("#issue-report-submit"),
+    issueReportReset: runtimeDocument.querySelector("#issue-report-reset"),
+    issueReportFeedback: runtimeDocument.querySelector("#issue-report-feedback"),
     teamActivityTeamsSummary: runtimeDocument.querySelector("#team-activity-teams-summary"),
     teamActivityTeamsList: runtimeDocument.querySelector("#team-activity-teams-list"),
     teamAdminRenameName: runtimeDocument.querySelector("#team-admin-rename-name"),
@@ -1034,6 +1077,12 @@ function setTeamInviteUserFeedback(message) {
   }
 }
 
+function setIssueReportFeedback(message) {
+  if (elements.issueReportFeedback) {
+    elements.issueReportFeedback.textContent = message;
+  }
+}
+
 function setChampionTagEditorFeedback(message) {
   if (elements.championTagEditorFeedback) {
     elements.championTagEditorFeedback.textContent = message;
@@ -1056,6 +1105,18 @@ function setUsersFeedback(message) {
   if (elements.usersFeedback) {
     elements.usersFeedback.textContent = message;
   }
+}
+
+function formatTimestampMeta(value) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  if (!normalized) {
+    return "";
+  }
+  const asDate = new Date(normalized);
+  if (Number.isNaN(asDate.getTime())) {
+    return "";
+  }
+  return asDate.toLocaleString();
 }
 
 function setChampionCoreFeedback(message) {
@@ -2353,12 +2414,23 @@ function clearAuthSession(feedback = "") {
   state.api.isCreatingTeam = false;
   state.api.discoverTeams = [];
   state.api.joinRequestsByTeamId = {};
+  state.api.joinRequestsLoadedAtByTeamId = {};
+  state.api.isLoadingJoinRequests = false;
+  state.api.invitationsByTeamId = {};
+  state.api.teamInvitationsLoadedAtByTeamId = {};
+  state.api.userInvitations = [];
+  state.api.userInvitationsLoadedAt = null;
   state.api.selectedDiscoverTeamId = "";
   state.api.users = [];
   state.api.championCore = [];
   state.api.championCoreSearch = "";
   state.api.isLoadingChampionCore = false;
   state.api.isLoadingUsers = false;
+  state.api.usersSearch = "";
+  state.api.usersRoleFilter = "";
+  state.api.bulkUserRole = "member";
+  state.api.selectedUserIds = new Set();
+  state.api.isBulkSavingUserRoles = false;
   state.api.authorizationMatrix = null;
   state.api.isLoadingAuthorizationMatrix = false;
   state.api.savingUserRoleId = null;
@@ -2379,6 +2451,8 @@ function clearAuthSession(feedback = "") {
   state.playerConfig.isSavingPool = false;
   clearChampionTagEditorState();
   clearTagsManagerState();
+  resetIssueReportForm({ preserveIdentity: false });
+  setIssueReportFeedback("");
   setUsersFeedback("");
   setChampionCoreFeedback("");
   setRequirementsFeedback("");
@@ -2545,6 +2619,7 @@ function renderAuth() {
       usersTabButton.hidden = true;
     }
     renderAuthGate();
+    renderIssueReportingPanel();
     return;
   }
 
@@ -2565,6 +2640,7 @@ function renderAuth() {
     setTab(DEFAULT_TAB_ROUTE, { syncRoute: true, replaceRoute: true });
   }
   renderAuthGate();
+  renderIssueReportingPanel();
 }
 
 function applyUiCopy() {
@@ -3971,6 +4047,99 @@ function normalizeApiAdminUser(rawUser) {
   };
 }
 
+function normalizeIssueReportingConfig(rawIssueReporting) {
+  const source = rawIssueReporting && typeof rawIssueReporting === "object" && !Array.isArray(rawIssueReporting)
+    ? rawIssueReporting
+    : {};
+  return {
+    enabled: source.enabled === true,
+    repository:
+      typeof source.repository === "string" && source.repository.trim() !== ""
+        ? source.repository.trim()
+        : "jmirving/DraftEngine",
+    fallbackUrl:
+      typeof source.fallback_url === "string" && source.fallback_url.trim() !== ""
+        ? source.fallback_url.trim()
+        : DEFAULT_ISSUE_REPORTING_FALLBACK_URL
+  };
+}
+
+function getAuthenticatedReporterGameName() {
+  const gameName = typeof state?.auth?.user?.gameName === "string" ? state.auth.user.gameName.trim() : "";
+  const tagline = typeof state?.auth?.user?.tagline === "string" ? state.auth.user.tagline.trim() : "";
+  if (gameName && tagline) {
+    return `${gameName}#${tagline}`;
+  }
+  return gameName;
+}
+
+function seedIssueReportIdentityFields() {
+  if (elements.issueReportEmail && !elements.issueReportEmail.value.trim()) {
+    const sessionEmail = typeof state?.auth?.user?.email === "string" ? state.auth.user.email.trim() : "";
+    if (sessionEmail) {
+      elements.issueReportEmail.value = sessionEmail;
+    }
+  }
+  if (elements.issueReportGameName && !elements.issueReportGameName.value.trim()) {
+    const gameName = getAuthenticatedReporterGameName();
+    if (gameName) {
+      elements.issueReportGameName.value = gameName;
+    }
+  }
+}
+
+function resetIssueReportForm({ preserveIdentity = true } = {}) {
+  if (elements.issueReportType) {
+    elements.issueReportType.value = "bug";
+  }
+  if (elements.issueReportSubject) {
+    elements.issueReportSubject.value = "";
+  }
+  if (elements.issueReportDescription) {
+    elements.issueReportDescription.value = "";
+  }
+  if (!preserveIdentity) {
+    if (elements.issueReportEmail) {
+      elements.issueReportEmail.value = "";
+    }
+    if (elements.issueReportGameName) {
+      elements.issueReportGameName.value = "";
+    }
+  }
+  seedIssueReportIdentityFields();
+}
+
+function getFilteredAdminUsers() {
+  const allUsers = Array.isArray(state.api.users) ? state.api.users : [];
+  const search = state.api.usersSearch.trim().toLowerCase();
+  const rawRoleFilter = typeof state.api.usersRoleFilter === "string" ? state.api.usersRoleFilter.trim().toLowerCase() : "";
+  const roleFilter = rawRoleFilter ? normalizeApiUserRole(rawRoleFilter) : "";
+
+  return allUsers.filter((user) => {
+    if (roleFilter && user.role !== roleFilter) {
+      return false;
+    }
+    if (!search) {
+      return true;
+    }
+    const haystack = [
+      user.email,
+      user.riot_id,
+      user.game_name,
+      user.tagline,
+      user.role
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(search);
+  });
+}
+
+function clearSelectedAdminUsers() {
+  state.api.selectedUserIds = new Set();
+}
+
 function normalizeAuthorizationRoleDefinition(rawRole) {
   if (!rawRole || typeof rawRole !== "object" || Array.isArray(rawRole)) {
     return null;
@@ -4240,6 +4409,144 @@ function renderUserDetailContent(userId, container) {
   );
 }
 
+function renderIssueReportingPanel() {
+  if (!elements.issueReportPanel) {
+    return;
+  }
+
+  seedIssueReportIdentityFields();
+  const issueReporting = state.api.issueReporting ?? createEmptyIssueReportingState();
+  const fallbackUrl = issueReporting.fallbackUrl || DEFAULT_ISSUE_REPORTING_FALLBACK_URL;
+
+  if (elements.issueReportFallbackLink) {
+    elements.issueReportFallbackLink.href = fallbackUrl;
+    elements.issueReportFallbackLink.hidden = false;
+  }
+
+  if (elements.issueReportMeta) {
+    if (issueReporting.isLoading) {
+      elements.issueReportMeta.textContent = "Checking whether in-app issue submission is available...";
+    } else if (issueReporting.enabled) {
+      elements.issueReportMeta.textContent = `Issues submit directly to ${issueReporting.repository}. Include your email or game name so follow-up is possible.`;
+    } else {
+      elements.issueReportMeta.textContent = "Direct submission is unavailable on this deployment. Use the GitHub fallback link instead.";
+    }
+  }
+
+  const canSubmit = issueReporting.enabled && !issueReporting.isLoading && !issueReporting.isSubmitting;
+  for (const field of [
+    elements.issueReportType,
+    elements.issueReportEmail,
+    elements.issueReportGameName,
+    elements.issueReportSubject,
+    elements.issueReportDescription
+  ]) {
+    if (field) {
+      field.disabled = !canSubmit;
+    }
+  }
+  if (elements.issueReportSubmit) {
+    elements.issueReportSubmit.disabled = !canSubmit;
+    elements.issueReportSubmit.textContent = issueReporting.isSubmitting ? "Submitting..." : "Submit Issue";
+  }
+  if (elements.issueReportReset) {
+    elements.issueReportReset.disabled = issueReporting.isSubmitting;
+  }
+}
+
+function openIssueReportingPanel() {
+  setTab("coming-soon", { syncRoute: true });
+  if (elements.issueReportPanel?.scrollIntoView) {
+    elements.issueReportPanel.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
+  if (elements.issueReportSubject) {
+    elements.issueReportSubject.focus();
+  }
+}
+
+async function loadIssueReportingStatusFromApi() {
+  state.api.issueReporting.isLoading = true;
+  renderIssueReportingPanel();
+  try {
+    const payload = await apiRequest("/issue-reporting");
+    const normalized = normalizeIssueReportingConfig(payload?.issueReporting);
+    state.api.issueReporting = {
+      ...state.api.issueReporting,
+      ...normalized,
+      isLoading: false,
+      isSubmitting: false
+    };
+    return true;
+  } catch (_error) {
+    state.api.issueReporting = {
+      ...createEmptyIssueReportingState(),
+      isLoading: false
+    };
+    return false;
+  } finally {
+    renderIssueReportingPanel();
+  }
+}
+
+async function submitIssueReport() {
+  const subject = elements.issueReportSubject ? elements.issueReportSubject.value.trim() : "";
+  const description = elements.issueReportDescription ? elements.issueReportDescription.value.trim() : "";
+  const reporterEmail = elements.issueReportEmail ? elements.issueReportEmail.value.trim() : "";
+  const reporterGameName = elements.issueReportGameName ? elements.issueReportGameName.value.trim() : "";
+  const type = elements.issueReportType ? elements.issueReportType.value : "bug";
+
+  if (!subject) {
+    setIssueReportFeedback("Title is required.");
+    return;
+  }
+  if (!description) {
+    setIssueReportFeedback("Description is required.");
+    return;
+  }
+  if (!reporterEmail && !reporterGameName) {
+    setIssueReportFeedback("Reporter email or game name is required.");
+    return;
+  }
+
+  state.api.issueReporting.isSubmitting = true;
+  setIssueReportFeedback("Submitting issue...");
+  renderIssueReportingPanel();
+
+  try {
+    const payload = await apiRequest("/issue-reporting/issues", {
+      method: "POST",
+      auth: isAuthenticated(),
+      body: {
+        title: subject,
+        description,
+        type,
+        reporterEmail,
+        reporterGameName
+      }
+    });
+    const issueUrl = typeof payload?.issue?.url === "string" ? payload.issue.url.trim() : "";
+    state.api.issueReporting.lastIssueUrl = issueUrl;
+    setIssueReportFeedback(
+      issueUrl
+        ? `Issue submitted successfully. ${issueUrl}`
+        : "Issue submitted successfully."
+    );
+    resetIssueReportForm();
+  } catch (error) {
+    const fallbackUrl =
+      typeof error?.payload?.error?.details?.fallback_url === "string" && error.payload.error.details.fallback_url.trim() !== ""
+        ? error.payload.error.details.fallback_url.trim()
+        : state.api.issueReporting.fallbackUrl;
+    if (fallbackUrl && elements.issueReportFallbackLink) {
+      elements.issueReportFallbackLink.href = fallbackUrl;
+    }
+    setIssueReportFeedback(normalizeApiErrorMessage(error, "Failed to submit issue."));
+  } finally {
+    state.api.issueReporting.isSubmitting = false;
+    renderIssueReportingPanel();
+  }
+}
+
 async function loadUsersFromApi() {
   resetAdminUserDetailCache();
 
@@ -4257,10 +4564,16 @@ async function loadUsersFromApi() {
       ? payload.users.map(normalizeApiAdminUser).filter(Boolean)
       : [];
     state.api.users = users;
+    const userIdSet = new Set(users.map((user) => user.id));
+    state.api.selectedUserIds = new Set(
+      [...(state.api.selectedUserIds instanceof Set ? state.api.selectedUserIds : new Set())]
+        .filter((userId) => userIdSet.has(userId))
+    );
     setUsersFeedback("");
     return true;
   } catch (error) {
     state.api.users = [];
+    clearSelectedAdminUsers();
     setUsersFeedback(normalizeApiErrorMessage(error, "Failed to load users."));
     return false;
   } finally {
@@ -4378,6 +4691,7 @@ async function saveUserRoleFromWorkspace(userId, role) {
     if (updated) {
       state.api.users = state.api.users.map((candidate) => (candidate.id === updated.id ? updated : candidate));
     }
+    state.api.selectedUserIds.delete(userId);
     setUsersFeedback("User permissions saved.");
   } catch (error) {
     setUsersFeedback(normalizeApiErrorMessage(error, "Failed to update user permissions."));
@@ -4385,6 +4699,54 @@ async function saveUserRoleFromWorkspace(userId, role) {
     state.api.savingUserRoleId = null;
     renderUsersWorkspace();
   }
+}
+
+async function applyBulkUserRoleFromWorkspace() {
+  if (!isAuthenticated() || !isAdminUser()) {
+    return;
+  }
+
+  const selectedIds = [...(state.api.selectedUserIds instanceof Set ? state.api.selectedUserIds : new Set())]
+    .filter((userId) => Number.isInteger(userId) && userId > 0);
+  if (selectedIds.length < 1) {
+    setUsersFeedback("Select at least one user first.");
+    return;
+  }
+
+  const normalizedRole = normalizeApiUserRole(state.api.bulkUserRole);
+  state.api.isBulkSavingUserRoles = true;
+  setUsersFeedback(`Applying '${normalizedRole}' to ${selectedIds.length} user${selectedIds.length === 1 ? "" : "s"}...`);
+  renderUsersWorkspace();
+
+  const failures = [];
+  for (const userId of selectedIds) {
+    const user = state.api.users.find((candidate) => candidate.id === userId);
+    if (!user || user.is_owner_admin === true) {
+      continue;
+    }
+    try {
+      const payload = await apiRequest(`/admin/users/${userId}/role`, {
+        method: "PUT",
+        auth: true,
+        body: { role: normalizedRole }
+      });
+      const updated = normalizeApiAdminUser(payload?.user);
+      if (updated) {
+        state.api.users = state.api.users.map((candidate) => (candidate.id === updated.id ? updated : candidate));
+      }
+    } catch (error) {
+      failures.push(`${user.email}: ${normalizeApiErrorMessage(error, "Failed to update user permissions.")}`);
+    }
+  }
+
+  clearSelectedAdminUsers();
+  state.api.isBulkSavingUserRoles = false;
+  setUsersFeedback(
+    failures.length > 0
+      ? `Bulk update completed with ${failures.length} failure${failures.length === 1 ? "" : "s"}. ${failures.join(" | ")}`
+      : `Applied '${normalizedRole}' to selected users.`
+  );
+  renderUsersWorkspace();
 }
 
 async function saveUserRiotIdFromWorkspace(userId, gameName, tagline) {
@@ -4447,6 +4809,7 @@ async function deleteUserFromWorkspace(userId, email) {
       auth: true
     });
     state.api.users = state.api.users.filter((candidate) => candidate.id !== userId);
+    state.api.selectedUserIds.delete(userId);
     setUsersFeedback(`Deleted ${userLabel}.`);
   } catch (error) {
     setUsersFeedback(normalizeApiErrorMessage(error, "Failed to delete user."));
@@ -4859,6 +5222,40 @@ function renderUsersWorkspace() {
   }
 
   elements.usersList.innerHTML = "";
+  if (elements.usersSearch && elements.usersSearch.value !== state.api.usersSearch) {
+    elements.usersSearch.value = state.api.usersSearch;
+  }
+  if (elements.usersRoleFilter && elements.usersRoleFilter.value !== state.api.usersRoleFilter) {
+    elements.usersRoleFilter.value = state.api.usersRoleFilter;
+  }
+  if (elements.usersBulkRole && elements.usersBulkRole.value !== state.api.bulkUserRole) {
+    elements.usersBulkRole.value = state.api.bulkUserRole;
+  }
+
+  const selectedUserCount = state.api.selectedUserIds instanceof Set ? state.api.selectedUserIds.size : 0;
+  const toolbarDisabled = !isAuthenticated() || !isAdminUser() || state.api.isLoadingUsers;
+  if (elements.usersSearch) {
+    elements.usersSearch.disabled = toolbarDisabled;
+  }
+  if (elements.usersRoleFilter) {
+    elements.usersRoleFilter.disabled = toolbarDisabled;
+  }
+  if (elements.usersBulkRole) {
+    elements.usersBulkRole.disabled = toolbarDisabled || state.api.isBulkSavingUserRoles;
+  }
+  if (elements.usersBulkApply) {
+    elements.usersBulkApply.disabled = toolbarDisabled || state.api.isBulkSavingUserRoles || selectedUserCount < 1;
+    elements.usersBulkApply.textContent = state.api.isBulkSavingUserRoles ? "Applying..." : "Apply to Selected";
+  }
+  if (elements.usersSelectionClear) {
+    elements.usersSelectionClear.disabled = toolbarDisabled || selectedUserCount < 1 || state.api.isBulkSavingUserRoles;
+  }
+  if (elements.usersSelectionMeta) {
+    elements.usersSelectionMeta.textContent = selectedUserCount > 0
+      ? `${selectedUserCount} user${selectedUserCount === 1 ? "" : "s"} selected for bulk role changes.`
+      : "Select users to apply the same role change in one pass.";
+  }
+
   renderUsersAuthorizationWorkspace();
   if (!isAuthenticated()) {
     elements.usersAccess.textContent = "Sign in to access users.";
@@ -4883,7 +5280,8 @@ function renderUsersWorkspace() {
   }
 
   const users = Array.isArray(state.api.users) ? state.api.users : [];
-  elements.usersAccess.textContent = `${users.length} users loaded.`;
+  const filteredUsers = getFilteredAdminUsers();
+  elements.usersAccess.textContent = `${filteredUsers.length} of ${users.length} users shown.`;
   if (users.length === 0) {
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
@@ -4891,17 +5289,26 @@ function renderUsersWorkspace() {
     elements.usersList.append(empty);
     return;
   }
+  if (filteredUsers.length === 0) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "No users match the current search/filter.";
+    elements.usersList.append(empty);
+    return;
+  }
 
-  for (const user of users) {
+  for (const user of filteredUsers) {
     const card = runtimeDocument.createElement("article");
     card.className = "summary-card";
+    card.dataset.userId = String(user.id);
     const isSavingRole = state.api.savingUserRoleId === user.id;
     const isSavingRiotId = state.api.savingUserRiotIdId === user.id;
     const isDeletingUser = state.api.deletingUserId === user.id;
-    const isSavingAnyUserAction = isSavingRole || isSavingRiotId || isDeletingUser;
+    const isSavingAnyUserAction = isSavingRole || isSavingRiotId || isDeletingUser || state.api.isBulkSavingUserRoles;
     const isOwnerAdmin = user.is_owner_admin === true;
     const ownerStoredRole = normalizeApiUserRole(user.stored_role);
     const ownerRoleNeedsSync = isOwnerAdmin && ownerStoredRole !== "admin";
+    const isSelected = state.api.selectedUserIds instanceof Set && state.api.selectedUserIds.has(user.id);
 
     const title = runtimeDocument.createElement("strong");
     title.textContent = user.email;
@@ -4909,6 +5316,27 @@ function renderUsersWorkspace() {
     const riot = runtimeDocument.createElement("p");
     riot.className = "meta";
     riot.textContent = user.riot_id ? `Riot ID: ${user.riot_id}` : "Riot ID: not set";
+
+    const selectionLabel = runtimeDocument.createElement("label");
+    selectionLabel.className = "inline-checkbox user-selection-toggle";
+    const selectionCheckbox = runtimeDocument.createElement("input");
+    selectionCheckbox.type = "checkbox";
+    selectionCheckbox.checked = isSelected;
+    selectionCheckbox.disabled = isOwnerAdmin || isSavingAnyUserAction;
+    selectionCheckbox.dataset.userId = String(user.id);
+    selectionCheckbox.setAttribute("aria-label", `Select ${user.email} for bulk role changes`);
+    selectionCheckbox.addEventListener("change", () => {
+      if (!(state.api.selectedUserIds instanceof Set)) {
+        state.api.selectedUserIds = new Set();
+      }
+      if (selectionCheckbox.checked) {
+        state.api.selectedUserIds.add(user.id);
+      } else {
+        state.api.selectedUserIds.delete(user.id);
+      }
+      renderUsersWorkspace();
+    });
+    selectionLabel.append(selectionCheckbox, runtimeDocument.createTextNode("Select for bulk role change"));
 
     const roleLabel = runtimeDocument.createElement("label");
     roleLabel.className = "meta";
@@ -4918,7 +5346,7 @@ function renderUsersWorkspace() {
     const options = isOwnerAdmin
       ? [{ value: "admin", label: "admin" }]
       : [
-          { value: "member", label: "user" },
+          { value: "member", label: "member" },
           { value: "global", label: "global" }
         ];
     replaceOptions(roleSelect, options);
@@ -5000,7 +5428,7 @@ function renderUsersWorkspace() {
 
     roleLabel.append(runtimeDocument.createElement("br"), roleSelect);
     riotCorrectionLabel.append(runtimeDocument.createElement("br"), riotCorrectionControls);
-    card.append(title, riot, roleLabel);
+    card.append(selectionLabel, title, riot, roleLabel);
     if (isOwnerAdmin) {
       card.append(ownerAdminSyncButton, ownerAdminSyncMeta);
     }
@@ -7929,6 +8357,33 @@ async function loadDiscoverTeamsFromApi() {
   }
 }
 
+function canReviewSelectedTeam(team = getSelectedAdminTeam()) {
+  return Boolean(team) && (team.membership_role === "lead" || isAdminUser());
+}
+
+async function refreshTeamWorkspaceDataForActiveTab() {
+  if (!isAuthenticated()) {
+    return;
+  }
+
+  if (state.ui.teamWorkspaceTab === TEAM_WORKSPACE_TAB_MANAGE) {
+    if (canReviewSelectedTeam()) {
+      await Promise.all([
+        loadPendingJoinRequestsForSelectedTeam(),
+        loadMemberInvitationsForSelectedTeam()
+      ]);
+    }
+    return;
+  }
+
+  if (state.ui.teamWorkspaceTab === TEAM_WORKSPACE_TAB_MEMBER) {
+    await Promise.all([
+      loadDiscoverTeamsFromApi(),
+      loadInvitationsForUser()
+    ]);
+  }
+}
+
 async function loadPendingJoinRequestsForSelectedTeam() {
   const selectedTeam = getSelectedAdminTeam();
   if (!selectedTeam || !isAuthenticated()) {
@@ -7942,14 +8397,20 @@ async function loadPendingJoinRequestsForSelectedTeam() {
     return false;
   }
 
+  state.api.isLoadingJoinRequests = true;
+  renderTeamAdmin();
   try {
     const payload = await apiRequest(`/teams/${selectedTeam.id}/join-requests?status=pending`, { auth: true });
     state.api.joinRequestsByTeamId[selectedTeamId] = Array.isArray(payload?.requests) ? payload.requests : [];
+    state.api.joinRequestsLoadedAtByTeamId[selectedTeamId] = new Date().toISOString();
     return true;
   } catch (error) {
     state.api.joinRequestsByTeamId[selectedTeamId] = [];
     setTeamJoinFeedback(normalizeApiErrorMessage(error, "Failed to load pending join requests."));
     return false;
+  } finally {
+    state.api.isLoadingJoinRequests = false;
+    renderTeamAdmin();
   }
 }
 
@@ -8962,6 +9423,22 @@ function renderTeamJoinWorkspace(selectedTeam) {
   if (elements.teamJoinLoadReview) {
     elements.teamJoinLoadReview.disabled = !isAuthenticated() || !canReview;
   }
+  if (elements.teamJoinReviewMeta) {
+    if (!isAuthenticated()) {
+      elements.teamJoinReviewMeta.textContent = "Sign in to load join request review data.";
+    } else if (!selectedTeam) {
+      elements.teamJoinReviewMeta.textContent = "Select a managed team to review pending requests.";
+    } else if (!canReview) {
+      elements.teamJoinReviewMeta.textContent = "Only leads and admins can review requests for this team.";
+    } else {
+      const requests = state.api.joinRequestsByTeamId[String(selectedTeam.id)] ?? [];
+      const loadedAt = formatTimestampMeta(state.api.joinRequestsLoadedAtByTeamId[String(selectedTeam.id)]);
+      const countLabel = `${requests.length} pending request${requests.length === 1 ? "" : "s"}`;
+      elements.teamJoinReviewMeta.textContent = loadedAt
+        ? `${countLabel}. Last refreshed ${loadedAt}.`
+        : `${countLabel}. Auto-refresh runs when you open or switch team context.`;
+    }
+  }
   if (!elements.teamJoinReviewList) {
     return;
   }
@@ -8989,11 +9466,19 @@ function renderTeamJoinWorkspace(selectedTeam) {
     return;
   }
 
+  if (state.api.isLoadingJoinRequests) {
+    const loading = runtimeDocument.createElement("p");
+    loading.className = "meta";
+    loading.textContent = "Loading pending join requests...";
+    elements.teamJoinReviewList.append(loading);
+    return;
+  }
+
   const requests = state.api.joinRequestsByTeamId[String(selectedTeam.id)] ?? [];
   if (requests.length === 0) {
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
-    empty.textContent = "No pending requests loaded. Use Load Pending Requests.";
+    empty.textContent = "No pending requests.";
     elements.teamJoinReviewList.append(empty);
     return;
   }
@@ -9014,6 +9499,15 @@ function renderTeamJoinWorkspace(selectedTeam) {
     const trimmedNote = typeof request?.note === "string" ? request.note.trim() : "";
     note.textContent = trimmedNote ? `Note: ${trimmedNote}` : "Note: (none)";
 
+    const telemetry = runtimeDocument.createElement("p");
+    telemetry.className = "meta";
+    const submittedAt = formatTimestampMeta(request?.created_at);
+    const requesterEmail = typeof request?.requester?.email === "string" ? request.requester.email.trim() : "";
+    telemetry.textContent = [
+      submittedAt ? `Submitted ${submittedAt}` : "",
+      requesterEmail ? requesterEmail : ""
+    ].filter(Boolean).join(" • ");
+
     const actions = runtimeDocument.createElement("div");
     actions.className = "button-row";
 
@@ -9031,7 +9525,11 @@ function renderTeamJoinWorkspace(selectedTeam) {
     reject.dataset.requestId = String(request.id);
 
     actions.append(approve, reject);
-    card.append(title, lane, note, actions);
+    card.append(title, lane, note);
+    if (telemetry.textContent) {
+      card.append(telemetry);
+    }
+    card.append(actions);
     elements.teamJoinReviewList.append(card);
   }
 }
@@ -9051,11 +9549,18 @@ function renderTeamInviteList(selectedTeam) {
 
   const isAuth = isAuthenticated();
   if (elements.teamInviteListMeta) {
-    elements.teamInviteListMeta.textContent = !isAuth
-      ? "Sign in to view team invitations."
-      : selectedTeam
-        ? `Pending invitations for ${formatTeamCardTitle(selectedTeam)}.`
-        : "Select a team to view invitations.";
+    if (!isAuth) {
+      elements.teamInviteListMeta.textContent = "Sign in to view team invitations.";
+    } else if (!selectedTeam) {
+      elements.teamInviteListMeta.textContent = "Select a team to view invitations.";
+    } else {
+      const invitations = getTeamInviteList(selectedTeam);
+      const loadedAt = formatTimestampMeta(state.api.teamInvitationsLoadedAtByTeamId[String(selectedTeam.id)]);
+      const countLabel = `${invitations.length} invite${invitations.length === 1 ? "" : "s"} loaded`;
+      elements.teamInviteListMeta.textContent = loadedAt
+        ? `${countLabel} for ${formatTeamCardTitle(selectedTeam)}. Last refreshed ${loadedAt}.`
+        : `Auto-refresh runs when you open Manage or switch teams.`;
+    }
   }
 
   if (!isAuth) {
@@ -9112,7 +9617,19 @@ function renderTeamInviteList(selectedTeam) {
     status.className = "meta";
     status.textContent = `Status: ${invitation.status}`;
 
+    const telemetry = runtimeDocument.createElement("p");
+    telemetry.className = "meta";
+    const createdAt = formatTimestampMeta(invitation?.created_at);
+    const reviewedAt = formatTimestampMeta(invitation?.reviewed_at);
+    telemetry.textContent = [
+      createdAt ? `Created ${createdAt}` : "",
+      reviewedAt ? `Reviewed ${reviewedAt}` : ""
+    ].filter(Boolean).join(" • ");
+
     card.append(title, lane, note, status);
+    if (telemetry.textContent) {
+      card.append(telemetry);
+    }
 
     if (invitation.status === "pending") {
       const actions = runtimeDocument.createElement("div");
@@ -9140,6 +9657,9 @@ function renderTeamInviteUserList() {
   if (elements.teamInviteUserFeedback && !isAuthenticated()) {
     elements.teamInviteUserFeedback.textContent = "";
   }
+  if (elements.teamInviteUserMeta && !isAuthenticated()) {
+    elements.teamInviteUserMeta.textContent = "Sign in to review incoming invitations.";
+  }
 
   if (!isAuthenticated()) {
     const message = runtimeDocument.createElement("p");
@@ -9158,6 +9678,13 @@ function renderTeamInviteUserList() {
   }
 
   const invitations = Array.isArray(state.api.userInvitations) ? state.api.userInvitations : [];
+  if (elements.teamInviteUserMeta) {
+    const loadedAt = formatTimestampMeta(state.api.userInvitationsLoadedAt);
+    const countLabel = `${invitations.length} invitation${invitations.length === 1 ? "" : "s"} loaded`;
+    elements.teamInviteUserMeta.textContent = loadedAt
+      ? `${countLabel}. Last refreshed ${loadedAt}.`
+      : "Auto-refresh runs when you open Teams or respond to an invitation.";
+  }
   if (invitations.length === 0) {
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
@@ -9190,7 +9717,19 @@ function renderTeamInviteUserList() {
     status.className = "meta";
     status.textContent = `Status: ${invitation.status}`;
 
+    const telemetry = runtimeDocument.createElement("p");
+    telemetry.className = "meta";
+    const createdAt = formatTimestampMeta(invitation?.created_at);
+    const reviewedAt = formatTimestampMeta(invitation?.reviewed_at);
+    telemetry.textContent = [
+      createdAt ? `Created ${createdAt}` : "",
+      reviewedAt ? `Reviewed ${reviewedAt}` : ""
+    ].filter(Boolean).join(" • ");
+
     card.append(title, lane, note, status);
+    if (telemetry.textContent) {
+      card.append(telemetry);
+    }
 
     if (invitation.status === "pending") {
       const actions = runtimeDocument.createElement("div");
@@ -9233,6 +9772,7 @@ async function loadMemberInvitationsForSelectedTeam({ status = "pending" } = {})
     const payload = await apiRequest(`/teams/${teamId}/member-invitations?status=${status}`, { auth: true });
     const invitations = Array.isArray(payload?.invitations) ? payload.invitations : [];
     state.api.invitationsByTeamId[String(teamId)] = invitations;
+    state.api.teamInvitationsLoadedAtByTeamId[String(teamId)] = new Date().toISOString();
     setTeamInviteFeedback("Team invitations loaded.");
     return true;
   } catch (error) {
@@ -9257,6 +9797,7 @@ async function loadInvitationsForUser({ status = "pending" } = {}) {
   try {
     const payload = await apiRequest(`/me/member-invitations?status=${status}`, { auth: true });
     state.api.userInvitations = Array.isArray(payload?.invitations) ? payload.invitations : [];
+    state.api.userInvitationsLoadedAt = new Date().toISOString();
     setTeamInviteUserFeedback("");
     return true;
   } catch (error) {
@@ -13773,6 +14314,60 @@ function attachEvents() {
     });
   }
 
+  if (elements.usersSearch) {
+    elements.usersSearch.addEventListener("input", () => {
+      state.api.usersSearch = elements.usersSearch.value;
+      renderUsersWorkspace();
+    });
+  }
+
+  if (elements.usersRoleFilter) {
+    elements.usersRoleFilter.addEventListener("change", () => {
+      state.api.usersRoleFilter = elements.usersRoleFilter.value;
+      renderUsersWorkspace();
+    });
+  }
+
+  if (elements.usersBulkRole) {
+    elements.usersBulkRole.addEventListener("change", () => {
+      state.api.bulkUserRole = normalizeApiUserRole(elements.usersBulkRole.value);
+      renderUsersWorkspace();
+    });
+  }
+
+  if (elements.usersBulkApply) {
+    elements.usersBulkApply.addEventListener("click", () => {
+      void applyBulkUserRoleFromWorkspace();
+    });
+  }
+
+  if (elements.usersSelectionClear) {
+    elements.usersSelectionClear.addEventListener("click", () => {
+      clearSelectedAdminUsers();
+      renderUsersWorkspace();
+    });
+  }
+
+  if (elements.issueReportSubmit) {
+    elements.issueReportSubmit.addEventListener("click", () => {
+      void submitIssueReport();
+    });
+  }
+
+  if (elements.issueReportReset) {
+    elements.issueReportReset.addEventListener("click", () => {
+      resetIssueReportForm();
+      setIssueReportFeedback("");
+      renderIssueReportingPanel();
+    });
+  }
+
+  if (elements.issueReportFallbackLink) {
+    elements.issueReportFallbackLink.addEventListener("click", () => {
+      setIssueReportFeedback("");
+    });
+  }
+
   for (const scopeSelect of [elements.requirementsScope, elements.compositionsScope]) {
     if (!scopeSelect) {
       continue;
@@ -14142,6 +14737,14 @@ function attachEvents() {
   for (const button of elements.teamWorkspaceTabButtons) {
     button.addEventListener("click", () => {
       setTeamWorkspaceTab(button.dataset.teamWorkspaceTab);
+      void refreshTeamWorkspaceDataForActiveTab();
+    });
+  }
+
+  if (elements.reportIssueLink) {
+    elements.reportIssueLink.addEventListener("click", (event) => {
+      event.preventDefault();
+      openIssueReportingPanel();
     });
   }
 
@@ -14303,7 +14906,8 @@ function attachEvents() {
   elements.teamAdminTeamSelect.addEventListener("change", () => {
     state.api.selectedTeamId = elements.teamAdminTeamSelect.value;
     state.api.joinRequestsByTeamId[state.api.selectedTeamId] = [];
-    void loadTeamMembersForSelectedTeam().then(() => {
+    void loadTeamMembersForSelectedTeam().then(async () => {
+      await refreshTeamWorkspaceDataForActiveTab();
       renderTeamAdmin();
     });
   });
@@ -14321,7 +14925,8 @@ function attachEvents() {
 
   if (elements.teamAdminRefresh) {
     elements.teamAdminRefresh.addEventListener("click", () => {
-      void loadTeamsFromApi(state.api.selectedTeamId).then(() => {
+      void loadTeamsFromApi(state.api.selectedTeamId).then(async () => {
+        await refreshTeamWorkspaceDataForActiveTab();
         renderTeamAdmin();
       });
     });
@@ -14828,11 +15433,22 @@ async function init() {
     });
     await loadMvpData();
     await loadTagCatalogFromApi();
+    await loadIssueReportingStatusFromApi();
     let loadedTeamContextFromApi = false;
     if (isAuthenticated()) {
       await loadProfileFromApi();
       await loadPoolsFromApi();
       await loadTeamsFromApi();
+      await Promise.all([
+        loadDiscoverTeamsFromApi(),
+        loadInvitationsForUser()
+      ]);
+      if (canReviewSelectedTeam()) {
+        await Promise.all([
+          loadPendingJoinRequestsForSelectedTeam(),
+          loadMemberInvitationsForSelectedTeam()
+        ]);
+      }
       loadedTeamContextFromApi = await loadTeamContextFromApi();
       await hydrateCompositionsWorkspaceFromApi();
       if (isAdminUser()) {
@@ -14875,6 +15491,7 @@ async function init() {
     renderChampionCoreWorkspace();
     renderCompositionsWorkspace();
     renderChampionTagEditor();
+    renderIssueReportingPanel();
     renderAuth();
     clearBuilderFeedback();
     void fetchBuilderDraftContext(state.builder.teamId).then(() => {
