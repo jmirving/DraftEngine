@@ -1177,7 +1177,7 @@
                 <ul class="coming-soon-list">
                   <li>Report an issue now opens a blocking in-app modal from any page, captures the current page/tab context, and can submit directly to GitHub when server-side issue reporting is configured; otherwise it falls back to the external GitHub issues page.</li>
                   <li>Users workspace now supports search, role filtering, and bulk member/global permission updates from the existing admin directory.</li>
-                  <li>Teams discover, join-request, and invitation sections now auto-refresh when Teams opens, use compact last-refreshed telemetry with inline refresh icons, and show explicit refresh failures instead of a stale "Not refreshed yet" state. Invitation schema mismatches now surface a migration instruction instead of a generic internal error.</li>
+                  <li>Teams discover, join-request, and invitation sections now auto-refresh when Teams opens, use compact last-refreshed telemetry with inline refresh icons, and fail fast against drifted invitation schema so broken databases are caught at startup instead of only when the Teams page loads.</li>
                 </ul>
                 <h4>Version 0.8.7</h4>
                 <ul class="coming-soon-list">

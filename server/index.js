@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 
 import { createApp } from "./app.js";
 import { ConfigError, loadConfig } from "./config.js";
-import { createDbPool } from "./db/pool.js";
+import { assertInvitationSchema, createDbPool } from "./db/pool.js";
 import { createGitHubIssueReporter } from "./github/issues.js";
 import { createRepositories } from "./repositories/index.js";
 import { createRiotChampionStatsService } from "./riot/champion-stats.js";
@@ -68,6 +68,12 @@ export function startServer(env = process.env) {
 
   const server = app.listen(config.port, () => {
     console.log(`DraftEngine API listening on port ${config.port} (${config.nodeEnv})`);
+  });
+
+  void assertInvitationSchema(pool).catch(async (error) => {
+    console.error(error.message);
+    server.close();
+    process.exitCode = 1;
   });
 
   server.on("close", () => {

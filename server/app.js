@@ -166,6 +166,16 @@ export function createApp({
       return;
     }
 
+    if (!(error instanceof ApiError)) {
+      console.error("Unhandled API error", {
+        method: _request.method,
+        path: _request.originalUrl ?? _request.url,
+        code: error?.code,
+        message: error?.message,
+        stack: error?.stack
+      });
+    }
+
     const formatted = formatErrorResponse(error);
     response.status(formatted.status).json(formatted.body);
   });
