@@ -4144,23 +4144,21 @@ button.pool-snapshot-order-btn:disabled {
 .ced-spike-label-row .ced-section-label {
   margin: 0;
 }
+.ced-spike-hint-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.25rem;
+  gap: 0.5rem;
+}
 .ced-spike-clear-btn {
-  background: none;
-  border: none;
   font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 0;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.ced-spike-clear-btn:hover {
-  color: var(--accent);
-}
-.ced-spike-clear-btn:disabled {
-  opacity: 0.3;
-  cursor: default;
+  font-weight: 700;
+  padding: 0.22rem 0.7rem;
+  margin: 0;
+  width: auto;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .ced-level-bar {
@@ -4199,7 +4197,7 @@ button.pool-snapshot-order-btn:disabled {
   color: #1a5c31;
 }
 .ced-spike-hint {
-  margin: 0.25rem 0 0 0;
+  margin: 0;
   font-size: 0.72rem;
 }
 

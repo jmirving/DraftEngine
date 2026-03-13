@@ -7032,19 +7032,13 @@ function renderChampionMetadataRoleProfileEditors() {
   if (elements.cedEffectivenessSlot) {
     const currentSpikes = normalizePowerSpikes(profile.powerSpikes);
 
-    // Label row with inline Clear button
+    // Label row
     const labelRow = runtimeDocument.createElement("div");
     labelRow.className = "ced-spike-label-row";
     const sectionLabel = runtimeDocument.createElement("p");
     sectionLabel.className = "ced-section-label";
     sectionLabel.textContent = "Power Spikes (Level)";
-    const clearBtn = runtimeDocument.createElement("button");
-    clearBtn.type = "button";
-    clearBtn.className = "ced-spike-clear-btn";
-    clearBtn.textContent = "Clear";
-    clearBtn.disabled = state.api.isSavingChampionTags || currentSpikes.length === 0;
-    clearBtn.addEventListener("click", () => onPowerSpikesChange([]));
-    labelRow.append(sectionLabel, clearBtn);
+    labelRow.append(sectionLabel);
 
     // Level bar with drag-to-select
     const levelBar = runtimeDocument.createElement("div");
@@ -7138,13 +7132,23 @@ function renderChampionMetadataRoleProfileEditors() {
       });
     }
 
+    // Hint row with Clear button at bottom right
+    const hintRow = runtimeDocument.createElement("div");
+    hintRow.className = "ced-spike-hint-row";
     const hint = runtimeDocument.createElement("p");
     hint.className = "ced-spike-hint meta";
     hint.textContent = currentSpikes.length >= POWER_SPIKE_MAX_RANGES
       ? "Max 2 ranges. Clear to start over, or drag to replace the last range."
       : "Click and drag across levels to set a range.";
+    const clearBtn = runtimeDocument.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.className = "ced-spike-clear-btn";
+    clearBtn.textContent = "Clear";
+    clearBtn.disabled = state.api.isSavingChampionTags || currentSpikes.length === 0;
+    clearBtn.addEventListener("click", () => onPowerSpikesChange([]));
+    hintRow.append(hint, clearBtn);
 
-    elements.cedEffectivenessSlot.append(labelRow, levelBar, hint);
+    elements.cedEffectivenessSlot.append(labelRow, levelBar, hintRow);
   }
 }
 
