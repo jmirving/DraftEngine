@@ -440,12 +440,10 @@
                 </div>
                 <div id="builder-tree-summary" class="tree-summary"></div>
                 <div class="panel tree-map-panel">
-                  <h3>Tree Map</h3>
-                  <p class="meta">Graph view of expansion depth. Click any node marker to inspect it.</p>
-                  <p id="tree-map-legend" class="meta">
-                    Legend: terminal valid, recoverable, and filtered-context states.
-                  </p>
-                  <svg id="builder-tree-map" class="tree-map" viewBox="0 0 900 320" preserveAspectRatio="xMidYMid meet"></svg>
+                  <h3>Draft Path</h3>
+                  <p class="meta">Pick-order columns. Click a champion to select that branch. Hover for details.</p>
+                  <p id="tree-map-legend" class="meta"></p>
+                  <div id="builder-tree-map" class="draft-path-grid"></div>
                 </div>
                 <div id="builder-tree" class="tree"></div>
               </section>
@@ -1224,6 +1222,15 @@
                   <li>Users workspace now supports search, role filtering, and bulk member/global permission updates from the existing admin directory.</li>
                   <li>Teams join-request and invitation lists now auto-refresh when you open the relevant workspace views or switch managed teams, and each list shows clearer refresh/status telemetry.</li>
                 </ul>
+                <h4>Version 0.8.7</h4>
+                <ul class="coming-soon-list">
+                  <li>Draft Path replaces Tree Map: the SVG dot graph is replaced by a 5-column pick-order layout where each column lists champion options for that role, styled like pool snapshot cards.</li>
+                  <li>Hover any champion in the Draft Path to see a compact tooltip with viable finishes, coverage status, impact summary, and missing coverage — the same data previously shown only on branch cards.</li>
+                  <li>Column headers display role names (Top, Jungle, etc.) in draft order instead of D0–D5 depth labels.</li>
+                  <li>Champions in each column are sorted by total viable finishes; a green badge shows the count.</li>
+                  <li>Selected branch is highlighted in the column; ancestors on the selected path get a subtle tint.</li>
+                  <li>Branch card and tree node "Inspect" buttons renamed to "Select" for clarity.</li>
+                </ul>
                 <h4>Version 0.8.6 (Shipped)</h4>
                 <ul class="coming-soon-list">
                   <li>Comfort Level dropdown restyled to match role-pill color scheme and compact View pill sizing.</li>
@@ -1231,6 +1238,7 @@
                   <li>Composer stage-guide header panel removed; Clear Composition now lives only in the sticky bottom bar with primary button styling.</li>
                   <li>Power Spikes interaction reworked: clicking inside an existing range now modifies that range instead of creating a new one on top; clicking a single-level range removes it; dragging from a selected level redraws that range in place.</li>
                   <li>Profile Riot Champion Stats redesigned: top 3 most-played champions displayed as portrait cards in a 3-column grid inside a single container; hint summary text removed for the normal state.</li>
+                  <li>Power Spike ranges that overlap or touch now auto-merge into a single range (e.g. dragging range 2 to be adjacent to range 1 combines them).</li>
                 </ul>
                 <h4>Version 0.8.5 (Shipped)</h4>
                 <ul class="coming-soon-list">

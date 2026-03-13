@@ -1555,13 +1555,23 @@ function normalizePowerSpikeRange(raw) {
 
 function normalizePowerSpikes(raw) {
   if (!Array.isArray(raw)) return [];
-  const ranges = [];
+  const parsed = [];
   for (const item of raw) {
-    if (ranges.length >= POWER_SPIKE_MAX_RANGES) break;
     const range = normalizePowerSpikeRange(item);
-    if (range) ranges.push(range);
+    if (range) parsed.push(range);
   }
-  return ranges;
+  // Sort by start then merge overlapping/adjacent ranges
+  parsed.sort((a, b) => a.start - b.start);
+  const merged = [];
+  for (const r of parsed) {
+    const prev = merged[merged.length - 1];
+    if (prev && r.start <= prev.end + 1) {
+      prev.end = Math.max(prev.end, r.end);
+    } else {
+      merged.push({ start: r.start, end: r.end });
+    }
+  }
+  return merged.slice(0, POWER_SPIKE_MAX_RANGES);
 }
 
 function powerSpikesFromLegacyEffectiveness(eff) {
@@ -12912,7 +12922,7 @@ function renderTreeNode(node, depth = 0, nodeId = "0", visibleIds = null) {
 
   const action = runtimeDocument.createElement("button");
   action.type = "button";
-  action.textContent = "Inspect";
+  action.textContent = "Select";
   action.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -13304,7 +13314,7 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
     actions.className = "button-row";
     const inspect = runtimeDocument.createElement("button");
     inspect.type = "button";
-    inspect.textContent = "Inspect";
+    inspect.textContent = "Select";
     inspect.addEventListener("click", () => {
       inspectNode(entry.node, entry.id, entry.title);
     });
@@ -13379,6 +13389,64 @@ function renderTree() {
   elements.builderTree.append(rendered);
 }
 
+let draftPathTooltipEl = null;
+
+function showDraftPathTooltip(evt, node, champName, data) {
+  hideDraftPathTooltip();
+  const tip = runtimeDocument.createElement("div");
+  tip.className = "draft-path-tooltip";
+
+  const validLeaves = data.totalValidLeaves;
+  const statusLine = getBranchStatusLine(node);
+  const impactLine = getBranchImpactSummary(node.candidateBreakdown);
+  const benefitMeta = getCandidateBenefitMeta(node.candidateBreakdown, 2);
+  const coverageMeta = getRemainingCoverageMeta(node.scoreBreakdown, 2);
+
+  const lines = [];
+  lines.push(`${champName} — ${validLeaves} viable finish${validLeaves === 1 ? "" : "es"}`);
+  lines.push(statusLine);
+  if (impactLine) lines.push(impactLine);
+  if (benefitMeta.lines.length > 0) {
+    for (const line of benefitMeta.lines) lines.push(line);
+    if (benefitMeta.hiddenCount > 0) lines.push(`+${benefitMeta.hiddenCount} more`);
+  }
+  if (coverageMeta.lines.length > 0) {
+    lines.push("Missing: " + coverageMeta.lines.join(" | "));
+  }
+  if (data.count > 1) {
+    lines.push(`${data.count} branches (showing best)`);
+  }
+
+  for (const line of lines) {
+    const row = runtimeDocument.createElement("div");
+    row.textContent = line;
+    tip.append(row);
+  }
+
+  runtimeDocument.body.append(tip);
+  draftPathTooltipEl = tip;
+
+  const rect = evt.currentTarget.getBoundingClientRect();
+  const tipRect = tip.getBoundingClientRect();
+  let left = rect.right + 8;
+  let top = rect.top;
+  if (left + tipRect.width > window.innerWidth - 8) {
+    left = rect.left - tipRect.width - 8;
+  }
+  if (top + tipRect.height > window.innerHeight - 8) {
+    top = window.innerHeight - tipRect.height - 8;
+  }
+  tip.style.left = `${left}px`;
+  tip.style.top = `${top}px`;
+}
+
+function hideDraftPathTooltip() {
+  if (draftPathTooltipEl) {
+    draftPathTooltipEl.remove();
+    draftPathTooltipEl = null;
+  }
+}
+
 function renderTreeMap() {
   elements.builderTreeMap.innerHTML = "";
   if (!state.builder.tree) {
@@ -13412,100 +13480,99 @@ function renderTreeMap() {
     depthCols[entry.depth].push(entry);
   }
 
-  for (const column of depthCols) {
-    column.sort((left, right) => {
-      const leftKey = teamStateKey(left.node.teamSlots);
-      const rightKey = teamStateKey(right.node.teamSlots);
-      return leftKey.localeCompare(rightKey);
-    });
-  }
-
-  const width = 900;
-  const maxColumnSize = Math.max(...depthCols.map((column) => column.length));
-  const height = Math.max(320, Math.min(720, maxColumnSize * 24 + 64));
-  elements.builderTreeMap.setAttribute("viewBox", `0 0 ${width} ${height}`);
-  const xPadding = 46;
-  const yPadding = 26;
-  const colWidth = depthMax > 0 ? (width - xPadding * 2) / depthMax : 0;
-  const pointsById = {};
   const selectedPathIds = getSelectedPathIds();
+  const draftOrder = state.builder.draftOrder ?? [...SLOTS];
 
-  for (let depth = 0; depth < depthCols.length; depth += 1) {
+  for (let depth = 1; depth < depthCols.length; depth += 1) {
     const column = depthCols[depth];
-    const step = column.length > 1 ? (height - yPadding * 2) / (column.length - 1) : 0;
-    for (let index = 0; index < column.length; index += 1) {
-      const entry = column[index];
-      pointsById[entry.id] = {
-        x: depthMax > 0 ? xPadding + depth * colWidth : width / 2,
-        y: column.length > 1 ? yPadding + index * step : height / 2
-      };
-    }
-  }
+    const roleLabel = draftOrder[depth - 1] ?? `Pick ${depth}`;
 
-  for (const entry of flat) {
-    if (!entry.parentId) {
-      continue;
+    const champMap = new Map();
+    for (const entry of column) {
+      const name = entry.node.addedChampion ?? "Unknown";
+      const existing = champMap.get(name);
+      if (!existing) {
+        champMap.set(name, { bestEntry: entry, totalValidLeaves: entry.node.branchPotential?.validLeafCount ?? 0, count: 1 });
+      } else {
+        existing.count += 1;
+        existing.totalValidLeaves += entry.node.branchPotential?.validLeafCount ?? 0;
+        const existingLeaves = existing.bestEntry.node.branchPotential?.validLeafCount ?? 0;
+        const newLeaves = entry.node.branchPotential?.validLeafCount ?? 0;
+        if (newLeaves > existingLeaves) {
+          existing.bestEntry = entry;
+        }
+      }
     }
-    const source = pointsById[entry.parentId];
-    const target = pointsById[entry.id];
-    const line = runtimeDocument.createElementNS("http://www.w3.org/2000/svg", "line");
-    let lineClass = "tree-map-line";
-    if (selectedPathIds.has(entry.id) && selectedPathIds.has(entry.parentId)) {
-      lineClass += " is-selected-path";
-    }
-    line.setAttribute("class", lineClass);
-    line.setAttribute("x1", String(source.x));
-    line.setAttribute("y1", String(source.y));
-    line.setAttribute("x2", String(target.x));
-    line.setAttribute("y2", String(target.y));
-    elements.builderTreeMap.append(line);
-  }
 
-  for (const entry of flat) {
-    const point = pointsById[entry.id];
-    const circle = runtimeDocument.createElementNS("http://www.w3.org/2000/svg", "circle");
-    let circleClass = "tree-map-node";
-    if (nodePassesActiveTreeFilters(entry.node)) {
-      circleClass += " is-match";
-    }
-    circleClass += ` is-${getNodeStatus(entry.node)}`;
-    circle.setAttribute("cx", String(point.x));
-    circle.setAttribute("cy", String(point.y));
-    const validLeafCount = entry.node.branchPotential?.validLeafCount ?? 0;
-    const baseRadius = 4 + Math.min(6, Math.sqrt(validLeafCount));
-    circle.setAttribute("r", String(entry.id === state.builder.selectedNodeId ? baseRadius + 2 : baseRadius));
-    if (entry.id === state.builder.selectedNodeId) {
-      circleClass += " is-selected";
-    }
-    circle.setAttribute("class", circleClass);
-    circle.setAttribute(
-      "aria-label",
-      entry.node.addedChampion
-        ? `${entry.node.addedRole} ${entry.node.addedChampion}, required gaps ${entry.node.requiredSummary?.requiredGaps ?? 0}, valid leaves ${validLeafCount}`
-        : `Root Composition, required gaps ${entry.node.requiredSummary?.requiredGaps ?? 0}, valid leaves ${validLeafCount}`
-    );
-    circle.addEventListener("click", () => {
-      const title = entry.node.addedChampion
-        ? `${entry.node.addedRole}: ${entry.node.addedChampion}`
-        : "Root Composition";
-      inspectNode(entry.node, entry.id, title);
-    });
-    elements.builderTreeMap.append(circle);
-  }
+    const sorted = [...champMap.entries()].sort((a, b) => b[1].totalValidLeaves - a[1].totalValidLeaves);
 
-  for (let depth = 0; depth < depthCols.length; depth += 1) {
-    const label = runtimeDocument.createElementNS("http://www.w3.org/2000/svg", "text");
-    const x = depthMax > 0 ? xPadding + depth * colWidth : width / 2;
-    label.setAttribute("x", String(x - 18));
-    label.setAttribute("y", "16");
-    label.setAttribute("class", "tree-map-label");
-    label.textContent = `D${depth}`;
-    elements.builderTreeMap.append(label);
+    const col = runtimeDocument.createElement("div");
+    col.className = "draft-path-column";
+
+    const header = runtimeDocument.createElement("div");
+    header.className = "draft-path-column-header";
+    header.textContent = roleLabel;
+    col.append(header);
+
+    const list = runtimeDocument.createElement("ul");
+    list.className = "draft-path-list";
+
+    for (const [champName, data] of sorted) {
+      const entry = data.bestEntry;
+      const node = entry.node;
+      const status = getNodeStatus(node);
+      const validLeaves = data.totalValidLeaves;
+      const isOnSelectedPath = selectedPathIds.has(entry.id);
+
+      const li = runtimeDocument.createElement("li");
+      li.className = `draft-path-item is-${status}`;
+      if (entry.id === state.builder.selectedNodeId) {
+        li.classList.add("is-selected");
+      }
+      if (isOnSelectedPath) {
+        li.classList.add("is-on-path");
+      }
+
+      const nameSpan = runtimeDocument.createElement("span");
+      nameSpan.className = "draft-path-champ-name";
+      nameSpan.textContent = champName;
+
+      const leafBadge = runtimeDocument.createElement("span");
+      leafBadge.className = "draft-path-leaf-badge";
+      leafBadge.textContent = `${validLeaves}`;
+      leafBadge.title = `${validLeaves} viable finish${validLeaves === 1 ? "" : "es"}`;
+
+      li.append(nameSpan, leafBadge);
+
+      li.addEventListener("click", () => {
+        const title = `${node.addedRole}: ${champName}`;
+        inspectNode(node, entry.id, title);
+      });
+
+      li.addEventListener("mouseenter", (evt) => {
+        showDraftPathTooltip(evt, node, champName, data);
+      });
+      li.addEventListener("mouseleave", hideDraftPathTooltip);
+
+      list.append(li);
+    }
+
+    if (sorted.length === 0) {
+      const empty = runtimeDocument.createElement("li");
+      empty.className = "draft-path-empty";
+      empty.textContent = "No options";
+      list.append(empty);
+    }
+
+    col.append(list);
+    elements.builderTreeMap.append(col);
   }
 
   if (elements.treeMapLegend) {
+    const totalVisible = flat.length - (depthCols[0]?.length ?? 0);
     elements.treeMapLegend.textContent =
-      "Legend: green=terminal valid, amber=recoverable branch, muted=filtered/dead-end.";
+      `${totalVisible} candidate${totalVisible === 1 ? "" : "s"} across ${depthMax} role${depthMax === 1 ? "" : "s"}. ` +
+      "Green = all minimums met, amber = recoverable, muted = dead-end.";
   }
 }
 
