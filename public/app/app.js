@@ -12868,6 +12868,22 @@ function getFocusedTreeNode() {
   return getNodeById(getFocusedTreeNodeId());
 }
 
+function syncDraftPathSelectionsFromTeamState() {
+  if (!state.builder.tree) return;
+  const root = getNodeById("0");
+  if (!root) return;
+  const rootSlots = normalizeTeamState(root.teamSlots);
+  const sel = {};
+  for (const slot of SLOTS) {
+    const current = state.builder.teamState[slot];
+    const wasPreFilled = !!rootSlots[slot];
+    if (current && !wasPreFilled) {
+      sel[slot] = current;
+    }
+  }
+  state.builder.draftPathSelections = sel;
+}
+
 function inspectNode(node, nodeId, nodeTitle) {
   setBuilderStage("inspect");
   state.builder.focusNodeId = nodeId;
@@ -12877,6 +12893,7 @@ function inspectNode(node, nodeId, nodeTitle) {
   setSetupFeedback("");
   state.builder.selectedNodeId = nodeId;
   state.builder.selectedNodeTitle = nodeTitle;
+  syncDraftPathSelectionsFromTeamState();
   renderTeamConfig();
   renderTree();
   renderTreeMap();
@@ -13728,6 +13745,8 @@ function renderTreeMap() {
       clear.addEventListener("click", (evt) => {
         evt.stopPropagation();
         delete state.builder.draftPathSelections[role];
+        state.builder.teamState[role] = null;
+        renderTeamConfig();
         renderTreeMap();
       });
       header.append(clear);
@@ -13762,9 +13781,12 @@ function renderTreeMap() {
       li.addEventListener("click", () => {
         if (selections[role] === champName) {
           delete state.builder.draftPathSelections[role];
+          state.builder.teamState[role] = null;
         } else {
           state.builder.draftPathSelections[role] = champName;
+          state.builder.teamState[role] = champName;
         }
+        renderTeamConfig();
         renderTreeMap();
       });
 
