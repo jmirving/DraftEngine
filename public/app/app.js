@@ -7376,9 +7376,13 @@ async function openChampionTagEditor(championId) {
   state.api.selectedChampionTagEditorId = championId;
   const scopedTagIds = normalizeChampionTagIdArray(champion?.tagIds);
   state.api.selectedChampionTagIds = scopedTagIds;
-  if (
+  const cardScope = getExplorerChampionActiveMetadataScope(champion);
+  const validScopeOptions = getChampionProfileScopeOptions();
+  if (cardScope !== "all" && validScopeOptions.some((option) => option.value === cardScope)) {
+    state.api.championTagScope = cardScope;
+  } else if (
     !Number.isInteger(previousEditorChampionId) ||
-    !getChampionProfileScopeOptions().some((option) => option.value === state.api.championTagScope)
+    !validScopeOptions.some((option) => option.value === state.api.championTagScope)
   ) {
     state.api.championTagScope = getChampionProfileDefaultScope();
   }
@@ -7408,6 +7412,12 @@ async function openChampionTagEditor(championId) {
 }
 
 function closeChampionTagEditor() {
+  // Sync editor scope back to the grid card's view scope
+  const editorChampionId = state.api.selectedChampionTagEditorId;
+  const editorScope = normalizeChampionTagScope(state.api.championTagScope);
+  if (Number.isInteger(editorChampionId) && editorChampionId > 0) {
+    state.explorer.activeMetadataScopeByChampionId[String(editorChampionId)] = editorScope;
+  }
   if (elements.championTagEditor) elements.championTagEditor.hidden = true;
   if (elements.championGridPanel) elements.championGridPanel.hidden = false;
   if (state.data) renderExplorer();
