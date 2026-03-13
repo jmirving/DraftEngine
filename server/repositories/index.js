@@ -1,6 +1,7 @@
 import { createChampionCoreRepository } from "./champion-core.js";
 import { createChampionsRepository } from "./champions.js";
 import { createCompositionsCatalogRepository } from "./compositions-catalog.js";
+import { createDraftSetupsRepository } from "./draft-setups.js";
 import { createPoolsRepository } from "./pools.js";
 import { createPromotionRequestsRepository } from "./promotion-requests.js";
 import { createTeamsRepository } from "./teams.js";
@@ -14,6 +15,7 @@ export function createRepositories(pool) {
     champions: createChampionsRepository(pool),
     tags: createTagsRepository(pool),
     compositionsCatalog: createCompositionsCatalogRepository(pool),
+    draftSetups: createDraftSetupsRepository(pool),
     promotionRequests: createPromotionRequestsRepository(pool),
     pools: createPoolsRepository(pool),
     teams: createTeamsRepository(pool)

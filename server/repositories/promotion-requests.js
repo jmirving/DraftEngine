@@ -14,6 +14,13 @@ function mapPromotionRequest(row) {
     requested_by: Number(row.requested_by),
     status: row.status,
     payload_json: row.payload_json ?? {},
+    request_comment: typeof row.request_comment === "string" ? row.request_comment : "",
+    review_comment: typeof row.review_comment === "string" ? row.review_comment : "",
+    reviewed_by_user_id:
+      row.reviewed_by_user_id === null || row.reviewed_by_user_id === undefined
+        ? null
+        : Number(row.reviewed_by_user_id),
+    reviewed_at: row.reviewed_at ?? null,
     created_at: row.created_at
   };
 }
@@ -29,6 +36,7 @@ export function createPromotionRequestsRepository(pool) {
       targetScope,
       targetTeamId = null,
       requestedBy,
+      requestComment = "",
       payload = {}
     }) {
       const result = await pool.query(
@@ -42,9 +50,10 @@ export function createPromotionRequestsRepository(pool) {
             target_scope,
             target_team_id,
             requested_by,
+            request_comment,
             payload_json
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
           RETURNING id,
                     entity_type,
                     resource_id,
@@ -55,6 +64,10 @@ export function createPromotionRequestsRepository(pool) {
                     target_team_id,
                     requested_by,
                     status,
+                    request_comment,
+                    review_comment,
+                    reviewed_by_user_id,
+                    reviewed_at,
                     payload_json,
                     created_at
         `,
@@ -67,6 +80,7 @@ export function createPromotionRequestsRepository(pool) {
           targetScope,
           targetTeamId,
           requestedBy,
+          requestComment,
           payload
         ]
       );
@@ -96,6 +110,125 @@ export function createPromotionRequestsRepository(pool) {
         }
       }
       return counts;
+    },
+
+    async getPromotionRequestById(requestId) {
+      const result = await pool.query(
+        `
+          SELECT id,
+                 entity_type,
+                 resource_id,
+                 source_scope,
+                 source_user_id,
+                 source_team_id,
+                 target_scope,
+                 target_team_id,
+                 requested_by,
+                 status,
+                 request_comment,
+                 review_comment,
+                 reviewed_by_user_id,
+                 reviewed_at,
+                 payload_json,
+                 created_at
+          FROM scope_promotion_requests
+          WHERE id = $1
+          LIMIT 1
+        `,
+        [requestId]
+      );
+      return result.rowCount > 0 ? mapPromotionRequest(result.rows[0]) : null;
+    },
+
+    async listPromotionRequests({
+      entityType = null,
+      status = null,
+      requestedBy = null,
+      targetScope = null,
+      targetTeamId = null
+    } = {}) {
+      const clauses = [];
+      const values = [];
+
+      if (entityType) {
+        values.push(entityType);
+        clauses.push(`entity_type = $${values.length}`);
+      }
+      if (status) {
+        values.push(status);
+        clauses.push(`status = $${values.length}`);
+      }
+      if (Number.isInteger(requestedBy)) {
+        values.push(requestedBy);
+        clauses.push(`requested_by = $${values.length}`);
+      }
+      if (targetScope) {
+        values.push(targetScope);
+        clauses.push(`target_scope = $${values.length}`);
+      }
+      if (Number.isInteger(targetTeamId)) {
+        values.push(targetTeamId);
+        clauses.push(`target_team_id = $${values.length}`);
+      }
+
+      const whereClause = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
+      const result = await pool.query(
+        `
+          SELECT id,
+                 entity_type,
+                 resource_id,
+                 source_scope,
+                 source_user_id,
+                 source_team_id,
+                 target_scope,
+                 target_team_id,
+                 requested_by,
+                 status,
+                 request_comment,
+                 review_comment,
+                 reviewed_by_user_id,
+                 reviewed_at,
+                 payload_json,
+                 created_at
+          FROM scope_promotion_requests
+          ${whereClause}
+          ORDER BY created_at DESC, id DESC
+        `,
+        values
+      );
+      return result.rows.map(mapPromotionRequest);
+    },
+
+    async reviewPromotionRequest(requestId, { status, reviewedByUserId, reviewComment = "" }) {
+      const result = await pool.query(
+        `
+          UPDATE scope_promotion_requests
+          SET status = $2,
+              review_comment = $3,
+              reviewed_by_user_id = $4,
+              reviewed_at = current_timestamp
+          WHERE id = $1
+            AND status = 'pending'
+          RETURNING id,
+                    entity_type,
+                    resource_id,
+                    source_scope,
+                    source_user_id,
+                    source_team_id,
+                    target_scope,
+                    target_team_id,
+                    requested_by,
+                    status,
+                    request_comment,
+                    review_comment,
+                    reviewed_by_user_id,
+                    reviewed_at,
+                    payload_json,
+                    created_at
+        `,
+        [requestId, status, reviewComment, reviewedByUserId]
+      );
+      return result.rowCount > 0 ? mapPromotionRequest(result.rows[0]) : null;
     }
   };
 }

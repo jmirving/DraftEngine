@@ -167,6 +167,14 @@ function mapTagRow(row) {
   };
 }
 
+function mapCanonicalTagRow(row) {
+  return {
+    id: Number(row.id),
+    name: row.name,
+    definition: typeof row.definition === "string" ? row.definition : ""
+  };
+}
+
 async function withTransaction(pool, work) {
   const client = await pool.connect();
   try {
@@ -613,6 +621,25 @@ export function createTagsRepository(pool) {
         return listTagsExact({ scope, userId, teamId });
       }
       return listTagsResolved({ scope, userId, teamId });
+    },
+
+    async listCanonicalTags() {
+      await ensureDefaultTagCatalog();
+      const result = await pool.query(
+        `
+          SELECT id, name, definition
+          FROM tags
+          ORDER BY lower(name) ASC, id ASC
+        `
+      );
+      return result.rows.map(mapCanonicalTagRow);
+    },
+
+    async getExactTagById(tagId, { scope = "all", userId = null, teamId = null } = {}) {
+      await ensureDefaultTagCatalog();
+      const owner = normalizeTagOwner({ scope, userId, teamId });
+      const tags = await listTagsExact(owner);
+      return tags.find((tag) => tag.id === Number(tagId)) ?? null;
     },
 
     async allTagIdsExist(tagIds) {

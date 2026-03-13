@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { badRequest, conflict, notFound, unauthorized } from "../errors.js";
+import { badRequest, conflict, forbidden, notFound, unauthorized } from "../errors.js";
 import {
   parsePositiveInteger,
   requireArrayOfPositiveIntegers,
@@ -9,11 +9,13 @@ import {
 } from "../http/validation.js";
 import {
   assertScopeReadAuthorization,
+  assertPromotionAuthorization,
   assertScopeWriteAuthorization,
   parseScope,
   resolveScopedTeamId
 } from "../scope-authorization.js";
 import { SLOTS } from "../../src/domain/model.js";
+import { USER_ROLE_ADMIN, USER_ROLE_GLOBAL, resolveAuthorizationRole } from "../user-roles.js";
 
 const CHAMPION_SCOPE_SET = new Set(["self", "team", "all"]);
 const MAX_CHAMPION_TAGS_PER_SCOPE = 64;
@@ -27,6 +29,7 @@ const POWER_SPIKE_MAX_LEVEL = 18;
 const POWER_SPIKE_MAX_RANGES = 2;
 const MAX_TAG_NAME_LENGTH = 64;
 const MAX_TAG_DEFINITION_LENGTH = 280;
+const MAX_PROMOTION_COMMENT_LENGTH = 500;
 
 function normalizeTagIds(tagIds) {
   const deduplicated = Array.from(new Set(tagIds));
@@ -44,6 +47,37 @@ function normalizeReviewedFlag(rawValue) {
     throw badRequest("Expected 'reviewed' to be a boolean.");
   }
   return rawValue;
+}
+
+function normalizeOptionalComment(rawValue, fieldName) {
+  if (rawValue === undefined || rawValue === null || rawValue === "") {
+    return "";
+  }
+  if (typeof rawValue !== "string") {
+    throw badRequest(`Expected '${fieldName}' to be a string.`);
+  }
+  const normalized = rawValue.trim();
+  if (normalized.length > MAX_PROMOTION_COMMENT_LENGTH) {
+    throw badRequest(`Expected '${fieldName}' to be ${MAX_PROMOTION_COMMENT_LENGTH} characters or fewer.`);
+  }
+  return normalized;
+}
+
+function normalizePromotionStatus(rawValue) {
+  if (typeof rawValue !== "string") {
+    throw badRequest("Expected 'decision' to be 'approved' or 'rejected'.");
+  }
+  const normalized = rawValue.trim().toLowerCase();
+  if (normalized !== "approved" && normalized !== "rejected") {
+    throw badRequest("Expected 'decision' to be 'approved' or 'rejected'.");
+  }
+  return normalized;
+}
+
+async function canReviewGlobalTagPromotion(userId, usersRepository) {
+  const user = await usersRepository.findById(userId);
+  const role = resolveAuthorizationRole(user);
+  return role === USER_ROLE_ADMIN || role === USER_ROLE_GLOBAL;
 }
 
 function normalizeMetadataRoles(rawRoles) {
@@ -193,6 +227,7 @@ function isUniqueViolation(error) {
 export function createChampionsRouter({
   championsRepository,
   tagsRepository,
+  promotionRequestsRepository,
   usersRepository,
   teamsRepository,
   requireAuth,
@@ -701,9 +736,210 @@ export function createChampionsRouter({
     });
   });
 
-  router.post("/champions/:id/tags/promotion-requests", requireAuth, async (request, response) => {
-    requireObject(request.body);
-    throw badRequest("Champion tag promotion requests are not supported in MVP. Edit global tags directly.");
+  router.post("/tags/:id/promotion-requests", requireAuth, async (request, response) => {
+    const tagId = parsePositiveInteger(request.params.id, "id");
+    const body = requireObject(request.body);
+    const userId = request.user.userId;
+    const sourceScope = parseScope(body.source_scope, {
+      defaultScope: "self",
+      fieldName: "source_scope",
+      allowedScopes: new Set(["self", "team"])
+    });
+    const targetScope = parseScope(body.target_scope, {
+      defaultScope: sourceScope === "self" ? "team" : "all",
+      fieldName: "target_scope",
+      allowedScopes: new Set(["team", "all"])
+    });
+    const sourceTeamId = sourceScope === "team"
+      ? await resolveScopedTeamId({
+          scope: "team",
+          rawTeamId: body.team_id,
+          userId,
+          usersRepository
+        })
+      : null;
+    const targetTeamId = targetScope === "team"
+      ? await resolveScopedTeamId({
+          scope: "team",
+          rawTeamId: body.target_team_id ?? body.team_id,
+          userId,
+          usersRepository,
+          fieldName: "target_team_id"
+        })
+      : null;
+    await assertPromotionAuthorization({
+      sourceScope,
+      targetScope,
+      sourceTeamId,
+      targetTeamId,
+      userId,
+      teamsRepository
+    });
+
+    const sourceTag = await tagsRepository.getExactTagById(tagId, {
+      scope: sourceScope,
+      userId,
+      teamId: sourceTeamId
+    });
+    if (!sourceTag) {
+      throw notFound("Scoped tag definition not found.");
+    }
+
+    const requestComment = normalizeOptionalComment(body.request_comment, "request_comment");
+    const promotionRequest = await promotionRequestsRepository.createPromotionRequest({
+      entityType: "tag_definitions",
+      resourceId: tagId,
+      sourceScope,
+      sourceUserId: sourceScope === "self" ? userId : null,
+      sourceTeamId,
+      targetScope,
+      targetTeamId,
+      requestedBy: userId,
+      requestComment,
+      payload: {
+        tag_id: tagId,
+        tag_name: sourceTag.name,
+        definition: sourceTag.definition
+      }
+    });
+
+    response.status(201).json({ promotion_request: promotionRequest });
+  });
+
+  router.get("/tags/promotion-requests", requireAuth, async (request, response) => {
+    const userId = request.user.userId;
+    const mode = typeof request.query.mode === "string" ? request.query.mode.trim().toLowerCase() : "requested";
+    const status = typeof request.query.status === "string" ? request.query.status.trim().toLowerCase() : "";
+    const normalizedStatus = status === "pending" || status === "approved" || status === "rejected" ? status : null;
+
+    if (mode === "review") {
+      const scope = parseScope(request.query.scope, {
+        defaultScope: "team",
+        fieldName: "scope",
+        allowedScopes: new Set(["team", "all"])
+      });
+      const teamId = scope === "team"
+        ? await resolveScopedTeamId({
+            scope,
+            rawTeamId: request.query.team_id,
+            userId,
+            usersRepository
+          })
+        : null;
+
+      if (scope === "team") {
+        await assertScopeWriteAuthorization({
+          scope: "team",
+          userId,
+          teamId,
+          teamsRepository,
+          usersRepository,
+          teamWriteMessage: "You must be on the selected team to review tag promotions.",
+          teamLeadMessage: "Only team leads can review team tag promotions.",
+          globalWriteMessage: "Only admins or global editors can review global tag promotions.",
+          allowGlobalRoleWrite: true
+        });
+      } else if (!(await canReviewGlobalTagPromotion(userId, usersRepository))) {
+        throw forbidden("Only admins or global editors can review global tag promotions.");
+      }
+
+      const promotionRequests = await promotionRequestsRepository.listPromotionRequests({
+        entityType: "tag_definitions",
+        status: normalizedStatus,
+        targetScope: scope,
+        targetTeamId: scope === "team" ? teamId : null
+      });
+      response.json({ promotion_requests: promotionRequests });
+      return;
+    }
+
+    const promotionRequests = await promotionRequestsRepository.listPromotionRequests({
+      entityType: "tag_definitions",
+      status: normalizedStatus,
+      requestedBy: userId
+    });
+    response.json({ promotion_requests: promotionRequests });
+  });
+
+  router.post("/tags/promotion-requests/:id/review", requireAuth, async (request, response) => {
+    const promotionRequestId = parsePositiveInteger(request.params.id, "id");
+    const body = requireObject(request.body);
+    const userId = request.user.userId;
+    const decision = normalizePromotionStatus(body.decision);
+    const reviewComment = normalizeOptionalComment(body.review_comment, "review_comment");
+
+    const promotionRequest = await promotionRequestsRepository.getPromotionRequestById(promotionRequestId);
+    if (!promotionRequest || promotionRequest.entity_type !== "tag_definitions") {
+      throw notFound("Promotion request not found.");
+    }
+    if (promotionRequest.status !== "pending") {
+      throw conflict("Promotion request has already been reviewed.");
+    }
+
+    if (promotionRequest.target_scope === "team") {
+      await assertScopeWriteAuthorization({
+        scope: "team",
+        userId,
+        teamId: promotionRequest.target_team_id,
+        teamsRepository,
+        usersRepository,
+        teamWriteMessage: "You must be on the selected team to review tag promotions.",
+        teamLeadMessage: "Only team leads can review team tag promotions.",
+        globalWriteMessage: "Only admins or global editors can review global tag promotions.",
+        allowGlobalRoleWrite: true
+      });
+    } else if (!(await canReviewGlobalTagPromotion(userId, usersRepository))) {
+      throw forbidden("Only admins or global editors can review global tag promotions.");
+    }
+
+    if (decision === "approved") {
+      const payload = promotionRequest.payload_json ?? {};
+      const tagName = typeof payload.tag_name === "string" ? payload.tag_name.trim() : "";
+      const definition = typeof payload.definition === "string" ? payload.definition.trim() : "";
+      if (!tagName) {
+        throw badRequest("Promotion request payload is missing tag data.");
+      }
+
+      const targetOwner = {
+        scope: promotionRequest.target_scope,
+        userId: null,
+        teamId: promotionRequest.target_scope === "team" ? promotionRequest.target_team_id : null
+      };
+      const targetTags = await tagsRepository.listTags({
+        scope: targetOwner.scope,
+        userId: targetOwner.userId,
+        teamId: targetOwner.teamId,
+        includeFallback: false
+      });
+      const exactTarget = targetTags.find((tag) => tag.name.trim().toLowerCase() === tagName.toLowerCase()) ?? null;
+
+      if (exactTarget) {
+        await tagsRepository.updateTag(exactTarget.id, {
+          name: tagName,
+          definition,
+          scope: targetOwner.scope,
+          userId: targetOwner.userId,
+          teamId: targetOwner.teamId,
+          actorUserId: userId
+        });
+      } else {
+        await tagsRepository.createTag({
+          name: tagName,
+          definition,
+          scope: targetOwner.scope,
+          userId: targetOwner.userId,
+          teamId: targetOwner.teamId,
+          actorUserId: userId
+        });
+      }
+    }
+
+    const reviewed = await promotionRequestsRepository.reviewPromotionRequest(promotionRequestId, {
+      status: decision,
+      reviewedByUserId: userId,
+      reviewComment
+    });
+    response.json({ promotion_request: reviewed });
   });
 
   return router;

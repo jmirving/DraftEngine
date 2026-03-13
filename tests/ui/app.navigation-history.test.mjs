@@ -402,7 +402,7 @@ describe("hash navigation routing", () => {
       doc.querySelectorAll("#updates-release-panel-whats-new h4"),
       (node) => node.textContent.trim()
     );
-    expect(whatsNewVersions[0]).toBe("Version 0.8.8");
+    expect(whatsNewVersions[0]).toBe("Version 0.9.0");
     const shippedVersions = whatsNewVersions.filter((heading) => heading.includes("(Shipped)"));
     expect(shippedVersions.length).toBeGreaterThan(0);
 

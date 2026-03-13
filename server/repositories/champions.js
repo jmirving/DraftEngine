@@ -7,6 +7,20 @@ function normalizeStoredMetadata(rawValue) {
   return withoutLegacyTags;
 }
 
+function mapScopedMetadataRow(row) {
+  return {
+    champion_id: Number(row.champion_id),
+    metadata: normalizeStoredMetadata(row.metadata_json)
+  };
+}
+
+function mapScopedTagRow(row) {
+  return {
+    champion_id: Number(row.champion_id),
+    tag_ids: Array.isArray(row.tag_ids) ? row.tag_ids.map((value) => Number(value)) : []
+  };
+}
+
 function mapChampionRow(row) {
   const metadata = normalizeStoredMetadata(row.metadata_json);
   const reviewed = metadata.reviewed === true;
@@ -287,6 +301,84 @@ export function createChampionsRepository(pool) {
         hasCustomMetadata: true,
         resolvedScope: scope
       };
+    },
+
+    async listChampionMetadataForScope({ scope = "all", userId = null, teamId = null } = {}) {
+      if (scope === "all") {
+        const result = await pool.query(
+          `
+            SELECT id AS champion_id, metadata_json
+            FROM champions
+            ORDER BY id ASC
+          `
+        );
+        return result.rows.map(mapScopedMetadataRow);
+      }
+
+      const config = buildScopedMetadataConfig(scope);
+      const ownerValue = config.ownerValueName === "userId" ? userId : teamId;
+      if (!Number.isInteger(ownerValue)) {
+        return [];
+      }
+      const result = await pool.query(
+        `
+          SELECT champion_id, metadata_json
+          FROM ${config.table}
+          WHERE ${config.ownerColumn} = $1
+          ORDER BY champion_id ASC
+        `,
+        [ownerValue]
+      );
+      return result.rows.map(mapScopedMetadataRow);
+    },
+
+    async listChampionTagAssignmentsForScope({ scope = "all", userId = null, teamId = null } = {}) {
+      if (scope === "all") {
+        const result = await pool.query(
+          `
+            SELECT champion_id,
+                   COALESCE(json_agg(tag_id ORDER BY tag_id), '[]'::json) AS tag_ids
+            FROM champion_tags
+            GROUP BY champion_id
+            ORDER BY champion_id ASC
+          `
+        );
+        return result.rows.map(mapScopedTagRow);
+      }
+
+      if (scope === "self") {
+        if (!Number.isInteger(userId)) {
+          return [];
+        }
+        const result = await pool.query(
+          `
+            SELECT champion_id,
+                   COALESCE(json_agg(tag_id ORDER BY tag_id), '[]'::json) AS tag_ids
+            FROM user_champion_tags
+            WHERE user_id = $1
+            GROUP BY champion_id
+            ORDER BY champion_id ASC
+          `,
+          [userId]
+        );
+        return result.rows.map(mapScopedTagRow);
+      }
+
+      if (!Number.isInteger(teamId)) {
+        return [];
+      }
+      const result = await pool.query(
+        `
+          SELECT champion_id,
+                 COALESCE(json_agg(tag_id ORDER BY tag_id), '[]'::json) AS tag_ids
+          FROM team_champion_tags
+          WHERE team_id = $1
+          GROUP BY champion_id
+          ORDER BY champion_id ASC
+        `,
+        [teamId]
+      );
+      return result.rows.map(mapScopedTagRow);
     },
 
     async updateChampionMetadataForScope({

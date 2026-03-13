@@ -349,6 +349,20 @@
                   </label>
                   <p id="builder-composition-help" class="meta"></p>
                   <div class="panel draft-board-panel">
+                    <h3>Draft Setups</h3>
+                    <div class="grid grid-2">
+                      <label>
+                        Setup Name
+                        <input id="builder-draft-setup-name" type="text" placeholder="Spring scrim setup" />
+                      </label>
+                      <div class="button-row team-inline-actions">
+                        <button id="builder-draft-setup-save" type="button">Save Draft Setup</button>
+                      </div>
+                    </div>
+                    <p id="builder-draft-setup-feedback" class="meta"></p>
+                    <div id="builder-draft-setup-list" class="summary-card-list"></div>
+                  </div>
+                  <div class="panel draft-board-panel">
                     <h3>Pool Snapshot</h3>
                     <p id="team-config-pool-summary" class="meta"></p>
                     <div id="team-config-pool-grid" class="team-pool-grid"></div>
@@ -357,6 +371,27 @@
                 <details id="builder-advanced-controls" class="advanced-controls">
                   <summary>Advanced Controls (Scoring + Constraints)</summary>
                   <div class="advanced-controls-content">
+                    <div class="advanced-scoring-section">
+                      <span class="advanced-compact-label">Composer Scopes</span>
+                      <label class="inline-checkbox">
+                        <input id="builder-custom-scopes-enabled" type="checkbox" checked />
+                        Use Custom Scopes
+                      </label>
+                      <div id="builder-scope-controls">
+                        <label class="advanced-compact-label">
+                          Default Scope Order
+                          <select id="builder-scope-default-precedence">
+                            <option value="user_team_global">User > Team > Global</option>
+                            <option value="team_user_global">Team > User > Global</option>
+                            <option value="user_global">User > Global</option>
+                            <option value="team_global">Team > Global</option>
+                            <option value="global_only">Global only</option>
+                          </select>
+                        </label>
+                        <div id="builder-scope-resource-list" class="summary-card-list"></div>
+                        <p id="builder-scope-feedback" class="meta"></p>
+                      </div>
+                    </div>
                     <div class="advanced-excluded-section">
                       <span class="advanced-compact-label">Excluded Champions</span>
                       <input id="builder-excluded-search" type="search" class="pool-snapshot-filter" placeholder="Filter..." />
@@ -490,6 +525,30 @@
                 <button id="tags-manage-cancel" class="ghost" type="button">Clear</button>
               </div>
               <p id="tags-manage-feedback" class="meta"></p>
+              <div class="panel draft-board-panel">
+                <h3>Tag Promotions</h3>
+                <div class="grid grid-2">
+                  <label>
+                    Promotion Note (optional)
+                    <input id="tags-promotion-request-comment" type="text" maxlength="500" placeholder="Why promote this tag?" />
+                  </label>
+                  <div class="button-row team-inline-actions">
+                    <button id="tags-promotion-request" type="button">Request Promotion</button>
+                    <button id="tags-promotion-refresh" class="ghost" type="button">Refresh Requests</button>
+                  </div>
+                </div>
+                <p id="tags-promotion-feedback" class="meta"></p>
+                <div class="grid grid-2">
+                  <div>
+                    <p class="panel-kicker">My Requests</p>
+                    <div id="tags-promotion-request-list" class="summary-card-list"></div>
+                  </div>
+                  <div>
+                    <p class="panel-kicker">Review Queue</p>
+                    <div id="tags-promotion-review-list" class="summary-card-list"></div>
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="panel draft-board-panel">
               <div id="tags-workspace-categories" class="tags-workspace-categories"></div>
@@ -977,6 +1036,11 @@
                 <div id="profile-riot-top-champion"></div>
                 <div id="profile-riot-stats-list" class="summary-card-list"></div>
               </div>
+              <div class="profile-section">
+                <p class="panel-kicker">Champion Suggestions</p>
+                <p id="profile-champion-suggestions-summary" class="meta"></p>
+                <div id="profile-champion-suggestions-list" class="summary-card-list"></div>
+              </div>
             </div>
 
           </section>
@@ -1213,6 +1277,14 @@
               >
                 <h3>What's New</h3>
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
+                <h4>Version 0.9.0</h4>
+                <ul class="coming-soon-list">
+                  <li>Composer Advanced Controls now support custom scope resolution, with per-resource scope toggles and precedence controls for champion metadata, champion tags, tag definitions, requirements, and compositions.</li>
+                  <li>Composer generation and requirement evaluation now run against the selected scoped champion truth instead of assuming the global catalog only.</li>
+                  <li>Draft Setups let signed-in users save and reload the full Composer working state, including selected team, composition, Advanced Controls, and current draft selections.</li>
+                  <li>Tags workspace now includes tag-definition promotion requests and review queues, with optional request and review comments for the first scoped-promotion workflow.</li>
+                  <li>Profile now shows mastery-based champion suggestions that reflect the player’s configured roles and existing Riot champion history.</li>
+                </ul>
                 <h4>Version 0.8.8</h4>
                 <ul class="coming-soon-list">
                   <li>Report an issue now opens a blocking in-app modal from any page, captures the current page/tab context, and can submit directly to GitHub when server-side issue reporting is configured; otherwise it falls back to the external GitHub issues page.</li>
@@ -1321,18 +1393,17 @@
                 </ul>
                 <h4>Profile</h4>
                 <ul class="coming-soon-list">
-                  <li>Get champion pool suggestions based on your real League match history (draftflow-145)</li>
+                  <li>Expand champion suggestions beyond mastery-based role fit so they can use richer real match-history signals when that data path is ready (draftflow-145).</li>
                 </ul>
                 <h4>Composer</h4>
                 <ul class="coming-soon-list">
-                  <li>Composer scope selection remains deferred: users cannot yet choose how Composer resolves `User`, `Team`, and `Global` data, and generation still runs on the current global champion truth (draftflow-160).</li>
-                  <li>Saved Draft Setups remain deferred: Composer still cannot save or reload a full working state, including selected champions and Advanced Controls (draftflow-229).</li>
                   <li>Per-composition saved scoring profiles and scoped scoring presets are still deferred (draftflow-199).</li>
                   <li>Clause scoring still needs joiner-aware aggregation for OR-linked requirements so parallel OR clauses do not over-count progress (draftflow-203).</li>
                 </ul>
                 <h4>Tags</h4>
                 <ul class="coming-soon-list">
-                  <li>Champion-tag promotion review moderation remains pending alongside the broader scoped-promotion workflow (draftflow-171).</li>
+                  <li>Re-evaluate migration scope for broader scoped rollout once the current tag-scope and tag-promotion UX has been validated in real use (draftflow-228).</li>
+                  <li>Expand the scoped-promotion workflow beyond tags once the tag moderation UX is confirmed (draftflow-171).</li>
                 </ul>
                 <h4>Compositions</h4>
                 <ul class="coming-soon-list">

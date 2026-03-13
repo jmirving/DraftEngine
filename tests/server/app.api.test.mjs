@@ -181,6 +181,26 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
       { id: 1, name: "engage", definition: "Helps a team start fights decisively." },
       { id: 2, name: "frontline", definition: "Provides durable front-to-back pressure." }
     ],
+    tagDefinitions: [
+      {
+        tag_id: 1,
+        scope: "all",
+        user_id: null,
+        team_id: null,
+        definition: "Helps a team start fights decisively.",
+        updated_by_user_id: 1,
+        updated_at: "2026-01-01T00:00:00.000Z"
+      },
+      {
+        tag_id: 2,
+        scope: "all",
+        user_id: null,
+        team_id: null,
+        definition: "Provides durable front-to-back pressure.",
+        updated_by_user_id: 1,
+        updated_at: "2026-01-01T00:00:00.000Z"
+      }
+    ],
     userChampionTagIds: new Map([
       ["self:2:1", new Set([2])]
     ]),
@@ -220,6 +240,7 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
       ]
     ]),
     promotionRequests: [],
+    draftSetups: [],
     pools: [
       { id: 1, user_id: 1, name: "Main", created_at: "2026-01-01T00:00:00.000Z" },
       { id: 2, user_id: 2, name: "Alt", created_at: "2026-01-01T00:00:00.000Z" }
@@ -258,6 +279,7 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
   let nextTagId = 3;
   let nextRequirementDefinitionId = 2;
   let nextCompositionId = 2;
+  let nextDraftSetupId = 1;
 
   const usersRepository = {
     async createUser({ email, passwordHash, gameName, tagline, role = "member" }) {
@@ -474,6 +496,77 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
     };
   }
 
+  function normalizeTagScope(scope) {
+    return scope === "self" || scope === "team" ? scope : "all";
+  }
+
+  function normalizeTagOwner({ scope = "all", userId = null, teamId = null } = {}) {
+    const normalizedScope = normalizeTagScope(scope);
+    return {
+      scope: normalizedScope,
+      userId: normalizedScope === "self" ? Number(userId) : null,
+      teamId: normalizedScope === "team" ? Number(teamId) : null
+    };
+  }
+
+  function matchesTagOwner(definition, owner) {
+    if ((definition.scope ?? "all") !== owner.scope) {
+      return false;
+    }
+    if (owner.scope === "self") {
+      return Number(definition.user_id) === Number(owner.userId);
+    }
+    if (owner.scope === "team") {
+      return Number(definition.team_id) === Number(owner.teamId);
+    }
+    return true;
+  }
+
+  function buildTagRecord(tagId, definitionRecord) {
+    const canonical = state.tags.find((tag) => tag.id === Number(tagId)) ?? null;
+    if (!canonical || !definitionRecord) {
+      return null;
+    }
+    return {
+      id: canonical.id,
+      name: canonical.name,
+      definition: definitionRecord.definition,
+      resolved_scope: definitionRecord.scope,
+      has_custom_definition: true,
+      user_id: definitionRecord.user_id,
+      team_id: definitionRecord.team_id,
+      updated_by_user_id: definitionRecord.updated_by_user_id ?? null,
+      updated_at: definitionRecord.updated_at ?? "2026-01-01T00:00:00.000Z"
+    };
+  }
+
+  function getExactTagDefinition(tagId, owner) {
+    return (
+      state.tagDefinitions.find(
+        (definition) => Number(definition.tag_id) === Number(tagId) && matchesTagOwner(definition, owner)
+      ) ?? null
+    );
+  }
+
+  function getCanonicalTagByName(name) {
+    return state.tags.find((tag) => tag.name.toLowerCase() === String(name).trim().toLowerCase()) ?? null;
+  }
+
+  function moveScopedAssignments(scope, ownerId, oldTagId, newTagId) {
+    if (oldTagId === newTagId) {
+      return;
+    }
+    const store = scope === "self" ? state.userChampionTagIds : state.teamChampionTagIds;
+    const keyPrefix = `${scope}:${ownerId}:`;
+    for (const [key, tagIds] of store.entries()) {
+      if (!String(key).startsWith(keyPrefix) || !tagIds.has(oldTagId)) {
+        continue;
+      }
+      tagIds.delete(oldTagId);
+      tagIds.add(newTagId);
+    }
+  }
+
   const championsRepository = {
     async listChampions() {
       return [...state.champions].sort((left, right) => left.name.localeCompare(right.name));
@@ -572,6 +665,48 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
       champion.reviewed_by_user_id = reviewed === true ? reviewedByUserId : null;
       champion.reviewed_at = reviewed === true ? "2026-01-01T00:00:00.000Z" : null;
       return champion;
+    },
+    async listChampionMetadataForScope({ scope = "all", userId = null, teamId = null } = {}) {
+      if (scope === "all") {
+        return state.champions.map((champion) => ({
+          champion_id: champion.id,
+          metadata: cloneChampionMetadata(champion.metadata)
+        }));
+      }
+      const ownerId = scope === "self" ? userId : teamId;
+      const store = scope === "self" ? state.userChampionMetadata : state.teamChampionMetadata;
+      if (!Number.isInteger(ownerId)) {
+        return [];
+      }
+      return [...store.entries()]
+        .filter(([key]) => key.startsWith(`${scope}:${ownerId}:`))
+        .map(([key, metadata]) => ({
+          champion_id: Number(key.split(":")[2]),
+          metadata: cloneChampionMetadata(metadata)
+        }))
+        .sort((left, right) => left.champion_id - right.champion_id);
+    },
+    async listChampionTagAssignmentsForScope({ scope = "all", userId = null, teamId = null } = {}) {
+      if (scope === "all") {
+        return state.champions
+          .filter((champion) => Array.isArray(champion.tagIds) && champion.tagIds.length > 0)
+          .map((champion) => ({
+            champion_id: champion.id,
+            tag_ids: [...champion.tagIds].sort((left, right) => left - right)
+          }));
+      }
+      const ownerId = scope === "self" ? userId : teamId;
+      const store = scope === "self" ? state.userChampionTagIds : state.teamChampionTagIds;
+      if (!Number.isInteger(ownerId)) {
+        return [];
+      }
+      return [...store.entries()]
+        .filter(([key]) => key.startsWith(`${scope}:${ownerId}:`))
+        .map(([key, tagIds]) => ({
+          champion_id: Number(key.split(":")[2]),
+          tag_ids: [...tagIds].sort((left, right) => left - right)
+        }))
+        .sort((left, right) => left.champion_id - right.champion_id);
     }
   };
 
@@ -589,68 +724,136 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
       return `${scope}:${ownerId}:${championId}`;
     },
 
-    async listTags() {
-      return [...state.tags];
-    },
+    async listTags({ scope = "all", userId = null, teamId = null, includeFallback = true } = {}) {
+      const owner = normalizeTagOwner({ scope, userId, teamId });
+      const exactDefinitions = state.tagDefinitions.filter((definition) => matchesTagOwner(definition, owner));
+      if (includeFallback === false) {
+        return exactDefinitions
+          .map((definition) => buildTagRecord(definition.tag_id, definition))
+          .filter(Boolean)
+          .sort((left, right) => left.name.localeCompare(right.name));
+      }
 
-    async createTag({ name, definition }) {
-      const duplicate = state.tags.some((tag) => tag.name === name);
-      if (duplicate) {
-        const error = new Error("duplicate");
-        error.code = "23505";
-        throw error;
-      }
-      const created = {
-        id: nextTagId,
-        name,
-        definition
-      };
-      nextTagId += 1;
-      state.tags.push(created);
-      return created;
-    },
-
-    async updateTag(tagId, { name, definition }) {
-      const existing = state.tags.find((tag) => tag.id === tagId) ?? null;
-      if (!existing) {
-        return null;
-      }
-      const duplicate = state.tags.some((tag) => tag.id !== tagId && tag.name === name);
-      if (duplicate) {
-        const error = new Error("duplicate");
-        error.code = "23505";
-        throw error;
-      }
-      existing.name = name;
-      existing.definition = definition;
-      return existing;
-    },
-
-    async countTagAssignments(tagId) {
-      let assignments = 0;
-      for (const champion of state.champions) {
-        assignments += champion.tagIds.filter((candidate) => candidate === tagId).length;
-      }
-      for (const scopedTags of state.userChampionTagIds.values()) {
-        if (scopedTags.has(tagId)) {
-          assignments += 1;
+      const resolved = new Map();
+      for (const definition of state.tagDefinitions.filter((candidate) => candidate.scope === "all")) {
+        const tag = buildTagRecord(definition.tag_id, definition);
+        if (tag) {
+          resolved.set(tag.id, tag);
         }
       }
-      for (const scopedTags of state.teamChampionTagIds.values()) {
-        if (scopedTags.has(tagId)) {
+      for (const definition of exactDefinitions) {
+        const tag = buildTagRecord(definition.tag_id, definition);
+        if (tag) {
+          resolved.set(tag.id, tag);
+        }
+      }
+      return [...resolved.values()].sort((left, right) => left.name.localeCompare(right.name));
+    },
+
+    async listCanonicalTags() {
+      return [...state.tags].sort((left, right) => left.name.localeCompare(right.name));
+    },
+
+    async getExactTagById(tagId, { scope = "all", userId = null, teamId = null } = {}) {
+      const definition = getExactTagDefinition(tagId, normalizeTagOwner({ scope, userId, teamId }));
+      return definition ? buildTagRecord(tagId, definition) : null;
+    },
+
+    async createTag({ name, definition, scope = "all", userId = null, teamId = null, actorUserId = null }) {
+      const owner = normalizeTagOwner({ scope, userId, teamId });
+      const duplicate = (await this.listTags({ ...owner, includeFallback: false }))
+        .some((tag) => tag.name.toLowerCase() === name.toLowerCase());
+      if (duplicate) {
+        const error = new Error("duplicate");
+        error.code = "23505";
+        throw error;
+      }
+      let canonical = getCanonicalTagByName(name);
+      if (!canonical) {
+        canonical = { id: nextTagId, name, definition: owner.scope === "all" ? definition : "" };
+        nextTagId += 1;
+        state.tags.push(canonical);
+      } else if (owner.scope === "all") {
+        canonical.definition = definition;
+      }
+      state.tagDefinitions.push({
+        tag_id: canonical.id,
+        scope: owner.scope,
+        user_id: owner.userId,
+        team_id: owner.teamId,
+        definition,
+        updated_by_user_id: actorUserId ?? null,
+        updated_at: "2026-01-01T00:00:00.000Z"
+      });
+      return buildTagRecord(canonical.id, getExactTagDefinition(canonical.id, owner));
+    },
+
+    async updateTag(tagId, { name, definition, scope = "all", userId = null, teamId = null, actorUserId = null }) {
+      const owner = normalizeTagOwner({ scope, userId, teamId });
+      const existingCanonical = state.tags.find((tag) => tag.id === tagId) ?? null;
+      const existingDefinition = getExactTagDefinition(tagId, owner);
+      if (!existingCanonical || !existingDefinition) {
+        return null;
+      }
+      const duplicate = (await this.listTags({ ...owner, includeFallback: false }))
+        .some((tag) => tag.id !== tagId && tag.name.toLowerCase() === name.toLowerCase());
+      if (duplicate) {
+        const error = new Error("duplicate");
+        error.code = "23505";
+        throw error;
+      }
+      let resolvedTagId = tagId;
+      if (owner.scope === "all") {
+        existingCanonical.name = name;
+        existingCanonical.definition = definition;
+      } else if (existingCanonical.name.toLowerCase() !== name.toLowerCase()) {
+        let targetCanonical = getCanonicalTagByName(name);
+        if (!targetCanonical) {
+          targetCanonical = { id: nextTagId, name, definition: "" };
+          nextTagId += 1;
+          state.tags.push(targetCanonical);
+        }
+        const ownerId = owner.scope === "self" ? owner.userId : owner.teamId;
+        moveScopedAssignments(owner.scope, ownerId, tagId, targetCanonical.id);
+        existingDefinition.tag_id = targetCanonical.id;
+        resolvedTagId = targetCanonical.id;
+      }
+      existingDefinition.definition = definition;
+      existingDefinition.updated_by_user_id = actorUserId ?? null;
+      existingDefinition.updated_at = "2026-01-01T00:00:00.000Z";
+      return buildTagRecord(resolvedTagId, getExactTagDefinition(resolvedTagId, owner));
+    },
+
+    async countTagAssignments(tagId, { scope = "all", userId = null, teamId = null } = {}) {
+      const owner = normalizeTagOwner({ scope, userId, teamId });
+      if (owner.scope === "all") {
+        let assignments = 0;
+        for (const champion of state.champions) {
+          assignments += champion.tagIds.filter((candidate) => candidate === tagId).length;
+        }
+        return assignments;
+      }
+      const keyPrefix = `${owner.scope}:${owner.scope === "self" ? owner.userId : owner.teamId}:`;
+      const store = owner.scope === "self" ? state.userChampionTagIds : state.teamChampionTagIds;
+      let assignments = 0;
+      for (const [key, scopedTags] of store.entries()) {
+        if (String(key).startsWith(keyPrefix) && scopedTags.has(tagId)) {
           assignments += 1;
         }
       }
       return assignments;
     },
 
-    async deleteTag(tagId) {
-      const index = state.tags.findIndex((tag) => tag.id === tagId);
+    async deleteTag(tagId, { scope = "all", userId = null, teamId = null } = {}) {
+      const owner = normalizeTagOwner({ scope, userId, teamId });
+      const index = state.tagDefinitions.findIndex(
+        (definition) => Number(definition.tag_id) === Number(tagId) && matchesTagOwner(definition, owner)
+      );
       if (index < 0) {
         return null;
       }
-      const [deleted] = state.tags.splice(index, 1);
-      return deleted;
+      const [deletedDefinition] = state.tagDefinitions.splice(index, 1);
+      return buildTagRecord(tagId, deletedDefinition);
     },
 
     async listChampionTagIdsForScope({ championId, scope, userId, teamId }) {
@@ -996,6 +1199,7 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
       targetScope,
       targetTeamId,
       requestedBy,
+      requestComment = "",
       payload
     }) {
       const requestRecord = {
@@ -1009,6 +1213,10 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
         target_team_id: targetTeamId ?? null,
         requested_by: requestedBy,
         status: "pending",
+        request_comment: requestComment,
+        review_comment: "",
+        reviewed_by_user_id: null,
+        reviewed_at: null,
         payload_json: payload ?? {},
         created_at: "2026-01-01T00:00:00.000Z"
       };
@@ -1033,6 +1241,90 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
         }
       }
       return counts;
+    },
+    async getPromotionRequestById(requestId) {
+      return state.promotionRequests.find((requestRecord) => requestRecord.id === requestId) ?? null;
+    },
+    async listPromotionRequests({
+      entityType = null,
+      status = null,
+      requestedBy = null,
+      targetScope = null,
+      targetTeamId = null
+    } = {}) {
+      return state.promotionRequests.filter((requestRecord) => {
+        if (entityType && requestRecord.entity_type !== entityType) {
+          return false;
+        }
+        if (status && requestRecord.status !== status) {
+          return false;
+        }
+        if (Number.isInteger(requestedBy) && requestRecord.requested_by !== requestedBy) {
+          return false;
+        }
+        if (targetScope && requestRecord.target_scope !== targetScope) {
+          return false;
+        }
+        if (Number.isInteger(targetTeamId) && requestRecord.target_team_id !== targetTeamId) {
+          return false;
+        }
+        return true;
+      });
+    },
+    async reviewPromotionRequest(requestId, { status, reviewedByUserId, reviewComment = "" }) {
+      const requestRecord = state.promotionRequests.find(
+        (candidate) => candidate.id === requestId && candidate.status === "pending"
+      ) ?? null;
+      if (!requestRecord) {
+        return null;
+      }
+      requestRecord.status = status;
+      requestRecord.review_comment = reviewComment;
+      requestRecord.reviewed_by_user_id = reviewedByUserId;
+      requestRecord.reviewed_at = "2026-01-01T00:00:00.000Z";
+      return requestRecord;
+    }
+  };
+
+  const draftSetupsRepository = {
+    async listDraftSetupsByUser(userId) {
+      return state.draftSetups
+        .filter((setup) => setup.user_id === userId)
+        .sort((left, right) => left.name.localeCompare(right.name));
+    },
+    async getDraftSetupById(setupId, userId) {
+      return state.draftSetups.find((setup) => setup.id === setupId && setup.user_id === userId) ?? null;
+    },
+    async createDraftSetup({ userId, name, stateJson }) {
+      const setup = {
+        id: nextDraftSetupId,
+        user_id: userId,
+        name,
+        state_json: stateJson ?? {},
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z"
+      };
+      nextDraftSetupId += 1;
+      state.draftSetups.push(setup);
+      return setup;
+    },
+    async updateDraftSetup(setupId, { userId, name, stateJson }) {
+      const setup = state.draftSetups.find((candidate) => candidate.id === setupId && candidate.user_id === userId) ?? null;
+      if (!setup) {
+        return null;
+      }
+      setup.name = name;
+      setup.state_json = stateJson ?? {};
+      setup.updated_at = "2026-01-01T00:00:00.000Z";
+      return setup;
+    },
+    async deleteDraftSetup(setupId, userId) {
+      const index = state.draftSetups.findIndex((candidate) => candidate.id === setupId && candidate.user_id === userId);
+      if (index < 0) {
+        return false;
+      }
+      state.draftSetups.splice(index, 1);
+      return true;
     }
   };
 
@@ -1595,6 +1887,7 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
     championsRepository,
     tagsRepository,
     compositionsCatalogRepository,
+    draftSetupsRepository,
     promotionRequestsRepository,
     poolsRepository,
     teamsRepository,
@@ -2080,16 +2373,50 @@ describe("API routes", () => {
     expect(savedChampion.tagIds).toEqual([1, 2]);
     expect(savedChampion.reviewed_by_display_name).toBe("GlobalEditor#NA1");
 
-    const promotionNotSupported = await request(app)
-      .post("/champions/1/tags/promotion-requests")
-      .set("Authorization", buildAuthHeader(1, config))
+    const createScopedTag = await request(app)
+      .post("/tags")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        scope: "self",
+        name: "engage",
+        definition: "Member override definition."
+      });
+    expect(createScopedTag.status).toBe(201);
+
+    const requestedPromotion = await request(app)
+      .post("/tags/1/promotion-requests")
+      .set("Authorization", buildAuthHeader(2, config))
       .send({
         source_scope: "self",
         target_scope: "team",
-        target_team_id: 1
+        target_team_id: 1,
+        request_comment: "Promote this definition to the team catalog."
       });
-    expect(promotionNotSupported.status).toBe(400);
-    expect(state.promotionRequests).toHaveLength(0);
+    expect(requestedPromotion.status).toBe(201);
+    expect(state.promotionRequests).toHaveLength(1);
+    expect(state.promotionRequests[0].request_comment).toBe("Promote this definition to the team catalog.");
+
+    const reviewQueue = await request(app)
+      .get("/tags/promotion-requests?mode=review&scope=team&team_id=1")
+      .set("Authorization", buildAuthHeader(1, config));
+    expect(reviewQueue.status).toBe(200);
+    expect(reviewQueue.body.promotion_requests).toHaveLength(1);
+
+    const reviewedPromotion = await request(app)
+      .post("/tags/promotion-requests/1/review")
+      .set("Authorization", buildAuthHeader(1, config))
+      .send({
+        decision: "approved",
+        review_comment: "Approved for team use."
+      });
+    expect(reviewedPromotion.status).toBe(200);
+    expect(reviewedPromotion.body.promotion_request.status).toBe("approved");
+
+    const teamTags = await request(app)
+      .get("/tags?scope=team&team_id=1")
+      .set("Authorization", buildAuthHeader(1, config));
+    expect(teamTags.status).toBe(200);
+    expect(teamTags.body.tags.find((tag) => tag.id === 1)?.definition).toBe("Member override definition.");
   });
 
   it("allows member global champion tag edits when no admins exist", async () => {
@@ -2862,6 +3189,124 @@ describe("API routes", () => {
       .get("/requirements?scope=team&team_id=1")
       .set("Authorization", buildAuthHeader(3, config));
     expect(outsiderDeniedTeamRead.status).toBe(403);
+  });
+
+  it("builds composer context using per-resource scope precedence", async () => {
+    const { app, config, state } = createMockContext();
+    state.requirementDefinitions.push({
+      id: 2,
+      name: "Frontline Anchor",
+      definition: "Self override requirement.",
+      rules: [{ expr: { tag: "Frontline" }, minCount: 2 }],
+      scope: "self",
+      user_id: 2,
+      team_id: null,
+      created_by_user_id: 2,
+      updated_by_user_id: 2,
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z"
+    });
+    state.requirementDefinitions.push({
+      id: 3,
+      name: "Frontline Anchor",
+      definition: "Team override requirement.",
+      rules: [{ expr: { tag: "Frontline" }, minCount: 3 }],
+      scope: "team",
+      user_id: null,
+      team_id: 1,
+      created_by_user_id: 1,
+      updated_by_user_id: 1,
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z"
+    });
+
+    const selfFirst = await request(app)
+      .post("/composer/context")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        team_id: 1,
+        use_custom_scopes: true,
+        default_precedence: "user_team_global",
+        resources: {
+          champion_metadata: { enabled: true, precedence: "user_team_global" },
+          champion_tags: { enabled: true, precedence: "user_team_global" },
+          requirements: { enabled: true, precedence: "user_team_global" },
+          compositions: { enabled: false, precedence: "global_only" },
+          tag_definitions: { enabled: false, precedence: "global_only" }
+        }
+      });
+    expect(selfFirst.status).toBe(200);
+    expect(selfFirst.body.team_id).toBe(1);
+    expect(selfFirst.body.champions.find((champion) => champion.id === 1)?.metadata?.roles?.[0]).toBe("Support");
+    expect(selfFirst.body.champions.find((champion) => champion.id === 1)?.tag_ids).toEqual([2]);
+    expect(selfFirst.body.requirements[0].definition).toBe("Self override requirement.");
+
+    const teamFirst = await request(app)
+      .post("/composer/context")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        team_id: 1,
+        use_custom_scopes: true,
+        default_precedence: "team_user_global",
+        resources: {
+          champion_metadata: { enabled: true, precedence: "team_user_global" },
+          champion_tags: { enabled: true, precedence: "team_user_global" },
+          requirements: { enabled: true, precedence: "team_user_global" },
+          compositions: { enabled: false, precedence: "global_only" },
+          tag_definitions: { enabled: false, precedence: "global_only" }
+        }
+      });
+    expect(teamFirst.status).toBe(200);
+    expect(teamFirst.body.champions.find((champion) => champion.id === 1)?.metadata?.roles?.[0]).toBe("Top");
+    expect(teamFirst.body.champions.find((champion) => champion.id === 1)?.tag_ids).toEqual([1]);
+    expect(teamFirst.body.requirements[0].definition).toBe("Team override requirement.");
+  });
+
+  it("supports authenticated draft setup CRUD", async () => {
+    const { app, config } = createMockContext();
+
+    const created = await request(app)
+      .post("/me/draft-setups")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        name: "Pocket Setup",
+        state_json: {
+          builder: {
+            teamId: 1,
+            activeCompositionId: 1,
+            teamState: { Top: "Braum" }
+          }
+        }
+      });
+    expect(created.status).toBe(201);
+    expect(created.body.draft_setup.name).toBe("Pocket Setup");
+
+    const listed = await request(app)
+      .get("/me/draft-setups")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(listed.status).toBe(200);
+    expect(listed.body.draft_setups).toHaveLength(1);
+
+    const updated = await request(app)
+      .put(`/me/draft-setups/${created.body.draft_setup.id}`)
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        name: "Pocket Setup v2",
+        state_json: {
+          builder: {
+            teamId: 1,
+            activeCompositionId: 1,
+            teamState: { Support: "Braum" }
+          }
+        }
+      });
+    expect(updated.status).toBe(200);
+    expect(updated.body.draft_setup.name).toBe("Pocket Setup v2");
+
+    const deleted = await request(app)
+      .delete(`/me/draft-setups/${created.body.draft_setup.id}`)
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(deleted.status).toBe(204);
   });
 
   it("enforces per-user pool isolation and idempotent membership updates", async () => {

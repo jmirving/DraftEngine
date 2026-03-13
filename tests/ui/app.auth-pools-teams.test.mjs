@@ -108,7 +108,16 @@ function createFetchHarness({
     { id: 2, name: "frontline", definition: "Adds durable front line presence." },
     { id: 3, name: "burst", definition: "Adds fast pick damage windows." }
   ];
+  const tagDefinitions = [
+    { tag_id: 1, scope: "all", user_id: null, team_id: null, definition: "Helps your comp start fights." },
+    { tag_id: 2, scope: "all", user_id: null, team_id: null, definition: "Adds durable front line presence." },
+    { tag_id: 3, scope: "all", user_id: null, team_id: null, definition: "Adds fast pick damage windows." }
+  ];
   let nextTagId = 4;
+  let nextDraftSetupId = 1;
+  let draftSetups = [];
+  let nextPromotionRequestId = 1;
+  let promotionRequests = [];
   const championMetadataById = new Map([
     [
       1,
@@ -242,6 +251,118 @@ function createFetchHarness({
       return Number(entity.team_id) === Number(teamId);
     }
     return true;
+  }
+
+  function normalizeTagScope(scope) {
+    return scope === "self" || scope === "team" ? scope : "all";
+  }
+
+  function normalizeTagOwner(scope, teamId = null) {
+    const normalizedScope = normalizeTagScope(scope);
+    return {
+      scope: normalizedScope,
+      userId: normalizedScope === "self" ? Number(resolvedLoginUser.id) : null,
+      teamId: normalizedScope === "team" ? Number(teamId) : null
+    };
+  }
+
+  function matchesTagOwner(definition, owner) {
+    if ((definition.scope ?? "all") !== owner.scope) {
+      return false;
+    }
+    if (owner.scope === "self") {
+      return Number(definition.user_id) === Number(owner.userId);
+    }
+    if (owner.scope === "team") {
+      return Number(definition.team_id) === Number(owner.teamId);
+    }
+    return true;
+  }
+
+  function getCanonicalTagByName(name) {
+    return tags.find((tag) => tag.name.toLowerCase() === String(name).trim().toLowerCase()) ?? null;
+  }
+
+  function getExactTagDefinition(tagId, owner) {
+    return tagDefinitions.find(
+      (definition) => Number(definition.tag_id) === Number(tagId) && matchesTagOwner(definition, owner)
+    ) ?? null;
+  }
+
+  function buildResolvedTagRecord(tagId, definition) {
+    const canonical = tags.find((tag) => tag.id === Number(tagId)) ?? null;
+    if (!canonical || !definition) {
+      return null;
+    }
+    return {
+      id: canonical.id,
+      name: canonical.name,
+      definition: definition.definition,
+      resolved_scope: definition.scope,
+      has_custom_definition: true,
+      user_id: definition.user_id,
+      team_id: definition.team_id
+    };
+  }
+
+  function listVisibleTags(scope, teamId = null, includeFallback = true) {
+    const owner = normalizeTagOwner(scope, teamId);
+    const exactDefinitions = tagDefinitions.filter((definition) => matchesTagOwner(definition, owner));
+    if (!includeFallback) {
+      return exactDefinitions
+        .map((definition) => buildResolvedTagRecord(definition.tag_id, definition))
+        .filter(Boolean)
+        .sort((left, right) => left.name.localeCompare(right.name));
+    }
+
+    const resolved = new Map();
+    for (const definition of tagDefinitions.filter((candidate) => candidate.scope === "all")) {
+      const tag = buildResolvedTagRecord(definition.tag_id, definition);
+      if (tag) {
+        resolved.set(tag.id, tag);
+      }
+    }
+    for (const definition of exactDefinitions) {
+      const tag = buildResolvedTagRecord(definition.tag_id, definition);
+      if (tag) {
+        resolved.set(tag.id, tag);
+      }
+    }
+    return [...resolved.values()].sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  function moveScopedHarnessAssignments(scope, ownerId, oldTagId, newTagId) {
+    if (oldTagId === newTagId) {
+      return;
+    }
+    const store = scope === "self" ? userChampionTagIds : teamChampionTagIds;
+    const keyPrefix = `${scope}:${ownerId}:`;
+    for (const [key, tagIds] of store.entries()) {
+      if (!String(key).startsWith(keyPrefix) || !tagIds.has(oldTagId)) {
+        continue;
+      }
+      tagIds.delete(oldTagId);
+      tagIds.add(newTagId);
+    }
+  }
+
+  function normalizeComposerPrecedence(mode) {
+    switch (mode) {
+      case "team_user_global":
+        return ["team", "self", "all"];
+      case "user_global":
+        return ["self", "all"];
+      case "team_global":
+        return ["team", "all"];
+      case "global_only":
+        return ["all"];
+      default:
+        return ["self", "team", "all"];
+    }
+  }
+
+  function getComposerOverrideOrder(mode) {
+    return normalizeComposerPrecedence(mode).filter((scope) => scope !== "all").reverse();
   }
   let joinRequestsByTeam = Object.fromEntries(
     Object.entries(teamJoinRequestsByTeam).map(([teamId, requests]) => [String(teamId), [...(requests ?? [])]])
@@ -548,60 +669,109 @@ function createFetchHarness({
     }
 
     if (path === "/tags" && method === "GET") {
+      const scope = parsedUrl.searchParams.get("scope") ?? "all";
+      const teamId = resolveCatalogTeamId(parsedUrl.searchParams.get("team_id"));
+      const includeFallback = parsedUrl.searchParams.get("include_fallback") !== "false";
       return createJsonResponse({
-        tags: [...tags]
+        tags: listVisibleTags(scope, teamId, includeFallback)
       });
     }
 
     if (path === "/tags" && method === "POST") {
+      const scope = normalizeTagScope(body?.scope);
+      const teamId = resolveCatalogTeamId(body?.team_id);
+      const owner = normalizeTagOwner(scope, teamId);
       const name = typeof body?.name === "string" ? body.name.trim() : "";
       const definition = typeof body?.definition === "string" ? body.definition.trim() : "";
       if (!name || !definition) {
         return createJsonResponse({ error: { code: "BAD_REQUEST", message: "Expected name/definition." } }, 400);
       }
-      const duplicate = tags.some((tag) => tag.name === name);
+      const duplicate = listVisibleTags(scope, teamId, false)
+        .some((tag) => tag.name.toLowerCase() === name.toLowerCase());
       if (duplicate) {
         return createJsonResponse({ error: { code: "CONFLICT", message: "Tag name already exists." } }, 409);
       }
-      const created = { id: nextTagId, name, definition };
-      nextTagId += 1;
-      tags.push(created);
+      let canonical = getCanonicalTagByName(name);
+      if (!canonical) {
+        canonical = { id: nextTagId, name, definition: scope === "all" ? definition : "" };
+        nextTagId += 1;
+        tags.push(canonical);
+      } else if (scope === "all") {
+        canonical.definition = definition;
+      }
+      tagDefinitions.push({
+        tag_id: canonical.id,
+        scope: owner.scope,
+        user_id: owner.userId,
+        team_id: owner.teamId,
+        definition
+      });
+      const created = buildResolvedTagRecord(canonical.id, getExactTagDefinition(canonical.id, owner));
       return createJsonResponse({ tag: created }, 201);
     }
 
     const tagMutationMatch = path.match(/^\/tags\/(\d+)$/);
     if (tagMutationMatch && method === "PUT") {
       const tagId = Number(tagMutationMatch[1]);
+      const scope = normalizeTagScope(body?.scope);
+      const teamId = resolveCatalogTeamId(body?.team_id);
+      const owner = normalizeTagOwner(scope, teamId);
       const name = typeof body?.name === "string" ? body.name.trim() : "";
       const definition = typeof body?.definition === "string" ? body.definition.trim() : "";
-      const existing = tags.find((tag) => tag.id === tagId) ?? null;
-      if (!existing) {
+      const existingCanonical = tags.find((tag) => tag.id === tagId) ?? null;
+      const existingDefinition = getExactTagDefinition(tagId, owner);
+      if (!existingCanonical || !existingDefinition) {
         return createJsonResponse({ error: { code: "NOT_FOUND", message: "Tag not found." } }, 404);
       }
-      const duplicate = tags.some((tag) => tag.id !== tagId && tag.name === name);
+      const duplicate = listVisibleTags(scope, teamId, false)
+        .some((tag) => tag.id !== tagId && tag.name.toLowerCase() === name.toLowerCase());
       if (duplicate) {
         return createJsonResponse({ error: { code: "CONFLICT", message: "Tag name already exists." } }, 409);
       }
-      existing.name = name;
-      existing.definition = definition;
-      return createJsonResponse({ tag: existing });
+      let resolvedTagId = tagId;
+      if (scope === "all") {
+        existingCanonical.name = name;
+        existingCanonical.definition = definition;
+      } else if (existingCanonical.name.toLowerCase() !== name.toLowerCase()) {
+        let targetCanonical = getCanonicalTagByName(name);
+        if (!targetCanonical) {
+          targetCanonical = { id: nextTagId, name, definition: "" };
+          nextTagId += 1;
+          tags.push(targetCanonical);
+        }
+        moveScopedHarnessAssignments(scope, scope === "self" ? owner.userId : owner.teamId, tagId, targetCanonical.id);
+        existingDefinition.tag_id = targetCanonical.id;
+        resolvedTagId = targetCanonical.id;
+      }
+      existingDefinition.definition = definition;
+      return createJsonResponse({ tag: buildResolvedTagRecord(resolvedTagId, getExactTagDefinition(resolvedTagId, owner)) });
     }
 
     if (tagMutationMatch && method === "DELETE") {
       const tagId = Number(tagMutationMatch[1]);
-      for (const scopedTagIds of globalChampionTagIds.values()) {
-        if (scopedTagIds.has(tagId)) {
-          return createJsonResponse(
-            { error: { code: "CONFLICT", message: "Cannot delete a tag that is assigned to champions." } },
-            409
-          );
-        }
+      const scope = normalizeTagScope(parsedUrl.searchParams.get("scope"));
+      const teamId = resolveCatalogTeamId(parsedUrl.searchParams.get("team_id"));
+      const owner = normalizeTagOwner(scope, teamId);
+      const hasAssignments = scope === "all"
+        ? [...globalChampionTagIds.values()].some((assignedTagIds) => assignedTagIds.has(tagId))
+        : [...(scope === "self" ? userChampionTagIds : teamChampionTagIds).entries()]
+            .some(([key, assignedTagIds]) => {
+              const prefix = `${scope}:${scope === "self" ? owner.userId : owner.teamId}:`;
+              return String(key).startsWith(prefix) && assignedTagIds.has(tagId);
+            });
+      if (hasAssignments) {
+        return createJsonResponse(
+          { error: { code: "CONFLICT", message: "Cannot delete a tag that is assigned to champions." } },
+          409
+        );
       }
-      const index = tags.findIndex((tag) => tag.id === tagId);
+      const index = tagDefinitions.findIndex(
+        (definition) => Number(definition.tag_id) === tagId && matchesTagOwner(definition, owner)
+      );
       if (index < 0) {
         return createJsonResponse({ error: { code: "NOT_FOUND", message: "Tag not found." } }, 404);
       }
-      tags.splice(index, 1);
+      tagDefinitions.splice(index, 1);
       return createJsonResponse({}, 204);
     }
 
@@ -731,6 +901,263 @@ function createFetchHarness({
         has_custom_metadata: true,
         resolved_scope: scope
       });
+    }
+
+    if (path === "/composer/context" && method === "POST") {
+      const requestedTeamId = resolveCatalogTeamId(body?.team_id) ?? resolveCatalogTeamId(persistedTeamContext.activeTeamId);
+      const useCustomScopes = body?.use_custom_scopes !== false;
+      const resources = body?.resources && typeof body.resources === "object" ? body.resources : {};
+      const defaultPrecedence = typeof body?.default_precedence === "string" ? body.default_precedence : "user_team_global";
+
+      const globalChampions = [
+        { id: 1, name: "Ahri", role: "Mid", metadata: normalizeHarnessMetadata(championMetadataById.get(1)), tag_ids: [...(globalChampionTagIds.get(1) ?? [])], reviewed: championReviewedById.get(1) === true },
+        { id: 2, name: "Ashe", role: "ADC", metadata: normalizeHarnessMetadata(championMetadataById.get(2)), tag_ids: [...(globalChampionTagIds.get(2) ?? [])], reviewed: championReviewedById.get(2) === true },
+        { id: 3, name: "Braum", role: "Support", metadata: normalizeHarnessMetadata(championMetadataById.get(3)), tag_ids: [...(globalChampionTagIds.get(3) ?? [])], reviewed: championReviewedById.get(3) === true }
+      ];
+
+      const buildOverrideOrder = (resource) => {
+        const config = resources?.[resource] ?? {};
+        if (!useCustomScopes || config.enabled === false) {
+          return [];
+        }
+        return getComposerOverrideOrder(typeof config.precedence === "string" ? config.precedence : defaultPrecedence);
+      };
+
+      const metadataOverrides = buildOverrideOrder("champion_metadata");
+      const tagOverrides = buildOverrideOrder("champion_tags");
+      const requirementOverrides = buildOverrideOrder("requirements");
+      const compositionOverrides = buildOverrideOrder("compositions");
+      const tagDefinitionOverrides = buildOverrideOrder("tag_definitions");
+
+      const scopedMetadataByScope = {
+        self: userChampionMetadataByScope,
+        team: teamChampionMetadataByScope
+      };
+      const scopedTagsByScope = {
+        self: userChampionTagIds,
+        team: teamChampionTagIds
+      };
+
+      const champions = globalChampions.map((champion) => {
+        let metadata = champion.metadata;
+        for (const scope of metadataOverrides) {
+          const ownerId = scope === "self" ? resolvedLoginUser.id : requestedTeamId;
+          if (!Number.isInteger(Number(ownerId))) {
+            continue;
+          }
+          const scopedMetadata = scopedMetadataByScope[scope].get(scopedChampionKey(scope, ownerId, champion.id));
+          if (scopedMetadata) {
+            metadata = normalizeHarnessMetadata(scopedMetadata);
+          }
+        }
+
+        let tagIds = [...champion.tag_ids];
+        for (const scope of tagOverrides) {
+          const ownerId = scope === "self" ? resolvedLoginUser.id : requestedTeamId;
+          if (!Number.isInteger(Number(ownerId))) {
+            continue;
+          }
+          const scopedTagSet = scopedTagsByScope[scope].get(scopedChampionKey(scope, ownerId, champion.id));
+          if (scopedTagSet) {
+            tagIds = [...scopedTagSet].sort((left, right) => left - right);
+          }
+        }
+
+        return {
+          ...champion,
+          metadata,
+          tag_ids: tagIds
+        };
+      });
+
+      const mergeNamedEntities = (globalItems, overrides, sourceType) => {
+        const merged = new Map(globalItems.map((item) => [item.name.toLowerCase(), item]));
+        for (const scope of overrides) {
+          const sourceItems = sourceType === "requirements"
+            ? requirementDefinitions.filter((item) =>
+                item.scope === scope &&
+                (scope === "self"
+                  ? Number(item.user_id) === Number(resolvedLoginUser.id)
+                  : Number(item.team_id) === Number(requestedTeamId))
+              )
+            : compositions.filter((item) =>
+                item.scope === scope &&
+                (scope === "self"
+                  ? Number(item.user_id) === Number(resolvedLoginUser.id)
+                  : Number(item.team_id) === Number(requestedTeamId))
+              );
+          for (const item of sourceItems) {
+            merged.set(item.name.toLowerCase(), { ...item });
+          }
+        }
+        return [...merged.values()].sort((left, right) => left.name.localeCompare(right.name));
+      };
+
+      const visibleTagsMap = new Map(listVisibleTags("all", null, true).map((tag) => [tag.id, tag]));
+      for (const scope of tagDefinitionOverrides) {
+        const teamId = scope === "team" ? requestedTeamId : null;
+        for (const tag of listVisibleTags(scope, teamId, false)) {
+          visibleTagsMap.set(tag.id, tag);
+        }
+      }
+      const visibleTags = [...visibleTagsMap.values()].sort((left, right) => left.name.localeCompare(right.name));
+
+      const visibleRequirements = mergeNamedEntities(
+        requirementDefinitions.filter((item) => item.scope === "all"),
+        requirementOverrides,
+        "requirements"
+      );
+      const visibleCompositions = mergeNamedEntities(
+        compositions.filter((item) => item.scope === "all"),
+        compositionOverrides,
+        "compositions"
+      );
+      const activeComposition = visibleCompositions.find((composition) => composition.is_active) ?? null;
+
+      return createJsonResponse({
+        team_id: requestedTeamId,
+        default_precedence: defaultPrecedence,
+        resources,
+        champions,
+        tags: visibleTags,
+        requirements: visibleRequirements,
+        compositions: visibleCompositions,
+        active_composition_id: activeComposition?.id ?? null
+      });
+    }
+
+    if (path === "/me/draft-setups" && method === "GET") {
+      return createJsonResponse({
+        draft_setups: [...draftSetups].sort((left, right) => left.name.localeCompare(right.name))
+      });
+    }
+
+    if (path === "/me/draft-setups" && method === "POST") {
+      const name = typeof body?.name === "string" ? body.name.trim() : "";
+      if (!name) {
+        return createJsonResponse({ error: { code: "BAD_REQUEST", message: "Name is required." } }, 400);
+      }
+      const record = {
+        id: nextDraftSetupId,
+        user_id: Number(resolvedLoginUser.id),
+        name,
+        state_json: body?.state_json ?? {},
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z"
+      };
+      nextDraftSetupId += 1;
+      draftSetups.push(record);
+      return createJsonResponse({ draft_setup: record }, 201);
+    }
+
+    const draftSetupMatch = path.match(/^\/me\/draft-setups\/(\d+)$/);
+    if (draftSetupMatch && method === "PUT") {
+      const setupId = Number(draftSetupMatch[1]);
+      const setup = draftSetups.find((candidate) => candidate.id === setupId) ?? null;
+      if (!setup) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "Draft Setup not found." } }, 404);
+      }
+      setup.name = typeof body?.name === "string" ? body.name.trim() : setup.name;
+      setup.state_json = body?.state_json ?? setup.state_json;
+      setup.updated_at = "2026-01-01T00:00:00.000Z";
+      return createJsonResponse({ draft_setup: setup });
+    }
+
+    if (draftSetupMatch && method === "DELETE") {
+      const setupId = Number(draftSetupMatch[1]);
+      draftSetups = draftSetups.filter((candidate) => candidate.id !== setupId);
+      return createJsonResponse({}, 204);
+    }
+
+    const tagPromotionCreateMatch = path.match(/^\/tags\/(\d+)\/promotion-requests$/);
+    if (tagPromotionCreateMatch && method === "POST") {
+      const tagId = Number(tagPromotionCreateMatch[1]);
+      const sourceScope = normalizeTagScope(body?.source_scope);
+      const targetScope = normalizeTagScope(body?.target_scope === "all" ? "all" : body?.target_scope);
+      const sourceTeamId = resolveCatalogTeamId(body?.team_id);
+      const targetTeamId = resolveCatalogTeamId(body?.target_team_id ?? body?.team_id);
+      const owner = normalizeTagOwner(sourceScope, sourceTeamId);
+      const sourceTag = buildResolvedTagRecord(tagId, getExactTagDefinition(tagId, owner));
+      if (!sourceTag) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "Scoped tag definition not found." } }, 404);
+      }
+      const requestRecord = {
+        id: nextPromotionRequestId,
+        entity_type: "tag_definitions",
+        resource_id: tagId,
+        source_scope: sourceScope,
+        source_user_id: sourceScope === "self" ? Number(resolvedLoginUser.id) : null,
+        source_team_id: sourceScope === "team" ? sourceTeamId : null,
+        target_scope: targetScope === "all" ? "all" : "team",
+        target_team_id: targetScope === "team" ? targetTeamId : null,
+        requested_by: Number(resolvedLoginUser.id),
+        status: "pending",
+        request_comment: typeof body?.request_comment === "string" ? body.request_comment.trim() : "",
+        review_comment: "",
+        reviewed_by_user_id: null,
+        reviewed_at: null,
+        payload_json: {
+          tag_id: tagId,
+          tag_name: sourceTag.name,
+          definition: sourceTag.definition
+        },
+        created_at: "2026-01-01T00:00:00.000Z"
+      };
+      nextPromotionRequestId += 1;
+      promotionRequests.push(requestRecord);
+      return createJsonResponse({ promotion_request: requestRecord }, 201);
+    }
+
+    if (path === "/tags/promotion-requests" && method === "GET") {
+      const mode = parsedUrl.searchParams.get("mode") ?? "requested";
+      const scope = normalizeTagScope(parsedUrl.searchParams.get("scope"));
+      const teamId = resolveCatalogTeamId(parsedUrl.searchParams.get("team_id"));
+      const results = promotionRequests.filter((requestRecord) => {
+        if (mode === "review") {
+          if (scope === "team") {
+            return requestRecord.target_scope === "team" && Number(requestRecord.target_team_id) === Number(teamId);
+          }
+          return requestRecord.target_scope === "all";
+        }
+        return Number(requestRecord.requested_by) === Number(resolvedLoginUser.id);
+      });
+      return createJsonResponse({ promotion_requests: results });
+    }
+
+    const tagPromotionReviewMatch = path.match(/^\/tags\/promotion-requests\/(\d+)\/review$/);
+    if (tagPromotionReviewMatch && method === "POST") {
+      const requestId = Number(tagPromotionReviewMatch[1]);
+      const requestRecord = promotionRequests.find((candidate) => candidate.id === requestId) ?? null;
+      if (!requestRecord) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "Promotion request not found." } }, 404);
+      }
+      requestRecord.status = body?.decision === "rejected" ? "rejected" : "approved";
+      requestRecord.review_comment = typeof body?.review_comment === "string" ? body.review_comment.trim() : "";
+      requestRecord.reviewed_by_user_id = Number(resolvedLoginUser.id);
+      requestRecord.reviewed_at = "2026-01-01T00:00:00.000Z";
+      if (requestRecord.status === "approved") {
+        const payload = requestRecord.payload_json ?? {};
+        const targetOwner = normalizeTagOwner(requestRecord.target_scope, requestRecord.target_team_id);
+        let canonical = getCanonicalTagByName(payload.tag_name);
+        if (!canonical) {
+          canonical = { id: nextTagId, name: payload.tag_name, definition: requestRecord.target_scope === "all" ? payload.definition : "" };
+          nextTagId += 1;
+          tags.push(canonical);
+        }
+        const exactDefinition = getExactTagDefinition(canonical.id, targetOwner);
+        if (exactDefinition) {
+          exactDefinition.definition = payload.definition;
+        } else {
+          tagDefinitions.push({
+            tag_id: canonical.id,
+            scope: targetOwner.scope,
+            user_id: targetOwner.userId,
+            team_id: targetOwner.teamId,
+            definition: payload.definition
+          });
+        }
+      }
+      return createJsonResponse({ promotion_request: requestRecord });
     }
 
     if (path === "/auth/login" && method === "POST") {
@@ -3065,6 +3492,54 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#profile-riot-stats-list").textContent.trim()).toBe("");
   });
 
+  test("profile page shows mastery-based champion suggestions for configured roles", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const harness = createFetchHarness({
+      profile: {
+        id: 11,
+        email: "lead@example.com",
+        gameName: "LeadPlayer",
+        tagline: "NA1",
+        primaryRole: "Support",
+        secondaryRoles: [],
+        championStats: {
+          provider: "riot",
+          status: "ok",
+          fetchedAt: "2026-02-26T17:25:00.000Z",
+          topChampion: {
+            championId: 201,
+            championName: "Braum",
+            championLevel: 7,
+            championPoints: 234567,
+            lastPlayedAt: "2026-02-24T10:00:00.000Z"
+          },
+          champions: [
+            {
+              championId: 201,
+              championName: "Braum",
+              championLevel: 7,
+              championPoints: 234567,
+              lastPlayedAt: "2026-02-24T10:00:00.000Z"
+            }
+          ]
+        }
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".nav-avatar-link[data-tab='profile']").click();
+    await flush();
+
+    expect(doc.querySelector("#profile-champion-suggestions-summary").textContent).toContain("Showing 1 suggestions");
+    expect(doc.querySelector("#profile-champion-suggestions-list").textContent).toContain("Braum");
+  });
+
   test("creating a team from team context sends name and tag", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
@@ -3911,6 +4386,71 @@ describe("auth + pools + team management", () => {
     await flush();
 
     expect(secondDoc.querySelector("#builder-active-team").value).toBe("1");
+  });
+
+  test("composer can save and reload a Draft Setup", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com" }
+      })
+    });
+    const harness = createFetchHarness({
+      teams: [
+        {
+          id: 1,
+          name: "Team Alpha",
+          tag: "ALPHA",
+          logo_data_url: "data:image/png;base64,bW9jazE=",
+          created_by: 11,
+          membership_role: "lead",
+          membership_team_role: "primary",
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      membersByTeam: {
+        "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "lead@example.com" }]
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector("#builder-active-team").value = "1";
+    doc.querySelector("#builder-active-team").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await flush();
+    await flush();
+
+    doc.querySelector("#builder-draft-setup-name").value = "Pocket Setup";
+    doc.querySelector("#builder-draft-setup-name").dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+    doc.querySelector("#builder-draft-setup-save").click();
+    await flush();
+    await flush();
+
+    const createCall = harness.calls.find((call) => call.path === "/me/draft-setups" && call.method === "POST");
+    expect(createCall).toBeTruthy();
+    expect(createCall.body.name).toBe("Pocket Setup");
+    expect(createCall.body.state_json.builder.teamId).toBe("1");
+    expect(createCall.body.state_json.builder.useCustomScopes).toBe(true);
+
+    const customScopes = doc.querySelector("#builder-custom-scopes-enabled");
+    customScopes.checked = false;
+    customScopes.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await flush();
+    await flush();
+    expect(customScopes.checked).toBe(false);
+
+    const loadButton = Array.from(doc.querySelectorAll("#builder-draft-setup-list button"))
+      .find((button) => button.textContent.trim() === "Load");
+    expect(loadButton).toBeTruthy();
+    loadButton.click();
+    await flush();
+    doc.querySelector("#confirmation-confirm").click();
+    await flush();
+    await flush();
+
+    expect(doc.querySelector("#builder-active-team").value).toBe("1");
+    expect(doc.querySelector("#builder-custom-scopes-enabled").checked).toBe(true);
   });
 
   test("profile display team selection persists across reload via API", async () => {

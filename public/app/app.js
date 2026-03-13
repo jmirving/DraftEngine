@@ -100,6 +100,7 @@ const MAX_TEAM_LOGO_BYTES = 512 * 1024;
 const PREFILLED_RECOMMENDATION_LIMIT = 3;
 const HIGH_SIGNAL_MASTERY_LEVEL = 6;
 const HIGH_SIGNAL_CHAMPION_POINTS = 100000;
+const MAX_PROMOTION_COMMENT_LENGTH = 500;
 const OWNER_ADMIN_EMAIL_SET = new Set(["jirving0311@gmail.com", "tylerjtriplett@gmail.com"]);
 
 const FAMILIARITY_GRADE_BY_LEVEL = Object.freeze({
@@ -153,6 +154,29 @@ const BUILDER_DEFAULTS = Object.freeze({
   defaultTreeDensity: "summary",
   showOptionalChecksByDefault: false
 });
+const BUILDER_SCOPE_RESOURCES = Object.freeze([
+  "champion_metadata",
+  "champion_tags",
+  "tag_definitions",
+  "requirements",
+  "compositions"
+]);
+const BUILDER_SCOPE_RESOURCE_LABELS = Object.freeze({
+  champion_metadata: "Champion Metadata",
+  champion_tags: "Champion Tags",
+  tag_definitions: "Tag Definitions",
+  requirements: "Requirements",
+  compositions: "Compositions"
+});
+const BUILDER_SCOPE_PRECEDENCE_OPTIONS = Object.freeze([
+  { value: "user_team_global", label: "User > Team > Global" },
+  { value: "team_user_global", label: "Team > User > Global" },
+  { value: "user_global", label: "User > Global" },
+  { value: "team_global", label: "Team > Global" },
+  { value: "global_only", label: "Global only" }
+]);
+const BUILDER_SCOPE_PRECEDENCE_SET = new Set(BUILDER_SCOPE_PRECEDENCE_OPTIONS.map((option) => option.value));
+const BUILDER_SCOPE_DEFAULT_PRECEDENCE = "user_team_global";
 const BUILDER_RANK_GOAL_VALID_END_STATES = "valid_end_states";
 const BUILDER_RANK_GOAL_CANDIDATE_SCORE = "candidate_score";
 const BUILDER_RANK_GOAL_VALUES = new Set([
@@ -187,6 +211,22 @@ function normalizeBuilderCandidateScoringWeights(weights = BUILDER_DEFAULT_CANDI
       )
     )
   };
+}
+
+function normalizeBuilderScopePrecedence(value, fallback = BUILDER_SCOPE_DEFAULT_PRECEDENCE) {
+  return BUILDER_SCOPE_PRECEDENCE_SET.has(value) ? value : fallback;
+}
+
+function createDefaultBuilderScopeResourceSettings() {
+  return Object.fromEntries(
+    BUILDER_SCOPE_RESOURCES.map((resource) => [
+      resource,
+      {
+        enabled: true,
+        precedence: BUILDER_SCOPE_DEFAULT_PRECEDENCE
+      }
+    ])
+  );
 }
 
 const UI_COPY = Object.freeze({
@@ -520,6 +560,7 @@ function createInitialState() {
       isSavingAvatar: false,
       isSavingDisplayTeam: false,
       championStats: createEmptyChampionStatsState(),
+      championSuggestions: [],
       openSetting: null,
       avatarChampionId: null,
       pendingAvatarId: null,
@@ -556,6 +597,9 @@ function createInitialState() {
       tagsWorkspaceTagById: {},
       tagsCatalogScope: "all",
       tagsCatalogTeamId: "",
+      tagPromotionRequests: [],
+      tagPromotionReviewQueue: [],
+      isLoadingTagPromotions: false,
       championEditorTags: [],
       championEditorTagById: {},
       selectedChampionTagEditorId: null,
@@ -641,6 +685,20 @@ function createInitialState() {
       showOptionalChecks: BUILDER_DEFAULTS.showOptionalChecksByDefault,
       teamId: "",
       activeCompositionId: null,
+      composerContextRequirements: [],
+      composerContextCompositions: [],
+      composerTagById: {},
+      composerTags: [],
+      composerChampionsByName: {},
+      useCustomScopes: true,
+      defaultScopePrecedence: BUILDER_SCOPE_DEFAULT_PRECEDENCE,
+      scopeResourceSettings: createDefaultBuilderScopeResourceSettings(),
+      scopeLoadError: "",
+      draftSetups: [],
+      selectedDraftSetupId: null,
+      draftSetupName: "",
+      isLoadingDraftSetups: false,
+      isSavingDraftSetup: false,
       draftContext: null,
       teamState: createEmptyTeamState(),
       draftOrder: [...SLOTS],
@@ -737,6 +795,12 @@ function createElements() {
     tagsManageSave: runtimeDocument.querySelector("#tags-manage-save"),
     tagsManageCancel: runtimeDocument.querySelector("#tags-manage-cancel"),
     tagsManageFeedback: runtimeDocument.querySelector("#tags-manage-feedback"),
+    tagsPromotionRequestComment: runtimeDocument.querySelector("#tags-promotion-request-comment"),
+    tagsPromotionRequest: runtimeDocument.querySelector("#tags-promotion-request"),
+    tagsPromotionRefresh: runtimeDocument.querySelector("#tags-promotion-refresh"),
+    tagsPromotionFeedback: runtimeDocument.querySelector("#tags-promotion-feedback"),
+    tagsPromotionRequestList: runtimeDocument.querySelector("#tags-promotion-request-list"),
+    tagsPromotionReviewList: runtimeDocument.querySelector("#tags-promotion-review-list"),
     usersTitle: runtimeDocument.querySelector("#users-title"),
     usersMeta: runtimeDocument.querySelector("#users-meta"),
     usersSearch: runtimeDocument.querySelector("#users-search"),
@@ -866,6 +930,10 @@ function createElements() {
     builderActiveTeam: runtimeDocument.querySelector("#builder-active-team"),
     builderActiveComposition: runtimeDocument.querySelector("#builder-active-composition"),
     builderCompositionHelp: runtimeDocument.querySelector("#builder-composition-help"),
+    builderDraftSetupName: runtimeDocument.querySelector("#builder-draft-setup-name"),
+    builderDraftSetupSave: runtimeDocument.querySelector("#builder-draft-setup-save"),
+    builderDraftSetupFeedback: runtimeDocument.querySelector("#builder-draft-setup-feedback"),
+    builderDraftSetupList: runtimeDocument.querySelector("#builder-draft-setup-list"),
     builderTeamHelp: runtimeDocument.querySelector("#builder-team-help"),
     builderStageSetupTitle: runtimeDocument.querySelector("#builder-stage-setup-title"),
     builderStageSetupMeta: runtimeDocument.querySelector("#builder-stage-setup-meta"),
@@ -875,6 +943,10 @@ function createElements() {
     builderStageSetup: runtimeDocument.querySelector("#builder-stage-setup"),
     builderStageInspect: runtimeDocument.querySelector("#builder-stage-inspect"),
     builderAdvancedControls: runtimeDocument.querySelector("#builder-advanced-controls"),
+    builderCustomScopesEnabled: runtimeDocument.querySelector("#builder-custom-scopes-enabled"),
+    builderScopeDefaultPrecedence: runtimeDocument.querySelector("#builder-scope-default-precedence"),
+    builderScopeResourceList: runtimeDocument.querySelector("#builder-scope-resource-list"),
+    builderScopeFeedback: runtimeDocument.querySelector("#builder-scope-feedback"),
     builderExcludedSearch: runtimeDocument.querySelector("#builder-excluded-search"),
     builderExcludedOptions: runtimeDocument.querySelector("#builder-excluded-options"),
     builderExcludedPills: runtimeDocument.querySelector("#builder-excluded-pills"),
@@ -1008,6 +1080,8 @@ function createElements() {
     profileRiotStatsSummary: runtimeDocument.querySelector("#profile-riot-stats-summary"),
     profileRiotTopChampion: runtimeDocument.querySelector("#profile-riot-top-champion"),
     profileRiotStatsList: runtimeDocument.querySelector("#profile-riot-stats-list"),
+    profileChampionSuggestionsSummary: runtimeDocument.querySelector("#profile-champion-suggestions-summary"),
+    profileChampionSuggestionsList: runtimeDocument.querySelector("#profile-champion-suggestions-list"),
     profileIdentity: runtimeDocument.querySelector("#profile-identity"),
     profileAvatarDisplay: runtimeDocument.querySelector("#profile-avatar-display"),
     navAvatarDisplay: runtimeDocument.querySelector("#nav-avatar-display"),
@@ -1196,6 +1270,24 @@ function setTagsManageFeedback(message) {
   }
 }
 
+function setTagPromotionFeedback(message) {
+  if (elements.tagsPromotionFeedback) {
+    elements.tagsPromotionFeedback.textContent = message;
+  }
+}
+
+function setBuilderDraftSetupFeedback(message) {
+  if (elements.builderDraftSetupFeedback) {
+    elements.builderDraftSetupFeedback.textContent = message;
+  }
+}
+
+function setBuilderScopeFeedback(message) {
+  if (elements.builderScopeFeedback) {
+    elements.builderScopeFeedback.textContent = message;
+  }
+}
+
 function setUsersFeedback(message) {
   if (elements.usersFeedback) {
     elements.usersFeedback.textContent = message;
@@ -1322,6 +1414,48 @@ function isGlobalTagEditorUser() {
 
 function normalizeChampionTagScope(scope) {
   return CHAMPION_TAG_SCOPES.includes(scope) ? scope : "all";
+}
+
+function normalizeBuilderScopeResourceSettings(rawValue) {
+  const source = rawValue && typeof rawValue === "object" && !Array.isArray(rawValue)
+    ? rawValue
+    : {};
+  const normalized = createDefaultBuilderScopeResourceSettings();
+  for (const resource of BUILDER_SCOPE_RESOURCES) {
+    const config = source[resource];
+    if (!config || typeof config !== "object" || Array.isArray(config)) {
+      continue;
+    }
+    normalized[resource] = {
+      enabled: config.enabled !== false,
+      precedence: normalizeBuilderScopePrecedence(config.precedence)
+    };
+  }
+  return normalized;
+}
+
+function getBuilderRequirementDefinitions() {
+  return Array.isArray(state.builder.composerContextRequirements) && state.builder.composerContextRequirements.length > 0
+    ? state.builder.composerContextRequirements
+    : (Array.isArray(state.api.requirementDefinitions) ? state.api.requirementDefinitions : []);
+}
+
+function getBuilderCompositionBundles() {
+  return Array.isArray(state.builder.composerContextCompositions) && state.builder.composerContextCompositions.length > 0
+    ? state.builder.composerContextCompositions
+    : (Array.isArray(state.api.compositionBundles) ? state.api.compositionBundles : []);
+}
+
+function getBuilderTagById() {
+  return state.builder.composerTagById && Object.keys(state.builder.composerTagById).length > 0
+    ? state.builder.composerTagById
+    : state.api.tagById;
+}
+
+function getBuilderChampionsByName() {
+  return state.builder.composerChampionsByName && Object.keys(state.builder.composerChampionsByName).length > 0
+    ? state.builder.composerChampionsByName
+    : state.data.championsByName;
 }
 
 function getChampionTagLeadTeams() {
@@ -4402,6 +4536,7 @@ function renderTagsWorkspace() {
   }
 
   renderTagsManagerControls();
+  renderTagPromotionPanels();
   const context = getTagCatalogScopeRequestContext();
   const tags = Array.isArray(state.api.tagsWorkspaceCatalog) && state.api.tagsWorkspaceCatalog.length > 0
     ? state.api.tagsWorkspaceCatalog
@@ -4492,6 +4627,92 @@ function renderTagsWorkspace() {
     list.append(item);
   }
   elements.tagsWorkspaceCategories.append(list);
+}
+
+function renderTagPromotionPanels() {
+  if (!elements.tagsPromotionRequestList || !elements.tagsPromotionReviewList) {
+    return;
+  }
+
+  const context = getTagCatalogScopeRequestContext();
+  const selectedTag = Array.isArray(state.api.tagsWorkspaceCatalog)
+    ? state.api.tagsWorkspaceCatalog.find((tag) => tag.id === state.api.selectedTagManagerId) ?? null
+    : null;
+  const canRequestPromotion = isAuthenticated() && context.scope !== "all" && !!selectedTag;
+  if (elements.tagsPromotionRequest) {
+    elements.tagsPromotionRequest.disabled = !canRequestPromotion || state.api.isLoadingTagPromotions;
+    elements.tagsPromotionRequest.textContent = context.scope === "team" ? "Request Global Promotion" : "Request Team Promotion";
+  }
+  if (elements.tagsPromotionRefresh) {
+    elements.tagsPromotionRefresh.disabled = state.api.isLoadingTagPromotions;
+  }
+
+  const renderPromotionCards = (target, requests, { reviewMode = false } = {}) => {
+    target.innerHTML = "";
+    if (!Array.isArray(requests) || requests.length < 1) {
+      const empty = runtimeDocument.createElement("p");
+      empty.className = "meta";
+      empty.textContent = reviewMode ? "No tag promotions awaiting review." : "No tag promotion requests yet.";
+      target.append(empty);
+      return;
+    }
+
+    for (const request of requests) {
+      const card = runtimeDocument.createElement("article");
+      card.className = "summary-card";
+
+      const title = runtimeDocument.createElement("strong");
+      title.textContent = request.payloadJson?.tag_name || `Tag #${request.resourceId}`;
+
+      const route = runtimeDocument.createElement("p");
+      route.className = "meta";
+      route.textContent = `${request.sourceScope} -> ${request.targetScope} | ${request.status}`;
+
+      const requestComment = runtimeDocument.createElement("p");
+      requestComment.className = "meta";
+      requestComment.textContent = request.requestComment || "No request comment.";
+
+      card.append(title, route, requestComment);
+
+      if (reviewMode && request.status === "pending") {
+        const reviewInput = runtimeDocument.createElement("input");
+        reviewInput.type = "text";
+        reviewInput.maxLength = MAX_PROMOTION_COMMENT_LENGTH;
+        reviewInput.placeholder = "Review note (optional)";
+
+        const actions = runtimeDocument.createElement("div");
+        actions.className = "button-row";
+
+        const approve = runtimeDocument.createElement("button");
+        approve.type = "button";
+        approve.textContent = "Approve";
+        approve.addEventListener("click", () => {
+          void reviewTagPromotion(request.id, "approved", reviewInput.value);
+        });
+
+        const reject = runtimeDocument.createElement("button");
+        reject.type = "button";
+        reject.className = "ghost";
+        reject.textContent = "Reject";
+        reject.addEventListener("click", () => {
+          void reviewTagPromotion(request.id, "rejected", reviewInput.value);
+        });
+
+        actions.append(approve, reject);
+        card.append(reviewInput, actions);
+      } else if (request.reviewComment) {
+        const reviewComment = runtimeDocument.createElement("p");
+        reviewComment.className = "meta";
+        reviewComment.textContent = `Review: ${request.reviewComment}`;
+        card.append(reviewComment);
+      }
+
+      target.append(card);
+    }
+  };
+
+  renderPromotionCards(elements.tagsPromotionRequestList, state.api.tagPromotionRequests, { reviewMode: false });
+  renderPromotionCards(elements.tagsPromotionReviewList, state.api.tagPromotionReviewQueue, { reviewMode: true });
 }
 
 function normalizeApiUserRole(value) {
@@ -7699,6 +7920,362 @@ async function loadCompositionBundlesFromApi() {
   }
 }
 
+function buildComposerContextRequestBody() {
+  return {
+    team_id: state.builder.teamId && state.builder.teamId !== NONE_TEAM_ID
+      ? Number.parseInt(String(state.builder.teamId), 10)
+      : null,
+    use_custom_scopes: state.builder.useCustomScopes,
+    default_precedence: normalizeBuilderScopePrecedence(state.builder.defaultScopePrecedence),
+    resources: Object.fromEntries(
+      BUILDER_SCOPE_RESOURCES.map((resource) => [
+        resource,
+        {
+          enabled: state.builder.scopeResourceSettings?.[resource]?.enabled !== false,
+          precedence: normalizeBuilderScopePrecedence(
+            state.builder.scopeResourceSettings?.[resource]?.precedence,
+            state.builder.defaultScopePrecedence
+          )
+        }
+      ])
+    )
+  };
+}
+
+async function loadComposerContextFromApi() {
+  const payload = await apiRequest("/composer/context", {
+    method: "POST",
+    auth: isAuthenticated(),
+    body: buildComposerContextRequestBody()
+  });
+
+  const tags = Array.isArray(payload?.tags) ? payload.tags.map(normalizeTagCatalogEntry).filter(Boolean) : [];
+  const requirements = Array.isArray(payload?.requirements)
+    ? payload.requirements.map(normalizeRequirementDefinition).filter(Boolean)
+    : [];
+  const compositions = Array.isArray(payload?.compositions)
+    ? payload.compositions.map(normalizeCompositionBundle).filter(Boolean)
+    : [];
+  const champions = Array.isArray(payload?.champions)
+    ? payload.champions.map(buildChampionFromApiRecord).filter(Boolean)
+    : state.data.champions;
+
+  state.builder.composerTags = tags;
+  state.builder.composerTagById = Object.fromEntries(tags.map((tag) => [String(tag.id), tag]));
+  state.builder.composerContextRequirements = requirements;
+  state.builder.composerContextCompositions = compositions;
+  state.builder.composerChampionsByName = Object.fromEntries(champions.map((champion) => [champion.name, champion]));
+  state.builder.activeCompositionId = resolveBuilderActiveCompositionId(
+    state.builder.activeCompositionId ?? payload?.active_composition_id ?? payload?.activeCompositionId ?? null
+  );
+  state.builder.scopeLoadError = "";
+}
+
+async function refreshBuilderComposerContext({ includeDraftContext = true } = {}) {
+  try {
+    if (includeDraftContext) {
+      await fetchBuilderDraftContext(state.builder.teamId);
+    }
+    await loadComposerContextFromApi();
+    validateTeamSelections();
+  } catch (error) {
+    state.builder.scopeLoadError = normalizeApiErrorMessage(error, "Failed to load Composer scope data.");
+  } finally {
+    renderTeamConfig();
+    renderBuilder();
+  }
+}
+
+function createDefaultDraftSetupState() {
+  return {
+    builder: {
+      teamId: state.builder.teamId,
+      activeCompositionId: state.builder.activeCompositionId,
+      teamState: { ...state.builder.teamState },
+      draftOrder: [...state.builder.draftOrder],
+      slotPoolRole: { ...state.builder.slotPoolRole },
+      excludedChampions: [...state.builder.excludedChampions],
+      maxBranch: state.builder.maxBranch,
+      treeMinCandidateScore: state.builder.treeMinCandidateScore,
+      treeRankGoal: state.builder.treeRankGoal,
+      candidateScoringWeights: { ...state.builder.candidateScoringWeights },
+      treeMinScore: state.builder.treeMinScore,
+      treeValidLeavesOnly: state.builder.treeValidLeavesOnly,
+      useCustomScopes: state.builder.useCustomScopes,
+      defaultScopePrecedence: state.builder.defaultScopePrecedence,
+      scopeResourceSettings: normalizeBuilderScopeResourceSettings(state.builder.scopeResourceSettings)
+    }
+  };
+}
+
+function normalizeDraftSetupRecord(rawSetup) {
+  if (!rawSetup || typeof rawSetup !== "object" || Array.isArray(rawSetup)) {
+    return null;
+  }
+  const id = normalizeApiEntityId(rawSetup.id);
+  if (!id) {
+    return null;
+  }
+  return {
+    id,
+    name: typeof rawSetup.name === "string" ? rawSetup.name.trim() : "",
+    stateJson:
+      rawSetup.state_json && typeof rawSetup.state_json === "object" && !Array.isArray(rawSetup.state_json)
+        ? rawSetup.state_json
+        : rawSetup.stateJson && typeof rawSetup.stateJson === "object" && !Array.isArray(rawSetup.stateJson)
+          ? rawSetup.stateJson
+          : {},
+    createdAt: rawSetup.created_at ?? rawSetup.createdAt ?? "",
+    updatedAt: rawSetup.updated_at ?? rawSetup.updatedAt ?? ""
+  };
+}
+
+async function loadDraftSetupsFromApi() {
+  if (!isAuthenticated()) {
+    state.builder.draftSetups = [];
+    state.builder.selectedDraftSetupId = null;
+    renderBuilder();
+    return;
+  }
+  state.builder.isLoadingDraftSetups = true;
+  renderBuilder();
+  try {
+    const payload = await apiRequest("/me/draft-setups", { auth: true });
+    state.builder.draftSetups = Array.isArray(payload?.draft_setups)
+      ? payload.draft_setups.map(normalizeDraftSetupRecord).filter(Boolean)
+      : [];
+    setBuilderDraftSetupFeedback("");
+  } catch (error) {
+    setBuilderDraftSetupFeedback(normalizeApiErrorMessage(error, "Failed to load Draft Setups."));
+  } finally {
+    state.builder.isLoadingDraftSetups = false;
+    renderBuilder();
+  }
+}
+
+async function applyDraftSetupState(setup) {
+  const builderState = setup?.stateJson?.builder && typeof setup.stateJson.builder === "object"
+    ? setup.stateJson.builder
+    : {};
+  state.builder.selectedDraftSetupId = setup.id;
+  state.builder.draftSetupName = setup.name;
+  state.builder.teamId = normalizeConfiguredTeamId(builderState.teamId);
+  state.teamConfig.activeTeamId = state.builder.teamId;
+  saveTeamConfig();
+  state.builder.activeCompositionId = normalizeApiEntityId(builderState.activeCompositionId);
+  state.builder.teamState = normalizeTeamState(builderState.teamState);
+  state.builder.draftOrder = Array.isArray(builderState.draftOrder) ? builderState.draftOrder.filter((role) => SLOTS.includes(role)) : [...SLOTS];
+  state.builder.slotPoolRole = builderState.slotPoolRole && typeof builderState.slotPoolRole === "object"
+    ? Object.fromEntries(SLOTS.map((slot) => [slot, builderState.slotPoolRole[slot] ?? slot]))
+    : Object.fromEntries(SLOTS.map((slot) => [slot, slot]));
+  state.builder.excludedChampions = Array.isArray(builderState.excludedChampions)
+    ? builderState.excludedChampions.filter((name) => typeof name === "string")
+    : [];
+  state.builder.maxBranch = Number.isFinite(Number(builderState.maxBranch))
+    ? Math.max(1, Number(builderState.maxBranch))
+    : state.builder.maxBranch;
+  state.builder.treeMinCandidateScore = Number.isFinite(Number(builderState.treeMinCandidateScore))
+    ? Math.max(0, Number(builderState.treeMinCandidateScore))
+    : 1;
+  state.builder.treeRankGoal = normalizeBuilderRankGoal(builderState.treeRankGoal);
+  state.builder.candidateScoringWeights = normalizeBuilderCandidateScoringWeights(builderState.candidateScoringWeights);
+  state.builder.treeMinScore = Number.isFinite(Number(builderState.treeMinScore))
+    ? Math.max(0, Number(builderState.treeMinScore))
+    : 0;
+  state.builder.treeValidLeavesOnly = builderState.treeValidLeavesOnly !== false;
+  state.builder.useCustomScopes = builderState.useCustomScopes !== false;
+  state.builder.defaultScopePrecedence = normalizeBuilderScopePrecedence(builderState.defaultScopePrecedence);
+  state.builder.scopeResourceSettings = normalizeBuilderScopeResourceSettings(builderState.scopeResourceSettings);
+
+  resetBuilderTreeState();
+  await refreshBuilderComposerContext({ includeDraftContext: true });
+  setBuilderDraftSetupFeedback(`Loaded Draft Setup '${setup.name}'.`);
+}
+
+async function saveCurrentDraftSetup() {
+  if (!isAuthenticated() || state.builder.isSavingDraftSetup) {
+    return;
+  }
+  const name = String(elements.builderDraftSetupName?.value ?? state.builder.draftSetupName ?? "").trim();
+  if (!name) {
+    setBuilderDraftSetupFeedback("Draft Setup name is required.");
+    return;
+  }
+  state.builder.isSavingDraftSetup = true;
+  renderBuilder();
+  try {
+    const setupId = normalizeApiEntityId(state.builder.selectedDraftSetupId);
+    const payload = await apiRequest(
+      setupId ? `/me/draft-setups/${setupId}` : "/me/draft-setups",
+      {
+        method: setupId ? "PUT" : "POST",
+        auth: true,
+        body: {
+          name,
+          state_json: createDefaultDraftSetupState()
+        }
+      }
+    );
+    const savedSetup = normalizeDraftSetupRecord(payload?.draft_setup);
+    if (savedSetup) {
+      state.builder.selectedDraftSetupId = savedSetup.id;
+      state.builder.draftSetupName = savedSetup.name;
+    }
+    await loadDraftSetupsFromApi();
+    setBuilderDraftSetupFeedback(setupId ? "Draft Setup updated." : "Draft Setup saved.");
+  } catch (error) {
+    setBuilderDraftSetupFeedback(normalizeApiErrorMessage(error, "Failed to save Draft Setup."));
+  } finally {
+    state.builder.isSavingDraftSetup = false;
+    renderBuilder();
+  }
+}
+
+async function deleteDraftSetup(setupId) {
+  try {
+    await apiRequest(`/me/draft-setups/${setupId}`, {
+      method: "DELETE",
+      auth: true
+    });
+    if (state.builder.selectedDraftSetupId === setupId) {
+      state.builder.selectedDraftSetupId = null;
+      state.builder.draftSetupName = "";
+    }
+    await loadDraftSetupsFromApi();
+    setBuilderDraftSetupFeedback("Draft Setup deleted.");
+  } catch (error) {
+    setBuilderDraftSetupFeedback(normalizeApiErrorMessage(error, "Failed to delete Draft Setup."));
+  }
+}
+
+function normalizeTagPromotionRequest(rawRequest) {
+  if (!rawRequest || typeof rawRequest !== "object" || Array.isArray(rawRequest)) {
+    return null;
+  }
+  const id = normalizeApiEntityId(rawRequest.id);
+  if (!id) {
+    return null;
+  }
+  return {
+    id,
+    entityType: typeof rawRequest.entity_type === "string" ? rawRequest.entity_type : "",
+    resourceId: normalizeApiEntityId(rawRequest.resource_id),
+    sourceScope: normalizeChampionTagScope(rawRequest.source_scope),
+    sourceTeamId: normalizeApiEntityId(rawRequest.source_team_id),
+    targetScope: normalizeChampionTagScope(rawRequest.target_scope),
+    targetTeamId: normalizeApiEntityId(rawRequest.target_team_id),
+    status: typeof rawRequest.status === "string" ? rawRequest.status.trim().toLowerCase() : "pending",
+    requestComment: typeof rawRequest.request_comment === "string" ? rawRequest.request_comment : "",
+    reviewComment: typeof rawRequest.review_comment === "string" ? rawRequest.review_comment : "",
+    payloadJson:
+      rawRequest.payload_json && typeof rawRequest.payload_json === "object" && !Array.isArray(rawRequest.payload_json)
+        ? rawRequest.payload_json
+        : {},
+    createdAt: rawRequest.created_at ?? "",
+    reviewedAt: rawRequest.reviewed_at ?? ""
+  };
+}
+
+async function loadTagPromotionQueuesFromApi() {
+  if (!isAuthenticated()) {
+    state.api.tagPromotionRequests = [];
+    state.api.tagPromotionReviewQueue = [];
+    renderTagsWorkspace();
+    return;
+  }
+  state.api.isLoadingTagPromotions = true;
+  renderTagsWorkspace();
+  try {
+    const requestedPayload = await apiRequest("/tags/promotion-requests?mode=requested", { auth: true });
+    state.api.tagPromotionRequests = Array.isArray(requestedPayload?.promotion_requests)
+      ? requestedPayload.promotion_requests.map(normalizeTagPromotionRequest).filter(Boolean)
+      : [];
+
+    const context = getTagCatalogScopeRequestContext();
+    const reviewQuery = new URLSearchParams({
+      mode: "review",
+      scope: context.scope === "all" ? "all" : "team"
+    });
+    if (context.scope === "team" && context.teamId) {
+      reviewQuery.set("team_id", context.teamId);
+    }
+    const reviewPayload = await apiRequest(`/tags/promotion-requests?${reviewQuery.toString()}`, { auth: true });
+    state.api.tagPromotionReviewQueue = Array.isArray(reviewPayload?.promotion_requests)
+      ? reviewPayload.promotion_requests.map(normalizeTagPromotionRequest).filter(Boolean)
+      : [];
+    setTagPromotionFeedback("");
+  } catch (error) {
+    state.api.tagPromotionReviewQueue = [];
+    setTagPromotionFeedback(normalizeApiErrorMessage(error, "Failed to load tag promotions."));
+  } finally {
+    state.api.isLoadingTagPromotions = false;
+    renderTagsWorkspace();
+  }
+}
+
+async function requestTagPromotion() {
+  const selectedTagId = normalizeApiEntityId(state.api.selectedTagManagerId);
+  if (!selectedTagId) {
+    setTagPromotionFeedback("Select a tag before requesting promotion.");
+    return;
+  }
+  const context = getTagCatalogScopeRequestContext();
+  if (context.scope === "all") {
+    setTagPromotionFeedback("Global tags do not need promotion.");
+    return;
+  }
+  const targetScope = context.scope === "self" ? "team" : "all";
+  const body = {
+    source_scope: context.scope,
+    target_scope: targetScope,
+    request_comment: String(elements.tagsPromotionRequestComment?.value ?? "").trim()
+  };
+  if (context.scope === "team" && context.teamId) {
+    body.team_id = Number.parseInt(context.teamId, 10);
+  }
+  if (targetScope === "team") {
+    const targetTeamId = context.scope === "self"
+      ? normalizeConfiguredTeamId(state.builder.teamId || state.teamConfig.activeTeamId)
+      : context.teamId;
+    if (!targetTeamId || targetTeamId === NONE_TEAM_ID) {
+      setTagPromotionFeedback("Select an active team before requesting team promotion.");
+      return;
+    }
+    body.target_team_id = Number.parseInt(targetTeamId, 10);
+  }
+  try {
+    await apiRequest(`/tags/${selectedTagId}/promotion-requests`, {
+      method: "POST",
+      auth: true,
+      body
+    });
+    if (elements.tagsPromotionRequestComment) {
+      elements.tagsPromotionRequestComment.value = "";
+    }
+    await loadTagPromotionQueuesFromApi();
+    setTagPromotionFeedback("Promotion request created.");
+  } catch (error) {
+    setTagPromotionFeedback(normalizeApiErrorMessage(error, "Failed to create promotion request."));
+  }
+}
+
+async function reviewTagPromotion(requestId, decision, reviewComment = "") {
+  try {
+    await apiRequest(`/tags/promotion-requests/${requestId}/review`, {
+      method: "POST",
+      auth: true,
+      body: {
+        decision,
+        review_comment: reviewComment
+      }
+    });
+    await loadTagPromotionQueuesFromApi();
+    setTagPromotionFeedback(`Promotion ${decision}.`);
+  } catch (error) {
+    setTagPromotionFeedback(normalizeApiErrorMessage(error, "Failed to review promotion request."));
+  }
+}
+
 async function hydrateCompositionsWorkspaceFromApi() {
   await loadRequirementDefinitionsFromApi();
   await loadCompositionBundlesFromApi();
@@ -9614,7 +10191,7 @@ function getPoolsForTeam(teamId) {
 }
 
 function getBuilderCompositionOptions() {
-  const compositions = Array.isArray(state.api.compositionBundles) ? state.api.compositionBundles : [];
+  const compositions = getBuilderCompositionBundles();
   return compositions.map((composition) => ({
     value: String(composition.id),
     label: composition.is_active ? `${composition.name} (Active)` : composition.name
@@ -9622,7 +10199,7 @@ function getBuilderCompositionOptions() {
 }
 
 function resolveBuilderActiveCompositionId(rawId = null) {
-  const compositions = Array.isArray(state.api.compositionBundles) ? state.api.compositionBundles : [];
+  const compositions = getBuilderCompositionBundles();
   if (compositions.length < 1) {
     return null;
   }
@@ -9640,7 +10217,7 @@ function getBuilderSelectedComposition() {
     return null;
   }
   return (
-    (Array.isArray(state.api.compositionBundles) ? state.api.compositionBundles : []).find(
+    getBuilderCompositionBundles().find(
       (composition) => composition.id === selectedId
     ) ?? null
   );
@@ -9652,7 +10229,7 @@ function getBuilderSelectedRequirements() {
     return [];
   }
   const requirementById = new Map(
-    (Array.isArray(state.api.requirementDefinitions) ? state.api.requirementDefinitions : []).map((requirement) => [
+    getBuilderRequirementDefinitions().map((requirement) => [
       requirement.id,
       requirement
     ])
@@ -11449,6 +12026,97 @@ function renderProfileChampionStatsSection() {
   elements.profileRiotTopChampion.append(grid);
 }
 
+function buildProfileChampionSuggestions() {
+  const authenticated = isAuthenticated();
+  if (!authenticated) {
+    return [];
+  }
+  const championStats = normalizeChampionStats(state.profile.championStats);
+  if (championStats.status !== "ok" || championStats.champions.length < 1) {
+    return [];
+  }
+
+  const preferredRoles = new Set([state.profile.primaryRole, ...state.profile.secondaryRoles].filter(Boolean));
+  const currentPoolId = buildRolePoolTeamId(state.profile.primaryRole);
+  const currentPlayers = state.playerConfig.byTeam[currentPoolId] ?? [];
+  const currentPrimaryPool = new Set(
+    currentPlayers.flatMap((player) => Array.isArray(player.champions) ? player.champions : [])
+  );
+
+  const suggestions = [];
+  for (const masteryEntry of championStats.champions) {
+    const championName = getProfileChampionLabel(masteryEntry);
+    const champion = state.data.championsByName?.[championName];
+    if (!champion || currentPrimaryPool.has(champion.name)) {
+      continue;
+    }
+    const matchingRoles = Array.isArray(champion.roles)
+      ? champion.roles.filter((role) => preferredRoles.has(role))
+      : [];
+    if (matchingRoles.length < 1) {
+      continue;
+    }
+    suggestions.push({
+      champion,
+      masteryEntry,
+      rationale: [
+        `High Riot familiarity: Mastery ${masteryEntry.championLevel} with ${NUMBER_FORMATTER.format(masteryEntry.championPoints)} points.`,
+        `Role fit: ${matchingRoles.join(", ")}.`
+      ]
+    });
+  }
+
+  return suggestions.slice(0, 5);
+}
+
+function renderProfileChampionSuggestionsSection() {
+  if (!elements.profileChampionSuggestionsSummary || !elements.profileChampionSuggestionsList) {
+    return;
+  }
+
+  const authenticated = isAuthenticated();
+  const suggestions = buildProfileChampionSuggestions();
+  state.profile.championSuggestions = suggestions;
+  elements.profileChampionSuggestionsList.innerHTML = "";
+
+  if (!authenticated) {
+    elements.profileChampionSuggestionsSummary.textContent = "Sign in to load Riot-driven suggestions.";
+    return;
+  }
+
+  if (suggestions.length < 1) {
+    const championStats = normalizeChampionStats(state.profile.championStats);
+    elements.profileChampionSuggestionsSummary.textContent =
+      championStats.status === "ok"
+        ? "No new role-fit suggestions yet from your current Riot champion history."
+        : "Riot champion stats are required before suggestions can be generated.";
+    return;
+  }
+
+  elements.profileChampionSuggestionsSummary.textContent =
+    `Showing ${suggestions.length} suggestions based on Riot mastery history and your configured roles.`;
+
+  for (const suggestion of suggestions) {
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card";
+
+    const titleRow = runtimeDocument.createElement("div");
+    titleRow.className = "branch-card-top";
+    titleRow.append(renderProfileChampionPortrait(suggestion.masteryEntry, "profile-riot-featured-media"));
+
+    const heading = runtimeDocument.createElement("strong");
+    heading.textContent = suggestion.champion.name;
+    titleRow.append(heading);
+
+    const meta = runtimeDocument.createElement("p");
+    meta.className = "meta";
+    meta.textContent = suggestion.rationale.join(" ");
+
+    card.append(titleRow, meta);
+    elements.profileChampionSuggestionsList.append(card);
+  }
+}
+
 function renderSettingsTeamList(target, teams, emptyMessage) {
   if (!target) {
     return;
@@ -11854,6 +12522,7 @@ function renderPlayerConfig() {
   // --- Sub-renders ---
   renderProfileRolesSection();
   renderProfileChampionStatsSection();
+  renderProfileChampionSuggestionsSection();
 }
 
 function openAvatarModal() {
@@ -12302,6 +12971,11 @@ function resetBuilderToDefaults() {
     ...BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS
   };
   state.builder.treeValidLeavesOnly = true;
+  state.builder.useCustomScopes = true;
+  state.builder.defaultScopePrecedence = BUILDER_SCOPE_DEFAULT_PRECEDENCE;
+  state.builder.scopeResourceSettings = createDefaultBuilderScopeResourceSettings();
+  state.builder.selectedDraftSetupId = null;
+  state.builder.draftSetupName = "";
 
   const rawBranch = Number.parseInt(String(state.data.config.treeDefaults.maxBranch), 10);
   state.builder.maxBranch = Number.isFinite(rawBranch) ? Math.max(1, rawBranch) : 8;
@@ -12437,9 +13111,9 @@ function generateTreeFromCurrentState({ scrollToResults = true } = {}) {
       teamId,
       roleOrder: state.builder.draftOrder,
       teamPools,
-      championsByName: state.data.championsByName,
+      championsByName: getBuilderChampionsByName(),
       requirements,
-      tagById: state.api.tagById,
+      tagById: getBuilderTagById(),
       excludedChampions: state.builder.excludedChampions,
       maxBranch: state.builder.maxBranch,
       minCandidateScore: state.builder.treeMinCandidateScore,
@@ -13292,12 +13966,12 @@ function evaluateComposerRequirements() {
   const { teamId, teamPools } = getEnginePoolContext();
   return evaluateCompositionRequirements({
     teamState: state.builder.teamState,
-    championsByName: state.data.championsByName,
+    championsByName: getBuilderChampionsByName(),
     requirements: selectedRequirements,
     teamPools,
     teamId,
     excludedChampions: state.builder.excludedChampions,
-    tagById: state.api.tagById
+    tagById: getBuilderTagById()
   });
 }
 
@@ -14535,12 +15209,157 @@ function renderTreeMap() {
   }
 }
 
+function renderBuilderScopeControls() {
+  if (!elements.builderCustomScopesEnabled || !elements.builderScopeDefaultPrecedence || !elements.builderScopeResourceList) {
+    return;
+  }
+
+  elements.builderCustomScopesEnabled.checked = state.builder.useCustomScopes;
+  elements.builderScopeDefaultPrecedence.value = normalizeBuilderScopePrecedence(state.builder.defaultScopePrecedence);
+  elements.builderScopeDefaultPrecedence.disabled = !state.builder.useCustomScopes;
+  elements.builderScopeResourceList.innerHTML = "";
+
+  for (const resource of BUILDER_SCOPE_RESOURCES) {
+    const config = state.builder.scopeResourceSettings?.[resource] ?? {
+      enabled: true,
+      precedence: BUILDER_SCOPE_DEFAULT_PRECEDENCE
+    };
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card";
+
+    const label = runtimeDocument.createElement("strong");
+    label.textContent = BUILDER_SCOPE_RESOURCE_LABELS[resource] ?? resource;
+
+    const checkboxLabel = runtimeDocument.createElement("label");
+    checkboxLabel.className = "inline-checkbox";
+    const checkbox = runtimeDocument.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = config.enabled !== false;
+    checkbox.disabled = !state.builder.useCustomScopes;
+    checkbox.addEventListener("change", () => {
+      state.builder.scopeResourceSettings[resource] = {
+        ...state.builder.scopeResourceSettings[resource],
+        enabled: checkbox.checked
+      };
+      void refreshBuilderComposerContext({ includeDraftContext: false });
+    });
+    checkboxLabel.append(checkbox, runtimeDocument.createTextNode("Use custom scope"));
+
+    const selectLabel = runtimeDocument.createElement("label");
+    selectLabel.className = "advanced-compact-label";
+    selectLabel.textContent = "Scope order";
+    const select = runtimeDocument.createElement("select");
+    replaceOptions(select, BUILDER_SCOPE_PRECEDENCE_OPTIONS, false);
+    select.value = normalizeBuilderScopePrecedence(config.precedence, state.builder.defaultScopePrecedence);
+    select.disabled = !state.builder.useCustomScopes || config.enabled === false;
+    select.addEventListener("change", () => {
+      state.builder.scopeResourceSettings[resource] = {
+        ...state.builder.scopeResourceSettings[resource],
+        precedence: normalizeBuilderScopePrecedence(select.value, state.builder.defaultScopePrecedence)
+      };
+      void refreshBuilderComposerContext({ includeDraftContext: false });
+    });
+    selectLabel.append(select);
+
+    card.append(label, checkboxLabel, selectLabel);
+    elements.builderScopeResourceList.append(card);
+  }
+
+  setBuilderScopeFeedback(state.builder.scopeLoadError || "");
+}
+
+function renderBuilderDraftSetups() {
+  if (!elements.builderDraftSetupList || !elements.builderDraftSetupName || !elements.builderDraftSetupSave) {
+    return;
+  }
+
+  elements.builderDraftSetupName.value = state.builder.draftSetupName ?? "";
+  elements.builderDraftSetupSave.disabled = !isAuthenticated() || state.builder.isSavingDraftSetup;
+  elements.builderDraftSetupSave.textContent = state.builder.isSavingDraftSetup ? "Saving..." : "Save Draft Setup";
+  elements.builderDraftSetupList.innerHTML = "";
+
+  if (!isAuthenticated()) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "Sign in to save Draft Setups.";
+    elements.builderDraftSetupList.append(empty);
+    return;
+  }
+
+  if (state.builder.isLoadingDraftSetups) {
+    const loading = runtimeDocument.createElement("p");
+    loading.className = "meta";
+    loading.textContent = "Loading Draft Setups...";
+    elements.builderDraftSetupList.append(loading);
+    return;
+  }
+
+  if (!Array.isArray(state.builder.draftSetups) || state.builder.draftSetups.length < 1) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "No saved Draft Setups yet.";
+    elements.builderDraftSetupList.append(empty);
+    return;
+  }
+
+  for (const setup of state.builder.draftSetups) {
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card";
+
+    const title = runtimeDocument.createElement("strong");
+    title.textContent = setup.name;
+    const meta = runtimeDocument.createElement("p");
+    meta.className = "meta";
+    meta.textContent = setup.updatedAt ? `Updated ${formatTimestampMeta(setup.updatedAt)}` : "Saved setup";
+
+    const actions = runtimeDocument.createElement("div");
+    actions.className = "button-row";
+
+    const loadButton = runtimeDocument.createElement("button");
+    loadButton.type = "button";
+    loadButton.textContent = "Load";
+    loadButton.addEventListener("click", () => {
+      void confirmAction({
+        title: "Load Draft Setup",
+        message: `Replace the current Composer state with '${setup.name}'?`,
+        confirmLabel: "Load"
+      }).then((confirmed) => {
+        if (confirmed) {
+          void applyDraftSetupState(setup);
+        }
+      });
+    });
+
+    const deleteButton = runtimeDocument.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "ghost";
+    deleteButton.textContent = "Delete";
+    deleteButton.addEventListener("click", () => {
+      void confirmAction({
+        title: "Delete Draft Setup",
+        message: `Delete '${setup.name}' permanently?`,
+        confirmLabel: "Delete"
+      }).then((confirmed) => {
+        if (confirmed) {
+          void deleteDraftSetup(setup.id);
+        }
+      });
+    });
+
+    actions.append(loadButton, deleteButton);
+    card.append(title, meta, actions);
+    elements.builderDraftSetupList.append(card);
+  }
+}
+
 function renderBuilder() {
   state.builder.candidateScoringWeights = normalizeBuilderCandidateScoringWeights(state.builder.candidateScoringWeights);
   renderBuilderStageGuide();
   replaceOptions(elements.builderActiveTeam, getTeamSelectOptions());
   elements.builderActiveTeam.value = state.builder.teamId;
   syncBuilderCompositionControls();
+  renderBuilderDraftSetups();
+  renderBuilderScopeControls();
   elements.treeDensity.value = state.builder.treeDensity;
   elements.treeSearch.value = state.builder.treeSearch;
   elements.treeMinScore.value = String(state.builder.treeMinScore);
@@ -14652,6 +15471,10 @@ async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAd
     state.api.users = [];
   }
   initializeTeamConfigControls();
+  await loadDraftSetupsFromApi();
+  await loadTagPromotionQueuesFromApi();
+  await fetchBuilderDraftContext(state.builder.teamId);
+  await loadComposerContextFromApi();
   renderTeamAdmin();
   renderPlayerConfig();
   renderBuilder();
@@ -14661,11 +15484,7 @@ async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAd
   renderCompositionsWorkspace();
   renderChampionTagEditor();
   validateTeamSelections();
-  void fetchBuilderDraftContext(state.builder.teamId).then(() => {
-    validateTeamSelections();
-    renderTeamConfig();
-    renderBuilder();
-  });
+  renderTeamConfig();
 }
 
 function getAuthCredentials(mode = "login") {
@@ -15686,11 +16505,7 @@ function attachEvents() {
     clearBuilderFeedback();
     renderTeamConfig();
     renderBuilder();
-    void fetchBuilderDraftContext(state.builder.teamId).then(() => {
-      validateTeamSelections();
-      renderTeamConfig();
-      renderBuilder();
-    });
+    void refreshBuilderComposerContext({ includeDraftContext: true });
     if (isAuthenticated()) {
       void saveTeamContextToApi().then(() => {
         saveTeamConfig();
@@ -15707,6 +16522,55 @@ function attachEvents() {
       resetBuilderTreeState();
       clearBuilderFeedback();
       renderBuilder();
+    });
+  }
+
+  if (elements.builderCustomScopesEnabled) {
+    elements.builderCustomScopesEnabled.addEventListener("change", () => {
+      state.builder.useCustomScopes = elements.builderCustomScopesEnabled.checked;
+      setBuilderStage("setup");
+      resetBuilderTreeState();
+      void refreshBuilderComposerContext({ includeDraftContext: false });
+    });
+  }
+
+  if (elements.builderScopeDefaultPrecedence) {
+    elements.builderScopeDefaultPrecedence.addEventListener("change", () => {
+      state.builder.defaultScopePrecedence = normalizeBuilderScopePrecedence(elements.builderScopeDefaultPrecedence.value);
+      for (const resource of BUILDER_SCOPE_RESOURCES) {
+        const resourceConfig = state.builder.scopeResourceSettings?.[resource] ?? {};
+        state.builder.scopeResourceSettings[resource] = {
+          enabled: resourceConfig.enabled !== false,
+          precedence: normalizeBuilderScopePrecedence(resourceConfig.precedence, state.builder.defaultScopePrecedence)
+        };
+      }
+      setBuilderStage("setup");
+      resetBuilderTreeState();
+      void refreshBuilderComposerContext({ includeDraftContext: false });
+    });
+  }
+
+  if (elements.builderDraftSetupName) {
+    elements.builderDraftSetupName.addEventListener("input", () => {
+      state.builder.draftSetupName = elements.builderDraftSetupName.value;
+    });
+  }
+
+  if (elements.builderDraftSetupSave) {
+    elements.builderDraftSetupSave.addEventListener("click", () => {
+      void saveCurrentDraftSetup();
+    });
+  }
+
+  if (elements.tagsPromotionRequest) {
+    elements.tagsPromotionRequest.addEventListener("click", () => {
+      void requestTagPromotion();
+    });
+  }
+
+  if (elements.tagsPromotionRefresh) {
+    elements.tagsPromotionRefresh.addEventListener("click", () => {
+      void loadTagPromotionQueuesFromApi();
     });
   }
 
@@ -15833,6 +16697,7 @@ function attachEvents() {
       renderTeamConfig();
       renderBuilder();
       clearBuilderFeedback();
+      void refreshBuilderComposerContext({ includeDraftContext: true });
       if (isAuthenticated()) {
         void saveTeamContextToApi().then(() => {
           saveTeamConfig();
@@ -16605,6 +17470,8 @@ async function init() {
       if (isAdminUser()) {
         await loadUsersFromApi();
       }
+      await loadDraftSetupsFromApi();
+      await loadTagPromotionQueuesFromApi();
     } else {
       loadStoredPlayerConfig();
       setPoolApiFeedback("Sign in to manage API-backed pools.");
@@ -16645,11 +17512,11 @@ async function init() {
     renderIssueReportingPanel();
     renderAuth();
     clearBuilderFeedback();
-    void fetchBuilderDraftContext(state.builder.teamId).then(() => {
-      validateTeamSelections();
-      renderTeamConfig();
-      renderBuilder();
-    });
+    await fetchBuilderDraftContext(state.builder.teamId);
+    await loadComposerContextFromApi();
+    validateTeamSelections();
+    renderTeamConfig();
+    renderBuilder();
   } catch (error) {
     setSetupFeedback(error instanceof Error ? error.message : "Failed to initialize app.");
   }
