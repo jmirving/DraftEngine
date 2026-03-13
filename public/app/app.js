@@ -9934,7 +9934,8 @@ function renderProfileChampionStatCard(champion, { rank = null, featured = false
 
   const kicker = runtimeDocument.createElement("p");
   kicker.className = "panel-kicker";
-  kicker.textContent = featured ? "Most Played Champion" : `#${rank}`;
+  kicker.textContent = featured ? "" : `#${rank}`;
+  if (featured) kicker.hidden = true;
 
   const title = runtimeDocument.createElement("strong");
   title.textContent = getProfileChampionLabel(champion);
@@ -9961,24 +9962,35 @@ function renderProfileChampionStatsSection() {
 
   const authenticated = isAuthenticated();
   const championStats = normalizeChampionStats(state.profile.championStats);
-  elements.profileRiotStatsSummary.textContent = formatProfileChampionStatsSummary(championStats, authenticated);
+
+  // Only show summary text for non-ok states
+  if (!authenticated || championStats.status !== "ok" || championStats.champions.length === 0) {
+    elements.profileRiotStatsSummary.textContent = formatProfileChampionStatsSummary(championStats, authenticated);
+  } else {
+    elements.profileRiotStatsSummary.textContent = "";
+  }
+
   elements.profileRiotTopChampion.innerHTML = "";
   elements.profileRiotStatsList.innerHTML = "";
 
-  if (!authenticated || championStats.status !== "ok" || championStats.champions.length === 0 || !championStats.topChampion) {
+  if (!authenticated || championStats.status !== "ok" || championStats.champions.length === 0) {
     return;
   }
 
-  elements.profileRiotTopChampion.append(
-    renderProfileChampionStatCard(championStats.topChampion, { featured: true })
-  );
+  // Container label
+  const label = runtimeDocument.createElement("p");
+  label.className = "panel-kicker profile-riot-top-label";
+  label.textContent = "Most Played Champions";
+  elements.profileRiotTopChampion.append(label);
 
-  const secondaryChampions = championStats.champions.slice(1);
-  for (const [index, champion] of secondaryChampions.entries()) {
-    elements.profileRiotStatsList.append(
-      renderProfileChampionStatCard(champion, { rank: index + 2 })
-    );
+  // Top 3 champions, all rendered as featured cards with portrait
+  const topThree = championStats.champions.slice(0, 3);
+  const grid = runtimeDocument.createElement("div");
+  grid.className = "profile-riot-top-grid";
+  for (const champion of topThree) {
+    grid.append(renderProfileChampionStatCard(champion, { featured: true }));
   }
+  elements.profileRiotTopChampion.append(grid);
 }
 
 function renderSettingsTeamList(target, teams, emptyMessage) {
