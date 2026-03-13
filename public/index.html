@@ -267,15 +267,26 @@
 
             <div id="champion-tag-editor" class="panel draft-board-panel" hidden>
               <div class="ced-top-row">
-                <!-- Left ~25%: identity card -->
-                <div class="ced-header">
-                  <img id="ced-champ-image" class="champ-thumb" alt="" />
-                  <div class="ced-champ-info">
-                    <h2 id="champion-tag-editor-title">Edit Champion Profile</h2>
-                    <p id="ced-champ-roles" class="meta"></p>
-                    <label class="inline-checkbox">
-                      <input id="champion-tag-editor-reviewed" type="checkbox" />
-                      Human reviewed
+                <!-- Left column: identity card + scope -->
+                <div class="ced-left-column">
+                  <div class="ced-header">
+                    <img id="ced-champ-image" class="champ-thumb" alt="" />
+                    <div class="ced-champ-info">
+                      <h2 id="champion-tag-editor-title">Edit Champion Profile</h2>
+                      <p id="ced-champ-roles" class="meta"></p>
+                      <label class="inline-checkbox">
+                        <input id="champion-tag-editor-reviewed" type="checkbox" />
+                        Human reviewed
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="ced-scope-panel">
+                    <p class="ced-scope-panel-label">Scope</p>
+                    <p id="champion-tag-editor-scope-readout" class="ced-scope-panel-value">User</p>
+                    <p id="champion-tag-editor-scope-help" class="ced-scope-panel-help"></p>
+                    <label class="ced-scope-label">
+                      <select id="champion-tag-editor-scope"></select>
                     </label>
                   </div>
                 </div>
@@ -295,17 +306,6 @@
                   <div id="ced-effectiveness-slot" class="ced-effectiveness-section"></div>
                   <div id="champion-metadata-role-profiles" class="ced-role-profiles"></div>
                 </div>
-              </div>
-
-              <div class="ced-scope-panel">
-                <div class="ced-scope-panel-copy">
-                  <p class="ced-scope-panel-label">Currently Editing</p>
-                  <p id="champion-tag-editor-scope-readout" class="ced-scope-panel-value">User</p>
-                  <p id="champion-tag-editor-scope-help" class="ced-scope-panel-help"></p>
-                </div>
-                <label class="ced-scope-label">Switch scope
-                  <select id="champion-tag-editor-scope"></select>
-                </label>
               </div>
 
               <div id="champion-tag-editor-team-group" hidden>
