@@ -520,6 +520,8 @@ function createInitialState() {
       poolByTeamId: {},
       teams: [],
       discoverTeams: [],
+      discoverTeamsLoadedAt: null,
+      isLoadingDiscoverTeams: false,
       membersByTeamId: {},
       joinRequestsByTeamId: {},
       joinRequestsLoadedAtByTeamId: {},
@@ -893,7 +895,7 @@ function createElements() {
     teamAdminRefresh: runtimeDocument.querySelector("#team-admin-refresh"),
     teamJoinDiscoverSelect: runtimeDocument.querySelector("#team-join-discover-select"),
     teamJoinNote: runtimeDocument.querySelector("#team-join-note"),
-    teamJoinLoadDiscover: runtimeDocument.querySelector("#team-join-load-discover"),
+    teamJoinDiscoverRefresh: runtimeDocument.querySelector("#team-join-discover-refresh"),
     teamJoinRequest: runtimeDocument.querySelector("#team-join-request"),
     teamJoinCancel: runtimeDocument.querySelector("#team-join-cancel"),
     teamJoinDiscoverMeta: runtimeDocument.querySelector("#team-join-discover-meta"),
@@ -2467,6 +2469,8 @@ function clearAuthSession(feedback = "") {
   state.profile.avatarFilter = "";
   state.api.isCreatingTeam = false;
   state.api.discoverTeams = [];
+  state.api.discoverTeamsLoadedAt = null;
+  state.api.isLoadingDiscoverTeams = false;
   state.api.joinRequestsByTeamId = {};
   state.api.joinRequestsLoadedAtByTeamId = {};
   state.api.isLoadingJoinRequests = false;
@@ -8479,13 +8483,18 @@ async function loadTeamMembersForSelectedTeam() {
 async function loadDiscoverTeamsFromApi() {
   if (!isAuthenticated()) {
     state.api.discoverTeams = [];
+    state.api.discoverTeamsLoadedAt = null;
+    state.api.isLoadingDiscoverTeams = false;
     state.api.selectedDiscoverTeamId = "";
     return false;
   }
 
+  state.api.isLoadingDiscoverTeams = true;
+  renderTeamAdmin();
   try {
     const payload = await apiRequest("/teams/discover", { auth: true });
     state.api.discoverTeams = Array.isArray(payload?.teams) ? payload.teams : [];
+    state.api.discoverTeamsLoadedAt = new Date().toISOString();
     const selectedDiscoverTeam = findDiscoverTeamById(state.api.selectedDiscoverTeamId);
     state.api.selectedDiscoverTeamId = selectedDiscoverTeam
       ? String(selectedDiscoverTeam.id)
@@ -8493,9 +8502,13 @@ async function loadDiscoverTeamsFromApi() {
     return true;
   } catch (error) {
     state.api.discoverTeams = [];
+    state.api.discoverTeamsLoadedAt = null;
     state.api.selectedDiscoverTeamId = "";
     setTeamJoinFeedback(normalizeApiErrorMessage(error, "Failed to load discoverable teams."));
     return false;
+  } finally {
+    state.api.isLoadingDiscoverTeams = false;
+    renderTeamAdmin();
   }
 }
 
@@ -9524,7 +9537,7 @@ function renderTeamJoinWorkspace(selectedTeam) {
 
   if (elements.teamJoinDiscoverSelect) {
     elements.teamJoinDiscoverSelect.value = state.api.selectedDiscoverTeamId;
-    elements.teamJoinDiscoverSelect.disabled = !isAuthenticated();
+    elements.teamJoinDiscoverSelect.disabled = !isAuthenticated() || state.api.isLoadingDiscoverTeams;
   }
 
   const selectedPendingStatus = String(selectedDiscoverTeam?.pending_join_request_status ?? "").trim().toLowerCase();
@@ -9543,21 +9556,30 @@ function renderTeamJoinWorkspace(selectedTeam) {
   if (elements.teamJoinNote) {
     elements.teamJoinNote.disabled = !isAuthenticated() || !canRequestJoin;
   }
-  if (elements.teamJoinLoadDiscover) {
-    elements.teamJoinLoadDiscover.disabled = !isAuthenticated();
+  if (elements.teamJoinDiscoverRefresh) {
+    elements.teamJoinDiscoverRefresh.disabled = !isAuthenticated() || state.api.isLoadingDiscoverTeams;
   }
 
   if (elements.teamJoinDiscoverMeta) {
+    const loadedAt = formatTimestampMeta(state.api.discoverTeamsLoadedAt);
     if (!isAuthenticated()) {
-      elements.teamJoinDiscoverMeta.textContent = "Sign in to discover teams and submit join requests.";
+      elements.teamJoinDiscoverMeta.textContent = "Sign in to browse teams.";
     } else if (!selectedDiscoverTeam) {
-      elements.teamJoinDiscoverMeta.textContent = "Load discover teams to request a position.";
+      elements.teamJoinDiscoverMeta.textContent = loadedAt
+        ? `Last refreshed ${loadedAt}.`
+        : (state.api.isLoadingDiscoverTeams ? "Refreshing..." : "Not refreshed yet.");
     } else if (selectedMembershipRole) {
-      elements.teamJoinDiscoverMeta.textContent = `You are already on ${formatTeamCardTitle(selectedDiscoverTeam)} as ${selectedMembershipRole}.`;
+      elements.teamJoinDiscoverMeta.textContent = loadedAt
+        ? `Last refreshed ${loadedAt}.`
+        : `On ${formatTeamCardTitle(selectedDiscoverTeam)} as ${selectedMembershipRole}.`;
     } else if (hasPendingRequest) {
-      elements.teamJoinDiscoverMeta.textContent = `Pending request to ${formatTeamCardTitle(selectedDiscoverTeam)} is awaiting lead review.`;
+      elements.teamJoinDiscoverMeta.textContent = loadedAt
+        ? `Last refreshed ${loadedAt}.`
+        : `Pending request to ${formatTeamCardTitle(selectedDiscoverTeam)}.`;
     } else {
-      elements.teamJoinDiscoverMeta.textContent = `Ready to request a position on ${formatTeamCardTitle(selectedDiscoverTeam)}.`;
+      elements.teamJoinDiscoverMeta.textContent = loadedAt
+        ? `Last refreshed ${loadedAt}.`
+        : "Not refreshed yet.";
     }
   }
 
@@ -9575,10 +9597,9 @@ function renderTeamJoinWorkspace(selectedTeam) {
     } else {
       const requests = state.api.joinRequestsByTeamId[String(selectedTeam.id)] ?? [];
       const loadedAt = formatTimestampMeta(state.api.joinRequestsLoadedAtByTeamId[String(selectedTeam.id)]);
-      const countLabel = `${requests.length} pending request${requests.length === 1 ? "" : "s"}`;
       elements.teamJoinReviewMeta.textContent = loadedAt
-        ? `${countLabel}. Last refreshed ${loadedAt}.`
-        : `${countLabel}. Auto-refresh on open or team switch.`;
+        ? `Last refreshed ${loadedAt}.`
+        : (state.api.isLoadingJoinRequests ? "Refreshing..." : "Not refreshed yet.");
     }
   }
   if (!elements.teamJoinReviewList) {
@@ -9702,10 +9723,9 @@ function renderTeamInviteList(selectedTeam) {
     } else {
       const invitations = getTeamInviteList(selectedTeam);
       const loadedAt = formatTimestampMeta(state.api.teamInvitationsLoadedAtByTeamId[String(selectedTeam.id)]);
-      const countLabel = `${invitations.length} sent invite${invitations.length === 1 ? "" : "s"}`;
       elements.teamInviteListMeta.textContent = loadedAt
-        ? `${countLabel}. Last refreshed ${loadedAt}.`
-        : "Auto-refresh on open or team switch.";
+        ? `Last refreshed ${loadedAt}.`
+        : (state.api.isLoadingTeamInvitations ? "Refreshing..." : "Not refreshed yet.");
     }
   }
 
@@ -9829,10 +9849,9 @@ function renderTeamInviteUserList() {
   const invitations = Array.isArray(state.api.userInvitations) ? state.api.userInvitations : [];
   if (elements.teamInviteUserMeta) {
     const loadedAt = formatTimestampMeta(state.api.userInvitationsLoadedAt);
-    const countLabel = `${invitations.length} invite${invitations.length === 1 ? "" : "s"}`;
     elements.teamInviteUserMeta.textContent = loadedAt
-      ? `${countLabel}. Last refreshed ${loadedAt}.`
-      : "Auto-refresh on open or response.";
+      ? `Last refreshed ${loadedAt}.`
+      : (state.api.isLoadingUserInvitations ? "Refreshing..." : "Not refreshed yet.");
   }
   if (invitations.length === 0) {
     const empty = runtimeDocument.createElement("p");
@@ -15144,10 +15163,10 @@ function attachEvents() {
     });
   }
 
-  if (elements.teamJoinLoadDiscover) {
-    elements.teamJoinLoadDiscover.addEventListener("click", () => {
+  if (elements.teamJoinDiscoverRefresh) {
+    elements.teamJoinDiscoverRefresh.addEventListener("click", () => {
       void loadDiscoverTeamsFromApi().then(() => {
-        setTeamJoinFeedback("Discover teams loaded.");
+        setTeamJoinFeedback("");
         renderTeamAdmin();
       });
     });

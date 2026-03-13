@@ -3359,7 +3359,7 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
     await flush();
 
-    doc.querySelector("#team-join-load-discover").click();
+    doc.querySelector("#team-join-discover-refresh").click();
     await flush();
     doc.querySelector("#team-join-note").value = "Interested in scrims.";
     doc.querySelector("#team-join-request").click();
@@ -3496,13 +3496,18 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
     await flush();
 
+    expect(doc.querySelector("#team-join-load-discover")).toBeNull();
     expect(doc.querySelector("#team-join-load-review")).toBeNull();
     expect(doc.querySelector("#team-invite-load")).toBeNull();
     expect(doc.querySelector("#team-invite-user-load")).toBeNull();
+    expect(doc.querySelector("#team-join-discover-refresh")).toBeTruthy();
     expect(doc.querySelector("#team-join-review-refresh")).toBeTruthy();
     expect(doc.querySelector("#team-invite-refresh")).toBeTruthy();
     expect(doc.querySelector("#team-invite-user-refresh")).toBeTruthy();
-    expect(doc.querySelector("#team-workspace-member").textContent).toContain("Sent invites");
+    expect(doc.querySelector("#team-invite-list-meta").textContent).not.toContain("Auto-refresh");
+    expect(doc.querySelector("#team-invite-user-meta").textContent).not.toContain("Auto-refresh");
+    expect(doc.querySelector("#team-join-discover-meta").textContent).not.toContain("Load discover teams");
+    expect(doc.querySelector("#team-workspace-member").textContent).toContain("Sent Invites");
     expect(doc.querySelector("#team-workspace-member").textContent).toContain("Invites for You");
     expect(doc.querySelector("#team-workspace-manage").textContent).toContain("Teams I Manage");
   });

@@ -2478,11 +2478,28 @@ button.pool-snapshot-order-btn:disabled {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  margin-bottom: 0.4rem;
 }
 
 .meta-action-row .meta {
   margin: 0;
+}
+
+.compact-section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
+.compact-section-heading > .panel-kicker,
+.compact-section-heading > h3 {
+  margin: 0;
+}
+
+.compact-section-heading .meta-action-row {
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .icon-button {
@@ -2509,6 +2526,17 @@ button.pool-snapshot-order-btn:disabled {
 .icon-button:focus-visible:not(:disabled) {
   background: transparent;
   color: var(--accent);
+}
+
+@media (max-width: 699px) {
+  .compact-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .compact-section-heading .meta-action-row {
+    justify-content: flex-start;
+  }
 }
 
 .user-detail-panel summary {

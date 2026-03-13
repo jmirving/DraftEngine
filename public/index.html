@@ -539,20 +539,23 @@
 
                     <div class="team-admin-block">
                       <h3>Team Invitations</h3>
-                      <p class="meta">Sent invites and invites for you.</p>
                       <div class="team-invite-section">
-                        <p class="panel-kicker">Sent Invites</p>
-                        <div class="meta-action-row">
-                          <p id="team-invite-list-meta" class="meta"></p>
-                          <button id="team-invite-refresh" class="ghost icon-button" type="button" aria-label="Refresh sent invites" title="Refresh sent invites">&#x21bb;</button>
+                        <div class="compact-section-heading">
+                          <p class="panel-kicker">Sent Invites</p>
+                          <div class="meta-action-row">
+                            <p id="team-invite-list-meta" class="meta"></p>
+                            <button id="team-invite-refresh" class="ghost icon-button" type="button" aria-label="Refresh sent invites" title="Refresh sent invites">&#x21bb;</button>
+                          </div>
                         </div>
                         <div id="team-invite-list" class="summary-card-list"></div>
                       </div>
                       <div class="team-invite-section">
-                        <p class="panel-kicker">Invites for You</p>
-                        <div class="meta-action-row">
-                          <p id="team-invite-user-meta" class="meta"></p>
-                          <button id="team-invite-user-refresh" class="ghost icon-button" type="button" aria-label="Refresh my invites" title="Refresh my invites">&#x21bb;</button>
+                        <div class="compact-section-heading">
+                          <p class="panel-kicker">Invites for You</p>
+                          <div class="meta-action-row">
+                            <p id="team-invite-user-meta" class="meta"></p>
+                            <button id="team-invite-user-refresh" class="ghost icon-button" type="button" aria-label="Refresh my invites" title="Refresh my invites">&#x21bb;</button>
+                          </div>
                         </div>
                         <div id="team-invite-user-list" class="summary-card-list"></div>
                         <p id="team-invite-user-feedback" class="meta"></p>
@@ -560,7 +563,13 @@
                     </div>
 
                     <div class="team-admin-block">
-                      <h3>Request to Join Existing Team</h3>
+                      <div class="compact-section-heading">
+                        <h3>Request to Join Existing Team</h3>
+                        <div class="meta-action-row">
+                          <p id="team-join-discover-meta" class="meta"></p>
+                          <button id="team-join-discover-refresh" class="ghost icon-button" type="button" aria-label="Refresh discover teams" title="Refresh discover teams">&#x21bb;</button>
+                        </div>
+                      </div>
                       <div class="grid grid-2">
                         <label>
                           Discoverable Team
@@ -572,11 +581,9 @@
                         </label>
                       </div>
                       <div class="button-row">
-                        <button id="team-join-load-discover" class="ghost" type="button">Load Discover Teams</button>
                         <button id="team-join-request" type="button">Request to Join</button>
                         <button id="team-join-cancel" class="ghost" type="button">Cancel Pending Request</button>
                       </div>
-                      <p id="team-join-discover-meta" class="meta"></p>
                     </div>
                   </div>
                 </div>
@@ -1169,7 +1176,7 @@
                 <ul class="coming-soon-list">
                   <li>Report an issue now opens a blocking in-app modal from any page, captures the current page/tab context, and can submit directly to GitHub when server-side issue reporting is configured; otherwise it falls back to the external GitHub issues page.</li>
                   <li>Users workspace now supports search, role filtering, and bulk member/global permission updates from the existing admin directory.</li>
-                  <li>Teams join-request and invitation lists now auto-refresh when you open the relevant workspace views or switch managed teams, and each list uses compact last-refreshed telemetry with inline refresh controls.</li>
+                  <li>Teams discover, join-request, and invitation sections now use compact last-refreshed telemetry with inline refresh icons instead of separate load actions.</li>
                 </ul>
                 <h4>Version 0.8.7</h4>
                 <ul class="coming-soon-list">
