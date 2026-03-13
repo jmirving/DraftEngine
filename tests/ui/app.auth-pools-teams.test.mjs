@@ -76,6 +76,8 @@ function createFetchHarness({
   teams = [],
   membersByTeam = {},
   teamJoinRequestsByTeam = {},
+  memberInvitationsByTeam = {},
+  userInvitationsSeed = null,
   failCreatePoolWith401 = false,
   championIdsAsStrings = false,
   loginUser = null,
@@ -86,6 +88,10 @@ function createFetchHarness({
 } = {}) {
   const calls = [];
   let nextPoolId = pools.length + 1;
+  const memberInvitations = new Map(
+    Object.entries(memberInvitationsByTeam).map(([teamId, invitations]) => [String(teamId), [...(invitations ?? [])]])
+  );
+  let userInvitations = Array.isArray(userInvitationsSeed) ? [...userInvitationsSeed] : null;
   const issueReportingState = {
     enabled: issueReporting?.enabled === true,
     repository: typeof issueReporting?.repository === "string" && issueReporting.repository.trim() !== ""
@@ -1533,6 +1539,26 @@ function createFetchHarness({
         }
       }
       return createJsonResponse({ request: target });
+    }
+
+    const teamInvitationCollectionMatch = path.match(/^\/teams\/(\d+)\/member-invitations$/);
+    if (teamInvitationCollectionMatch && method === "GET") {
+      const teamId = teamInvitationCollectionMatch[1];
+      const invitations = memberInvitations.get(String(teamId)) ?? [];
+      const status = query.get("status");
+      return createJsonResponse({
+        invitations: invitations.filter((invitation) => (!status || status === "all" ? true : invitation.status === status))
+      });
+    }
+
+    if (path === "/me/member-invitations" && method === "GET") {
+      if (userInvitations === null) {
+        return createJsonResponse({ error: { code: "INTERNAL_ERROR", message: "An unexpected error occurred." } }, 500);
+      }
+      const status = query.get("status");
+      return createJsonResponse({
+        invitations: userInvitations.filter((invitation) => (!status || status === "all" ? true : invitation.status === status))
+      });
     }
 
     if (/^\/teams\/\d+$/.test(path) && method === "PATCH") {
@@ -3486,6 +3512,47 @@ describe("auth + pools + team management", () => {
           created_at: "2026-01-01T00:00:00.000Z"
         }
       ],
+      memberInvitationsByTeam: {
+        "1": [
+          {
+            id: 41,
+            team_id: 1,
+            target_user_id: 22,
+            requested_lane: "ADC",
+            note: "",
+            status: "pending",
+            role: "member",
+            team_role: "primary",
+            invited_by_user_id: 11,
+            reviewed_by_user_id: null,
+            reviewed_at: null,
+            created_at: "2026-01-01T00:00:00.000Z",
+            target: {
+              user_id: 22,
+              display_name: "ADCMain#NA1"
+            }
+          }
+        ]
+      },
+      userInvitationsSeed: [
+        {
+          id: 52,
+          team_id: 7,
+          requested_lane: "Support",
+          note: "",
+          status: "pending",
+          role: "member",
+          team_role: "primary",
+          invited_by_user_id: 11,
+          reviewed_by_user_id: null,
+          reviewed_at: null,
+          created_at: "2026-01-02T00:00:00.000Z",
+          team: {
+            name: "Team Beta",
+            tag: "BETA"
+          }
+        }
+      ],
       membersByTeam: {
         "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", display_name: "Lead#NA1", lane: "Mid" }]
       }
@@ -3504,12 +3571,59 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#team-join-review-refresh")).toBeTruthy();
     expect(doc.querySelector("#team-invite-refresh")).toBeTruthy();
     expect(doc.querySelector("#team-invite-user-refresh")).toBeTruthy();
+    expect(doc.querySelector("#team-invite-list-meta").textContent).toContain("Last refreshed");
+    expect(doc.querySelector("#team-invite-user-meta").textContent).toContain("Last refreshed");
     expect(doc.querySelector("#team-invite-list-meta").textContent).not.toContain("Auto-refresh");
     expect(doc.querySelector("#team-invite-user-meta").textContent).not.toContain("Auto-refresh");
     expect(doc.querySelector("#team-join-discover-meta").textContent).not.toContain("Load discover teams");
+    expect(doc.querySelector("#team-invite-user-feedback").textContent).toBe("");
     expect(doc.querySelector("#team-workspace-member").textContent).toContain("Sent Invites");
     expect(doc.querySelector("#team-workspace-member").textContent).toContain("Invites for You");
     expect(doc.querySelector("#team-workspace-manage").textContent).toContain("Teams I Manage");
+  });
+
+  test("teams member workspace replaces raw internal invite errors with stable feedback", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", role: "member", gameName: "Lead", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness({
+      loginUser: { id: 11, email: "lead@example.com", role: "member", gameName: "Lead", tagline: "NA1" },
+      profile: {
+        id: 11,
+        email: "lead@example.com",
+        role: "member",
+        gameName: "Lead",
+        tagline: "NA1",
+        primaryRole: "Mid",
+        secondaryRoles: []
+      },
+      pools: [],
+      teams: [
+        {
+          id: 1,
+          name: "Team Alpha",
+          tag: "ALPHA",
+          created_by: 11,
+          membership_role: "lead",
+          membership_team_role: "primary",
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      membersByTeam: {
+        "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", display_name: "Lead#NA1", lane: "Mid" }]
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    await flush();
+
+    expect(doc.querySelector("#team-invite-user-feedback").textContent).toBe("Couldn't refresh invites. Try again.");
+    expect(doc.querySelector("#team-invite-user-feedback").textContent).not.toContain("An unexpected error occurred");
   });
 
   test("team update remove-logo action sends JSON remove_logo contract", async () => {

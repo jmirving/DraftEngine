@@ -8289,6 +8289,11 @@ function normalizeApiErrorMessage(error, fallbackMessage) {
   return fallbackMessage;
 }
 
+function normalizePassiveApiErrorMessage(error, fallbackMessage) {
+  const message = normalizeApiErrorMessage(error, fallbackMessage);
+  return message === "An unexpected error occurred." ? fallbackMessage : message;
+}
+
 async function ensureProfileRolePools(pools) {
   const configuredRoles = getConfiguredProfileRoles();
   let currentPools = Array.isArray(pools) ? pools : [];
@@ -8534,10 +8539,14 @@ async function refreshTeamWorkspaceDataForActiveTab() {
   }
 
   if (state.ui.teamWorkspaceTab === TEAM_WORKSPACE_TAB_MEMBER) {
-    await Promise.all([
+    const refreshJobs = [
       loadDiscoverTeamsFromApi(),
       loadInvitationsForUser()
-    ]);
+    ];
+    if (canReviewSelectedTeam()) {
+      refreshJobs.push(loadMemberInvitationsForSelectedTeam());
+    }
+    await Promise.all(refreshJobs);
   }
 }
 
@@ -9958,6 +9967,7 @@ async function loadMemberInvitationsForSelectedTeam({ status = "pending" } = {})
 async function loadInvitationsForUser({ status = "pending" } = {}) {
   if (!isAuthenticated()) {
     state.api.userInvitations = [];
+    state.api.userInvitationsLoadedAt = null;
     return false;
   }
 
@@ -9972,7 +9982,8 @@ async function loadInvitationsForUser({ status = "pending" } = {}) {
     return true;
   } catch (error) {
     state.api.userInvitations = [];
-    setTeamInviteUserFeedback(normalizeApiErrorMessage(error, "Failed to load your invitations."));
+    state.api.userInvitationsLoadedAt = null;
+    setTeamInviteUserFeedback(normalizePassiveApiErrorMessage(error, "Couldn't refresh invites. Try again."));
     return false;
   } finally {
     state.api.isLoadingUserInvitations = false;
@@ -15735,6 +15746,13 @@ async function init() {
         ]);
       }
       loadedTeamContextFromApi = await loadTeamContextFromApi();
+      if (state.ui.teamWorkspaceTab === TEAM_WORKSPACE_TAB_MEMBER && canReviewSelectedTeam()) {
+        const selectedTeam = getSelectedAdminTeam();
+        const selectedTeamId = selectedTeam ? String(selectedTeam.id) : "";
+        if (selectedTeamId && !state.api.teamInvitationsLoadedAtByTeamId[selectedTeamId]) {
+          await loadMemberInvitationsForSelectedTeam();
+        }
+      }
       await hydrateCompositionsWorkspaceFromApi();
       if (isAdminUser()) {
         await loadUsersFromApi();
