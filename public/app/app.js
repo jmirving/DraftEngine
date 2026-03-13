@@ -523,7 +523,7 @@ function createInitialState() {
       search: "",
       roles: [],
       damageTypes: [],
-      scaling: null,
+      scaling: [],
       metadataScopeFilter: "",
       includeTags: [],
       excludeTags: [],
@@ -545,7 +545,7 @@ function createInitialState() {
       selectorFilter: "",
       selectorPending: [],
       cardFilter: "",
-      comfortFilter: ""
+      comfortFilter: []
     },
     builder: {
       stage: "setup",
@@ -739,8 +739,7 @@ function createElements() {
     championTagEditorTitle: runtimeDocument.querySelector("#champion-tag-editor-title"),
     championTagEditorMeta: runtimeDocument.querySelector("#champion-tag-editor-meta"),
     championTagEditorScope: runtimeDocument.querySelector("#champion-tag-editor-scope"),
-    championTagEditorScopeReadout: runtimeDocument.querySelector("#champion-tag-editor-scope-readout"),
-    championTagEditorScopeHelp: runtimeDocument.querySelector("#champion-tag-editor-scope-help"),
+    championTagEditorScopeTipText: runtimeDocument.querySelector("#champion-tag-editor-scope-tip-text"),
     championTagEditorTeamGroup: runtimeDocument.querySelector("#champion-tag-editor-team-group"),
     championTagEditorTeam: runtimeDocument.querySelector("#champion-tag-editor-team"),
     cedChampImage: runtimeDocument.querySelector("#ced-champ-image"),
@@ -7029,18 +7028,66 @@ function renderChampionMetadataRoleProfileEditors() {
     elements.cedDamageSlot.append(damageSectionLabel, damageButtons);
   }
 
-  // Render power spike level bar into effectiveness slot
+  // Render power spike level bar into effectiveness slot (drag-to-select)
   if (elements.cedEffectivenessSlot) {
     const currentSpikes = normalizePowerSpikes(profile.powerSpikes);
+
+    // Label row with inline Clear button
+    const labelRow = runtimeDocument.createElement("div");
+    labelRow.className = "ced-spike-label-row";
     const sectionLabel = runtimeDocument.createElement("p");
     sectionLabel.className = "ced-section-label";
     sectionLabel.textContent = "Power Spikes (Level)";
+    const clearBtn = runtimeDocument.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.className = "ced-spike-clear-btn";
+    clearBtn.textContent = "Clear";
+    clearBtn.disabled = state.api.isSavingChampionTags || currentSpikes.length === 0;
+    clearBtn.addEventListener("click", () => onPowerSpikesChange([]));
+    labelRow.append(sectionLabel, clearBtn);
 
+    // Level bar with drag-to-select
     const levelBar = runtimeDocument.createElement("div");
     levelBar.className = "ced-level-bar";
+
+    let dragStart = null;
+    let isDragging = false;
+
+    const getCellLevel = (el) => {
+      const cell = el.closest?.(".ced-level-cell");
+      return cell ? parseInt(cell.dataset.level, 10) : null;
+    };
+
+    const updatePreview = (startLvl, endLvl) => {
+      const lo = Math.min(startLvl, endLvl);
+      const hi = Math.max(startLvl, endLvl);
+      for (const cell of levelBar.children) {
+        const lvl = parseInt(cell.dataset.level, 10);
+        const inExisting = levelInPowerSpikes(lvl, currentSpikes);
+        const inPreview = lvl >= lo && lvl <= hi;
+        cell.classList.toggle("is-active", inExisting || inPreview);
+        cell.classList.toggle("is-preview", inPreview && !inExisting);
+      }
+    };
+
+    const commitDrag = (startLvl, endLvl) => {
+      const lo = Math.min(startLvl, endLvl);
+      const hi = Math.max(startLvl, endLvl);
+      const newRange = { start: lo, end: hi };
+      if (currentSpikes.length < POWER_SPIKE_MAX_RANGES) {
+        onPowerSpikesChange([...currentSpikes, newRange]);
+      } else {
+        // Replace the last range
+        const next = [...currentSpikes];
+        next[next.length - 1] = newRange;
+        onPowerSpikesChange(next);
+      }
+    };
+
     for (let lvl = POWER_SPIKE_MIN_LEVEL; lvl <= POWER_SPIKE_MAX_LEVEL; lvl++) {
       const cell = runtimeDocument.createElement("div");
       cell.className = "ced-level-cell";
+      cell.dataset.level = String(lvl);
       if (levelInPowerSpikes(lvl, currentSpikes)) cell.classList.add("is-active");
       const num = runtimeDocument.createElement("span");
       num.className = "ced-level-num";
@@ -7049,84 +7096,55 @@ function renderChampionMetadataRoleProfileEditors() {
       levelBar.append(cell);
     }
 
-    // Range controls
-    const rangeControls = runtimeDocument.createElement("div");
-    rangeControls.className = "ced-spike-controls";
-
-    const renderRangeRow = (index, range) => {
-      const row = runtimeDocument.createElement("div");
-      row.className = "ced-spike-range-row";
-
-      const label = runtimeDocument.createElement("span");
-      label.className = "ced-spike-range-label";
-      label.textContent = `Range ${index + 1}`;
-
-      const startInput = runtimeDocument.createElement("input");
-      startInput.type = "number";
-      startInput.className = "ced-spike-input";
-      startInput.min = POWER_SPIKE_MIN_LEVEL;
-      startInput.max = POWER_SPIKE_MAX_LEVEL;
-      startInput.value = range ? range.start : "";
-      startInput.placeholder = "Start";
-      startInput.disabled = state.api.isSavingChampionTags;
-
-      const dash = runtimeDocument.createElement("span");
-      dash.className = "ced-spike-dash";
-      dash.textContent = "–";
-
-      const endInput = runtimeDocument.createElement("input");
-      endInput.type = "number";
-      endInput.className = "ced-spike-input";
-      endInput.min = POWER_SPIKE_MIN_LEVEL;
-      endInput.max = POWER_SPIKE_MAX_LEVEL;
-      endInput.value = range ? range.end : "";
-      endInput.placeholder = "End";
-      endInput.disabled = state.api.isSavingChampionTags;
-
-      const removeBtn = runtimeDocument.createElement("button");
-      removeBtn.type = "button";
-      removeBtn.className = "ced-spike-remove";
-      removeBtn.textContent = "×";
-      removeBtn.disabled = state.api.isSavingChampionTags;
-      removeBtn.addEventListener("click", () => {
-        const next = [...currentSpikes];
-        next.splice(index, 1);
-        onPowerSpikesChange(next);
+    if (!state.api.isSavingChampionTags) {
+      levelBar.addEventListener("pointerdown", (e) => {
+        const lvl = getCellLevel(e.target);
+        if (lvl == null) return;
+        isDragging = true;
+        dragStart = lvl;
+        levelBar.setPointerCapture(e.pointerId);
+        updatePreview(lvl, lvl);
+        e.preventDefault();
       });
 
-      const updateRange = () => {
-        const s = parseInt(startInput.value, 10);
-        const e = parseInt(endInput.value, 10);
-        if (!Number.isInteger(s) || !Number.isInteger(e)) return;
-        const next = [...currentSpikes];
-        next[index] = { start: s, end: e };
-        onPowerSpikesChange(next);
-      };
-      startInput.addEventListener("change", updateRange);
-      endInput.addEventListener("change", updateRange);
-
-      row.append(label, startInput, dash, endInput, removeBtn);
-      return row;
-    };
-
-    for (let i = 0; i < currentSpikes.length; i++) {
-      rangeControls.append(renderRangeRow(i, currentSpikes[i]));
-    }
-
-    if (currentSpikes.length < POWER_SPIKE_MAX_RANGES) {
-      const addBtn = runtimeDocument.createElement("button");
-      addBtn.type = "button";
-      addBtn.className = "ced-spike-add";
-      addBtn.textContent = "+ Add Range";
-      addBtn.disabled = state.api.isSavingChampionTags;
-      addBtn.addEventListener("click", () => {
-        const next = [...currentSpikes, { start: 1, end: 6 }];
-        onPowerSpikesChange(next);
+      levelBar.addEventListener("pointermove", (e) => {
+        if (!isDragging || dragStart == null) return;
+        // Find cell under pointer via elementFromPoint
+        const el = runtimeDocument.elementFromPoint(e.clientX, e.clientY);
+        const lvl = getCellLevel(el);
+        if (lvl != null) {
+          updatePreview(dragStart, lvl);
+        }
       });
-      rangeControls.append(addBtn);
+
+      levelBar.addEventListener("pointerup", (e) => {
+        if (!isDragging || dragStart == null) return;
+        isDragging = false;
+        const el = runtimeDocument.elementFromPoint(e.clientX, e.clientY);
+        const endLvl = getCellLevel(el) ?? dragStart;
+        commitDrag(dragStart, endLvl);
+        dragStart = null;
+      });
+
+      levelBar.addEventListener("pointercancel", () => {
+        isDragging = false;
+        dragStart = null;
+        // Reset preview
+        for (const cell of levelBar.children) {
+          const lvl = parseInt(cell.dataset.level, 10);
+          cell.classList.toggle("is-active", levelInPowerSpikes(lvl, currentSpikes));
+          cell.classList.remove("is-preview");
+        }
+      });
     }
 
-    elements.cedEffectivenessSlot.append(sectionLabel, levelBar, rangeControls);
+    const hint = runtimeDocument.createElement("p");
+    hint.className = "ced-spike-hint meta";
+    hint.textContent = currentSpikes.length >= POWER_SPIKE_MAX_RANGES
+      ? "Max 2 ranges. Clear to start over, or drag to replace the last range."
+      : "Click and drag across levels to set a range.";
+
+    elements.cedEffectivenessSlot.append(labelRow, levelBar, hint);
   }
 }
 
@@ -7219,14 +7237,8 @@ function renderChampionTagEditor() {
     ? `Editing ${scopeLabel.toLowerCase()} metadata${teamLabel ? ` for ${teamLabel}` : ""}.`
     : `${scopeLabel}${teamLabel ? ` (${teamLabel})` : ""} is currently using global metadata. Save to create a custom profile.`;
   setChampionTagEditorMeta(scopeMeta);
-  if (elements.championTagEditorScopeReadout) {
-    elements.championTagEditorScopeReadout.textContent =
-      teamLabel && state.api.championTagScope === "team"
-        ? `${scopeLabel}: ${teamLabel}`
-        : scopeLabel;
-  }
-  if (elements.championTagEditorScopeHelp) {
-    elements.championTagEditorScopeHelp.textContent = state.api.championMetadataHasCustom
+  if (elements.championTagEditorScopeTipText) {
+    elements.championTagEditorScopeTipText.textContent = state.api.championMetadataHasCustom
       ? `Changes will update this ${scopeLabel.toLowerCase()} profile${teamLabel ? ` for ${teamLabel}` : ""}.`
       : `No ${scopeLabel.toLowerCase()} profile exists yet${teamLabel ? ` for ${teamLabel}` : ""}. Saving will create one.`;
   }
@@ -8082,7 +8094,23 @@ function initializeExplorerControls() {
     }
   });
 
-  // explorerScaling is now a number input, no options to populate
+  // Power Spike Level multi-select
+  if (elements.explorerScaling) {
+    const levelOptions = [];
+    for (let lvl = POWER_SPIKE_MIN_LEVEL; lvl <= POWER_SPIKE_MAX_LEVEL; lvl++) {
+      levelOptions.push({ value: String(lvl), label: String(lvl) });
+    }
+    multiSelectControls.explorerScaling = createCheckboxMultiControl({
+      root: elements.explorerScaling,
+      options: levelOptions,
+      selectedValues: [],
+      placeholder: "Any Power Spike Level",
+      onChange(selectedValues) {
+        state.explorer.scaling = selectedValues.map((v) => parseInt(v, 10)).filter(Number.isInteger);
+        renderExplorer();
+      }
+    });
+  }
 
   replaceOptions(
     elements.explorerSort,
@@ -8141,7 +8169,7 @@ function clearExplorerFilters() {
   state.explorer.search = "";
   state.explorer.roles = [];
   state.explorer.damageTypes = [];
-  state.explorer.scaling = null;
+  state.explorer.scaling = [];
   state.explorer.metadataScopeFilter = "";
   state.explorer.includeTags = [];
   state.explorer.excludeTags = [];
@@ -8150,7 +8178,7 @@ function clearExplorerFilters() {
   elements.explorerSearch.value = "";
   multiSelectControls.explorerRole?.setSelected([NO_FILTER]);
   multiSelectControls.explorerDamage?.setSelected([NO_FILTER]);
-  elements.explorerScaling.value = "";
+  multiSelectControls.explorerScaling?.setSelected([]);
   elements.explorerSort.value = "alpha-asc";
   refreshExplorerMetadataScopeFilterOptions();
   multiSelectControls.explorerIncludeTags?.setSelected([]);
@@ -8170,8 +8198,8 @@ function renderActivePills() {
   if (state.explorer.damageTypes.length > 0) {
     pills.push({ label: "Damage Type", values: state.explorer.damageTypes });
   }
-  if (state.explorer.scaling != null) {
-    pills.push({ label: "Power Spike Level", values: [String(state.explorer.scaling)] });
+  if (Array.isArray(state.explorer.scaling) && state.explorer.scaling.length > 0) {
+    pills.push({ label: "Power Spike Level", values: state.explorer.scaling.map(String) });
   }
   if (state.explorer.sortBy !== "alpha-asc") {
     const sortLabels = { "alpha-desc": "Alphabetical (Z-A)", role: "Primary Role, then Name" };
@@ -11207,14 +11235,14 @@ function renderMyChampions() {
 
   // Apply card filters
   const nameFilter = (state.playerConfig.cardFilter ?? "").trim().toLowerCase();
-  const comfortFilter = (state.playerConfig.comfortFilter ?? "").trim().toUpperCase();
+  const comfortFilterSet = new Set(Array.isArray(state.playerConfig.comfortFilter) ? state.playerConfig.comfortFilter : []);
 
   const sortedNames = [...activePlayer.champions].sort((a, b) => a.localeCompare(b));
   const filteredNames = sortedNames.filter((championName) => {
     if (nameFilter && !championName.toLowerCase().includes(nameFilter)) return false;
-    if (comfortFilter) {
+    if (comfortFilterSet.size > 0) {
       const grade = getFamiliarityGrade(normalizeFamiliarityLevel(activePlayer.familiarityByChampion[championName]));
-      if (grade !== comfortFilter) return false;
+      if (!comfortFilterSet.has(grade)) return false;
     }
     return true;
   });
@@ -11377,7 +11405,7 @@ function renderExplorer() {
     if (state.explorer.damageTypes.length > 0 && !state.explorer.damageTypes.includes(champion.damageType)) {
       return false;
     }
-    if (state.explorer.scaling != null) {
+    if (Array.isArray(state.explorer.scaling) && state.explorer.scaling.length > 0) {
       const champRoles = Array.isArray(champion.roles) ? champion.roles : [];
       const champRoleProfiles =
         champion.roleProfiles && typeof champion.roleProfiles === "object" && !Array.isArray(champion.roleProfiles)
@@ -11389,7 +11417,8 @@ function renderExplorer() {
       if (spikes.length === 0 && prof?.effectiveness) {
         spikes = powerSpikesFromLegacyEffectiveness(prof.effectiveness);
       }
-      if (!levelInPowerSpikes(state.explorer.scaling, spikes)) {
+      const matchesAny = state.explorer.scaling.some((lvl) => levelInPowerSpikes(lvl, spikes));
+      if (!matchesAny) {
         return false;
       }
     }
@@ -11641,23 +11670,35 @@ function renderExplorer() {
       if (cardPowerSpikes.length === 0 && profile?.effectiveness) {
         cardPowerSpikes = powerSpikesFromLegacyEffectiveness(profile.effectiveness);
       }
+      // Power Spikes: ruler-style level bar
       const spikeElements = [];
-      if (cardPowerSpikes.length > 0) {
-        const miniBar = runtimeDocument.createElement("div");
-        miniBar.className = "champ-level-bar-mini";
-        for (let lvl = POWER_SPIKE_MIN_LEVEL; lvl <= POWER_SPIKE_MAX_LEVEL; lvl++) {
-          const seg = runtimeDocument.createElement("div");
-          seg.className = "champ-level-seg";
-          if (levelInPowerSpikes(lvl, cardPowerSpikes)) seg.classList.add("is-active");
-          miniBar.append(seg);
+      {
+        const ruler = runtimeDocument.createElement("div");
+        ruler.className = "champ-ruler";
+        const track = runtimeDocument.createElement("div");
+        track.className = "champ-ruler-track";
+        // Green progress bar segments for active ranges
+        for (const range of cardPowerSpikes) {
+          const bar = runtimeDocument.createElement("div");
+          bar.className = "champ-ruler-bar";
+          const leftPct = ((range.start - 1) / POWER_SPIKE_MAX_LEVEL) * 100;
+          const widthPct = ((range.end - range.start + 1) / POWER_SPIKE_MAX_LEVEL) * 100;
+          bar.style.left = `${leftPct}%`;
+          bar.style.width = `${widthPct}%`;
+          track.append(bar);
         }
-        spikeElements.push(miniBar);
-        const rangeLabel = runtimeDocument.createElement("span");
-        rangeLabel.className = "champ-spike-range-text meta";
-        rangeLabel.textContent = cardPowerSpikes.map((r) => `${r.start}–${r.end}`).join(", ");
-        spikeElements.push(rangeLabel);
-      } else if (champion.scaling) {
-        spikeElements.push(makePill(champion.scaling));
+        ruler.append(track);
+        // Tick marks with numbers
+        const ticks = runtimeDocument.createElement("div");
+        ticks.className = "champ-ruler-ticks";
+        for (let lvl = POWER_SPIKE_MIN_LEVEL; lvl <= POWER_SPIKE_MAX_LEVEL; lvl++) {
+          const tick = runtimeDocument.createElement("span");
+          tick.className = "champ-ruler-tick";
+          tick.textContent = String(lvl);
+          ticks.append(tick);
+        }
+        ruler.append(ticks);
+        spikeElements.push(ruler);
       }
 
       const damagePills = damageType
@@ -13577,11 +13618,7 @@ function attachEvents() {
     renderExplorer();
   });
 
-  elements.explorerScaling.addEventListener("input", () => {
-    const val = parseInt(elements.explorerScaling.value, 10);
-    state.explorer.scaling = (Number.isInteger(val) && val >= POWER_SPIKE_MIN_LEVEL && val <= POWER_SPIKE_MAX_LEVEL) ? val : null;
-    renderExplorer();
-  });
+  // explorerScaling events handled by multiSelectControls.explorerScaling
 
   elements.explorerSort.addEventListener("change", () => {
     state.explorer.sortBy = elements.explorerSort.value;
@@ -13640,8 +13677,8 @@ function attachEvents() {
   });
 
   elements.explorerClearScaling.addEventListener("click", () => {
-    elements.explorerScaling.value = "";
-    state.explorer.scaling = null;
+    multiSelectControls.explorerScaling?.setSelected([]);
+    state.explorer.scaling = [];
     renderExplorer();
   });
 
@@ -14155,9 +14192,15 @@ function attachEvents() {
     });
   }
   if (elements.myChampionsComfortFilter) {
-    elements.myChampionsComfortFilter.addEventListener("change", () => {
-      state.playerConfig.comfortFilter = elements.myChampionsComfortFilter.value;
-      renderMyChampions();
+    multiSelectControls.myChampionsComfort = createCheckboxMultiControl({
+      root: elements.myChampionsComfortFilter,
+      options: FAMILIARITY_GRADES.map((grade) => ({ value: grade, label: grade })),
+      selectedValues: [],
+      placeholder: "All Comfort Levels",
+      onChange(selectedValues) {
+        state.playerConfig.comfortFilter = selectedValues;
+        renderMyChampions();
+      }
     });
   }
 

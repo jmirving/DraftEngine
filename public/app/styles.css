@@ -3935,56 +3935,92 @@ button.pool-snapshot-order-btn:disabled {
   margin: 0 0 0.4rem 0;
 }
 
-.ced-team-label {
-  font-size: 0.85rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
 .ced-scope-panel {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  padding: 0.6rem 0.7rem;
+  gap: 0.35rem;
+  padding: 0.5rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--bg);
 }
 
-.ced-scope-panel-label {
-  margin: 0;
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-}
-
-.ced-scope-panel-value {
-  margin: 0;
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--fg, #23272a);
-}
-
-.ced-scope-panel-help {
-  margin: 0;
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
-.ced-scope-label {
-  font-size: 0.8rem;
+/* Inline row: "Editing [select] [i]" */
+.ced-scope-inline {
   display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  margin-top: 0.2rem;
+  align-items: center;
+  gap: 0.4rem;
+}
+.ced-scope-editing-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ced-scope-select {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  padding: 0.15rem 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
 }
 
-.ced-scope-label select {
-  width: 100%;
+/* Tooltip icon */
+.ced-scope-tip {
+  position: relative;
+  cursor: help;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1;
+  flex-shrink: 0;
+}
+.ced-scope-tip-text {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink, #23272a);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 400;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  white-space: normal;
+  width: max-content;
+  max-width: 220px;
+  z-index: 90;
+  pointer-events: none;
+  line-height: 1.35;
+  text-align: center;
+}
+.ced-scope-tip:hover .ced-scope-tip-text,
+.ced-scope-tip:focus .ced-scope-tip-text {
+  display: block;
+}
+
+/* Team row inside scope panel */
+.ced-scope-team-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.ced-scope-team-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ced-scope-team-select {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  padding: 0.15rem 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
 }
 
 /* ── Role pill group ───────────────────────────────────── */
@@ -4096,11 +4132,40 @@ button.pool-snapshot-order-btn:disabled {
 .ced-damage-btn--utility { background: #e5ffe8; color: #1a6b28; border-color: #a0d8a8; }
 
 
-/* ── Power Spike Level Bar (editor) ─────────────────────────────────── */
+/* ── Power Spike Level Bar (editor) — drag-to-select ───────────────── */
+.ced-spike-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.2rem;
+}
+.ced-spike-label-row .ced-section-label {
+  margin: 0;
+}
+.ced-spike-clear-btn {
+  background: none;
+  border: none;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.ced-spike-clear-btn:hover {
+  color: var(--accent);
+}
+.ced-spike-clear-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
 .ced-level-bar {
   display: flex;
   gap: 1px;
-  margin-bottom: 0.5rem;
+  cursor: crosshair;
+  touch-action: none;
 }
 .ced-level-cell {
   flex: 1;
@@ -4111,107 +4176,62 @@ button.pool-snapshot-order-btn:disabled {
   background: var(--surface-strong, #eae6dc);
   border: 1px solid var(--border);
   border-radius: 3px;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.12s, border-color 0.12s;
 }
 .ced-level-cell.is-active {
   background: #d6eedd;
   border-color: #a8d8b5;
+}
+.ced-level-cell.is-preview {
+  background: #b8e6c5;
+  border-color: #8fd4a0;
 }
 .ced-level-num {
   font-size: 0.65rem;
   font-weight: 600;
   color: var(--muted);
   user-select: none;
+  pointer-events: none;
 }
 .ced-level-cell.is-active .ced-level-num {
   color: #1a5c31;
 }
-
-/* ── Spike range controls ──────────────────────────────────────────── */
-.ced-spike-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-.ced-spike-range-row {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-.ced-spike-range-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--muted);
-  min-width: 4.5rem;
-}
-.ced-spike-input {
-  width: 3.5rem;
-  padding: 0.2rem 0.3rem;
-  font-size: 0.8rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  text-align: center;
-  background: #fff;
-}
-.ced-spike-input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft);
-}
-.ced-spike-dash {
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-.ced-spike-remove {
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.1rem 0.4rem;
-  font-size: 0.85rem;
-  color: var(--muted);
-  cursor: pointer;
-  line-height: 1;
-}
-.ced-spike-remove:hover {
-  background: #f5e0d8;
-  color: #7a2e1a;
-  border-color: #e8bdb0;
-}
-.ced-spike-add {
-  align-self: flex-start;
-  background: none;
-  border: 1px dashed var(--border);
-  border-radius: 8px;
-  padding: 0.25rem 0.7rem;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--muted);
-  cursor: pointer;
-}
-.ced-spike-add:hover {
-  background: var(--surface-strong);
-  color: var(--ink);
-  border-color: var(--ink);
+.ced-spike-hint {
+  margin: 0.25rem 0 0 0;
+  font-size: 0.72rem;
 }
 
-/* ── Card mini level bar ───────────────────────────────────────────── */
-.champ-level-bar-mini {
-  display: flex;
-  gap: 1px;
-  height: 8px;
+/* ── Card ruler-style level bar ────────────────────────────────────── */
+.champ-ruler {
   width: 100%;
 }
-.champ-level-seg {
-  flex: 1;
+.champ-ruler-track {
+  position: relative;
+  height: 6px;
   background: var(--surface-strong, #eae6dc);
-  border-radius: 1px;
+  border-radius: 3px;
+  overflow: hidden;
 }
-.champ-level-seg.is-active {
-  background: #80c794;
+.champ-ruler-bar {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: #6dbe82;
+  border-radius: 3px;
 }
-.champ-spike-range-text {
-  font-size: 0.72rem;
-  margin: 0.15rem 0 0 0;
+.champ-ruler-ticks {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 1px;
+  margin-top: 1px;
+}
+.champ-ruler-tick {
+  font-size: 0.5rem;
+  color: var(--muted);
+  text-align: center;
+  width: 0;
+  overflow: visible;
+  white-space: nowrap;
 }
 .champ-spike-section {
   display: flex;
@@ -4229,13 +4249,6 @@ button.pool-snapshot-order-btn:disabled {
   }
   .ced-meta-upper {
     grid-template-columns: 1fr;
-  }
-  .ced-scope-panel {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .ced-scope-label {
-    min-width: 0;
   }
 }
 

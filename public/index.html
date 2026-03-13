@@ -187,13 +187,7 @@
               </div>
               <div class="my-champions-filter-row">
                 <input id="my-champions-search" type="search" placeholder="Filter by name..." />
-                <select id="my-champions-comfort-filter">
-                  <option value="">All Comfort Levels</option>
-                  <option value="S">S</option>
-                  <option value="A">A</option>
-                  <option value="B">B</option>
-                  <option value="C">C</option>
-                </select>
+                <div id="my-champions-comfort-filter"></div>
               </div>
               <div id="my-champions-card-grid" class="card-grid"></div>
               <p id="player-config-feedback" class="meta"></p>
@@ -222,7 +216,7 @@
                     </label>
                     <label>
                       <span class="filter-label-header">Power Spike Level <button id="explorer-clear-scaling" class="filter-clear-btn" type="button" aria-label="Clear power spike level">×</button></span>
-                      <input id="explorer-scaling" type="number" min="1" max="18" placeholder="Any level (1–18)" />
+                      <div id="explorer-scaling"></div>
                     </label>
                     <label>
                       <span class="filter-label-header">Sort Cards <button id="explorer-clear-sort" class="filter-clear-btn" type="button" aria-label="Reset sort">×</button></span>
@@ -282,12 +276,17 @@
                   </div>
 
                   <div class="ced-scope-panel">
-                    <p class="ced-scope-panel-label">Scope</p>
-                    <p id="champion-tag-editor-scope-readout" class="ced-scope-panel-value">User</p>
-                    <p id="champion-tag-editor-scope-help" class="ced-scope-panel-help"></p>
-                    <label class="ced-scope-label">
-                      <select id="champion-tag-editor-scope"></select>
-                    </label>
+                    <div class="ced-scope-inline">
+                      <span class="ced-scope-editing-label">Editing</span>
+                      <select id="champion-tag-editor-scope" class="ced-scope-select"></select>
+                      <span id="champion-tag-editor-scope-tip" class="ced-scope-tip" tabindex="0" role="img" aria-label="Scope info">&#9432;
+                        <span id="champion-tag-editor-scope-tip-text" class="ced-scope-tip-text"></span>
+                      </span>
+                    </div>
+                    <div id="champion-tag-editor-team-group" class="ced-scope-team-row" hidden>
+                      <span class="ced-scope-team-label">Team</span>
+                      <select id="champion-tag-editor-team" class="ced-scope-team-select"></select>
+                    </div>
                   </div>
                 </div>
 
@@ -306,12 +305,6 @@
                   <div id="ced-effectiveness-slot" class="ced-effectiveness-section"></div>
                   <div id="champion-metadata-role-profiles" class="ced-role-profiles"></div>
                 </div>
-              </div>
-
-              <div id="champion-tag-editor-team-group" hidden>
-                <label class="ced-team-label">Editing for team
-                  <select id="champion-tag-editor-team"></select>
-                </label>
               </div>
 
               <div class="ced-section">
@@ -1154,9 +1147,11 @@
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
                 <h4>Current Session</h4>
                 <ul class="coming-soon-list">
-                  <li>Power Spikes replace Early/Mid/Late effectiveness: champion profiles now use level 1–18 range selectors (up to 2 ranges per role), with a visual level bar on cards and a level-based filter on the Champions grid.</li>
-                  <li>Scope panel moved under champion identity in the editor and restyled to match site theme.</li>
+                  <li>Power Spikes replace Early/Mid/Late effectiveness: champion profiles now use drag-to-select level 1–18 ranges (up to 2 ranges per role), with a ruler-style progress bar on cards and a multi-select level filter on the Champions grid.</li>
+                  <li>All existing power spike / effectiveness data reset to empty so profiles can be re-entered from scratch with the new UI.</li>
+                  <li>Scope panel redesigned as compact inline row: "Editing [scope dropdown] [info tooltip]" with team selector below when in Team scope.</li>
                   <li>Signed-in-as status line removed from page headers.</li>
+                  <li>My Champions comfort filter now supports multi-select (e.g. S + A together) with checkbox-style dropdown and clear.</li>
                   <li>My Champions redesigned: selected champions now display as visual cards with champion portrait, Comfort Level pill selector (S/A/B/C), Riot mastery stats, and collapsible tags.</li>
                   <li>Champion pool selector replaced with a visual two-column modal (Available / Selected) featuring champion portrait icons, search filtering, and click-to-toggle selection.</li>
                   <li>My Champions cards now include name and comfort level filters to quickly find champions in your pool.</li>
