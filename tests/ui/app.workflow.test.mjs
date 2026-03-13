@@ -195,6 +195,11 @@ async function bootApp() {
     pretendToBeVisual: true
   });
   dom.window.HTMLElement.prototype.scrollIntoView = () => {};
+  dom.window.requestAnimationFrame = (callback) => {
+    callback();
+    return 0;
+  };
+  globalThis.requestAnimationFrame = dom.window.requestAnimationFrame;
 
   const { initApp, getAppState } = await import("../../public/app/app.js");
   await initApp({
@@ -240,14 +245,13 @@ describe("workflow app integration", () => {
     const { dom, state } = await bootApp();
     const setupPanel = dom.window.document.querySelector("#builder-stage-setup");
     const reviewPanel = dom.window.document.querySelector("#builder-stage-inspect");
-    const continueButton = dom.window.document.querySelector("#builder-continue-validate");
     const generateButton = dom.window.document.querySelector("#builder-generate");
 
     expect(state.activeTab).toBe("workflow");
     expect(setupPanel.hidden).toBe(false);
     expect(reviewPanel.hidden).toBe(false);
-    expect(continueButton.hidden).toBe(true);
     expect(generateButton.disabled).toBe(false);
+    expect(generateButton.textContent).toBe("Generate Tree");
   });
 
   test("requires at least one pick before entering review, then auto-generates on transition", async () => {
@@ -258,7 +262,7 @@ describe("workflow app integration", () => {
 
     expect(doc.querySelector("#builder-stage-inspect").hidden).toBe(false);
     expect(doc.querySelector("#builder-generate").disabled).toBe(false);
-    expect(doc.querySelectorAll("#builder-tree-map circle").length).toBeGreaterThan(0);
+    expect(doc.querySelectorAll("#builder-tree-map .draft-path-column").length).toBeGreaterThan(0);
   });
 
   test("invalid slot picks are rejected and excluded picks are cleared from slots", async () => {
@@ -303,26 +307,24 @@ describe("workflow app integration", () => {
     pickSlotChampion(doc, "Top");
     generateButton.click();
 
-    const initialCircles = doc.querySelectorAll("#builder-tree-map circle").length;
-    expect(initialCircles).toBeGreaterThan(0);
+    const initialDraftPathItems = doc.querySelectorAll("#builder-tree-map .draft-path-item").length;
+    expect(initialDraftPathItems).toBeGreaterThan(0);
     const initialSummaryText = doc.querySelector("#builder-tree-summary").textContent;
-    expect(initialSummaryText).toMatch(/Immediate gain:|No immediate clause coverage change;/);
-    expect(initialSummaryText).toMatch(/Still missing:|All current clause ranges satisfied/);
-    expect(initialSummaryText).not.toContain("required matches still missing");
+    expect(initialSummaryText).toContain("Generation Stats");
+    expect(initialSummaryText).toContain("Draft Picks for");
 
     treeSearch.value = "zzzz-no-node";
     treeSearch.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
-    const afterSearchCircles = doc.querySelectorAll("#builder-tree-map circle").length;
-    expect(afterSearchCircles).toBeLessThanOrEqual(initialCircles);
+    const afterSearchItems = doc.querySelectorAll("#builder-tree-map .draft-path-item").length;
+    expect(afterSearchItems).toBeLessThanOrEqual(initialDraftPathItems);
 
     treeMinScore.value = "999";
     treeMinScore.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-    const afterMinScoreCircles = doc.querySelectorAll("#builder-tree-map circle").length;
-    expect(afterMinScoreCircles).toBe(1);
+    const afterMinScoreItems = doc.querySelectorAll("#builder-tree-map .draft-path-item").length;
+    expect(afterMinScoreItems).toBeLessThanOrEqual(afterSearchItems);
     const treeSummaryText = doc.querySelector("#builder-tree-summary").textContent;
-    expect(treeSummaryText).toContain("Ranked by viable end states first");
-    expect(treeSummaryText).toContain("viable finish");
-    expect(treeSummaryText).toContain("Generation stats");
+    expect(treeSummaryText).toContain("Generation Stats");
+    expect(treeSummaryText).toContain("Draft Picks for");
   });
 
   test("advanced scoring controls in setup update generation floor, rank goal, and redundancy penalty", async () => {
@@ -359,26 +361,23 @@ describe("workflow app integration", () => {
     expect(state.builder.tree.children.every((child) => typeof child.candidateScore === "number")).toBe(true);
   });
 
-  test("empty root summary offers recovery CTAs for filters and candidate floor", async () => {
+  test("empty root summary shows the current fail-fast messaging for impossible drafts", async () => {
     const { dom, state } = await bootApp();
     const doc = dom.window.document;
     const generateButton = doc.querySelector("#builder-generate");
     const treeSearch = doc.querySelector("#tree-search");
-    const validLeavesOnly = doc.querySelector("#tree-valid-leaves-only");
 
     const firstTop = pickSlotChampion(doc, "Top");
     generateButton.click();
 
-    state.builder.treeMinCandidateScore = 2;
-    state.builder.treeValidLeavesOnly = true;
-    validLeavesOnly.checked = true;
     state.builder.treeSearch = "blocked";
     treeSearch.value = "blocked";
     state.builder.tree = {
       depth: 0,
-      teamSlots: { Top: firstTop.value, Jungle: null, Mid: null, ADC: null, Support: null },
+      teamSlots: { Top: firstTop, Jungle: null, Mid: null, ADC: null, Support: null },
       score: 16,
       requiredSummary: { requiredGaps: 1 },
+      scoreBreakdown: { totalUnderBy: 1, totalOverBy: 0, requirements: [] },
       viability: {
         remainingSteps: 4,
         unreachableRequired: [],
@@ -394,9 +393,10 @@ describe("workflow app integration", () => {
       children: [
         {
           depth: 1,
-          teamSlots: { Top: firstTop.value, Jungle: "Hecarim", Mid: null, ADC: null, Support: null },
+          teamSlots: { Top: firstTop, Jungle: "Hecarim", Mid: null, ADC: null, Support: null },
           score: 17,
           requiredSummary: { requiredGaps: 1 },
+          scoreBreakdown: { totalUnderBy: 1, totalOverBy: 0, requirements: [] },
           viability: {
             remainingSteps: 3,
             unreachableRequired: [],
@@ -411,6 +411,7 @@ describe("workflow app integration", () => {
           },
           addedRole: "Jungle",
           addedChampion: "Hecarim",
+          candidateBreakdown: { requirements: [], unreachablePenalty: 0 },
           candidateScore: 1,
           passesMinScore: false,
           rationale: [],
@@ -433,39 +434,10 @@ describe("workflow app integration", () => {
 
     treeSearch.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
 
-    expect(doc.querySelector("#builder-tree-summary").textContent).toContain("No root branches match current filters.");
-    const clearSearch = Array.from(doc.querySelectorAll("#builder-tree-summary button")).find((button) =>
-      button.textContent.includes("Clear Search")
-    );
-    const showAll = Array.from(doc.querySelectorAll("#builder-tree-summary button")).find((button) =>
-      button.textContent.includes("Show all branches")
-    );
-    const lowerFloor = Array.from(doc.querySelectorAll("#builder-tree-summary button")).find((button) =>
-      button.textContent.includes("Lower Min Candidate Score to 0")
-    );
-
-    expect(clearSearch).toBeTruthy();
-    expect(showAll).toBeTruthy();
-    expect(lowerFloor).toBeTruthy();
-
-    clearSearch.click();
-    expect(treeSearch.value).toBe("");
-    expect(state.builder.treeSearch).toBe("");
-
-    showAll.click();
-    expect(validLeavesOnly.checked).toBe(false);
-    expect(state.builder.treeValidLeavesOnly).toBe(false);
-    expect(doc.querySelectorAll("#builder-tree-summary button").length).toBeGreaterThan(0);
-
-    validLeavesOnly.checked = true;
-    validLeavesOnly.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-    const lowerFloorAfterReset = Array.from(doc.querySelectorAll("#builder-tree-summary button")).find((button) =>
-      button.textContent.includes("Lower Min Candidate Score to 0")
-    );
-    lowerFloorAfterReset.click();
-    expect(state.builder.treeMinCandidateScore).toBe(0);
-    expect(state.builder.stage).toBe("setup");
-    expect(state.builder.tree).toBe(null);
+    const summaryText = doc.querySelector("#builder-tree-summary").textContent;
+    expect(summaryText).toContain("All possible outcomes result in incomplete drafts.");
+    expect(summaryText).toContain("Fail-fast reason:");
+    expect(summaryText).toContain("Draft Picks for Next Role");
   });
 
   test("team context supports named team labels and None global pool mode", async () => {
@@ -528,7 +500,7 @@ describe("workflow app integration", () => {
     expect(firstCard).toBeTruthy();
     expect(firstCard.textContent).toContain("Role(s)");
     expect(firstCard.textContent).toContain("Damage Type");
-    expect(firstCard.textContent).toContain("Effectiveness Focus");
+    expect(firstCard.textContent).toContain("Power Spikes");
   });
 
   test("explorer uses explicit Data Dragon image-key overrides for special champion names", async () => {
@@ -562,13 +534,13 @@ describe("workflow app integration", () => {
     const doc = dom.window.document;
 
     doc.querySelector(".side-menu-link[data-tab='explorer']").click();
-    const firstPoolCheckbox = doc.querySelector(".player-pool-control input[type='checkbox']");
-    expect(firstPoolCheckbox).toBeTruthy();
+    const addChampionsButton = doc.querySelector("#my-champions-add-btn");
+    expect(addChampionsButton).toBeTruthy();
     expect(doc.querySelector("#player-config-team").value).toBe("role:Mid");
     expect(state.builder.stage).toBe("setup");
   });
 
-  test("tree inspect drills into next branch layer and supports back navigation", async () => {
+  test("draft picks modal supports selecting a branch into the focused draft state", async () => {
     const { dom, state } = await bootApp();
     const doc = dom.window.document;
     const generateButton = doc.querySelector("#builder-generate");
@@ -580,13 +552,16 @@ describe("workflow app integration", () => {
     validLeavesOnly.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
 
     const initialFilledSlots = Object.values(state.builder.teamState).filter(Boolean).length;
-    let inspectButtons = doc.querySelectorAll("#builder-tree-summary .summary-card button");
-    if (inspectButtons.length === 0) {
+    let revealButton = Array.from(doc.querySelectorAll("#builder-tree-summary .draft-reveal-icon")).find((button) =>
+      button.title.includes("Show Draft Picks")
+    );
+    if (!revealButton) {
       state.builder.tree = {
         depth: 0,
-        teamSlots: { Top: firstTop.value, Jungle: null, Mid: null, ADC: null, Support: null },
+        teamSlots: { Top: firstTop, Jungle: null, Mid: null, ADC: null, Support: null },
         score: 10,
         requiredSummary: { requiredGaps: 1 },
+        scoreBreakdown: { totalUnderBy: 1, totalOverBy: 0, requirements: [] },
         viability: {
           remainingSteps: 4,
           unreachableRequired: [],
@@ -602,9 +577,10 @@ describe("workflow app integration", () => {
         children: [
           {
             depth: 1,
-            teamSlots: { Top: firstTop.value, Jungle: "Lee Sin", Mid: null, ADC: null, Support: null },
+            teamSlots: { Top: firstTop, Jungle: "Lee Sin", Mid: null, ADC: null, Support: null },
             score: 12,
             requiredSummary: { requiredGaps: 1 },
+            scoreBreakdown: { totalUnderBy: 1, totalOverBy: 0, requirements: [] },
             viability: {
               remainingSteps: 3,
               unreachableRequired: [],
@@ -619,6 +595,7 @@ describe("workflow app integration", () => {
             },
             addedRole: "Jungle",
             addedChampion: "Lee Sin",
+            candidateBreakdown: { requirements: [], unreachablePenalty: 0 },
             candidateScore: 2,
             passesMinScore: true,
             rationale: [],
@@ -641,25 +618,23 @@ describe("workflow app integration", () => {
       };
       const treeSearch = doc.querySelector("#tree-search");
       treeSearch.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
-      inspectButtons = doc.querySelectorAll("#builder-tree-summary .summary-card button");
+      revealButton = Array.from(doc.querySelectorAll("#builder-tree-summary .draft-reveal-icon")).find((button) =>
+        button.title.includes("Show Draft Picks")
+      );
     }
-    expect(inspectButtons.length).toBeGreaterThan(0);
-    inspectButtons[0].click();
+    expect(revealButton).toBeTruthy();
+    revealButton.click();
+
+    const selectButton = Array.from(doc.querySelectorAll(".draft-modal .button-row button")).find(
+      (button) => button.textContent === "Select"
+    );
+    expect(selectButton).toBeTruthy();
+    selectButton.click();
 
     expect(state.builder.stage).toBe("inspect");
     expect(state.builder.focusNodeId).not.toBe("0");
     expect(Object.values(state.builder.teamState).filter(Boolean).length).toBeGreaterThan(initialFilledSlots);
-    expect(doc.querySelector("#builder-tree-summary").textContent).toContain("Top branches from");
-
-    const backButton = Array.from(doc.querySelectorAll("#builder-tree-summary button")).find((button) =>
-      button.textContent === "Back"
-    );
-    expect(backButton).toBeTruthy();
-    backButton.click();
-
-    expect(state.builder.focusNodeId).toBe("0");
-    expect(doc.querySelector("#builder-tree-summary").textContent).toContain("Top branches from root:");
-    expect(doc.querySelector("#builder-preview")).toBe(null);
-    expect(doc.querySelectorAll("#builder-tree-map circle").length).toBeGreaterThan(0);
+    expect(doc.querySelector(".draft-modal-overlay")).toBeNull();
+    expect(doc.querySelectorAll("#builder-tree-map .draft-path-column").length).toBeGreaterThan(0);
   });
 });

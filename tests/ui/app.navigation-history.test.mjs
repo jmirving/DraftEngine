@@ -362,7 +362,8 @@ describe("hash navigation routing", () => {
     const doc = dom.window.document;
 
     expect(doc.querySelector("#hero-title").textContent).toBe("Composer");
-    expect(doc.querySelector("#builder-workflow-title").textContent).toBe("Composer");
+    expect(doc.querySelector("#builder-stage-setup-title").textContent).toBe("Setup");
+    expect(doc.querySelector("#builder-stage-inspect-title").textContent).toBe("Review");
     expect(doc.querySelector("#team-config-title").textContent).toBe("Teams");
 
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
@@ -401,10 +402,9 @@ describe("hash navigation routing", () => {
       doc.querySelectorAll("#updates-release-panel-whats-new h4"),
       (node) => node.textContent.trim()
     );
-    expect(whatsNewVersions[0]).toBe("Current Session");
-    const shippedVersions = whatsNewVersions.filter((heading) => heading.startsWith("Version "));
+    expect(whatsNewVersions[0]).toBe("Version 0.8.8");
+    const shippedVersions = whatsNewVersions.filter((heading) => heading.includes("(Shipped)"));
     expect(shippedVersions.length).toBeGreaterThan(0);
-    expect(shippedVersions.every((heading) => heading.includes("(Shipped)"))).toBe(true);
 
     doc.querySelector("#updates-release-tab-coming-soon").click();
     expect(doc.querySelector("#updates-release-panel-whats-new").hidden).toBe(true);
@@ -418,10 +418,7 @@ describe("hash navigation routing", () => {
       "General",
       "Profile",
       "Composer",
-      "Teams",
-      "Champions",
       "Tags",
-      "Users",
       "Compositions"
     ]);
 

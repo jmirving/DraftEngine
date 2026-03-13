@@ -38,7 +38,7 @@ describe("createRiotChampionStatsService", () => {
         puuid: "puuid-1",
         accountRouting: "americas"
       })),
-      getTopChampionMasteries: vi.fn(async () => [
+      getAllChampionMasteries: vi.fn(async () => [
         {
           championId: 99,
           championLevel: 7,
@@ -63,10 +63,9 @@ describe("createRiotChampionStatsService", () => {
       tagline: "NA1",
       accountRoutingCandidates: ["americas"]
     });
-    expect(riotApiClient.getTopChampionMasteries).toHaveBeenCalledWith({
+    expect(riotApiClient.getAllChampionMasteries).toHaveBeenCalledWith({
       puuid: "puuid-1",
-      platformRouting: "na1",
-      count: 7
+      platformRouting: "na1"
     });
     expect(stats.status).toBe("ok");
     expect(lookupChampionById).toHaveBeenCalledWith(99);
@@ -95,7 +94,7 @@ describe("createRiotChampionStatsService", () => {
       async getAccountByRiotId() {
         throw new RiotApiHttpError(429, "Rate limit");
       },
-      async getTopChampionMasteries() {
+      async getAllChampionMasteries() {
         return [];
       }
     };

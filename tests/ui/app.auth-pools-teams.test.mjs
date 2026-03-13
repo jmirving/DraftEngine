@@ -2162,36 +2162,37 @@ describe("auth + pools + team management", () => {
     expect(card.textContent).toContain("Support");
     expect(card.textContent).toContain("Utility");
 
-    const scopeButtons = Array.from(card.querySelectorAll(".champ-scope-indicator"));
-    const userScopeButton = scopeButtons.find((button) => button.textContent.trim() === "User");
-    const teamScopeButton = scopeButtons.find((button) => button.textContent.trim() === "Team");
-    const globalScopeButton = scopeButtons.find((button) => button.textContent.trim() === "Global");
+    const scopeTrigger = card.querySelector(".champ-scope-trigger");
+    expect(scopeTrigger).toBeTruthy();
+    expect(scopeTrigger.textContent.trim()).toBe("Global");
+
+    scopeTrigger.click();
+    await flush();
+
+    const scopeOptions = Array.from(card.querySelectorAll(".champ-scope-option"));
+    const userScopeButton = scopeOptions.find((button) => button.textContent.trim() === "User");
+    const teamScopeButton = scopeOptions.find((button) => button.textContent.trim() === "Team");
+    const globalScopeButton = scopeOptions.find((button) => button.textContent.trim() === "Global");
 
     expect(userScopeButton).toBeTruthy();
-    expect(userScopeButton.className).toContain("is-present");
-    expect(userScopeButton.getAttribute("aria-pressed")).toBe("false");
     expect(userScopeButton.disabled).toBe(false);
+    expect(userScopeButton.getAttribute("aria-selected")).toBe("false");
 
     expect(teamScopeButton).toBeTruthy();
-    expect(teamScopeButton.className).toContain("is-missing");
     expect(teamScopeButton.disabled).toBe(true);
+    expect(teamScopeButton.className).toContain("is-unavailable");
 
     expect(globalScopeButton).toBeTruthy();
-    expect(globalScopeButton.className).toContain("is-selected");
-    expect(globalScopeButton.getAttribute("aria-pressed")).toBe("true");
+    expect(globalScopeButton.getAttribute("aria-selected")).toBe("true");
+    expect(globalScopeButton.className).toContain("is-active");
 
     userScopeButton.click();
     await flush();
 
     const updatedCard = doc.querySelector("#explorer-results .champ-card");
-    const updatedScopeButtons = Array.from(updatedCard.querySelectorAll(".champ-scope-indicator"));
-    const updatedUserScopeButton = updatedScopeButtons.find((button) => button.textContent.trim() === "User");
-    const updatedGlobalScopeButton = updatedScopeButtons.find((button) => button.textContent.trim() === "Global");
-
-    expect(updatedUserScopeButton.className).toContain("is-selected");
-    expect(updatedUserScopeButton.getAttribute("aria-pressed")).toBe("true");
-    expect(updatedGlobalScopeButton.className).toContain("is-present");
-    expect(updatedGlobalScopeButton.getAttribute("aria-pressed")).toBe("false");
+    const updatedScopeTrigger = updatedCard.querySelector(".champ-scope-trigger");
+    expect(updatedScopeTrigger).toBeTruthy();
+    expect(updatedScopeTrigger.textContent.trim()).toBe("User");
     expect(updatedCard.textContent).toContain("Mid");
     expect(updatedCard.textContent).toContain("AP");
     expect(updatedCard.textContent).not.toContain("Utility");
@@ -2214,8 +2215,7 @@ describe("auth + pools + team management", () => {
     expect(scopeSelect).toBeTruthy();
     expect(Array.from(scopeSelect.options, (option) => option.value)).toEqual(["self"]);
     expect(scopeSelect.value).toBe("self");
-    expect(doc.querySelector("#champion-tag-editor-scope-readout").textContent).toContain("User");
-    expect(doc.querySelector("#champion-tag-editor-scope-help").textContent).toContain("Changes will update this user profile");
+    expect(doc.querySelector("#champion-tag-editor-scope-tip-text").textContent).toContain("Changes will update this user profile");
     expect(doc.querySelector("#champion-tag-editor-meta").textContent).toContain("Editing user metadata");
   });
 
@@ -3029,13 +3029,12 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".nav-avatar-link[data-tab='profile']").click();
     await flush();
 
-    expect(doc.querySelector("#profile-riot-stats-summary").textContent).toContain("Most played champion: Lux");
-    expect(doc.querySelector("#profile-riot-top-champion").textContent).toContain("Most Played Champion");
+    expect(doc.querySelector("#profile-riot-stats-summary").textContent).toBe("");
+    expect(doc.querySelector("#profile-riot-top-champion").textContent).toContain("Most Played Champions");
     expect(doc.querySelector("#profile-riot-top-champion").textContent).toContain("Lux");
+    expect(doc.querySelector("#profile-riot-top-champion").textContent).toContain("Aatrox");
     expect(doc.querySelector("#profile-riot-top-champion").textContent).toContain("Mastery 7");
-    const riotStatsText = doc.querySelector("#profile-riot-stats-list").textContent;
-    expect(riotStatsText).toContain("Aatrox");
-    expect(riotStatsText).toContain("#2");
+    expect(doc.querySelector("#profile-riot-stats-list").textContent).toBe("");
   });
 
   test("profile page shows an unavailable message when Riot stats are idle", async () => {
@@ -4199,10 +4198,10 @@ describe("auth + pools + team management", () => {
 
     doc.querySelector("#player-config-team").value = "role:Top";
     doc.querySelector("#player-config-team").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-    expect(doc.querySelectorAll("#player-config-grid .player-config-card").length).toBe(1);
+    expect(doc.querySelector("#my-champions-card-grid").textContent).toContain("No champions selected for Top");
   });
 
-  test("champion pool changes require explicit save", async () => {
+  test("champion pool changes save through the My Champions selector modal", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -4228,20 +4227,17 @@ describe("auth + pools + team management", () => {
     openMyChampions(doc);
     await flush();
 
-    const ahriCheckbox = doc.querySelector("#player-config-grid input[type='checkbox'][value='Ahri']");
-    ahriCheckbox.checked = false;
-    ahriCheckbox.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    doc.querySelector("#my-champions-add-btn").click();
     await flush();
 
-    expect(doc.querySelector("#player-config-feedback").textContent).toContain("Unsaved champion changes");
-    expect(doc.querySelector("#player-config-save-pool").disabled).toBe(false);
+    const selectedAhri = Array.from(
+      doc.querySelectorAll("#champion-selector-selected .champion-selector-option")
+    ).find((button) => button.textContent.includes("Ahri"));
+    expect(selectedAhri).toBeTruthy();
+    selectedAhri.click();
+    await flush();
 
-    const immediatePoolSync = harness.calls.filter(
-      (call) => /^\/me\/pools\/\d+\/champions/.test(call.path) && ["POST", "DELETE"].includes(call.method)
-    );
-    expect(immediatePoolSync).toHaveLength(0);
-
-    doc.querySelector("#player-config-save-pool").click();
+    doc.querySelector("#champion-selector-done").click();
     await flush();
     await flush();
 
@@ -4252,7 +4248,7 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#player-config-feedback").textContent).toContain("Saved pool updates for Mid");
   });
 
-  test("champion familiarity grade changes persist through explicit save", async () => {
+  test("champion familiarity grade changes save immediately from My Champions cards", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -4279,25 +4275,12 @@ describe("auth + pools + team management", () => {
     openMyChampions(doc);
     await flush();
 
-    const familiaritySelect = doc.querySelector(
-      "#player-config-grid .player-familiarity-row .player-familiarity-select"
-    );
+    const familiaritySelect = doc.querySelector("#my-champions-card-grid .comfort-select");
     expect(familiaritySelect).toBeTruthy();
     expect(familiaritySelect.value).toBe("B");
 
     familiaritySelect.value = "S";
     familiaritySelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
-    await flush();
-
-    expect(doc.querySelector("#player-config-feedback").textContent).toContain("Unsaved familiarity changes");
-    expect(doc.querySelector("#player-config-save-pool").disabled).toBe(false);
-
-    const immediateFamiliaritySync = harness.calls.filter(
-      (call) => /^\/me\/pools\/\d+\/champions\/\d+\/familiarity$/.test(call.path) && call.method === "PUT"
-    );
-    expect(immediateFamiliaritySync).toHaveLength(0);
-
-    doc.querySelector("#player-config-save-pool").click();
     await flush();
     await flush();
 
@@ -4309,7 +4292,7 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#player-config-feedback").textContent).toContain("Saved pool updates for Mid");
   });
 
-  test("champion pool save works when champions endpoint returns string ids", async () => {
+  test("champion selector save works when champions endpoint returns string ids", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -4336,13 +4319,17 @@ describe("auth + pools + team management", () => {
     openMyChampions(doc);
     await flush();
 
-    const ahriCheckbox = doc.querySelector("#player-config-grid input[type='checkbox'][value='Ahri']");
-    expect(ahriCheckbox).toBeTruthy();
-    ahriCheckbox.checked = true;
-    ahriCheckbox.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    doc.querySelector("#my-champions-add-btn").click();
     await flush();
 
-    doc.querySelector("#player-config-save-pool").click();
+    const availableAhri = Array.from(
+      doc.querySelectorAll("#champion-selector-available .champion-selector-option")
+    ).find((button) => button.textContent.includes("Ahri"));
+    expect(availableAhri).toBeTruthy();
+    availableAhri.click();
+    await flush();
+
+    doc.querySelector("#champion-selector-done").click();
     await flush();
     await flush();
 
