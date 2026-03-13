@@ -258,7 +258,23 @@ function normalizeDescription(rawDescription) {
   return normalized;
 }
 
-function serializeRequirement(requirement) {
+function buildIdentityDisplayName(identity) {
+  const gameName = typeof identity?.game_name === "string" ? identity.game_name.trim() : "";
+  const tagline = typeof identity?.tagline === "string" ? identity.tagline.trim() : "";
+  const email = typeof identity?.email === "string" ? identity.email.trim() : "";
+  if (gameName && tagline) {
+    return `${gameName}#${tagline}`;
+  }
+  if (gameName) {
+    return gameName;
+  }
+  if (email) {
+    return email;
+  }
+  return "";
+}
+
+function serializeRequirement(requirement, updatedByDisplayName = "") {
   return {
     id: Number(requirement.id),
     name: requirement.name,
@@ -275,12 +291,13 @@ function serializeRequirement(requirement) {
       requirement.updated_by_user_id === null || requirement.updated_by_user_id === undefined
         ? null
         : Number(requirement.updated_by_user_id),
+    updated_by_display_name: updatedByDisplayName || null,
     created_at: requirement.created_at,
     updated_at: requirement.updated_at
   };
 }
 
-function serializeComposition(composition) {
+function serializeComposition(composition, updatedByDisplayName = "") {
   return {
     id: Number(composition.id),
     name: composition.name,
@@ -300,9 +317,25 @@ function serializeComposition(composition) {
       composition.updated_by_user_id === null || composition.updated_by_user_id === undefined
         ? null
         : Number(composition.updated_by_user_id),
+    updated_by_display_name: updatedByDisplayName || null,
     created_at: composition.created_at,
     updated_at: composition.updated_at
   };
+}
+
+async function buildIdentityDisplayNameMap(usersRepository, entities) {
+  const ids = [...new Set(
+    (Array.isArray(entities) ? entities : [])
+      .map((entity) => entity?.updated_by_user_id)
+      .filter((value) => Number.isInteger(value) && value > 0)
+  )];
+  if (ids.length < 1) {
+    return new Map();
+  }
+  const identities = await usersRepository.listIdentityByIds(ids);
+  return new Map(
+    identities.map((identity) => [Number(identity.id), buildIdentityDisplayName(identity)])
+  );
 }
 
 async function assertRequirementIdsExist(compositionsCatalogRepository, requirementIds, { scope, userId, teamId }) {
@@ -441,10 +474,13 @@ export function createCompositionsCatalogRouter({
       teamReadMessage: "You must be on the selected team to read team-scoped requirements."
     });
     const requirements = await compositionsCatalogRepository.listRequirements(scopeContext);
+    const updatedByDisplayNameById = await buildIdentityDisplayNameMap(usersRepository, requirements);
     response.json({
       scope: scopeContext.scope,
       team_id: scopeContext.teamId,
-      requirements: requirements.map(serializeRequirement)
+      requirements: requirements.map((requirement) =>
+        serializeRequirement(requirement, updatedByDisplayNameById.get(requirement.updated_by_user_id) ?? "")
+      )
     });
   });
 
@@ -477,7 +513,10 @@ export function createCompositionsCatalogRouter({
         actorUserId: userId
       });
       response.status(201).json({
-        requirement: serializeRequirement(requirement)
+        requirement: serializeRequirement(
+          requirement,
+          buildIdentityDisplayName(await usersRepository.findById(userId))
+        )
       });
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -521,7 +560,10 @@ export function createCompositionsCatalogRouter({
     try {
       const requirement = await compositionsCatalogRepository.updateRequirement(requirementId, updates);
       response.json({
-        requirement: serializeRequirement(requirement)
+        requirement: serializeRequirement(
+          requirement,
+          buildIdentityDisplayName(await usersRepository.findById(userId))
+        )
       });
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -571,11 +613,14 @@ export function createCompositionsCatalogRouter({
       teamReadMessage: "You must be on the selected team to read team-scoped compositions."
     });
     const compositions = await compositionsCatalogRepository.listCompositions(scopeContext);
+    const updatedByDisplayNameById = await buildIdentityDisplayNameMap(usersRepository, compositions);
     const activeComposition = compositions.find((composition) => composition.is_active) ?? null;
     response.json({
       scope: scopeContext.scope,
       team_id: scopeContext.teamId,
-      compositions: compositions.map(serializeComposition),
+      compositions: compositions.map((composition) =>
+        serializeComposition(composition, updatedByDisplayNameById.get(composition.updated_by_user_id) ?? "")
+      ),
       active_composition_id: activeComposition ? Number(activeComposition.id) : null
     });
   });
@@ -610,7 +655,7 @@ export function createCompositionsCatalogRouter({
     const requirements = composition.requirement_ids
       .map((requirementId) => requirementById.get(Number(requirementId)) ?? null)
       .filter(Boolean)
-      .map(serializeRequirement);
+      .map((requirement) => serializeRequirement(requirement));
 
     response.json({
       scope: scopeContext.scope,
@@ -654,7 +699,10 @@ export function createCompositionsCatalogRouter({
       });
 
       response.status(201).json({
-        composition: serializeComposition(composition)
+        composition: serializeComposition(
+          composition,
+          buildIdentityDisplayName(await usersRepository.findById(userId))
+        )
       });
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -709,7 +757,10 @@ export function createCompositionsCatalogRouter({
     try {
       const composition = await compositionsCatalogRepository.updateComposition(compositionId, updates);
       response.json({
-        composition: serializeComposition(composition)
+        composition: serializeComposition(
+          composition,
+          buildIdentityDisplayName(await usersRepository.findById(userId))
+        )
       });
     } catch (error) {
       if (isUniqueViolation(error)) {

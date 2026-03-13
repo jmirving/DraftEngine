@@ -499,7 +499,7 @@ function createFetchHarness({
       }
     }
 
-    calls.push({ path, method, headers, body, isFormData });
+    calls.push({ path, method, headers, body, isFormData, query: parsedUrl.searchParams });
 
     if (path === "/champions" && method === "GET") {
       const toChampionId = (value) => (championIdsAsStrings ? String(value) : value);
@@ -1400,6 +1400,41 @@ function createFetchHarness({
       return createJsonResponse({ team: created }, 201);
     }
 
+    const memberSearchMatch = path.match(/^\/teams\/(\d+)\/member-search$/);
+    if (memberSearchMatch && method === "GET") {
+      const teamId = memberSearchMatch[1];
+      const rawQuery = String(query.get("q") ?? "").trim().toLowerCase();
+      const rosterUserIds = new Set((membersByTeam[teamId] ?? []).map((member) => Number(member.user_id)));
+      const candidateUsers = [...adminUsers]
+        .filter((user) => !rosterUserIds.has(Number(user.id)))
+        .filter((user) => {
+          if (!rawQuery) {
+            return false;
+          }
+          const haystack = [
+            user.email,
+            user.riot_id,
+            user.game_name,
+            user.tagline,
+            user.primary_role
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return haystack.includes(rawQuery);
+        })
+        .map((user) => ({
+          user_id: user.id,
+          riot_id: user.riot_id,
+          display_name: user.riot_id || user.email,
+          game_name: user.game_name ?? "",
+          tagline: user.tagline ?? "",
+          email: user.email,
+          primary_role: user.primary_role ?? null
+        }));
+      return createJsonResponse({ users: candidateUsers });
+    }
+
     const membersMatch = path.match(/^\/teams\/(\d+)\/members$/);
     if (membersMatch && method === "GET") {
       const teamId = membersMatch[1];
@@ -2268,6 +2303,7 @@ describe("auth + pools + team management", () => {
     expect(updatedRow).toBeTruthy();
     updatedRow.querySelectorAll("button")[1].click();
     await flush();
+    doc.querySelector("#confirmation-confirm").click();
     await flush();
 
     const deleteCall = harness.calls.find((call) => /^\/tags\/\d+$/.test(call.path) && call.method === "DELETE");
@@ -2318,6 +2354,9 @@ describe("auth + pools + team management", () => {
     memberRoleSelect.value = "global";
     memberRoleSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
     await flush();
+    doc.querySelector("#confirmation-confirm").click();
+    await flush();
+    await flush();
 
     const roleUpdateCall = harness.calls.find(
       (call) => call.path === "/admin/users/22/role" && call.method === "PUT"
@@ -2360,6 +2399,7 @@ describe("auth + pools + team management", () => {
     expect(deleteButton).toBeTruthy();
     deleteButton.click();
     await flush();
+    doc.querySelector("#confirmation-confirm").click();
     await flush();
 
     const deleteUserCall = harness.calls.find((call) => call.path === "/admin/users/22" && call.method === "DELETE");
@@ -2452,6 +2492,7 @@ describe("auth + pools + team management", () => {
     bulkRole.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
     doc.querySelector("#users-bulk-apply").click();
     await flush();
+    doc.querySelector("#confirmation-confirm").click();
     await flush();
     await flush();
 
@@ -2527,6 +2568,7 @@ describe("auth + pools + team management", () => {
     expect(applyButton).toBeTruthy();
     applyButton.click();
     await flush();
+    doc.querySelector("#confirmation-confirm").click();
     await flush();
 
     const roleUpdateCall = harness.calls.find(
@@ -3348,6 +3390,83 @@ describe("auth + pools + team management", () => {
     expect(addMemberCall).toBeTruthy();
     expect(addMemberCall.body.riot_id).toBe("Lead#NA1");
     expect(addMemberCall.body.user_id).toBeUndefined();
+  });
+
+  test("add member search populates Riot ID suggestions", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", gameName: "Lead", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness({
+      adminUsersSeed: [
+        {
+          id: 11,
+          email: "lead@example.com",
+          role: "admin",
+          stored_role: "admin",
+          is_owner_admin: false,
+          game_name: "Lead",
+          tagline: "NA1",
+          riot_id: "Lead#NA1"
+        },
+        {
+          id: 44,
+          email: "jungler@example.com",
+          role: "member",
+          stored_role: "member",
+          is_owner_admin: false,
+          game_name: "JungleKing",
+          tagline: "NA1",
+          riot_id: "JungleKing#NA1",
+          primary_role: "Jungle"
+        }
+      ],
+      teams: [
+        {
+          id: 1,
+          name: "Team Alpha",
+          tag: "ALPHA",
+          created_by: 11,
+          membership_role: "lead",
+          membership_team_role: "primary",
+          created_at: "2026-01-01T00:00:00.000Z"
+        }
+      ],
+      membersByTeam: {
+        "1": [
+          {
+            team_id: 1,
+            user_id: 11,
+            role: "lead",
+            team_role: "primary",
+            display_name: "Lead#NA1",
+            game_name: "Lead",
+            tagline: "NA1",
+            lane: "Top"
+          }
+        ]
+      }
+    });
+
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+    doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    await flush();
+
+    doc.querySelector("button[data-roster-quick-action='open-add-member'][data-lane='Jungle']").click();
+    const searchInput = doc.querySelector("#team-admin-add-riot-id");
+    searchInput.value = "jung";
+    searchInput.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+    await flush();
+    await flush();
+
+    const searchCall = harness.calls.find((call) => call.path === "/teams/1/member-search" && call.method === "GET");
+    expect(searchCall).toBeTruthy();
+    expect(searchCall.query?.get("q")).toBe("jung");
+    const optionValues = [...doc.querySelectorAll("#team-admin-add-riot-id-options option")].map((option) => option.value);
+    expect(optionValues).toContain("JungleKing#NA1");
   });
 
   test("member can request and cancel join request from teams workspace", async () => {

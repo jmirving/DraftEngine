@@ -711,7 +711,14 @@
                       <div class="grid grid-2">
                         <label>
                           Riot ID
-                          <input id="team-admin-add-riot-id" type="text" placeholder="GameName#NA1" />
+                          <input
+                            id="team-admin-add-riot-id"
+                            type="text"
+                            placeholder="GameName#NA1"
+                            list="team-admin-add-riot-id-options"
+                            autocomplete="off"
+                          />
+                          <datalist id="team-admin-add-riot-id-options"></datalist>
                         </label>
                         <label>
                           Role
@@ -743,7 +750,14 @@
                       <div class="grid grid-2">
                         <label>
                           Riot ID
-                          <input id="team-admin-role-riot-id" type="text" placeholder="GameName#NA1" />
+                          <input
+                            id="team-admin-role-riot-id"
+                            type="text"
+                            placeholder="GameName#NA1"
+                            list="team-admin-role-riot-id-options"
+                            autocomplete="off"
+                          />
+                          <datalist id="team-admin-role-riot-id-options"></datalist>
                         </label>
                         <label>
                           New Role
@@ -768,7 +782,14 @@
                       <div class="grid grid-2">
                         <label>
                           Riot ID
-                          <input id="team-admin-team-role-riot-id" type="text" placeholder="GameName#NA1" />
+                          <input
+                            id="team-admin-team-role-riot-id"
+                            type="text"
+                            placeholder="GameName#NA1"
+                            list="team-admin-team-role-riot-id-options"
+                            autocomplete="off"
+                          />
+                          <datalist id="team-admin-team-role-riot-id-options"></datalist>
                         </label>
                         <label>
                           New Team Role
@@ -797,7 +818,14 @@
                       <h3 id="team-admin-remove-title">Remove Member</h3>
                       <label>
                         Riot ID
-                        <input id="team-admin-remove-riot-id" type="text" placeholder="GameName#NA1" />
+                        <input
+                          id="team-admin-remove-riot-id"
+                          type="text"
+                          placeholder="GameName#NA1"
+                          list="team-admin-remove-riot-id-options"
+                          autocomplete="off"
+                        />
+                        <datalist id="team-admin-remove-riot-id-options"></datalist>
                       </label>
                       <div class="button-row">
                         <button id="team-admin-remove-member" class="ghost" type="button">Remove Member</button>
@@ -1286,11 +1314,11 @@
                 </ul>
                 <h4>Teams</h4>
                 <ul class="coming-soon-list">
-                  <li>Teams member actions require exact Riot ID entry (`GameName#Tagline`); search/autocomplete is not implemented yet (draftflow-139)</li>
+                  <li>Team Workspace invitation flows still require exact Riot ID entry (`GameName#Tagline`); add-member autocomplete is now available, but invite search is still deferred.</li>
                 </ul>
                 <h4>Champions</h4>
                 <ul class="coming-soon-list">
-                  <li>Champion review state currently tracks boolean + reviewer metadata only; audit history and review notes are deferred (draftflow-159)</li>
+                  <li>Champion review now surfaces the latest reviewer and timestamp; full review-history timelines and notes remain deferred.</li>
                   <li>Ship champion auto-ingest now that global champion-tag persistence is in place (draftflow-129)</li>
                 </ul>
                 <h4>Tags</h4>
@@ -1300,11 +1328,11 @@
                 </ul>
                 <h4>Users</h4>
                 <ul class="coming-soon-list">
-                  <li>User deletion is currently hard-delete only; restore/undo and deletion audit history are deferred (draftflow-214).</li>
+                  <li>User deletion remains permanent by design; confirmation safeguards now protect destructive admin actions, and restore/undo stays out of scope for now.</li>
                 </ul>
                 <h4>Compositions</h4>
                 <ul class="coming-soon-list">
-                  <li>Requirement definition version history and diff/audit views are deferred (draftflow-158)</li>
+                  <li>Requirement and composition workspaces now show the latest editor/timestamp, but full version history and diff views are still deferred (draftflow-158)</li>
                   <li>Promotion moderation for scoped requirement/composition changes is still deferred (draftflow-171).</li>
                 </ul>
               </div>
@@ -1565,6 +1593,23 @@
           <div class="button-row champion-selector-actions">
             <button id="champion-selector-cancel" class="ghost" type="button">Cancel</button>
             <button id="champion-selector-done" type="button">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="confirmation-modal" hidden>
+        <div
+          class="modal-content modal-compact"
+          id="confirmation-panel"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirmation-title"
+        >
+          <h3 id="confirmation-title">Confirm Action</h3>
+          <p id="confirmation-message" class="meta"></p>
+          <div class="button-row">
+            <button id="confirmation-cancel" class="ghost" type="button">Cancel</button>
+            <button id="confirmation-confirm" type="button">Confirm</button>
           </div>
         </div>
       </div>

@@ -353,6 +353,20 @@ function serializeMember(member) {
   };
 }
 
+function serializeMemberSearchCandidate(user) {
+  const gameName = typeof user?.game_name === "string" ? user.game_name.trim() : "";
+  const tagline = typeof user?.tagline === "string" ? user.tagline.trim() : "";
+  return {
+    user_id: Number(user.id),
+    riot_id: gameName && tagline ? `${gameName}#${tagline}` : "",
+    display_name: buildIdentityDisplayName(user),
+    game_name: gameName,
+    tagline,
+    email: user.email ?? "",
+    primary_role: user.primary_role ?? null
+  };
+}
+
 function serializeJoinRequest(request) {
   const requester = request.requester ?? {
     user_id: request.requester_user_id,
@@ -639,6 +653,27 @@ export function createTeamsRouter({ teamsRepository, usersRepository, requireAut
     const members = await teamsRepository.listMembers(teamId);
     response.json({
       members: members.map(serializeMember)
+    });
+  });
+
+  router.get("/teams/:id/member-search", async (request, response) => {
+    const userId = request.user.userId;
+    const teamId = parsePositiveInteger(request.params.id, "id");
+    const rawQuery = typeof request.query.q === "string" ? request.query.q.trim() : "";
+
+    await requireTeamLeadOrAdmin(teamId, userId, teamsRepository, usersRepository);
+    if (rawQuery.length < 2) {
+      response.json({ users: [] });
+      return;
+    }
+
+    const users = await usersRepository.searchUsersForTeamMemberActions({
+      query: rawQuery,
+      teamId,
+      limit: 8
+    });
+    response.json({
+      users: users.map(serializeMemberSearchCandidate)
     });
   });
 

@@ -330,6 +330,41 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
       return [...state.users];
     },
 
+    async listIdentityByIds(userIds) {
+      const ids = new Set(
+        (Array.isArray(userIds) ? userIds : [])
+          .map((value) => Number.parseInt(String(value), 10))
+          .filter((value) => Number.isInteger(value) && value > 0)
+      );
+      return state.users.filter((candidate) => ids.has(candidate.id));
+    },
+
+    async searchUsersForTeamMemberActions({ query, teamId, limit = 8 }) {
+      const normalizedQuery = typeof query === "string" ? query.trim().toLowerCase() : "";
+      const normalizedTeamId = Number.parseInt(String(teamId), 10);
+      const rosterUserIds = new Set(
+        state.teamMembers
+          .filter((membership) => membership.team_id === normalizedTeamId)
+          .map((membership) => membership.user_id)
+      );
+      return state.users
+        .filter((candidate) => !rosterUserIds.has(candidate.id))
+        .filter((candidate) => {
+          const haystack = [
+            candidate.email,
+            candidate.game_name,
+            candidate.tagline,
+            `${candidate.game_name ?? ""}#${candidate.tagline ?? ""}`,
+            candidate.primary_role
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return normalizedQuery.length > 0 && haystack.includes(normalizedQuery);
+        })
+        .slice(0, Math.max(1, Number.parseInt(String(limit), 10) || 8));
+    },
+
     async updateUserRole(userId, role) {
       const user = state.users.find((candidate) => candidate.id === userId) ?? null;
       if (!user) {
@@ -534,6 +569,8 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
         reviewedAt: reviewed === true ? "2026-01-01T00:00:00.000Z" : null
       };
       champion.reviewed = reviewed === true;
+      champion.reviewed_by_user_id = reviewed === true ? reviewedByUserId : null;
+      champion.reviewed_at = reviewed === true ? "2026-01-01T00:00:00.000Z" : null;
       return champion;
     }
   };
@@ -2004,6 +2041,7 @@ describe("API routes", () => {
       .send({ tag_ids: [2], reviewed: true });
     expect(globalEditorCanWriteGlobal.status).toBe(200);
     expect(globalEditorCanWriteGlobal.body.reviewed).toBe(true);
+    expect(globalEditorCanWriteGlobal.body.reviewed_by_display_name).toBe("GlobalEditor#NA1");
 
     const selfScopeResponse = await request(app)
       .put("/champions/1/tags")
@@ -2034,11 +2072,13 @@ describe("API routes", () => {
     expect(globalRead.status).toBe(200);
     expect(globalRead.body.tag_ids).toEqual([1, 2]);
     expect(globalRead.body.reviewed).toBe(true);
+    expect(globalRead.body.reviewed_by_display_name).toBe("GlobalEditor#NA1");
 
     const listAfterGlobalSave = await request(app).get("/champions");
     expect(listAfterGlobalSave.status).toBe(200);
     const savedChampion = listAfterGlobalSave.body.champions.find((champion) => champion.id === 1);
     expect(savedChampion.tagIds).toEqual([1, 2]);
+    expect(savedChampion.reviewed_by_display_name).toBe("GlobalEditor#NA1");
 
     const promotionNotSupported = await request(app)
       .post("/champions/1/tags/promotion-requests")
@@ -2623,6 +2663,7 @@ describe("API routes", () => {
     expect(adminCreateRequirement.body.requirement.rules).toHaveLength(3);
     expect(adminCreateRequirement.body.requirement.rules[1].clauseJoiner).toBe("and");
     expect(adminCreateRequirement.body.requirement.rules[1].separateFrom).toEqual(["clause-disengage-pair"]);
+    expect(adminCreateRequirement.body.requirement.updated_by_display_name).toBe("LeadPlayer#NA1");
 
     const adminUpdateRequirement = await request(app)
       .put(`/requirements/${adminCreateRequirement.body.requirement.id}`)
@@ -2632,6 +2673,7 @@ describe("API routes", () => {
       });
     expect(adminUpdateRequirement.status).toBe(200);
     expect(adminUpdateRequirement.body.requirement.definition).toContain("peel");
+    expect(adminUpdateRequirement.body.requirement.updated_by_display_name).toBe("LeadPlayer#NA1");
 
     const listCompositions = await request(app)
       .get("/compositions")
@@ -2654,6 +2696,7 @@ describe("API routes", () => {
       adminCreateRequirement.body.requirement.id
     );
     expect(adminCreateComposition.body.composition.is_active).toBe(true);
+    expect(adminCreateComposition.body.composition.updated_by_display_name).toBe("LeadPlayer#NA1");
 
     const globalCreateComposition = await request(app)
       .post("/compositions")
@@ -2682,6 +2725,7 @@ describe("API routes", () => {
       .get("/compositions")
       .set("Authorization", buildAuthHeader(1, config));
     expect(listCompositionsAfterDelete.status).toBe(200);
+    expect(listCompositionsAfterDelete.body.compositions[0].updated_by_display_name).toBeTruthy();
     const siege = listCompositionsAfterDelete.body.compositions.find(
       (composition) => composition.name === "Siege Setup"
     );
@@ -3041,6 +3085,12 @@ describe("API routes", () => {
       .set("Authorization", memberAuth);
     expect(memberCanList.status).toBe(200);
     expect(memberCanList.body.members.length).toBeGreaterThanOrEqual(2);
+
+    const leadSearchCandidates = await request(app)
+      .get("/teams/1/member-search?q=global")
+      .set("Authorization", leadAuth);
+    expect(leadSearchCandidates.status).toBe(200);
+    expect(leadSearchCandidates.body.users.map((user) => user.riot_id)).toContain("GlobalEditor#NA1");
 
     const outsiderCannotList = await request(app)
       .get("/teams/1/members")

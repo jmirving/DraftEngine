@@ -134,6 +134,22 @@ function normalizeTagDefinition(rawValue) {
   return normalized;
 }
 
+function buildIdentityDisplayName(identity) {
+  const gameName = typeof identity?.game_name === "string" ? identity.game_name.trim() : "";
+  const tagline = typeof identity?.tagline === "string" ? identity.tagline.trim() : "";
+  const email = typeof identity?.email === "string" ? identity.email.trim() : "";
+  if (gameName && tagline) {
+    return `${gameName}#${tagline}`;
+  }
+  if (gameName) {
+    return gameName;
+  }
+  if (email) {
+    return email;
+  }
+  return "";
+}
+
 function normalizeMetadataRoleProfiles(rawValue, roles) {
   if (!rawValue || typeof rawValue !== "object" || Array.isArray(rawValue)) {
     throw badRequest("Expected 'role_profiles' to be an object keyed by role.");
@@ -186,9 +202,25 @@ export function createChampionsRouter({
 
   router.get("/champions", optionalAuth, async (request, response) => {
     const champions = await championsRepository.listChampions();
+    const reviewerIds = [...new Set(
+      champions
+        .map((champion) => champion.reviewed_by_user_id)
+        .filter((value) => Number.isInteger(value) && value > 0)
+    )];
+    const reviewers = reviewerIds.length > 0
+      ? await usersRepository.listIdentityByIds(reviewerIds)
+      : [];
+    const reviewerDisplayNameById = new Map(
+      reviewers.map((reviewer) => [Number(reviewer.id), buildIdentityDisplayName(reviewer)])
+    );
     const userId = request.user?.userId;
     if (!Number.isInteger(userId)) {
-      response.json({ champions });
+      response.json({
+        champions: champions.map((champion) => ({
+          ...champion,
+          reviewed_by_display_name: reviewerDisplayNameById.get(champion.reviewed_by_user_id) ?? null
+        }))
+      });
       return;
     }
 
@@ -206,6 +238,7 @@ export function createChampionsRouter({
     response.json({
       champions: champions.map((champion) => ({
         ...champion,
+        reviewed_by_display_name: reviewerDisplayNameById.get(champion.reviewed_by_user_id) ?? null,
         metadata_scopes: metadataScopeFlagsByChampionId[champion.id] ?? {
           self: false,
           team: false,
@@ -221,7 +254,15 @@ export function createChampionsRouter({
     if (!champion) {
       throw notFound("Champion not found.");
     }
-    response.json({ champion });
+    response.json({
+      champion: {
+        ...champion,
+        reviewed_by_display_name:
+          champion.reviewed_by_user_id
+            ? buildIdentityDisplayName(await usersRepository.findById(champion.reviewed_by_user_id))
+            : null
+      }
+    });
   });
 
   router.get("/tags", async (_request, response) => {
@@ -367,7 +408,13 @@ export function createChampionsRouter({
       scope,
       team_id: teamId,
       tag_ids: tagIds,
-      reviewed: champion.reviewed === true
+      reviewed: champion.reviewed === true,
+      reviewed_by_user_id: champion.reviewed_by_user_id ?? null,
+      reviewed_by_display_name:
+        champion.reviewed_by_user_id
+          ? buildIdentityDisplayName(await usersRepository.findById(champion.reviewed_by_user_id))
+          : null,
+      reviewed_at: champion.reviewed_at ?? null
     });
   });
 
@@ -438,7 +485,13 @@ export function createChampionsRouter({
       scope,
       team_id: teamId,
       tag_ids: tagIds,
-      reviewed: champion?.reviewed === true
+      reviewed: champion?.reviewed === true,
+      reviewed_by_user_id: champion?.reviewed_by_user_id ?? null,
+      reviewed_by_display_name:
+        champion?.reviewed_by_user_id
+          ? buildIdentityDisplayName(await usersRepository.findById(champion.reviewed_by_user_id))
+          : null,
+      reviewed_at: champion?.reviewed_at ?? null
     });
   });
 

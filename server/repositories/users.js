@@ -77,6 +77,68 @@ export function createUsersRepository(pool) {
       return result.rows;
     },
 
+    async listIdentityByIds(userIds) {
+      const normalizedIds = Array.isArray(userIds)
+        ? [...new Set(userIds.map((value) => Number.parseInt(String(value), 10)).filter((value) => Number.isInteger(value) && value > 0))]
+        : [];
+      if (normalizedIds.length < 1) {
+        return [];
+      }
+
+      const result = await pool.query(
+        `
+          SELECT id, email, game_name, tagline
+          FROM users
+          WHERE id = ANY($1::int[])
+        `,
+        [normalizedIds]
+      );
+      return result.rows;
+    },
+
+    async searchUsersForTeamMemberActions({ query, teamId, limit = 8 }) {
+      const normalizedQuery = typeof query === "string" ? query.trim().toLowerCase() : "";
+      const normalizedTeamId = Number.parseInt(String(teamId), 10);
+      const normalizedLimit = Number.parseInt(String(limit), 10);
+      if (!normalizedQuery || !Number.isInteger(normalizedTeamId) || normalizedTeamId <= 0) {
+        return [];
+      }
+
+      const wildcard = `%${normalizedQuery}%`;
+      const safeLimit = Number.isInteger(normalizedLimit) && normalizedLimit > 0
+        ? Math.min(normalizedLimit, 12)
+        : 8;
+      const result = await pool.query(
+        `
+          SELECT u.id,
+                 u.email,
+                 u.game_name,
+                 u.tagline,
+                 u.primary_role
+          FROM users u
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM team_members tm
+            WHERE tm.team_id = $2
+              AND tm.user_id = u.id
+          )
+            AND (
+              lower(u.email) LIKE $1
+              OR lower(coalesce(u.game_name, '')) LIKE $1
+              OR lower(coalesce(u.tagline, '')) LIKE $1
+              OR lower(concat_ws('#', coalesce(u.game_name, ''), coalesce(u.tagline, ''))) LIKE $1
+            )
+          ORDER BY lower(coalesce(u.game_name, '')) ASC,
+                   lower(coalesce(u.tagline, '')) ASC,
+                   lower(u.email) ASC,
+                   u.id ASC
+          LIMIT $3
+        `,
+        [wildcard, normalizedTeamId, safeLimit]
+      );
+      return result.rows;
+    },
+
     async updateUserRole(userId, role) {
       const result = await pool.query(
         `

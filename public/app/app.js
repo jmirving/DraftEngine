@@ -79,6 +79,7 @@ const DEFAULT_MEMBER_ROLE = "member";
 const MEMBER_ROLE_OPTIONS = Object.freeze(["lead", "member"]);
 const DEFAULT_TEAM_MEMBER_TYPE = "substitute";
 const TEAM_MEMBER_TYPE_OPTIONS = Object.freeze(["primary", "substitute"]);
+const TEAM_MEMBER_SEARCH_MIN_LENGTH = 2;
 const CHAMPION_TAG_SCOPES = Object.freeze(["self", "team", "all"]);
 const CHAMPION_EDITOR_TAB_COMPOSITION = "composition";
 const CHAMPION_EDITOR_TAB_ROLES = "roles";
@@ -484,6 +485,16 @@ function createEmptyIssueReportingState() {
   };
 }
 
+function createEmptyConfirmationState() {
+  return {
+    isOpen: false,
+    title: "Confirm Action",
+    message: "",
+    confirmLabel: "Confirm",
+    cancelLabel: "Cancel"
+  };
+}
+
 function createInitialState() {
   return {
     data: null,
@@ -535,6 +546,7 @@ function createInitialState() {
       isLoadingTeamInvitations: false,
       isLoadingUserInvitations: false,
       issueReporting: createEmptyIssueReportingState(),
+      confirmation: createEmptyConfirmationState(),
       selectedTeamId: "",
       selectedDiscoverTeamId: "",
       isCreatingTeam: false,
@@ -572,6 +584,9 @@ function createInitialState() {
       savingUserRoleId: null,
       savingUserRiotIdId: null,
       deletingUserId: null,
+      teamAdminAddMemberSearchQuery: "",
+      teamAdminAddMemberSearchResults: [],
+      isLoadingTeamAdminAddMemberSearch: false,
       requirementDefinitions: [],
       selectedRequirementDefinitionId: null,
       requirementDefinitionDraft: createEmptyRequirementDefinitionDraft(),
@@ -952,19 +967,23 @@ function createElements() {
     teamAdminMembers: runtimeDocument.querySelector("#team-admin-members"),
     teamAdminAddTitle: runtimeDocument.querySelector("#team-admin-add-title"),
     teamAdminAddRiotId: runtimeDocument.querySelector("#team-admin-add-riot-id"),
+    teamAdminAddRiotIdOptions: runtimeDocument.querySelector("#team-admin-add-riot-id-options"),
     teamAdminAddRole: runtimeDocument.querySelector("#team-admin-add-role"),
     teamAdminAddTeamRole: runtimeDocument.querySelector("#team-admin-add-team-role"),
     teamAdminAddMember: runtimeDocument.querySelector("#team-admin-add-member"),
     teamAdminUpdateRoleTitle: runtimeDocument.querySelector("#team-admin-update-role-title"),
     teamAdminRoleRiotId: runtimeDocument.querySelector("#team-admin-role-riot-id"),
+    teamAdminRoleRiotIdOptions: runtimeDocument.querySelector("#team-admin-role-riot-id-options"),
     teamAdminRole: runtimeDocument.querySelector("#team-admin-role"),
     teamAdminUpdateRole: runtimeDocument.querySelector("#team-admin-update-role"),
     teamAdminUpdateTeamRoleTitle: runtimeDocument.querySelector("#team-admin-update-team-role-title"),
     teamAdminTeamRoleRiotId: runtimeDocument.querySelector("#team-admin-team-role-riot-id"),
+    teamAdminTeamRoleRiotIdOptions: runtimeDocument.querySelector("#team-admin-team-role-riot-id-options"),
     teamAdminTeamRole: runtimeDocument.querySelector("#team-admin-team-role"),
     teamAdminUpdateTeamRole: runtimeDocument.querySelector("#team-admin-update-team-role"),
     teamAdminRemoveTitle: runtimeDocument.querySelector("#team-admin-remove-title"),
     teamAdminRemoveRiotId: runtimeDocument.querySelector("#team-admin-remove-riot-id"),
+    teamAdminRemoveRiotIdOptions: runtimeDocument.querySelector("#team-admin-remove-riot-id-options"),
     teamAdminRemoveMember: runtimeDocument.querySelector("#team-admin-remove-member"),
     teamManageCancelButtons: Array.from(runtimeDocument.querySelectorAll("button[data-team-manage-cancel]")),
     teamAdminFeedback: runtimeDocument.querySelector("#team-admin-feedback"),
@@ -1028,6 +1047,12 @@ function createElements() {
     championSelectorClear: runtimeDocument.querySelector("#champion-selector-clear"),
     championSelectorCancel: runtimeDocument.querySelector("#champion-selector-cancel"),
     championSelectorDone: runtimeDocument.querySelector("#champion-selector-done"),
+    confirmationModal: runtimeDocument.querySelector("#confirmation-modal"),
+    confirmationPanel: runtimeDocument.querySelector("#confirmation-panel"),
+    confirmationTitle: runtimeDocument.querySelector("#confirmation-title"),
+    confirmationMessage: runtimeDocument.querySelector("#confirmation-message"),
+    confirmationCancel: runtimeDocument.querySelector("#confirmation-cancel"),
+    confirmationConfirm: runtimeDocument.querySelector("#confirmation-confirm"),
     logoLightbox: runtimeDocument.querySelector("#logo-lightbox"),
     logoLightboxClose: runtimeDocument.querySelector("#logo-lightbox-close"),
     logoLightboxImage: runtimeDocument.querySelector("#logo-lightbox-image"),
@@ -1037,6 +1062,8 @@ function createElements() {
 
 let state = null;
 let elements = null;
+let _pendingConfirmationResolver = null;
+let _teamAdminAddMemberSearchRequestId = 0;
 
 const multiSelectControls = {};
 const checkboxMultiDetailsRegistry = new Set();
@@ -1174,6 +1201,81 @@ function formatTimestampMeta(value) {
     return "";
   }
   return asDate.toLocaleString();
+}
+
+function buildIdentityLabel(identity, fallback = "") {
+  const gameName =
+    typeof identity?.game_name === "string"
+      ? identity.game_name.trim()
+      : typeof identity?.gameName === "string"
+        ? identity.gameName.trim()
+        : "";
+  const tagline = typeof identity?.tagline === "string" ? identity.tagline.trim() : "";
+  const riotId =
+    typeof identity?.riot_id === "string"
+      ? identity.riot_id.trim()
+      : (gameName && tagline ? `${gameName}#${tagline}` : "");
+  if (riotId) {
+    return riotId;
+  }
+  const email = typeof identity?.email === "string" ? identity.email.trim() : "";
+  if (email) {
+    return email;
+  }
+  return fallback;
+}
+
+function resolveUserDisplayLabel(userId, displayName = "") {
+  const normalizedDisplayName = typeof displayName === "string" ? displayName.trim() : "";
+  if (normalizedDisplayName) {
+    return normalizedDisplayName;
+  }
+  if (Number.isInteger(userId) && state?.auth?.user?.id === userId) {
+    return buildIdentityLabel(state.auth.user, state.auth.user.email ?? `User ${userId}`);
+  }
+  const knownUser = Array.isArray(state?.api?.users)
+    ? state.api.users.find((candidate) => candidate.id === userId)
+    : null;
+  if (knownUser) {
+    return buildIdentityLabel(knownUser, knownUser.email ?? `User ${userId}`);
+  }
+  return Number.isInteger(userId) ? `User ${userId}` : "Unknown user";
+}
+
+function formatAuditMeta(prefix, userId, displayName, timestamp) {
+  const actorLabel = resolveUserDisplayLabel(userId, displayName);
+  const formattedTimestamp = formatTimestampMeta(timestamp);
+  if (!actorLabel && !formattedTimestamp) {
+    return "";
+  }
+  if (actorLabel && formattedTimestamp) {
+    return `${prefix} by ${actorLabel} on ${formattedTimestamp}`;
+  }
+  if (actorLabel) {
+    return `${prefix} by ${actorLabel}`;
+  }
+  return `${prefix} on ${formattedTimestamp}`;
+}
+
+function replaceDatalistOptions(datalist, options) {
+  if (!datalist) {
+    return;
+  }
+  datalist.innerHTML = "";
+  for (const option of Array.isArray(options) ? options : []) {
+    const value = typeof option?.value === "string" ? option.value.trim() : "";
+    if (!value) {
+      continue;
+    }
+    const entry = runtimeDocument.createElement("option");
+    entry.value = value;
+    const label = typeof option?.label === "string" ? option.label.trim() : "";
+    if (label) {
+      entry.label = label;
+      entry.textContent = label;
+    }
+    datalist.append(entry);
+  }
 }
 
 function setChampionCoreFeedback(message) {
@@ -2504,6 +2606,7 @@ function clearAuthSession(feedback = "") {
     lastIssueUrl: "",
     sourceContext: null
   };
+  state.api.confirmation = createEmptyConfirmationState();
   state.api.usersSearch = "";
   state.api.usersRoleFilter = "";
   state.api.bulkUserRole = "member";
@@ -2513,6 +2616,11 @@ function clearAuthSession(feedback = "") {
   state.api.isLoadingAuthorizationMatrix = false;
   state.api.savingUserRoleId = null;
   state.api.savingUserRiotIdId = null;
+  state.api.deletingUserId = null;
+  state.api.teamAdminAddMemberSearchQuery = "";
+  state.api.teamAdminAddMemberSearchResults = [];
+  state.api.isLoadingTeamAdminAddMemberSearch = false;
+  _pendingConfirmationResolver = null;
   state.api.requirementDefinitions = [];
   state.api.selectedRequirementDefinitionId = null;
   state.api.requirementDefinitionDraft = createEmptyRequirementDefinitionDraft();
@@ -2531,6 +2639,7 @@ function clearAuthSession(feedback = "") {
   clearTagsManagerState();
   resetIssueReportForm({ preserveIdentity: false });
   setIssueReportFeedback("");
+  renderConfirmationModal();
   updateBodyModalState();
   setUsersFeedback("");
   setChampionCoreFeedback("");
@@ -3508,6 +3617,19 @@ function buildChampionFromApiRecord(rawChampion, index) {
 
   const tagIds = normalizeChampionTagIdArray(rawChampion.tagIds ?? rawChampion.tag_ids);
   const reviewed = rawChampion.reviewed === true || metadata.reviewed === true;
+  const reviewedByUserId = normalizeApiEntityId(rawChampion.reviewed_by_user_id ?? rawChampion.reviewedByUserId);
+  const reviewedByDisplayName =
+    typeof rawChampion.reviewed_by_display_name === "string"
+      ? rawChampion.reviewed_by_display_name.trim()
+      : typeof rawChampion.reviewedByDisplayName === "string"
+        ? rawChampion.reviewedByDisplayName.trim()
+        : "";
+  const reviewedAt =
+    typeof rawChampion.reviewed_at === "string"
+      ? rawChampion.reviewed_at
+      : typeof rawChampion.reviewedAt === "string"
+        ? rawChampion.reviewedAt
+        : "";
 
   return {
     id: normalizeApiEntityId(rawChampion.id),
@@ -3519,6 +3641,9 @@ function buildChampionFromApiRecord(rawChampion, index) {
     tags: deriveApiTagsFromTagIds(tagIds),
     tagIds,
     reviewed,
+    reviewed_by_user_id: reviewedByUserId,
+    reviewed_by_display_name: reviewedByDisplayName,
+    reviewed_at: reviewedAt,
     metadataScopes: normalizeChampionMetadataScopes(rawChampion.metadataScopes ?? rawChampion.metadata_scopes)
   };
 }
@@ -3955,6 +4080,16 @@ async function deleteManagedTag(tagId) {
   if (!Number.isInteger(tagId) || tagId <= 0) {
     return;
   }
+  const tag = getManagedTagById(tagId);
+  const tagLabel = tag?.name ?? `tag #${tagId}`;
+  const confirmed = await confirmAction({
+    title: "Confirm Tag Deletion",
+    message: `Delete global tag '${tagLabel}'? This removes it from the shared catalog.`,
+    confirmLabel: "Delete Tag"
+  });
+  if (!confirmed) {
+    return;
+  }
 
   state.api.isSavingTagCatalog = true;
   setTagsManageFeedback("Deleting tag...");
@@ -4204,8 +4339,69 @@ function updateBodyModalState() {
   if (!runtimeDocument?.body) {
     return;
   }
-  const issueModalOpen = state?.api?.issueReporting?.isOpen === true;
-  runtimeDocument.body.classList.toggle("has-modal-open", issueModalOpen);
+  const hasOpenModal =
+    state?.api?.issueReporting?.isOpen === true ||
+    state?.api?.confirmation?.isOpen === true;
+  runtimeDocument.body.classList.toggle("has-modal-open", hasOpenModal);
+}
+
+function renderConfirmationModal() {
+  if (!elements.confirmationModal) {
+    return;
+  }
+  const confirmation = state?.api?.confirmation ?? createEmptyConfirmationState();
+  elements.confirmationModal.hidden = confirmation.isOpen !== true;
+  if (elements.confirmationTitle) {
+    elements.confirmationTitle.textContent = confirmation.title || "Confirm Action";
+  }
+  if (elements.confirmationMessage) {
+    elements.confirmationMessage.textContent = confirmation.message || "";
+  }
+  if (elements.confirmationCancel) {
+    elements.confirmationCancel.textContent = confirmation.cancelLabel || "Cancel";
+  }
+  if (elements.confirmationConfirm) {
+    elements.confirmationConfirm.textContent = confirmation.confirmLabel || "Confirm";
+  }
+  updateBodyModalState();
+}
+
+function settleConfirmation(result) {
+  const resolver = _pendingConfirmationResolver;
+  _pendingConfirmationResolver = null;
+  state.api.confirmation = createEmptyConfirmationState();
+  renderConfirmationModal();
+  if (typeof resolver === "function") {
+    resolver(result === true);
+  }
+}
+
+function confirmAction({
+  title = "Confirm Action",
+  message = "Are you sure you want to continue?",
+  confirmLabel = "Confirm",
+  cancelLabel = "Cancel"
+} = {}) {
+  if (!elements.confirmationModal) {
+    return Promise.resolve(runtimeWindow.confirm(message));
+  }
+  if (_pendingConfirmationResolver) {
+    settleConfirmation(false);
+  }
+  state.api.confirmation = {
+    isOpen: true,
+    title,
+    message,
+    confirmLabel,
+    cancelLabel
+  };
+  renderConfirmationModal();
+  runtimeWindow.setTimeout(() => {
+    elements.confirmationConfirm?.focus();
+  }, 0);
+  return new Promise((resolve) => {
+    _pendingConfirmationResolver = resolve;
+  });
 }
 
 function getAuthenticatedReporterGameName() {
@@ -4840,6 +5036,26 @@ async function saveUserRoleFromWorkspace(userId, role) {
     return;
   }
   const normalizedRole = normalizeApiUserRole(role);
+  const existingUser = Array.isArray(state.api.users)
+    ? state.api.users.find((candidate) => candidate.id === userId) ?? null
+    : null;
+  const currentRole = normalizeApiUserRole(existingUser?.role);
+  const currentStoredRole = normalizeApiUserRole(existingUser?.stored_role ?? existingUser?.role);
+  if (currentRole === normalizedRole && currentStoredRole === normalizedRole) {
+    return;
+  }
+  const userLabel = buildIdentityLabel(existingUser, existingUser?.email ?? `user #${userId}`);
+  const confirmed = await confirmAction({
+    title: "Confirm Permission Change",
+    message: `Change ${userLabel} permissions from ${currentRole} to ${normalizedRole}?`,
+    confirmLabel: "Apply Permission"
+  });
+  if (!confirmed) {
+    if (elements.usersList) {
+      renderUsersWorkspace();
+    }
+    return;
+  }
   state.api.savingUserRoleId = userId;
   setUsersFeedback("Saving user permissions...");
   renderUsersWorkspace();
@@ -4877,6 +5093,14 @@ async function applyBulkUserRoleFromWorkspace() {
   }
 
   const normalizedRole = normalizeApiUserRole(state.api.bulkUserRole);
+  const confirmed = await confirmAction({
+    title: "Confirm Bulk Permission Change",
+    message: `Apply ${normalizedRole} to ${selectedIds.length} selected user${selectedIds.length === 1 ? "" : "s"}?`,
+    confirmLabel: "Apply Permissions"
+  });
+  if (!confirmed) {
+    return;
+  }
   state.api.isBulkSavingUserRoles = true;
   setUsersFeedback(`Applying '${normalizedRole}' to ${selectedIds.length} user${selectedIds.length === 1 ? "" : "s"}...`);
   renderUsersWorkspace();
@@ -4962,6 +5186,14 @@ async function deleteUserFromWorkspace(userId, email) {
   }
 
   const userLabel = typeof email === "string" && email.trim() !== "" ? email.trim() : `user #${userId}`;
+  const confirmed = await confirmAction({
+    title: "Confirm User Deletion",
+    message: `Delete ${userLabel}? This permanently removes the account and dependent records.`,
+    confirmLabel: "Delete User"
+  });
+  if (!confirmed) {
+    return;
+  }
   state.api.deletingUserId = userId;
   setUsersFeedback(`Deleting ${userLabel}...`);
   renderUsersWorkspace();
@@ -5728,7 +5960,11 @@ function normalizeRequirementDefinition(rawRequirement) {
     definition,
     rules,
     scope: normalizeChampionTagScope(rawRequirement.scope),
-    team_id: normalizeTeamEntityId(rawRequirement.team_id)
+    team_id: normalizeTeamEntityId(rawRequirement.team_id),
+    updated_by_user_id: normalizeApiEntityId(rawRequirement.updated_by_user_id),
+    updated_by_display_name:
+      typeof rawRequirement.updated_by_display_name === "string" ? rawRequirement.updated_by_display_name.trim() : "",
+    updated_at: typeof rawRequirement.updated_at === "string" ? rawRequirement.updated_at : ""
   };
 }
 
@@ -5754,7 +5990,11 @@ function normalizeCompositionBundle(rawComposition) {
     requirement_ids: requirementIds,
     is_active: rawComposition.is_active === true,
     scope: normalizeChampionTagScope(rawComposition.scope),
-    team_id: normalizeTeamEntityId(rawComposition.team_id)
+    team_id: normalizeTeamEntityId(rawComposition.team_id),
+    updated_by_user_id: normalizeApiEntityId(rawComposition.updated_by_user_id),
+    updated_by_display_name:
+      typeof rawComposition.updated_by_display_name === "string" ? rawComposition.updated_by_display_name.trim() : "",
+    updated_at: typeof rawComposition.updated_at === "string" ? rawComposition.updated_at : ""
   };
 }
 
@@ -6919,8 +7159,17 @@ function renderRequirementDefinitionsWorkspace() {
     const ruleCount = runtimeDocument.createElement("p");
     ruleCount.className = "meta";
     ruleCount.textContent = `${requirement.rules.length} rule clause${requirement.rules.length === 1 ? "" : "s"}.`;
+    const audit = formatAuditMeta(
+      "Last edited",
+      requirement.updated_by_user_id,
+      requirement.updated_by_display_name,
+      requirement.updated_at
+    );
 
     card.append(title, definition, ruleCount);
+    if (audit) {
+      card.append(createMetaParagraph(audit));
+    }
     if (canWriteCompositionCatalogScope()) {
       const edit = runtimeDocument.createElement("button");
       edit.type = "button";
@@ -7043,8 +7292,17 @@ function renderCompositionBundlesWorkspace() {
     const activeLabel = runtimeDocument.createElement("p");
     activeLabel.className = "meta";
     activeLabel.textContent = composition.is_active ? "Active composition" : "Inactive composition";
+    const audit = formatAuditMeta(
+      "Last edited",
+      composition.updated_by_user_id,
+      composition.updated_by_display_name,
+      composition.updated_at
+    );
 
     card.append(title, description, included, activeLabel);
+    if (audit) {
+      card.append(createMetaParagraph(audit));
+    }
     if (canWriteCompositionCatalogScope()) {
       const edit = runtimeDocument.createElement("button");
       edit.type = "button";
@@ -7239,6 +7497,14 @@ async function deleteRequirementDefinitionFromWorkspace() {
     setRequirementsFeedback("Select a requirement first.");
     return;
   }
+  const confirmed = await confirmAction({
+    title: "Confirm Requirement Deletion",
+    message: `Delete requirement '${selectedRequirement.name}'? This also removes it from any compositions that include it.`,
+    confirmLabel: "Delete Requirement"
+  });
+  if (!confirmed) {
+    return;
+  }
 
   state.api.isSavingRequirementDefinition = true;
   setRequirementsFeedback("Deleting requirement...");
@@ -7322,6 +7588,14 @@ async function deleteCompositionBundleFromWorkspace() {
   const selectedComposition = getSelectedCompositionBundle();
   if (!selectedComposition) {
     setCompositionsFeedback("Select a composition first.");
+    return;
+  }
+  const confirmed = await confirmAction({
+    title: "Confirm Composition Deletion",
+    message: `Delete composition '${selectedComposition.name}'?`,
+    confirmLabel: "Delete Composition"
+  });
+  if (!confirmed) {
     return;
   }
 
@@ -7842,7 +8116,15 @@ function renderChampionTagEditor() {
   const scopeMeta = state.api.championMetadataHasCustom
     ? `Editing ${scopeLabel.toLowerCase()} metadata${teamLabel ? ` for ${teamLabel}` : ""}.`
     : `${scopeLabel}${teamLabel ? ` (${teamLabel})` : ""} is currently using global metadata. Save to create a custom profile.`;
-  setChampionTagEditorMeta(scopeMeta);
+  const reviewMeta = champion?.reviewed === true
+    ? formatAuditMeta(
+        "Last reviewed",
+        champion.reviewed_by_user_id,
+        champion.reviewed_by_display_name,
+        champion.reviewed_at
+      )
+    : "";
+  setChampionTagEditorMeta(reviewMeta ? `${scopeMeta} ${reviewMeta}` : scopeMeta);
   if (elements.championTagEditorScopeTipText) {
     elements.championTagEditorScopeTipText.textContent = state.api.championMetadataHasCustom
       ? `Changes will update this ${scopeLabel.toLowerCase()} profile${teamLabel ? ` for ${teamLabel}` : ""}.`
@@ -8120,6 +8402,10 @@ async function saveChampionCompositionTab(championId) {
       champion.tags = deriveApiTagsFromTagIds(champion.tagIds);
     }
     champion.reviewed = response?.reviewed === true;
+    champion.reviewed_by_user_id = normalizeApiEntityId(response?.reviewed_by_user_id);
+    champion.reviewed_by_display_name =
+      typeof response?.reviewed_by_display_name === "string" ? response.reviewed_by_display_name.trim() : "";
+    champion.reviewed_at = typeof response?.reviewed_at === "string" ? response.reviewed_at : "";
   }
 }
 
@@ -8169,7 +8455,6 @@ async function saveChampionTagEditor() {
     renderChampionTagEditor();
     return;
   }
-
   state.api.isSavingChampionTags = true;
   setChampionTagEditorFeedback("Saving champion profile...");
   renderChampionTagEditor();
@@ -10165,6 +10450,101 @@ function resolveMemberRiotId(member) {
   return parsedDisplayName ? parsedDisplayName.display : "";
 }
 
+function normalizeTeamMemberSearchCandidate(rawCandidate) {
+  if (!rawCandidate || typeof rawCandidate !== "object" || Array.isArray(rawCandidate)) {
+    return null;
+  }
+  const userId = normalizeApiEntityId(rawCandidate.user_id ?? rawCandidate.id);
+  if (!userId) {
+    return null;
+  }
+  const gameName = typeof rawCandidate.game_name === "string" ? rawCandidate.game_name.trim() : "";
+  const tagline = typeof rawCandidate.tagline === "string" ? rawCandidate.tagline.trim() : "";
+  const riotId =
+    typeof rawCandidate.riot_id === "string"
+      ? rawCandidate.riot_id.trim()
+      : (gameName && tagline ? `${gameName}#${tagline}` : "");
+  if (!riotId) {
+    return null;
+  }
+  return {
+    user_id: userId,
+    riot_id: riotId,
+    email: typeof rawCandidate.email === "string" ? rawCandidate.email.trim() : "",
+    display_name: typeof rawCandidate.display_name === "string" ? rawCandidate.display_name.trim() : riotId,
+    primary_role: typeof rawCandidate.primary_role === "string" ? rawCandidate.primary_role.trim() : ""
+  };
+}
+
+function renderTeamMemberRiotIdOptions() {
+  const selectedTeam = getSelectedAdminTeam();
+  const members = selectedTeam ? state.api.membersByTeamId[String(selectedTeam.id)] ?? [] : [];
+  const memberOptions = members
+    .map((member) => {
+      const riotId = resolveMemberRiotId(member);
+      if (!riotId) {
+        return null;
+      }
+      const meta = [
+        typeof member?.team_role === "string" ? member.team_role : "",
+        typeof member?.lane === "string" ? member.lane : ""
+      ].filter(Boolean).join(" • ");
+      return {
+        value: riotId,
+        label: meta ? `${member.display_name ?? riotId} • ${meta}` : (member.display_name ?? riotId)
+      };
+    })
+    .filter(Boolean);
+  replaceDatalistOptions(elements.teamAdminRoleRiotIdOptions, memberOptions);
+  replaceDatalistOptions(elements.teamAdminTeamRoleRiotIdOptions, memberOptions);
+  replaceDatalistOptions(elements.teamAdminRemoveRiotIdOptions, memberOptions);
+
+  const addOptions = (Array.isArray(state.api.teamAdminAddMemberSearchResults)
+    ? state.api.teamAdminAddMemberSearchResults
+    : [])
+    .map((candidate) => ({
+      value: candidate.riot_id,
+      label: [candidate.display_name, candidate.email, candidate.primary_role].filter(Boolean).join(" • ")
+    }));
+  replaceDatalistOptions(elements.teamAdminAddRiotIdOptions, addOptions);
+}
+
+async function loadTeamAdminAddMemberSearchResults(rawQuery) {
+  const selectedTeam = getSelectedAdminTeam();
+  const query = typeof rawQuery === "string" ? rawQuery.trim() : "";
+  state.api.teamAdminAddMemberSearchQuery = query;
+  if (!selectedTeam || query.length < TEAM_MEMBER_SEARCH_MIN_LENGTH) {
+    state.api.teamAdminAddMemberSearchResults = [];
+    state.api.isLoadingTeamAdminAddMemberSearch = false;
+    renderTeamMemberRiotIdOptions();
+    return;
+  }
+
+  const requestId = ++_teamAdminAddMemberSearchRequestId;
+  state.api.isLoadingTeamAdminAddMemberSearch = true;
+  try {
+    const params = new URLSearchParams({ q: query });
+    const payload = await apiRequest(`/teams/${selectedTeam.id}/member-search?${params.toString()}`, { auth: true });
+    if (requestId !== _teamAdminAddMemberSearchRequestId || state.api.teamAdminAddMemberSearchQuery !== query) {
+      return;
+    }
+    state.api.teamAdminAddMemberSearchResults = Array.isArray(payload?.users)
+      ? payload.users.map(normalizeTeamMemberSearchCandidate).filter(Boolean)
+      : [];
+  } catch (error) {
+    if (requestId !== _teamAdminAddMemberSearchRequestId) {
+      return;
+    }
+    state.api.teamAdminAddMemberSearchResults = [];
+    setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to search team members."));
+  } finally {
+    if (requestId === _teamAdminAddMemberSearchRequestId) {
+      state.api.isLoadingTeamAdminAddMemberSearch = false;
+      renderTeamMemberRiotIdOptions();
+    }
+  }
+}
+
 function resolveSelectedTeamMemberByRiotId(rawRiotId) {
   const selectedTeam = getSelectedAdminTeam();
   if (!selectedTeam) {
@@ -10434,6 +10814,11 @@ function renderTeamAdmin() {
     elements.teamAdminOpenEdit.disabled = !adminEnabled;
   }
   setTeamCreateControlsDisabled(state.api.isCreatingTeam);
+  if (!adminEnabled) {
+    state.api.teamAdminAddMemberSearchResults = [];
+    state.api.isLoadingTeamAdminAddMemberSearch = false;
+  }
+  renderTeamMemberRiotIdOptions();
   renderTeamJoinWorkspace(selectedTeam);
 
   elements.teamAdminMembers.innerHTML = "";
@@ -12300,6 +12685,18 @@ function renderExplorer() {
       check.textContent = "✓";
       indicator.append(check, " Human reviewed");
       nameWrap.append(indicator);
+      const reviewedMeta = formatAuditMeta(
+        "Last reviewed",
+        champion.reviewed_by_user_id,
+        champion.reviewed_by_display_name,
+        champion.reviewed_at
+      );
+      if (reviewedMeta) {
+        const reviewDetails = runtimeDocument.createElement("p");
+        reviewDetails.className = "meta";
+        reviewDetails.textContent = reviewedMeta;
+        nameWrap.append(reviewDetails);
+      }
     }
     cardHeader.append(image, nameWrap);
 
@@ -14431,6 +14828,23 @@ function attachEvents() {
       if (event.target === elements.otherRolesModal) closeOtherRolesModal();
     });
   }
+  if (elements.confirmationCancel) {
+    elements.confirmationCancel.addEventListener("click", () => {
+      settleConfirmation(false);
+    });
+  }
+  if (elements.confirmationConfirm) {
+    elements.confirmationConfirm.addEventListener("click", () => {
+      settleConfirmation(true);
+    });
+  }
+  if (elements.confirmationModal) {
+    elements.confirmationModal.addEventListener("click", (event) => {
+      if (event.target === elements.confirmationModal) {
+        settleConfirmation(false);
+      }
+    });
+  }
 
   if (elements.authConfirmNewPassword) {
     elements.authConfirmNewPassword.addEventListener("input", () => {
@@ -14479,6 +14893,10 @@ function attachEvents() {
   }
   runtimeWindow.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      if (state?.api?.confirmation?.isOpen === true) {
+        settleConfirmation(false);
+        return;
+      }
       if (elements.logoLightbox && !elements.logoLightbox.hidden) {
         closeLogoLightbox();
       }
@@ -15240,6 +15658,13 @@ function attachEvents() {
   elements.teamAdminTeamSelect.addEventListener("change", () => {
     state.api.selectedTeamId = elements.teamAdminTeamSelect.value;
     state.api.joinRequestsByTeamId[state.api.selectedTeamId] = [];
+    state.api.teamAdminAddMemberSearchQuery = "";
+    state.api.teamAdminAddMemberSearchResults = [];
+    state.api.isLoadingTeamAdminAddMemberSearch = false;
+    _teamAdminAddMemberSearchRequestId += 1;
+    if (elements.teamAdminAddRiotId) {
+      elements.teamAdminAddRiotId.value = "";
+    }
     void loadTeamMembersForSelectedTeam().then(async () => {
       await refreshTeamWorkspaceDataForActiveTab();
       renderTeamAdmin();
@@ -15588,11 +16013,18 @@ function attachEvents() {
       setTeamAdminFeedback("Select a team first.");
       return;
     }
-
-    void apiRequest(`/teams/${selectedTeam.id}`, {
-      method: "DELETE",
-      auth: true
-    })
+    void confirmAction({
+      title: "Confirm Team Deletion",
+      message: `Delete team '${selectedTeam.name}'? This permanently removes the roster and team settings.`,
+      confirmLabel: "Delete Team"
+    }).then((confirmed) => {
+      if (!confirmed) {
+        return;
+      }
+      return apiRequest(`/teams/${selectedTeam.id}`, {
+        method: "DELETE",
+        auth: true
+      })
       .then(async () => {
         setTeamAdminFeedback("Deleted team.");
         await hydrateAuthenticatedViews(state.playerConfig.teamId, null);
@@ -15600,7 +16032,14 @@ function attachEvents() {
       .catch((error) => {
         setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to delete team."));
       });
+    });
   });
+
+  if (elements.teamAdminAddRiotId) {
+    elements.teamAdminAddRiotId.addEventListener("input", () => {
+      void loadTeamAdminAddMemberSearchResults(elements.teamAdminAddRiotId.value);
+    });
+  }
 
   elements.teamAdminAddMember.addEventListener("click", () => {
     const selectedTeam = getSelectedAdminTeam();
@@ -15627,6 +16066,11 @@ function attachEvents() {
     })
       .then(async () => {
         elements.teamAdminAddRiotId.value = "";
+        state.api.teamAdminAddMemberSearchQuery = "";
+        state.api.teamAdminAddMemberSearchResults = [];
+        state.api.isLoadingTeamAdminAddMemberSearch = false;
+        _teamAdminAddMemberSearchRequestId += 1;
+        renderTeamMemberRiotIdOptions();
         setTeamAdminFeedback(`Added ${parsedRiotId.display} as ${role}/${teamRole}.`);
         await loadTeamsFromApi(selectedTeam.id);
         renderTeamAdmin();
@@ -15728,10 +16172,18 @@ function attachEvents() {
       return;
     }
 
-    void apiRequest(`/teams/${selectedTeam.id}/members/${userId}`, {
-      method: "DELETE",
-      auth: true
-    })
+    void confirmAction({
+      title: "Confirm Member Removal",
+      message: `Remove ${lookup.riotId} from ${selectedTeam.name}?`,
+      confirmLabel: "Remove Member"
+    }).then((confirmed) => {
+      if (!confirmed) {
+        return;
+      }
+      return apiRequest(`/teams/${selectedTeam.id}/members/${userId}`, {
+        method: "DELETE",
+        auth: true
+      })
       .then(async () => {
         elements.teamAdminRemoveRiotId.value = "";
         setTeamAdminFeedback(`Removed ${lookup.riotId} from team.`);
@@ -15741,6 +16193,7 @@ function attachEvents() {
       .catch((error) => {
         setTeamAdminFeedback(normalizeApiErrorMessage(error, "Failed to remove member."));
       });
+    });
   });
 }
 
