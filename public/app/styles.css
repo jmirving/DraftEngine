@@ -1949,6 +1949,27 @@ button.pool-snapshot-order-btn:disabled {
   margin-top: 0.1rem;
 }
 
+/* Column with a selection locked in */
+.draft-path-column.is-locked .draft-path-column-header {
+  color: var(--accent);
+}
+
+.draft-path-clear-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 0.2rem;
+  margin-left: 0.3rem;
+  line-height: 1;
+}
+
+.draft-path-clear-btn:hover {
+  color: var(--warn);
+}
+
 .champ-header {
   display: grid;
   grid-template-columns: 72px 1fr;

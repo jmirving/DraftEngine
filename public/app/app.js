@@ -637,7 +637,8 @@ function createInitialState() {
       treeValidLeavesOnly: true,
       focusNodeId: "0",
       selectedNodeId: null,
-      selectedNodeTitle: "Root Composition"
+      selectedNodeTitle: "Root Composition",
+      draftPathSelections: {}
     }
   };
 }
@@ -2877,6 +2878,7 @@ function clearTreeSelectionState() {
   state.builder.focusNodeId = "0";
   state.builder.selectedNodeId = null;
   state.builder.selectedNodeTitle = "Root Composition";
+  state.builder.draftPathSelections = {};
 }
 
 function renderBuilderStageGuide() {
@@ -13554,14 +13556,15 @@ function showDraftPathTooltip(evt, node, champName, data) {
   const tip = runtimeDocument.createElement("div");
   tip.className = "draft-path-tooltip";
 
-  const validLeaves = data.totalValidLeaves;
+  const viableCount = data.viableCount ?? data.totalValidLeaves ?? 0;
+  const pathCount = data.pathCount ?? data.count ?? 1;
   const statusLine = getBranchStatusLine(node);
   const impactLine = getBranchImpactSummary(node.candidateBreakdown);
   const benefitMeta = getCandidateBenefitMeta(node.candidateBreakdown, 2);
   const coverageMeta = getRemainingCoverageMeta(node.scoreBreakdown, 2);
 
   const lines = [];
-  lines.push(`${champName} — ${validLeaves} viable finish${validLeaves === 1 ? "" : "es"}`);
+  lines.push(`${champName} — ${viableCount} viable finish${viableCount === 1 ? "" : "es"}`);
   lines.push(statusLine);
   if (impactLine) lines.push(impactLine);
   if (benefitMeta.lines.length > 0) {
@@ -13571,8 +13574,8 @@ function showDraftPathTooltip(evt, node, champName, data) {
   if (coverageMeta.lines.length > 0) {
     lines.push("Missing: " + coverageMeta.lines.join(" | "));
   }
-  if (data.count > 1) {
-    lines.push(`${data.count} branches (showing best)`);
+  if (pathCount > 1) {
+    lines.push(`Appears in ${pathCount} branches (showing best)`);
   }
 
   for (const line of lines) {
@@ -13605,90 +13608,133 @@ function hideDraftPathTooltip() {
   }
 }
 
+function collectDraftPaths(node, nodeId = "0", current = [], all = []) {
+  const step = { node, id: nodeId, role: node.addedRole ?? null, champion: node.addedChampion ?? null };
+  const path = [...current, step];
+  if (node.children.length === 0) {
+    all.push(path);
+  } else {
+    for (let i = 0; i < node.children.length; i += 1) {
+      collectDraftPaths(node.children[i], `${nodeId}.${i}`, path, all);
+    }
+  }
+  return all;
+}
+
 function renderTreeMap() {
   elements.builderTreeMap.innerHTML = "";
   if (!state.builder.tree) {
     return;
   }
 
-  const focusedNodeId = getFocusedTreeNodeId();
-  const focusedNode = getFocusedTreeNode();
-  if (!focusedNode) {
+  const root = getNodeById("0");
+  if (!root) {
     return;
   }
 
-  const visibleIds = new Set();
-  collectVisibleNodeIds(
-    focusedNode,
-    focusedNodeId,
-    visibleIds,
-    state.builder.treeMinScore,
-    state.builder.treeSearch,
-    SLOTS,
-    state.builder.treeValidLeavesOnly
-  );
-  const flat = flattenTreeForMap(focusedNode, focusedNodeId).filter((entry) => visibleIds.has(entry.id));
-  if (flat.length === 0) {
+  const allPaths = collectDraftPaths(root, "0");
+  if (allPaths.length === 0) {
     return;
   }
 
-  const depthMax = Math.max(...flat.map((entry) => entry.depth));
-  const depthCols = Array.from({ length: depthMax + 1 }, () => []);
-  for (const entry of flat) {
-    depthCols[entry.depth].push(entry);
+  // Determine role order from tree structure (skip root at depth 0)
+  const roleOrder = [];
+  const roleSeen = new Set();
+  for (const path of allPaths) {
+    for (const step of path) {
+      if (step.role && !roleSeen.has(step.role)) {
+        roleSeen.add(step.role);
+        roleOrder.push(step.role);
+      }
+    }
   }
 
-  const selectedPathIds = getSelectedPathIds();
-  const draftOrder = state.builder.draftOrder ?? [...SLOTS];
+  if (roleOrder.length === 0) {
+    return;
+  }
 
-  for (let depth = 1; depth < depthCols.length; depth += 1) {
-    const column = depthCols[depth];
-    const roleLabel = draftOrder[depth - 1] ?? `Pick ${depth}`;
+  // Filter paths by current Draft Path selections
+  const selections = state.builder.draftPathSelections ?? {};
+  const hasSelections = Object.values(selections).some((v) => v);
 
+  const filteredPaths = hasSelections
+    ? allPaths.filter((path) =>
+        path.every((step) => !step.role || !selections[step.role] || selections[step.role] === step.champion)
+      )
+    : allPaths;
+
+  // Optionally filter to valid-leaves-only
+  const viablePaths = state.builder.treeValidLeavesOnly
+    ? filteredPaths.filter((path) => {
+        const leaf = path[path.length - 1].node;
+        return leaf.viability?.isTerminalValid || (leaf.branchPotential?.validLeafCount ?? 0) > 0;
+      })
+    : filteredPaths;
+
+  // Build one column per role
+  for (const role of roleOrder) {
     const champMap = new Map();
-    for (const entry of column) {
-      const name = entry.node.addedChampion ?? "Unknown";
-      const existing = champMap.get(name);
-      if (!existing) {
-        champMap.set(name, { bestEntry: entry, totalValidLeaves: entry.node.branchPotential?.validLeafCount ?? 0, count: 1 });
-      } else {
-        existing.count += 1;
-        existing.totalValidLeaves += entry.node.branchPotential?.validLeafCount ?? 0;
-        const existingLeaves = existing.bestEntry.node.branchPotential?.validLeafCount ?? 0;
-        const newLeaves = entry.node.branchPotential?.validLeafCount ?? 0;
-        if (newLeaves > existingLeaves) {
-          existing.bestEntry = entry;
+
+    for (const path of viablePaths) {
+      for (const step of path) {
+        if (step.role !== role) continue;
+        const name = step.champion;
+        if (!name) continue;
+        const leaf = path[path.length - 1].node;
+        const isViable = leaf.viability?.isTerminalValid;
+        const existing = champMap.get(name);
+        if (!existing) {
+          champMap.set(name, { bestNode: step.node, bestId: step.id, viableCount: isViable ? 1 : 0, pathCount: 1 });
+        } else {
+          existing.pathCount += 1;
+          if (isViable) existing.viableCount += 1;
+          const existingLeaves = existing.bestNode.branchPotential?.validLeafCount ?? 0;
+          const newLeaves = step.node.branchPotential?.validLeafCount ?? 0;
+          if (newLeaves > existingLeaves) {
+            existing.bestNode = step.node;
+            existing.bestId = step.id;
+          }
         }
       }
     }
 
-    const sorted = [...champMap.entries()].sort((a, b) => b[1].totalValidLeaves - a[1].totalValidLeaves);
+    const sorted = [...champMap.entries()].sort((a, b) => b[1].viableCount - a[1].viableCount);
+    const isSelected = !!selections[role];
 
     const col = runtimeDocument.createElement("div");
     col.className = "draft-path-column";
+    if (isSelected) col.classList.add("is-locked");
 
     const header = runtimeDocument.createElement("div");
     header.className = "draft-path-column-header";
-    header.textContent = roleLabel;
+    header.textContent = role;
+    if (isSelected) {
+      const clear = runtimeDocument.createElement("button");
+      clear.type = "button";
+      clear.className = "draft-path-clear-btn";
+      clear.textContent = "\u00D7";
+      clear.title = `Clear ${role} selection`;
+      clear.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        delete state.builder.draftPathSelections[role];
+        renderTreeMap();
+      });
+      header.append(clear);
+    }
     col.append(header);
 
     const list = runtimeDocument.createElement("ul");
     list.className = "draft-path-list";
 
     for (const [champName, data] of sorted) {
-      const entry = data.bestEntry;
-      const node = entry.node;
+      const node = data.bestNode;
       const status = getNodeStatus(node);
-      const validLeaves = data.totalValidLeaves;
-      const isOnSelectedPath = selectedPathIds.has(entry.id);
+      const viableCount = data.viableCount;
 
       const li = runtimeDocument.createElement("li");
       li.className = `draft-path-item is-${status}`;
-      if (entry.id === state.builder.selectedNodeId) {
+      if (selections[role] === champName) {
         li.classList.add("is-selected");
-      }
-      if (isOnSelectedPath) {
-        li.classList.add("is-on-path");
       }
 
       const nameSpan = runtimeDocument.createElement("span");
@@ -13697,14 +13743,18 @@ function renderTreeMap() {
 
       const leafBadge = runtimeDocument.createElement("span");
       leafBadge.className = "draft-path-leaf-badge";
-      leafBadge.textContent = `${validLeaves}`;
-      leafBadge.title = `${validLeaves} viable finish${validLeaves === 1 ? "" : "es"}`;
+      leafBadge.textContent = `${viableCount}`;
+      leafBadge.title = `${viableCount} viable finish${viableCount === 1 ? "" : "es"}`;
 
       li.append(nameSpan, leafBadge);
 
       li.addEventListener("click", () => {
-        const title = `${node.addedRole}: ${champName}`;
-        inspectNode(node, entry.id, title);
+        if (selections[role] === champName) {
+          delete state.builder.draftPathSelections[role];
+        } else {
+          state.builder.draftPathSelections[role] = champName;
+        }
+        renderTreeMap();
       });
 
       li.addEventListener("mouseenter", (evt) => {
@@ -13718,7 +13768,7 @@ function renderTreeMap() {
     if (sorted.length === 0) {
       const empty = runtimeDocument.createElement("li");
       empty.className = "draft-path-empty";
-      empty.textContent = "No options";
+      empty.textContent = "No viable options";
       list.append(empty);
     }
 
@@ -13726,11 +13776,15 @@ function renderTreeMap() {
     elements.builderTreeMap.append(col);
   }
 
+  // Legend
   if (elements.treeMapLegend) {
-    const totalVisible = flat.length - (depthCols[0]?.length ?? 0);
-    elements.treeMapLegend.textContent =
-      `${totalVisible} candidate${totalVisible === 1 ? "" : "s"} across ${depthMax} role${depthMax === 1 ? "" : "s"}. ` +
-      "Green = all minimums met, amber = recoverable, muted = dead-end.";
+    const selCount = Object.values(selections).filter((v) => v).length;
+    const viableLeaves = viablePaths.filter((p) => p[p.length - 1].node.viability?.isTerminalValid).length;
+    const parts = [];
+    parts.push(`${viableLeaves} viable composition${viableLeaves === 1 ? "" : "s"}`);
+    parts.push(`${roleOrder.length} role${roleOrder.length === 1 ? "" : "s"}`);
+    if (selCount > 0) parts.push(`${selCount} selected`);
+    elements.treeMapLegend.textContent = parts.join(" | ") + ". Click to filter, click again to clear.";
   }
 }
 
