@@ -22,6 +22,9 @@ const PRIMARY_DAMAGE_TYPE_VALUES = Object.freeze(["ad", "ap", "mixed", "utility"
 const PRIMARY_DAMAGE_TYPE_SET = new Set(PRIMARY_DAMAGE_TYPE_VALUES);
 const EFFECTIVENESS_LEVEL_VALUES = Object.freeze(["weak", "neutral", "strong"]);
 const EFFECTIVENESS_LEVEL_SET = new Set(EFFECTIVENESS_LEVEL_VALUES);
+const POWER_SPIKE_MIN_LEVEL = 1;
+const POWER_SPIKE_MAX_LEVEL = 18;
+const POWER_SPIKE_MAX_RANGES = 2;
 const MAX_TAG_NAME_LENGTH = 64;
 const MAX_TAG_DEFINITION_LENGTH = 280;
 
@@ -78,6 +81,43 @@ function normalizeMetadataEffectivenessLevel(rawValue, fieldName) {
   return normalized;
 }
 
+function normalizeMetadataPowerSpikes(rawValue, fieldPrefix) {
+  if (!Array.isArray(rawValue)) {
+    return [];
+  }
+  if (rawValue.length > POWER_SPIKE_MAX_RANGES) {
+    throw badRequest(`Expected '${fieldPrefix}' to contain at most ${POWER_SPIKE_MAX_RANGES} ranges.`);
+  }
+  const ranges = [];
+  for (let i = 0; i < rawValue.length; i++) {
+    const item = rawValue[i];
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw badRequest(`Expected '${fieldPrefix}[${i}]' to be an object with start and end.`);
+    }
+    const start = Number(item.start);
+    const end = Number(item.end);
+    if (!Number.isInteger(start) || !Number.isInteger(end)) {
+      throw badRequest(`Expected '${fieldPrefix}[${i}].start' and '${fieldPrefix}[${i}].end' to be integers.`);
+    }
+    if (start < POWER_SPIKE_MIN_LEVEL || start > POWER_SPIKE_MAX_LEVEL ||
+        end < POWER_SPIKE_MIN_LEVEL || end > POWER_SPIKE_MAX_LEVEL) {
+      throw badRequest(`Expected '${fieldPrefix}[${i}]' levels to be between ${POWER_SPIKE_MIN_LEVEL} and ${POWER_SPIKE_MAX_LEVEL}.`);
+    }
+    ranges.push({ start: Math.min(start, end), end: Math.max(start, end) });
+  }
+  return ranges;
+}
+
+function powerSpikesFromLegacyEffectiveness(eff) {
+  if (!eff || typeof eff !== "object" || Array.isArray(eff)) return [];
+  const ranges = [];
+  const isStrong = (v) => typeof v === "string" && v.trim().toLowerCase() === "strong";
+  if (isStrong(eff.early)) ranges.push({ start: 1, end: 6 });
+  if (isStrong(eff.mid)) ranges.push({ start: 7, end: 12 });
+  if (isStrong(eff.late)) ranges.push({ start: 13, end: 18 });
+  return ranges.slice(0, POWER_SPIKE_MAX_RANGES);
+}
+
 function normalizeTagName(rawValue) {
   const normalized = requireNonEmptyString(rawValue, "name");
   if (normalized.length > MAX_TAG_NAME_LENGTH) {
@@ -109,18 +149,21 @@ function normalizeMetadataRoleProfiles(rawValue, roles) {
     const rawPrimaryDamageType = rawRoleProfile.primary_damage_type ?? rawRoleProfile.primaryDamageType;
     const primaryDamageType = normalizeMetadataPrimaryDamageType(rawPrimaryDamageType);
 
+    const rawPowerSpikes = rawRoleProfile.power_spikes ?? rawRoleProfile.powerSpikes;
     const rawEffectiveness = rawRoleProfile.effectiveness;
-    if (!rawEffectiveness || typeof rawEffectiveness !== "object" || Array.isArray(rawEffectiveness)) {
-      throw badRequest(`Expected 'role_profiles.${role}.effectiveness' to be an object.`);
+
+    let powerSpikes;
+    if (Array.isArray(rawPowerSpikes)) {
+      powerSpikes = normalizeMetadataPowerSpikes(rawPowerSpikes, `role_profiles.${role}.power_spikes`);
+    } else if (rawEffectiveness && typeof rawEffectiveness === "object" && !Array.isArray(rawEffectiveness)) {
+      powerSpikes = powerSpikesFromLegacyEffectiveness(rawEffectiveness);
+    } else {
+      powerSpikes = [];
     }
 
     nextProfiles[role] = {
       primaryDamageType,
-      effectiveness: {
-        early: normalizeMetadataEffectivenessLevel(rawEffectiveness.early, `role_profiles.${role}.effectiveness.early`),
-        mid: normalizeMetadataEffectivenessLevel(rawEffectiveness.mid, `role_profiles.${role}.effectiveness.mid`),
-        late: normalizeMetadataEffectivenessLevel(rawEffectiveness.late, `role_profiles.${role}.effectiveness.late`)
-      }
+      powerSpikes
     };
   }
 

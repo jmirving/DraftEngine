@@ -43,28 +43,30 @@ function mapPrimaryDamageTypeToLegacyValue(primaryDamageType) {
   return "Mixed";
 }
 
-function deriveLegacyScalingFromEffectiveness(effectiveness = {}) {
-  const levels = {
-    weak: 1,
-    neutral: 2,
-    strong: 3
-  };
-  const phases = ["early", "mid", "late"];
+function deriveLegacyScalingFromPowerSpikes(powerSpikes) {
+  if (!Array.isArray(powerSpikes) || powerSpikes.length === 0) return "Mid";
+  const phaseCoverage = { early: 0, mid: 0, late: 0 };
+  for (const spike of powerSpikes) {
+    if (!spike || typeof spike !== "object") continue;
+    const start = Number(spike.start);
+    const end = Number(spike.end);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+    for (let lvl = Math.max(1, start); lvl <= Math.min(18, end); lvl++) {
+      if (lvl <= 6) phaseCoverage.early++;
+      else if (lvl <= 12) phaseCoverage.mid++;
+      else phaseCoverage.late++;
+    }
+  }
   let bestPhase = "mid";
-  let bestLevel = 0;
-  for (const phase of phases) {
-    const level = levels[String(effectiveness?.[phase] ?? "").toLowerCase()] ?? 0;
-    if (level > bestLevel) {
-      bestLevel = level;
+  let bestCount = 0;
+  for (const phase of ["early", "mid", "late"]) {
+    if (phaseCoverage[phase] > bestCount) {
+      bestCount = phaseCoverage[phase];
       bestPhase = phase;
     }
   }
-  if (bestPhase === "early") {
-    return "Early";
-  }
-  if (bestPhase === "late") {
-    return "Late";
-  }
+  if (bestPhase === "early") return "Early";
+  if (bestPhase === "late") return "Late";
   return "Mid";
 }
 
@@ -108,7 +110,7 @@ function buildNextMetadata(currentMetadata, roles, roleProfiles) {
     roles: [...roles],
     roleProfiles: normalizedRoleProfiles,
     damageType: mapPrimaryDamageTypeToLegacyValue(primaryRoleProfile?.primaryDamageType),
-    scaling: deriveLegacyScalingFromEffectiveness(primaryRoleProfile?.effectiveness)
+    scaling: deriveLegacyScalingFromPowerSpikes(primaryRoleProfile?.powerSpikes)
   };
 }
 

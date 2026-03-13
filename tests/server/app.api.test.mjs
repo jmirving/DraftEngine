@@ -195,7 +195,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
           roleProfiles: {
             Support: {
               primaryDamageType: "utility",
-              effectiveness: { early: "neutral", mid: "strong", late: "weak" }
+              powerSpikes: [{ start: 7, end: 12 }]
             }
           },
           damageType: "Utility",
@@ -211,7 +211,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
           roleProfiles: {
             Top: {
               primaryDamageType: "ad",
-              effectiveness: { early: "strong", mid: "neutral", late: "weak" }
+              powerSpikes: [{ start: 1, end: 6 }]
             }
           },
           damageType: "AD",
@@ -427,11 +427,7 @@ function createMockContext({ riotChampionStatsService = null } = {}) {
             role,
             {
               primaryDamageType: profile?.primaryDamageType ?? "mixed",
-              effectiveness: {
-                early: profile?.effectiveness?.early ?? "neutral",
-                mid: profile?.effectiveness?.mid ?? "neutral",
-                late: profile?.effectiveness?.late ?? "neutral"
-              }
+              powerSpikes: Array.isArray(profile?.powerSpikes) ? profile.powerSpikes : []
             }
           ])
         )

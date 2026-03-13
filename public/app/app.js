@@ -2,7 +2,6 @@ import {
   BOOLEAN_TAGS,
   DAMAGE_TYPES,
   DEFAULT_RECOMMENDATION_WEIGHTS,
-  SCALING_VALUES,
   SLOTS,
   DataValidationError,
   createEmptyTeamState,
@@ -349,6 +348,9 @@ const EFFECTIVENESS_LEVEL_OPTIONS = Object.freeze([
 ]);
 const EFFECTIVENESS_LEVEL_VALUE_SET = new Set(EFFECTIVENESS_LEVEL_OPTIONS.map((option) => option.value));
 const EFFECTIVENESS_PHASES = Object.freeze(["early", "mid", "late"]);
+const POWER_SPIKE_MIN_LEVEL = 1;
+const POWER_SPIKE_MAX_LEVEL = 18;
+const POWER_SPIKE_MAX_RANGES = 2;
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
 const REQUIREMENT_JOINER_MODES = Object.freeze(["and", "or"]);
@@ -521,7 +523,7 @@ function createInitialState() {
       search: "",
       roles: [],
       damageTypes: [],
-      scaling: "",
+      scaling: null,
       metadataScopeFilter: "",
       includeTags: [],
       excludeTags: [],
@@ -1453,11 +1455,7 @@ function normalizeChampionMetadataRoles(roles) {
 function createDefaultRoleProfileDraft() {
   return {
     primaryDamageType: "mixed",
-    effectiveness: {
-      early: "neutral",
-      mid: "neutral",
-      late: "neutral"
-    }
+    powerSpikes: []
   };
 }
 
@@ -1489,6 +1487,49 @@ function normalizeApiEffectivenessLevel(value) {
   return null;
 }
 
+function normalizePowerSpikeRange(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const start = Number(raw.start);
+  const end = Number(raw.end);
+  if (!Number.isInteger(start) || !Number.isInteger(end)) return null;
+  const clampedStart = Math.max(POWER_SPIKE_MIN_LEVEL, Math.min(POWER_SPIKE_MAX_LEVEL, start));
+  const clampedEnd = Math.max(POWER_SPIKE_MIN_LEVEL, Math.min(POWER_SPIKE_MAX_LEVEL, end));
+  return { start: Math.min(clampedStart, clampedEnd), end: Math.max(clampedStart, clampedEnd) };
+}
+
+function normalizePowerSpikes(raw) {
+  if (!Array.isArray(raw)) return [];
+  const ranges = [];
+  for (const item of raw) {
+    if (ranges.length >= POWER_SPIKE_MAX_RANGES) break;
+    const range = normalizePowerSpikeRange(item);
+    if (range) ranges.push(range);
+  }
+  return ranges;
+}
+
+function powerSpikesFromLegacyEffectiveness(eff) {
+  if (!eff || typeof eff !== "object" || Array.isArray(eff)) return [];
+  const ranges = [];
+  const early = normalizeApiEffectivenessLevel(eff.early);
+  const mid = normalizeApiEffectivenessLevel(eff.mid);
+  const late = normalizeApiEffectivenessLevel(eff.late);
+  if (early === "strong") ranges.push({ start: 1, end: 6 });
+  if (mid === "strong") ranges.push({ start: 7, end: 12 });
+  if (late === "strong") ranges.push({ start: 13, end: 18 });
+  if (ranges.length === 0 && (early === "neutral" || mid === "neutral" || late === "neutral")) {
+    if (mid === "neutral") ranges.push({ start: 7, end: 12 });
+    else if (early === "neutral") ranges.push({ start: 1, end: 6 });
+    else if (late === "neutral") ranges.push({ start: 13, end: 18 });
+  }
+  return ranges.slice(0, POWER_SPIKE_MAX_RANGES);
+}
+
+function levelInPowerSpikes(level, powerSpikes) {
+  if (!Array.isArray(powerSpikes)) return false;
+  return powerSpikes.some((r) => r && level >= r.start && level <= r.end);
+}
+
 function normalizeRoleProfilesFromMetadata(rawRoleProfiles, roles) {
   const source =
     rawRoleProfiles && typeof rawRoleProfiles === "object" && !Array.isArray(rawRoleProfiles)
@@ -1504,17 +1545,13 @@ function normalizeRoleProfilesFromMetadata(rawRoleProfiles, roles) {
     const normalizedPrimaryDamageType = normalizeApiPrimaryDamageType(
       profile.primaryDamageType ?? profile.primary_damage_type
     ) ?? "mixed";
-    const rawEffectiveness =
-      profile.effectiveness && typeof profile.effectiveness === "object" && !Array.isArray(profile.effectiveness)
-        ? profile.effectiveness
-        : {};
+    let powerSpikes = normalizePowerSpikes(profile.powerSpikes ?? profile.power_spikes);
+    if (powerSpikes.length === 0 && profile.effectiveness) {
+      powerSpikes = powerSpikesFromLegacyEffectiveness(profile.effectiveness);
+    }
     profiles[role] = {
       primaryDamageType: normalizedPrimaryDamageType,
-      effectiveness: {
-        early: normalizeApiEffectivenessLevel(rawEffectiveness.early) ?? "neutral",
-        mid: normalizeApiEffectivenessLevel(rawEffectiveness.mid) ?? "neutral",
-        late: normalizeApiEffectivenessLevel(rawEffectiveness.late) ?? "neutral"
-      }
+      powerSpikes
     };
   }
   return profiles;
@@ -1522,25 +1559,26 @@ function normalizeRoleProfilesFromMetadata(rawRoleProfiles, roles) {
 
 function cloneRoleProfileDraft(profile) {
   const source = profile && typeof profile === "object" && !Array.isArray(profile) ? profile : {};
+  let powerSpikes = normalizePowerSpikes(source.powerSpikes ?? source.power_spikes);
+  if (powerSpikes.length === 0 && source.effectiveness) {
+    powerSpikes = powerSpikesFromLegacyEffectiveness(source.effectiveness);
+  }
   return {
     primaryDamageType: normalizeApiPrimaryDamageType(source.primaryDamageType ?? source.primary_damage_type) ?? "mixed",
-    effectiveness: {
-      early: normalizeApiEffectivenessLevel(source.effectiveness?.early) ?? "neutral",
-      mid: normalizeApiEffectivenessLevel(source.effectiveness?.mid) ?? "neutral",
-      late: normalizeApiEffectivenessLevel(source.effectiveness?.late) ?? "neutral"
-    }
+    powerSpikes
   };
 }
 
 function roleProfilesMatch(leftProfile, rightProfile) {
   const left = cloneRoleProfileDraft(leftProfile);
   const right = cloneRoleProfileDraft(rightProfile);
-  return (
-    left.primaryDamageType === right.primaryDamageType &&
-    left.effectiveness.early === right.effectiveness.early &&
-    left.effectiveness.mid === right.effectiveness.mid &&
-    left.effectiveness.late === right.effectiveness.late
-  );
+  if (left.primaryDamageType !== right.primaryDamageType) return false;
+  if (left.powerSpikes.length !== right.powerSpikes.length) return false;
+  for (let i = 0; i < left.powerSpikes.length; i++) {
+    if (left.powerSpikes[i].start !== right.powerSpikes[i].start) return false;
+    if (left.powerSpikes[i].end !== right.powerSpikes[i].end) return false;
+  }
+  return true;
 }
 
 function selectedRoleProfilesAreUniform(roles, roleProfiles) {
@@ -1617,6 +1655,34 @@ function deriveDisplayDamageTypeFromProfile(profile) {
 }
 
 function deriveLegacyScalingFromProfile(profile) {
+  // New powerSpikes format: derive phase from level ranges
+  const rawSpikes = profile?.powerSpikes ?? profile?.power_spikes;
+  if (Array.isArray(rawSpikes) && rawSpikes.length > 0) {
+    const phaseCoverage = { early: 0, mid: 0, late: 0 };
+    for (const spike of rawSpikes) {
+      if (!spike || typeof spike !== "object") continue;
+      const start = Number(spike.start);
+      const end = Number(spike.end);
+      if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+      for (let lvl = Math.max(1, start); lvl <= Math.min(18, end); lvl++) {
+        if (lvl <= 6) phaseCoverage.early++;
+        else if (lvl <= 12) phaseCoverage.mid++;
+        else phaseCoverage.late++;
+      }
+    }
+    let bestPhase = "mid";
+    let bestCount = 0;
+    for (const phase of EFFECTIVENESS_PHASES) {
+      if (phaseCoverage[phase] > bestCount) {
+        bestCount = phaseCoverage[phase];
+        bestPhase = phase;
+      }
+    }
+    if (bestPhase === "early") return "Early";
+    if (bestPhase === "late") return "Late";
+    return "Mid";
+  }
+  // Legacy effectiveness format
   const effectiveness =
     profile?.effectiveness && typeof profile.effectiveness === "object" && !Array.isArray(profile.effectiveness)
       ? profile.effectiveness
@@ -6852,8 +6918,6 @@ function renderChampionMetadataRoleProfileEditors() {
     return;
   }
 
-  const effLevelValues = ["weak", "neutral", "strong"];
-
   const validActiveRole = selectedRoles.includes(state.api.championProfileActiveRole)
     ? state.api.championProfileActiveRole
     : selectedRoles[0];
@@ -6926,27 +6990,21 @@ function renderChampionMetadataRoleProfileEditors() {
         renderChampionTagEditor();
       };
 
-  // Effectiveness callbacks
-  const onEffectivenessChange = useSharedRoleProfile
-    ? (phase, nextLevel) => {
-        const normalizedLevel = normalizeApiEffectivenessLevel(nextLevel) ?? "neutral";
+  // Power spike callbacks
+  const onPowerSpikesChange = useSharedRoleProfile
+    ? (nextSpikes) => {
+        const normalized = normalizePowerSpikes(nextSpikes);
         for (const role of selectedRoles) {
           const roleProfile = state.api.championMetadataDraft.roleProfiles?.[role] ?? createDefaultRoleProfileDraft();
-          state.api.championMetadataDraft.roleProfiles[role] = {
-            ...roleProfile,
-            effectiveness: { ...(roleProfile.effectiveness ?? {}), [phase]: normalizedLevel }
-          };
+          state.api.championMetadataDraft.roleProfiles[role] = { ...roleProfile, powerSpikes: normalized };
         }
         renderChampionTagEditor();
       }
-    : (phase, nextLevel) => {
+    : (nextSpikes) => {
         const roleProfile = state.api.championMetadataDraft.roleProfiles[validActiveRole] ?? createDefaultRoleProfileDraft();
         state.api.championMetadataDraft.roleProfiles[validActiveRole] = {
           ...roleProfile,
-          effectiveness: {
-            ...(roleProfile.effectiveness ?? {}),
-            [phase]: normalizeApiEffectivenessLevel(nextLevel) ?? "neutral"
-          }
+          powerSpikes: normalizePowerSpikes(nextSpikes)
         };
         renderChampionTagEditor();
       };
@@ -6971,35 +7029,104 @@ function renderChampionMetadataRoleProfileEditors() {
     elements.cedDamageSlot.append(damageSectionLabel, damageButtons);
   }
 
-  // Render effectiveness into its slot
+  // Render power spike level bar into effectiveness slot
   if (elements.cedEffectivenessSlot) {
-    const effSectionLabel = runtimeDocument.createElement("p");
-    effSectionLabel.className = "ced-section-label";
-    effSectionLabel.textContent = "Effectiveness";
-    const effGrid = runtimeDocument.createElement("div");
-    effGrid.className = "ced-effectiveness-grid";
-    for (const phase of EFFECTIVENESS_PHASES) {
-      const phaseDiv = runtimeDocument.createElement("div");
-      phaseDiv.className = "ced-effectiveness-phase";
-      const phaseLabel = runtimeDocument.createElement("p");
-      phaseLabel.className = "ced-phase-label";
-      phaseLabel.textContent = `${phase[0].toUpperCase()}${phase.slice(1)}`;
-      const currentLevel = normalizeApiEffectivenessLevel(profile.effectiveness?.[phase]) ?? "neutral";
-      const pillRow = runtimeDocument.createElement("div");
-      pillRow.className = "ced-eff-pill-row";
-      for (const lvl of effLevelValues) {
-        const btn = runtimeDocument.createElement("button");
-        btn.type = "button";
-        btn.className = `ced-eff-pill ced-eff-pill--${lvl}${currentLevel === lvl ? " is-active" : ""}`;
-        btn.textContent = lvl[0].toUpperCase() + lvl.slice(1);
-        btn.disabled = state.api.isSavingChampionTags;
-        btn.addEventListener("click", () => onEffectivenessChange(phase, lvl));
-        pillRow.append(btn);
-      }
-      phaseDiv.append(phaseLabel, pillRow);
-      effGrid.append(phaseDiv);
+    const currentSpikes = normalizePowerSpikes(profile.powerSpikes);
+    const sectionLabel = runtimeDocument.createElement("p");
+    sectionLabel.className = "ced-section-label";
+    sectionLabel.textContent = "Power Spikes (Level)";
+
+    const levelBar = runtimeDocument.createElement("div");
+    levelBar.className = "ced-level-bar";
+    for (let lvl = POWER_SPIKE_MIN_LEVEL; lvl <= POWER_SPIKE_MAX_LEVEL; lvl++) {
+      const cell = runtimeDocument.createElement("div");
+      cell.className = "ced-level-cell";
+      if (levelInPowerSpikes(lvl, currentSpikes)) cell.classList.add("is-active");
+      const num = runtimeDocument.createElement("span");
+      num.className = "ced-level-num";
+      num.textContent = String(lvl);
+      cell.append(num);
+      levelBar.append(cell);
     }
-    elements.cedEffectivenessSlot.append(effSectionLabel, effGrid);
+
+    // Range controls
+    const rangeControls = runtimeDocument.createElement("div");
+    rangeControls.className = "ced-spike-controls";
+
+    const renderRangeRow = (index, range) => {
+      const row = runtimeDocument.createElement("div");
+      row.className = "ced-spike-range-row";
+
+      const label = runtimeDocument.createElement("span");
+      label.className = "ced-spike-range-label";
+      label.textContent = `Range ${index + 1}`;
+
+      const startInput = runtimeDocument.createElement("input");
+      startInput.type = "number";
+      startInput.className = "ced-spike-input";
+      startInput.min = POWER_SPIKE_MIN_LEVEL;
+      startInput.max = POWER_SPIKE_MAX_LEVEL;
+      startInput.value = range ? range.start : "";
+      startInput.placeholder = "Start";
+      startInput.disabled = state.api.isSavingChampionTags;
+
+      const dash = runtimeDocument.createElement("span");
+      dash.className = "ced-spike-dash";
+      dash.textContent = "–";
+
+      const endInput = runtimeDocument.createElement("input");
+      endInput.type = "number";
+      endInput.className = "ced-spike-input";
+      endInput.min = POWER_SPIKE_MIN_LEVEL;
+      endInput.max = POWER_SPIKE_MAX_LEVEL;
+      endInput.value = range ? range.end : "";
+      endInput.placeholder = "End";
+      endInput.disabled = state.api.isSavingChampionTags;
+
+      const removeBtn = runtimeDocument.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "ced-spike-remove";
+      removeBtn.textContent = "×";
+      removeBtn.disabled = state.api.isSavingChampionTags;
+      removeBtn.addEventListener("click", () => {
+        const next = [...currentSpikes];
+        next.splice(index, 1);
+        onPowerSpikesChange(next);
+      });
+
+      const updateRange = () => {
+        const s = parseInt(startInput.value, 10);
+        const e = parseInt(endInput.value, 10);
+        if (!Number.isInteger(s) || !Number.isInteger(e)) return;
+        const next = [...currentSpikes];
+        next[index] = { start: s, end: e };
+        onPowerSpikesChange(next);
+      };
+      startInput.addEventListener("change", updateRange);
+      endInput.addEventListener("change", updateRange);
+
+      row.append(label, startInput, dash, endInput, removeBtn);
+      return row;
+    };
+
+    for (let i = 0; i < currentSpikes.length; i++) {
+      rangeControls.append(renderRangeRow(i, currentSpikes[i]));
+    }
+
+    if (currentSpikes.length < POWER_SPIKE_MAX_RANGES) {
+      const addBtn = runtimeDocument.createElement("button");
+      addBtn.type = "button";
+      addBtn.className = "ced-spike-add";
+      addBtn.textContent = "+ Add Range";
+      addBtn.disabled = state.api.isSavingChampionTags;
+      addBtn.addEventListener("click", () => {
+        const next = [...currentSpikes, { start: 1, end: 6 }];
+        onPowerSpikesChange(next);
+      });
+      rangeControls.append(addBtn);
+    }
+
+    elements.cedEffectivenessSlot.append(sectionLabel, levelBar, rangeControls);
   }
 }
 
@@ -7015,11 +7142,6 @@ function championMetadataDraftIsComplete() {
     }
     if (!normalizeApiPrimaryDamageType(roleProfile.primaryDamageType)) {
       return false;
-    }
-    for (const phase of EFFECTIVENESS_PHASES) {
-      if (!normalizeApiEffectivenessLevel(roleProfile.effectiveness?.[phase])) {
-        return false;
-      }
     }
   }
   return true;
@@ -7380,11 +7502,7 @@ async function saveChampionMetadataTab(championId) {
     const profile = state.api.championMetadataDraft.roleProfiles?.[role] ?? createDefaultRoleProfileDraft();
     roleProfilesPayload[role] = {
       primary_damage_type: normalizeApiPrimaryDamageType(profile.primaryDamageType) ?? "mixed",
-      effectiveness: {
-        early: normalizeApiEffectivenessLevel(profile.effectiveness?.early) ?? "neutral",
-        mid: normalizeApiEffectivenessLevel(profile.effectiveness?.mid) ?? "neutral",
-        late: normalizeApiEffectivenessLevel(profile.effectiveness?.late) ?? "neutral"
-      }
+      power_spikes: normalizePowerSpikes(profile.powerSpikes)
     };
   }
   const payload = {
@@ -7964,12 +8082,7 @@ function initializeExplorerControls() {
     }
   });
 
-  replaceOptions(
-    elements.explorerScaling,
-    SCALING_VALUES.map((value) => ({ value, label: value })),
-    true,
-    "Any Effectiveness Focus"
-  );
+  // explorerScaling is now a number input, no options to populate
 
   replaceOptions(
     elements.explorerSort,
@@ -8028,7 +8141,7 @@ function clearExplorerFilters() {
   state.explorer.search = "";
   state.explorer.roles = [];
   state.explorer.damageTypes = [];
-  state.explorer.scaling = "";
+  state.explorer.scaling = null;
   state.explorer.metadataScopeFilter = "";
   state.explorer.includeTags = [];
   state.explorer.excludeTags = [];
@@ -8057,8 +8170,8 @@ function renderActivePills() {
   if (state.explorer.damageTypes.length > 0) {
     pills.push({ label: "Damage Type", values: state.explorer.damageTypes });
   }
-  if (state.explorer.scaling) {
-    pills.push({ label: "Effectiveness", values: [state.explorer.scaling] });
+  if (state.explorer.scaling != null) {
+    pills.push({ label: "Power Spike Level", values: [String(state.explorer.scaling)] });
   }
   if (state.explorer.sortBy !== "alpha-asc") {
     const sortLabels = { "alpha-desc": "Alphabetical (Z-A)", role: "Primary Role, then Name" };
@@ -11264,8 +11377,21 @@ function renderExplorer() {
     if (state.explorer.damageTypes.length > 0 && !state.explorer.damageTypes.includes(champion.damageType)) {
       return false;
     }
-    if (state.explorer.scaling && champion.scaling !== state.explorer.scaling) {
-      return false;
+    if (state.explorer.scaling != null) {
+      const champRoles = Array.isArray(champion.roles) ? champion.roles : [];
+      const champRoleProfiles =
+        champion.roleProfiles && typeof champion.roleProfiles === "object" && !Array.isArray(champion.roleProfiles)
+          ? champion.roleProfiles
+          : {};
+      const activeRole = state.explorer.activeCardRole[champion.id] ?? champRoles[0];
+      const prof = champRoleProfiles[activeRole] ?? champRoleProfiles[champRoles[0]];
+      let spikes = normalizePowerSpikes(prof?.powerSpikes ?? prof?.power_spikes);
+      if (spikes.length === 0 && prof?.effectiveness) {
+        spikes = powerSpikesFromLegacyEffectiveness(prof.effectiveness);
+      }
+      if (!levelInPowerSpikes(state.explorer.scaling, spikes)) {
+        return false;
+      }
     }
     for (const tag of includeTags) {
       if (!champion.tags[tag]) {
@@ -11510,16 +11636,28 @@ function renderExplorer() {
         ? deriveDisplayDamageTypeFromProfile(profile)
         : champion.damageType;
 
-      // Effectiveness Focus: always show all 3 phases
-      const spikePills = [];
-      if (profile?.effectiveness) {
-        for (const phase of EFFECTIVENESS_PHASES) {
-          const level = normalizeApiEffectivenessLevel(profile.effectiveness[phase]) ?? "neutral";
-          const label = `${phase[0].toUpperCase()}${phase.slice(1)}: ${level[0].toUpperCase()}${level.slice(1)}`;
-          spikePills.push(makePill(label, `champ-spike-${level}`));
+      // Power Spikes: compact level bar
+      let cardPowerSpikes = normalizePowerSpikes(profile?.powerSpikes ?? profile?.power_spikes);
+      if (cardPowerSpikes.length === 0 && profile?.effectiveness) {
+        cardPowerSpikes = powerSpikesFromLegacyEffectiveness(profile.effectiveness);
+      }
+      const spikeElements = [];
+      if (cardPowerSpikes.length > 0) {
+        const miniBar = runtimeDocument.createElement("div");
+        miniBar.className = "champ-level-bar-mini";
+        for (let lvl = POWER_SPIKE_MIN_LEVEL; lvl <= POWER_SPIKE_MAX_LEVEL; lvl++) {
+          const seg = runtimeDocument.createElement("div");
+          seg.className = "champ-level-seg";
+          if (levelInPowerSpikes(lvl, cardPowerSpikes)) seg.classList.add("is-active");
+          miniBar.append(seg);
         }
+        spikeElements.push(miniBar);
+        const rangeLabel = runtimeDocument.createElement("span");
+        rangeLabel.className = "champ-spike-range-text meta";
+        rangeLabel.textContent = cardPowerSpikes.map((r) => `${r.start}–${r.end}`).join(", ");
+        spikeElements.push(rangeLabel);
       } else if (champion.scaling) {
-        spikePills.push(makePill(champion.scaling));
+        spikeElements.push(makePill(champion.scaling));
       }
 
       const damagePills = damageType
@@ -11529,7 +11667,7 @@ function renderExplorer() {
       meta.append(
         makeMetaSection("Role(s)", roleBtns, "champ-role-pill-row"),
         makeMetaSection("Damage Type", damagePills),
-        makeMetaSection("Effectiveness Focus", spikePills, "champ-spike-pill-row")
+        makeMetaSection("Power Spikes", spikeElements, "champ-spike-section")
       );
       return meta;
     };
@@ -13439,8 +13577,9 @@ function attachEvents() {
     renderExplorer();
   });
 
-  elements.explorerScaling.addEventListener("change", () => {
-    state.explorer.scaling = elements.explorerScaling.value;
+  elements.explorerScaling.addEventListener("input", () => {
+    const val = parseInt(elements.explorerScaling.value, 10);
+    state.explorer.scaling = (Number.isInteger(val) && val >= POWER_SPIKE_MIN_LEVEL && val <= POWER_SPIKE_MAX_LEVEL) ? val : null;
     renderExplorer();
   });
 
@@ -13502,7 +13641,7 @@ function attachEvents() {
 
   elements.explorerClearScaling.addEventListener("click", () => {
     elements.explorerScaling.value = "";
-    state.explorer.scaling = "";
+    state.explorer.scaling = null;
     renderExplorer();
   });
 

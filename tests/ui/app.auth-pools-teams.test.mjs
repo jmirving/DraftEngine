@@ -48,13 +48,13 @@ function tagsFalse() {
 }
 
 function createRoleProfile(primaryDamageType, early = "neutral", mid = "neutral", late = "neutral") {
+  const powerSpikes = [];
+  if (early === "strong") powerSpikes.push({ start: 1, end: 6 });
+  if (mid === "strong") powerSpikes.push({ start: 7, end: 12 });
+  if (late === "strong") powerSpikes.push({ start: 13, end: 18 });
   return {
     primaryDamageType,
-    effectiveness: {
-      early,
-      mid,
-      late
-    }
+    powerSpikes
   };
 }
 
@@ -320,11 +320,7 @@ function createFetchHarness({
           role,
           {
             primaryDamageType: profile?.primaryDamageType ?? profile?.primary_damage_type ?? "mixed",
-            effectiveness: {
-              early: profile?.effectiveness?.early ?? "neutral",
-              mid: profile?.effectiveness?.mid ?? "neutral",
-              late: profile?.effectiveness?.late ?? "neutral"
-            }
+            powerSpikes: Array.isArray(profile?.powerSpikes) ? profile.powerSpikes : []
           }
         ])
       )
@@ -692,11 +688,7 @@ function createFetchHarness({
             role,
             {
               primaryDamageType: profile?.primaryDamageType ?? profile?.primary_damage_type ?? "mixed",
-              effectiveness: {
-                early: profile?.effectiveness?.early ?? "neutral",
-                mid: profile?.effectiveness?.mid ?? "neutral",
-                late: profile?.effectiveness?.late ?? "neutral"
-              }
+              powerSpikes: Array.isArray(profile?.powerSpikes) ? profile.powerSpikes : []
             }
           ])
         ),

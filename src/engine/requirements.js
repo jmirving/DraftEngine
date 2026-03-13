@@ -95,6 +95,35 @@ function resolveChampionDamageType(champion, role) {
 
 function resolveChampionEffectivenessFocus(champion, role) {
   const profile = resolveChampionRoleProfile(champion, role);
+
+  // New power spikes format: derive phase from level ranges
+  const rawSpikes = profile?.powerSpikes ?? profile?.power_spikes;
+  if (Array.isArray(rawSpikes) && rawSpikes.length > 0) {
+    // Phase boundaries: early=1-6, mid=7-12, late=13-18
+    const phaseCoverage = { early: 0, mid: 0, late: 0 };
+    for (const spike of rawSpikes) {
+      if (!spike || typeof spike !== "object") continue;
+      const start = Number(spike.start);
+      const end = Number(spike.end);
+      if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+      for (let lvl = Math.max(1, start); lvl <= Math.min(18, end); lvl++) {
+        if (lvl <= 6) phaseCoverage.early++;
+        else if (lvl <= 12) phaseCoverage.mid++;
+        else phaseCoverage.late++;
+      }
+    }
+    let bestPhase = "mid";
+    let bestCount = 0;
+    for (const phase of EFFECTIVENESS_PHASES) {
+      if (phaseCoverage[phase] > bestCount) {
+        bestCount = phaseCoverage[phase];
+        bestPhase = phase;
+      }
+    }
+    return bestPhase;
+  }
+
+  // Legacy effectiveness format
   const effectiveness =
     profile?.effectiveness && typeof profile.effectiveness === "object" && !Array.isArray(profile.effectiveness)
       ? profile.effectiveness
