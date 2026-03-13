@@ -863,6 +863,7 @@ function createElements() {
     builderTreeSummary: runtimeDocument.querySelector("#builder-tree-summary"),
     builderTree: runtimeDocument.querySelector("#builder-tree"),
     builderTreeMap: runtimeDocument.querySelector("#builder-tree-map"),
+    draftResultsArea: runtimeDocument.querySelector("#draft-results-area"),
     treeDensity: runtimeDocument.querySelector("#tree-density"),
     treeSearch: runtimeDocument.querySelector("#tree-search"),
     treeMinScore: runtimeDocument.querySelector("#tree-min-score"),
@@ -13276,84 +13277,107 @@ function formatBlockedReason(reason, role) {
   }
 }
 
+function openDraftModal(titleText, contentEl) {
+  closeDraftModal();
+  const overlay = runtimeDocument.createElement("div");
+  overlay.className = "draft-modal-overlay";
+  overlay.addEventListener("click", (evt) => {
+    if (evt.target === overlay) closeDraftModal();
+  });
+
+  const dialog = runtimeDocument.createElement("div");
+  dialog.className = "draft-modal";
+
+  const header = runtimeDocument.createElement("div");
+  header.className = "draft-modal-header";
+  const title = runtimeDocument.createElement("h3");
+  title.textContent = titleText;
+  const close = runtimeDocument.createElement("button");
+  close.type = "button";
+  close.className = "draft-modal-close";
+  close.textContent = "\u00D7";
+  close.addEventListener("click", closeDraftModal);
+  header.append(title, close);
+
+  const body = runtimeDocument.createElement("div");
+  body.className = "draft-modal-body";
+  body.append(contentEl);
+
+  dialog.append(header, body);
+  overlay.append(dialog);
+  runtimeDocument.body.append(overlay);
+  requestAnimationFrame(() => overlay.classList.add("is-open"));
+}
+
+function closeDraftModal() {
+  const existing = runtimeDocument.querySelector(".draft-modal-overlay");
+  if (existing) existing.remove();
+}
+
+function createRevealRow(label, onClick) {
+  const row = runtimeDocument.createElement("div");
+  row.className = "draft-reveal-row";
+  const text = runtimeDocument.createElement("span");
+  text.textContent = label;
+  const icon = runtimeDocument.createElement("button");
+  icon.type = "button";
+  icon.className = "draft-reveal-icon";
+  icon.innerHTML = "&#x1F441;";
+  icon.title = `Show ${label}`;
+  icon.addEventListener("click", onClick);
+  text.addEventListener("click", onClick);
+  text.style.cursor = "pointer";
+  row.append(text, icon);
+  return row;
+}
+
+function buildGenerationStatsContent(generationStats) {
+  const container = runtimeDocument.createElement("div");
+  container.className = "draft-stats-grid";
+  const entries = [
+    ["Nodes Visited", generationStats.nodesVisited],
+    ["Nodes Kept", generationStats.nodesKept],
+    ["Candidate Calls", generationStats.candidateGenerationCalls ?? 0],
+    ["Candidates Evaluated", generationStats.candidatesEvaluated ?? 0],
+    ["Candidates Selected", generationStats.candidatesSelected ?? 0],
+    ["Pruned: Unreachable", generationStats.prunedUnreachable],
+    ["Pruned: Low Score", generationStats.prunedLowCandidateScore],
+    ["Pruned: Relative Score", generationStats.prunedRelativeCandidateScore ?? 0],
+    ["Fallback Candidates", generationStats.fallbackCandidatesUsed ?? 0],
+    ["Fallback Nodes", generationStats.fallbackNodes ?? 0],
+    ["Complete Draft Leaves", generationStats.completeDraftLeaves],
+    ["Incomplete Draft Leaves", generationStats.incompleteDraftLeaves],
+    ["Valid Leaves", generationStats.validLeaves],
+    ["Incomplete Leaves", generationStats.incompleteLeaves]
+  ];
+  for (const [label, value] of entries) {
+    const row = runtimeDocument.createElement("div");
+    row.className = "draft-stats-row";
+    const lbl = runtimeDocument.createElement("span");
+    lbl.className = "draft-stats-label";
+    lbl.textContent = label;
+    const val = runtimeDocument.createElement("span");
+    val.className = "draft-stats-value";
+    val.textContent = String(value);
+    row.append(lbl, val);
+    container.append(row);
+  }
+  return container;
+}
+
 function renderTreeSummary(root, rootNodeId, visibleIds) {
   elements.builderTreeSummary.innerHTML = "";
   if (!state.builder.tree || !root) {
     return;
   }
-  const flat = flattenTreeForMap(root, rootNodeId).filter((entry) => visibleIds.has(entry.id));
   const generationStats = state.builder.tree.generationStats ?? null;
-  const maxDepth = Math.max(...flat.map((entry) => entry.depth));
-  const summaryMeta = runtimeDocument.createElement("p");
-  summaryMeta.className = "tree-summary-headline";
-  summaryMeta.textContent =
-    `${flat.length} visible node${flat.length === 1 ? "" : "s"} | ` +
-    `${generationStats?.validLeaves ?? 0} viable finish${(generationStats?.validLeaves ?? 0) === 1 ? "" : "es"} | depth ${maxDepth}.`;
-  elements.builderTreeSummary.append(summaryMeta);
-
-  if (rootNodeId !== "0") {
-    const navActions = runtimeDocument.createElement("div");
-    navActions.className = "button-row";
-    const back = runtimeDocument.createElement("button");
-    back.type = "button";
-    back.className = "ghost";
-    back.textContent = "Back";
-    back.addEventListener("click", () => {
-      const parentId = getParentNodeId(rootNodeId) ?? "0";
-      const parentNode = getNodeById(parentId);
-      if (!parentNode) {
-        return;
-      }
-      state.builder.focusNodeId = parentId;
-      state.builder.selectedNodeId = parentId;
-      state.builder.selectedNodeTitle = parentNode.addedChampion
-        ? `${parentNode.addedRole}: ${parentNode.addedChampion}`
-        : "Root Composition";
-      state.builder.teamState = normalizeTeamState(parentNode.teamSlots);
-      validateTeamSelections();
-      clearBuilderFeedback();
-      setSetupFeedback("");
-      renderTeamConfig();
-      renderTree();
-      renderTreeMap();
-    });
-    navActions.append(back);
-    elements.builderTreeSummary.append(navActions);
-  }
 
   if (generationStats) {
-    const rankMeta = runtimeDocument.createElement("p");
-    rankMeta.className = "meta";
-    rankMeta.textContent = getRankGoalLabel();
-    elements.builderTreeSummary.append(rankMeta);
-
-    const statsDetails = runtimeDocument.createElement("details");
-    statsDetails.className = "debug-details";
-    const statsSummary = runtimeDocument.createElement("summary");
-    statsSummary.textContent = "Generation stats";
-    const statsMeta = runtimeDocument.createElement("p");
-    statsMeta.className = "meta";
-    statsMeta.textContent =
-      `Visited ${generationStats.nodesVisited}, kept ${generationStats.nodesKept}, ` +
-      `candidate calls ${generationStats.candidateGenerationCalls ?? 0}, ` +
-      `candidates evaluated ${generationStats.candidatesEvaluated ?? 0}, selected ${generationStats.candidatesSelected ?? 0}, ` +
-      `pruned unreachable ${generationStats.prunedUnreachable}, ` +
-      `pruned low score ${generationStats.prunedLowCandidateScore}, ` +
-      `pruned relative score ${generationStats.prunedRelativeCandidateScore ?? 0}, ` +
-      `fallback candidates ${generationStats.fallbackCandidatesUsed ?? 0}, fallback nodes ${generationStats.fallbackNodes ?? 0}, ` +
-      `complete draft leaves ${generationStats.completeDraftLeaves}, incomplete draft leaves ${generationStats.incompleteDraftLeaves}, ` +
-      `valid leaves ${generationStats.validLeaves}, incomplete leaves ${generationStats.incompleteLeaves}.`;
-    statsDetails.append(statsSummary, statsMeta);
-
-    if ((generationStats.fallbackNodes ?? 0) > 0) {
-      const fallbackMeta = runtimeDocument.createElement("p");
-      fallbackMeta.className = "meta";
-      fallbackMeta.textContent =
-        `Adaptive fallback kept ${generationStats.fallbackCandidatesUsed} below-floor candidate(s) ` +
-        `across ${generationStats.fallbackNodes} node(s) to avoid artificial dead-ends.`;
-      statsDetails.append(fallbackMeta);
-    }
-    elements.builderTreeSummary.append(statsDetails);
+    elements.builderTreeSummary.append(
+      createRevealRow("Generation Stats", () => {
+        openDraftModal("Generation Stats", buildGenerationStatsContent(generationStats));
+      })
+    );
 
     if (generationStats.completeDraftLeaves === 0) {
       const hardFail = runtimeDocument.createElement("p");
@@ -13381,13 +13405,7 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
     }
   }
 
-  const topHeading = runtimeDocument.createElement("p");
-  topHeading.className = "panel-kicker";
-  topHeading.textContent = rootNodeId === "0" ? "Top branches from root:" : `Top branches from ${state.builder.selectedNodeTitle}:`;
-  elements.builderTreeSummary.append(topHeading);
-
-  const list = runtimeDocument.createElement("div");
-  list.className = "summary-card-list";
+  const flat = flattenTreeForMap(root, rootNodeId).filter((entry) => visibleIds.has(entry.id));
   const topBranches = root.children
     .map((node, index) => ({
       node,
@@ -13397,165 +13415,120 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
     .filter((entry) => visibleIds.has(entry.id))
     .slice(0, 8);
 
-  if (topBranches.length === 0) {
-    const empty = runtimeDocument.createElement("p");
-    empty.className = "meta";
-    empty.textContent =
-      rootNodeId === "0"
-        ? "No root branches match current filters. Try disabling 'Valid leaves only', lowering Min Score, or clearing Search."
-        : "No child branches match current filters at this inspected node.";
-    elements.builderTreeSummary.append(empty);
+  const nextRole = topBranches[0]?.node?.addedRole ?? "Next Role";
+  elements.builderTreeSummary.append(
+    createRevealRow(`Draft Picks for ${nextRole}`, () => {
+      const content = runtimeDocument.createElement("div");
+      content.className = "summary-card-list";
+      if (topBranches.length === 0) {
+        const empty = runtimeDocument.createElement("p");
+        empty.className = "meta";
+        empty.textContent = "No branches match current filters.";
+        content.append(empty);
+      }
+      for (const entry of topBranches) {
+        content.append(buildBranchCard(entry, topBranches));
+      }
+      openDraftModal(`Draft Picks \u2014 ${nextRole}`, content);
+    })
+  );
 
-    const quickActions = runtimeDocument.createElement("div");
-    quickActions.className = "button-row";
+  if (topBranches.length === 0 && root.children.length === 0) {
+    const guidance = runtimeDocument.createElement("p");
+    guidance.className = "meta";
+    guidance.textContent =
+      "No viable branches were generated. Adjust slot picks, exclusions, or active composition requirements.";
+    elements.builderTreeSummary.append(guidance);
+  }
+}
 
-    if (state.builder.treeValidLeavesOnly) {
-      const showAll = runtimeDocument.createElement("button");
-      showAll.type = "button";
-      showAll.textContent = "Show all branches";
-      showAll.addEventListener("click", () => {
-        state.builder.treeValidLeavesOnly = false;
-        elements.treeValidLeavesOnly.checked = false;
-        renderTree();
-        renderTreeMap();
-      });
-      quickActions.append(showAll);
-    }
+function buildBranchCard(entry, allEntries) {
+  const card = runtimeDocument.createElement("article");
+  card.className = "summary-card branch-card";
 
-    if (state.builder.treeSearch.trim()) {
-      const clearSearch = runtimeDocument.createElement("button");
-      clearSearch.type = "button";
-      clearSearch.className = "ghost";
-      clearSearch.textContent = "Clear Search";
-      clearSearch.addEventListener("click", () => {
-        state.builder.treeSearch = "";
-        elements.treeSearch.value = "";
-        renderTree();
-        renderTreeMap();
-      });
-      quickActions.append(clearSearch);
-    }
+  const cardTop = runtimeDocument.createElement("div");
+  cardTop.className = "branch-card-top";
+  const rank = runtimeDocument.createElement("span");
+  rank.className = "branch-rank";
+  rank.textContent = `#${allEntries.indexOf(entry) + 1}`;
+  const title = runtimeDocument.createElement("strong");
+  title.textContent = entry.title;
+  cardTop.append(rank, title);
 
-    if (state.builder.treeMinCandidateScore > 0) {
-      const lowerFloor = runtimeDocument.createElement("button");
-      lowerFloor.type = "button";
-      lowerFloor.className = "ghost";
-      lowerFloor.textContent = "Lower Min Candidate Score to 0";
-      lowerFloor.addEventListener("click", () => {
-        state.builder.treeMinCandidateScore = 0;
-        if (elements.treeMinCandidateScore) {
-          elements.treeMinCandidateScore.value = "0";
-        }
-        setBuilderStage("setup");
-        resetBuilderTreeState();
-        renderBuilder();
-      });
-      quickActions.append(lowerFloor);
-    }
+  const headline = runtimeDocument.createElement("p");
+  headline.className = "branch-headline";
+  headline.textContent =
+    `${entry.node.branchPotential?.validLeafCount ?? 0} viable finish${(entry.node.branchPotential?.validLeafCount ?? 0) === 1 ? "" : "es"} | ` +
+    `${getBranchStatusLine(entry.node)}.`;
 
-    if (quickActions.childElementCount > 0) {
-      elements.builderTreeSummary.append(quickActions);
-    }
+  const impact = runtimeDocument.createElement("p");
+  impact.className = "branch-impact-summary";
+  impact.textContent = getBranchImpactSummary(entry.node.candidateBreakdown);
 
-    if (root.children.length === 0) {
-      const guidance = runtimeDocument.createElement("p");
-      guidance.className = "meta";
-      guidance.textContent =
-        "No viable branches were generated. Depth is automatic to remaining slots. Adjust slot picks, exclusions, or active composition requirements.";
-      elements.builderTreeSummary.append(guidance);
-    }
-    return;
+  const benefits = runtimeDocument.createElement("ul");
+  benefits.className = "branch-benefit-list";
+  const candidateBenefitMeta = getCandidateBenefitMeta(entry.node.candidateBreakdown, 2);
+  const benefitLines =
+    candidateBenefitMeta.lines.length > 0
+      ? candidateBenefitMeta.lines
+      : ["No immediate clause coverage gain; ranked via downstream viable finishes."];
+  for (const line of benefitLines) {
+    const item = runtimeDocument.createElement("li");
+    item.textContent = line;
+    benefits.append(item);
+  }
+  if (candidateBenefitMeta.hiddenCount > 0) {
+    const hidden = runtimeDocument.createElement("li");
+    hidden.className = "branch-more";
+    hidden.textContent =
+      `+${candidateBenefitMeta.hiddenCount} more clause change${candidateBenefitMeta.hiddenCount === 1 ? "" : "s"}`;
+    benefits.append(hidden);
   }
 
-  for (const entry of topBranches) {
-    const card = runtimeDocument.createElement("article");
-    card.className = "summary-card branch-card";
-
-    const cardTop = runtimeDocument.createElement("div");
-    cardTop.className = "branch-card-top";
-    const rank = runtimeDocument.createElement("span");
-    rank.className = "branch-rank";
-    rank.textContent = `#${topBranches.indexOf(entry) + 1}`;
-    const title = runtimeDocument.createElement("strong");
-    title.textContent = entry.title;
-    cardTop.append(rank, title);
-
-    const headline = runtimeDocument.createElement("p");
-    headline.className = "branch-headline";
-    headline.textContent =
-      `${entry.node.branchPotential?.validLeafCount ?? 0} viable finish${(entry.node.branchPotential?.validLeafCount ?? 0) === 1 ? "" : "es"} | ` +
-      `${getBranchStatusLine(entry.node)}.`;
-
-    const impact = runtimeDocument.createElement("p");
-    impact.className = "branch-impact-summary";
-    impact.textContent = getBranchImpactSummary(entry.node.candidateBreakdown);
-
-    const benefits = runtimeDocument.createElement("ul");
-    benefits.className = "branch-benefit-list";
-    const candidateBenefitMeta = getCandidateBenefitMeta(entry.node.candidateBreakdown, 2);
-    const benefitLines =
-      candidateBenefitMeta.lines.length > 0
-        ? candidateBenefitMeta.lines
-        : ["No immediate clause coverage gain; ranked via downstream viable finishes."];
-    for (const line of benefitLines) {
-      const item = runtimeDocument.createElement("li");
-      item.textContent = line;
-      benefits.append(item);
-    }
-    if (candidateBenefitMeta.hiddenCount > 0) {
-      const hidden = runtimeDocument.createElement("li");
-      hidden.className = "branch-more";
-      hidden.textContent =
-        `+${candidateBenefitMeta.hiddenCount} more clause change${candidateBenefitMeta.hiddenCount === 1 ? "" : "s"}`;
-      benefits.append(hidden);
-    }
-
-    const remainingCoverage = getRemainingCoverageMeta(entry.node.scoreBreakdown, 2);
-    let remaining = null;
-    if (remainingCoverage.lines.length > 0) {
-      remaining = runtimeDocument.createElement("p");
-      remaining.className = "branch-gap-list";
-      remaining.textContent =
-        `Still missing: ${remainingCoverage.lines.join(" | ")}` +
-        (remainingCoverage.hiddenCount > 0
-          ? ` | +${remainingCoverage.hiddenCount} more unmet clause${remainingCoverage.hiddenCount === 1 ? "" : "s"}`
-          : "");
-    }
-
-    const debugDetails = runtimeDocument.createElement("details");
-    debugDetails.className = "debug-details";
-    const debugSummary = runtimeDocument.createElement("summary");
-    debugSummary.textContent = "Debug scores";
-    const debugBody = runtimeDocument.createElement("p");
-    debugBody.className = "meta";
-    const fallbackSuffix = entry.node.passesMinScore === false ? ", below candidate floor" : "";
-    const deltaSummary = getCandidateDeltaSummary(entry.node.candidateBreakdown);
-    debugBody.textContent =
-      `Composition score ${entry.node.score}, candidate score ${entry.node.candidateScore ?? 0}, ` +
-      `+${deltaSummary.totalCoverageGain} required coverage, ` +
-      `redundancy overflow +${deltaSummary.totalOverflowAdded}, ` +
-      `missing coverage ${entry.node.scoreBreakdown?.totalUnderBy ?? 0}${fallbackSuffix}.`;
-    debugDetails.append(debugSummary, debugBody);
-
-    const actions = runtimeDocument.createElement("div");
-    actions.className = "button-row";
-    const inspect = runtimeDocument.createElement("button");
-    inspect.type = "button";
-    inspect.textContent = "Select";
-    inspect.addEventListener("click", () => {
-      inspectNode(entry.node, entry.id, entry.title);
-    });
-    actions.append(inspect);
-
-    if (remaining) {
-      card.append(cardTop, headline, impact, benefits, remaining, debugDetails, actions);
-    } else {
-      card.append(cardTop, headline, impact, benefits, debugDetails, actions);
-    }
-    list.append(card);
+  const remainingCoverage = getRemainingCoverageMeta(entry.node.scoreBreakdown, 2);
+  let remaining = null;
+  if (remainingCoverage.lines.length > 0) {
+    remaining = runtimeDocument.createElement("p");
+    remaining.className = "branch-gap-list";
+    remaining.textContent =
+      `Still missing: ${remainingCoverage.lines.join(" | ")}` +
+      (remainingCoverage.hiddenCount > 0
+        ? ` | +${remainingCoverage.hiddenCount} more unmet clause${remainingCoverage.hiddenCount === 1 ? "" : "s"}`
+        : "");
   }
 
-  elements.builderTreeSummary.append(list);
+  const debugDetails = runtimeDocument.createElement("details");
+  debugDetails.className = "debug-details";
+  const debugSummary = runtimeDocument.createElement("summary");
+  debugSummary.textContent = "Debug scores";
+  const debugBody = runtimeDocument.createElement("p");
+  debugBody.className = "meta";
+  const fallbackSuffix = entry.node.passesMinScore === false ? ", below candidate floor" : "";
+  const deltaSummary = getCandidateDeltaSummary(entry.node.candidateBreakdown);
+  debugBody.textContent =
+    `Composition score ${entry.node.score}, candidate score ${entry.node.candidateScore ?? 0}, ` +
+    `+${deltaSummary.totalCoverageGain} required coverage, ` +
+    `redundancy overflow +${deltaSummary.totalOverflowAdded}, ` +
+    `missing coverage ${entry.node.scoreBreakdown?.totalUnderBy ?? 0}${fallbackSuffix}.`;
+  debugDetails.append(debugSummary, debugBody);
+
+  const actions = runtimeDocument.createElement("div");
+  actions.className = "button-row";
+  const inspect = runtimeDocument.createElement("button");
+  inspect.type = "button";
+  inspect.textContent = "Select";
+  inspect.addEventListener("click", () => {
+    closeDraftModal();
+    inspectNode(entry.node, entry.id, entry.title);
+  });
+  actions.append(inspect);
+
+  if (remaining) {
+    card.append(cardTop, headline, impact, benefits, remaining, debugDetails, actions);
+  } else {
+    card.append(cardTop, headline, impact, benefits, debugDetails, actions);
+  }
+  return card;
 }
 
 function setAllTreeDetails(open) {
@@ -13598,10 +13571,6 @@ function renderTree() {
 
   if (state.builder.treeDensity === "summary") {
     renderTreeSummary(focusedNode, focusedNodeId, visibleIds);
-    const summaryNotice = runtimeDocument.createElement("p");
-    summaryNotice.className = "meta";
-    summaryNotice.textContent = "Summary mode is active. Switch to Detailed for the full outline.";
-    elements.builderTree.append(summaryNotice);
     return;
   }
 
@@ -13879,12 +13848,12 @@ function renderBuilder() {
     elements.treeCandidateRedundancyPenalty.value = String(state.builder.candidateScoringWeights.redundancyPenalty);
   }
   elements.treeValidLeavesOnly.checked = state.builder.treeValidLeavesOnly;
-  elements.treeDensity.disabled = !state.builder.tree;
+  if (elements.draftResultsArea) {
+    elements.draftResultsArea.hidden = !state.builder.tree;
+  }
   elements.treeSearch.disabled = !state.builder.tree;
   elements.treeMinScore.disabled = !state.builder.tree;
   elements.treeValidLeavesOnly.disabled = !state.builder.tree;
-  elements.treeExpandAll.disabled = !state.builder.tree || state.builder.treeDensity !== "detailed";
-  elements.treeCollapseAll.disabled = !state.builder.tree || state.builder.treeDensity !== "detailed";
   updateTeamHelpAndSlotLabels();
   renderTeamContext();
   renderDraftOrder();

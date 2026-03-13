@@ -409,43 +409,40 @@
                 </div>
                 <p id="builder-inspect-feedback" class="error-inline" hidden></p>
                 <div class="button-row inspect-generate-row">
-                  <button id="builder-generate" type="button">Generate Tree</button>
+                  <button id="builder-generate" type="button">Start Draft</button>
                   <p class="meta inspect-generate-help">Uses current setup inputs and constraints.</p>
                   <p id="builder-next-role-readout" class="meta"></p>
                 </div>
-                <div class="tree-toolbar">
-                  <label>
-                    Density
-                    <select id="tree-density">
-                      <option value="summary">Summary</option>
-                      <option value="detailed">Detailed</option>
-                    </select>
-                  </label>
-                  <label>
-                    Search Node
-                    <input id="tree-search" type="search" placeholder="Champion, role, or slot value" />
-                  </label>
-                  <label>
-                    Min Score
-                    <input id="tree-min-score" type="number" step="1" min="0" value="0" />
-                  </label>
-                  <label class="inline-checkbox">
-                    <input id="tree-valid-leaves-only" type="checkbox" checked />
-                    Valid leaves only
-                  </label>
+                <div id="draft-results-area" hidden>
+                  <div class="tree-toolbar">
+                    <label>
+                      Search Node
+                      <input id="tree-search" type="search" placeholder="Champion, role, or slot value" />
+                    </label>
+                    <label>
+                      Min Score
+                      <input id="tree-min-score" type="number" step="1" min="0" value="0" />
+                    </label>
+                    <label class="inline-checkbox">
+                      <input id="tree-valid-leaves-only" type="checkbox" checked />
+                      Valid leaves only
+                    </label>
+                  </div>
+                  <div id="builder-tree-summary" class="tree-summary"></div>
+                  <div class="panel tree-map-panel">
+                    <h3>Draft Path</h3>
+                    <p class="meta">Hover for details.</p>
+                    <p id="tree-map-legend" class="meta" hidden></p>
+                    <div id="builder-tree-map" class="draft-path-grid"></div>
+                  </div>
+                  <div id="builder-tree" class="tree"></div>
                 </div>
-                <div class="button-row">
-                  <button id="tree-expand-all" type="button" class="ghost">Expand All</button>
-                  <button id="tree-collapse-all" type="button" class="ghost">Collapse All</button>
-                </div>
-                <div id="builder-tree-summary" class="tree-summary"></div>
-                <div class="panel tree-map-panel">
-                  <h3>Draft Path</h3>
-                  <p class="meta">Pick-order columns. Click a champion to select that branch. Hover for details.</p>
-                  <p id="tree-map-legend" class="meta"></p>
-                  <div id="builder-tree-map" class="draft-path-grid"></div>
-                </div>
-                <div id="builder-tree" class="tree"></div>
+                <select id="tree-density" hidden>
+                  <option value="summary">Summary</option>
+                  <option value="detailed">Detailed</option>
+                </select>
+                <button id="tree-expand-all" type="button" class="ghost" hidden></button>
+                <button id="tree-collapse-all" type="button" class="ghost" hidden></button>
               </section>
             </div>
             <div class="composer-bottom-bar">
@@ -1182,11 +1179,14 @@
                 <h4>Version 0.8.7</h4>
                 <ul class="coming-soon-list">
                   <li>Draft Path replaces Tree Map: the SVG dot graph is replaced by a 5-column pick-order layout where each column lists champion options for that role, styled like pool snapshot cards.</li>
-                  <li>Hover any champion in the Draft Path to see a compact tooltip with viable finishes, coverage status, impact summary, and missing coverage — the same data previously shown only on branch cards.</li>
-                  <li>Column headers display role names (Top, Jungle, etc.) in draft order instead of D0–D5 depth labels.</li>
-                  <li>Champions in each column are sorted by total viable finishes; a green badge shows the count.</li>
-                  <li>Selected branch is highlighted in the column; ancestors on the selected path get a subtle tint.</li>
-                  <li>Branch card and tree node "Inspect" buttons renamed to "Select" for clarity.</li>
+                  <li>Hover any champion in the Draft Path to see a compact tooltip with viable finishes, coverage status, impact summary, and missing coverage.</li>
+                  <li>Draft Path shows ALL champions per role across the entire tree; clicking a champion filters other columns to compatible picks without locking other roles. Selections sync bidirectionally with pool snapshot cards.</li>
+                  <li>"Generate Tree" renamed to "Start Draft"; tree controls, Draft Path, and summary are hidden until Start Draft is clicked.</li>
+                  <li>Generation Stats and Draft Picks now open in dark-themed tech modals via eye-icon reveal rows instead of inline details/card lists.</li>
+                  <li>Density dropdown and "Summary mode" notice removed; summary is now the default view.</li>
+                  <li>Tree map legend hidden; panel description simplified to "Hover for details."</li>
+                  <li>Clear Composition sticky bar now has a gradient background and respects the left nav width.</li>
+                  <li>Branch card and tree node "Inspect" buttons renamed to "Select."</li>
                 </ul>
                 <h4>Version 0.8.6 (Shipped)</h4>
                 <ul class="coming-soon-list">

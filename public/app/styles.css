@@ -632,14 +632,20 @@ body:has(#app-shell.is-nav-collapsed) .panel.side-menu {
 .composer-bottom-bar {
   position: fixed;
   bottom: 0;
-  left: 0;
+  left: 220px;
   right: 0;
   display: flex;
   justify-content: center;
-  padding: 0.6rem 1rem 1rem;
+  padding: 0.7rem 1rem;
   z-index: 50;
   pointer-events: none;
+  background: linear-gradient(to top, var(--surface) 60%, transparent);
 }
+
+body:has(#app-shell.is-nav-collapsed) .composer-bottom-bar {
+  left: 3.35rem;
+}
+
 .composer-bottom-bar button {
   pointer-events: auto;
   width: 66%;
@@ -1968,6 +1974,163 @@ button.pool-snapshot-order-btn:disabled {
 
 .draft-path-clear-btn:hover {
   color: var(--warn);
+}
+
+/* ── Draft modal ──────────────────────────── */
+.draft-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 12, 14, 0.55);
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.draft-modal-overlay.is-open {
+  opacity: 1;
+}
+
+.draft-modal {
+  background: #111418;
+  color: #d4dce6;
+  border: 1px solid #2a3040;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 720px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  font-family: "Consolas", "Monaco", "Courier New", monospace;
+}
+
+.draft-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid #2a3040;
+}
+
+.draft-modal-header h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #7fdbca;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.draft-modal-close {
+  background: none;
+  border: none;
+  color: #8899aa;
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 0 0.3rem;
+  line-height: 1;
+}
+
+.draft-modal-close:hover {
+  color: #ff6b6b;
+}
+
+.draft-modal-body {
+  padding: 0.8rem 1rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Stats grid inside modal */
+.draft-stats-grid {
+  display: grid;
+  gap: 0;
+}
+
+.draft-stats-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid #1e2530;
+  font-size: 0.78rem;
+}
+
+.draft-stats-label {
+  color: #8899aa;
+}
+
+.draft-stats-value {
+  color: #7fdbca;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Branch cards inside modal */
+.draft-modal-body .summary-card-list {
+  gap: 0.6rem;
+}
+
+.draft-modal-body .branch-card {
+  background: #1a1e26;
+  border-color: #2a3040;
+  color: #d4dce6;
+}
+
+.draft-modal-body .branch-rank {
+  background: #2a3040;
+  color: #7fdbca;
+}
+
+.draft-modal-body .branch-headline {
+  color: #d4dce6;
+}
+
+.draft-modal-body .branch-impact-summary,
+.draft-modal-body .branch-benefit-list,
+.draft-modal-body .branch-gap-list {
+  color: #8899aa;
+}
+
+.draft-modal-body .debug-details {
+  border-color: #2a3040;
+}
+
+.draft-modal-body .button-row button {
+  background: #cc5b34;
+  color: #fff;
+  border: none;
+}
+
+/* ── Reveal row (eye icon trigger) ──────── */
+.draft-reveal-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink);
+  padding: 0.3rem 0;
+}
+
+.draft-reveal-row + .draft-reveal-row {
+  border-top: 1px solid var(--border);
+}
+
+.draft-reveal-icon {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0 0.2rem;
+  opacity: 0.6;
+  transition: opacity 150ms;
+}
+
+.draft-reveal-icon:hover {
+  opacity: 1;
 }
 
 .champ-header {
