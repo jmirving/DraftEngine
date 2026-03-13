@@ -1565,7 +1565,7 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
     issueReporter
   });
 
-  return { app, config, state, usersRepository };
+  return { app, config, state, usersRepository, teamsRepository };
 }
 
 function buildAuthHeader(userId, config) {
@@ -3253,6 +3253,25 @@ describe("API routes", () => {
       .set("Authorization", globalAuth);
     expect(rejectedInvites.body.invitations).toHaveLength(1);
     expect(rejectedInvites.body.invitations[0].team.name).toBe("Team Echo");
+  });
+
+  it("returns a clear schema-mismatch error for invitation endpoints", async () => {
+    const { app, config, teamsRepository } = createMockContext();
+    const outsiderAuth = buildAuthHeader(3, config);
+
+    teamsRepository.listMemberInvitationsForUser = async () => {
+      const error = new Error("relation missing");
+      error.code = "42P01";
+      throw error;
+    };
+
+    const response = await request(app)
+      .get("/me/member-invitations")
+      .set("Authorization", outsiderAuth);
+
+    expect(response.status).toBe(500);
+    expect(response.body.error.code).toBe("SCHEMA_MISMATCH");
+    expect(response.body.error.message).toContain("npm run migrate:up");
   });
 
   it("blocks join flows when user has no primary role set", async () => {

@@ -28,6 +28,10 @@ export function conflict(message, details = undefined) {
   return new ApiError(409, "CONFLICT", message, details);
 }
 
+export function schemaMismatch(message = "Database schema is out of date. Run migrations with 'npm run migrate:up'.") {
+  return new ApiError(500, "SCHEMA_MISMATCH", message);
+}
+
 export function formatErrorResponse(error) {
   if (error instanceof ApiError) {
     const body = {
@@ -45,6 +49,10 @@ export function formatErrorResponse(error) {
     };
   }
 
+  if (error && (error.code === "42703" || error.code === "42P01")) {
+    return formatErrorResponse(schemaMismatch());
+  }
+
   return {
     status: 500,
     body: {
@@ -55,4 +63,3 @@ export function formatErrorResponse(error) {
     }
   };
 }
-

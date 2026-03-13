@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "crypto";
 import { Router } from "express";
 
-import { ApiError, badRequest, conflict, unauthorized } from "../errors.js";
+import { ApiError, badRequest, conflict, schemaMismatch, unauthorized } from "../errors.js";
 import { requireEmail, requireGameName, requireNonEmptyString, requireObject, requirePassword, requireTagline } from "../http/validation.js";
 import { hashPassword, verifyPassword } from "../auth/password.js";
 import { signAccessToken } from "../auth/tokens.js";
@@ -40,11 +40,7 @@ function mapUniqueConstraintError(error) {
     return conflict("Email already exists.", { field: "email" });
   }
   if (error && (error.code === "42703" || error.code === "42P01")) {
-    return new ApiError(
-      500,
-      "SCHEMA_MISMATCH",
-      "Database schema is out of date. Run migrations with 'npm run migrate:up'."
-    );
+    return schemaMismatch();
   }
   return error;
 }
