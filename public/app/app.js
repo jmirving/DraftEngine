@@ -552,6 +552,12 @@ function createInitialState() {
       isCreatingTeam: false,
       tags: [],
       tagById: {},
+      tagsWorkspaceCatalog: [],
+      tagsWorkspaceTagById: {},
+      tagsCatalogScope: "all",
+      tagsCatalogTeamId: "",
+      championEditorTags: [],
+      championEditorTagById: {},
       selectedChampionTagEditorId: null,
       selectedChampionTagIds: [],
       championTagScope: "self",
@@ -720,6 +726,11 @@ function createElements() {
     teamConfigMeta: runtimeDocument.querySelector("#team-config-meta"),
     tagsTitle: runtimeDocument.querySelector("#tags-title"),
     tagsMeta: runtimeDocument.querySelector("#tags-meta"),
+    tagsScope: runtimeDocument.querySelector("#tags-scope"),
+    tagsScopeReadout: runtimeDocument.querySelector("#tags-scope-readout"),
+    tagsScopeHelp: runtimeDocument.querySelector("#tags-scope-help"),
+    tagsTeamGroup: runtimeDocument.querySelector("#tags-team-group"),
+    tagsTeam: runtimeDocument.querySelector("#tags-team"),
     tagsManageAccess: runtimeDocument.querySelector("#tags-manage-access"),
     tagsManageName: runtimeDocument.querySelector("#tags-manage-name"),
     tagsManageDefinition: runtimeDocument.querySelector("#tags-manage-definition"),
@@ -1369,6 +1380,134 @@ function getCompositionCatalogDefaultScope() {
     return "all";
   }
   return "self";
+}
+
+function getTagCatalogScopeOptions() {
+  return getCompositionCatalogScopeOptions();
+}
+
+function getTagCatalogDefaultScope() {
+  if (isGlobalTagEditorUser()) {
+    return "all";
+  }
+  return "self";
+}
+
+function resolveTagCatalogTeamId() {
+  const teamOptions = getChampionTagLeadTeamOptions();
+  if (teamOptions.length < 1) {
+    return "";
+  }
+
+  const activeTeamId = normalizeTeamEntityId(state.teamConfig.activeTeamId);
+  const activeTeamValue = activeTeamId ? String(activeTeamId) : "";
+  if (activeTeamValue && teamOptions.some((option) => option.value === activeTeamValue)) {
+    return activeTeamValue;
+  }
+
+  const selectedTeamValue = String(state.api.tagsCatalogTeamId ?? "");
+  if (teamOptions.some((option) => option.value === selectedTeamValue)) {
+    return selectedTeamValue;
+  }
+
+  return teamOptions[0]?.value ?? "";
+}
+
+function syncTagCatalogScopeState() {
+  const scopeOptions = getTagCatalogScopeOptions();
+  const scopeValues = new Set(scopeOptions.map((option) => option.value));
+  if (scopeValues.size < 1) {
+    state.api.tagsCatalogScope = "all";
+    state.api.tagsCatalogTeamId = "";
+    return;
+  }
+
+  const normalizedScope = normalizeChampionTagScope(state.api.tagsCatalogScope);
+  state.api.tagsCatalogScope = scopeValues.has(normalizedScope)
+    ? normalizedScope
+    : getTagCatalogDefaultScope();
+
+  if (state.api.tagsCatalogScope === "team") {
+    state.api.tagsCatalogTeamId = resolveTagCatalogTeamId();
+    if (!state.api.tagsCatalogTeamId) {
+      state.api.tagsCatalogScope = scopeValues.has("self")
+        ? "self"
+        : scopeValues.has("all")
+          ? "all"
+          : scopeOptions[0].value;
+    }
+  }
+
+  if (state.api.tagsCatalogScope !== "team") {
+    state.api.tagsCatalogTeamId = "";
+  }
+}
+
+function getTagCatalogScopeRequestContext() {
+  syncTagCatalogScopeState();
+  const scope = normalizeChampionTagScope(state.api.tagsCatalogScope);
+  if (scope === "team") {
+    return {
+      scope,
+      teamId: resolveTagCatalogTeamId()
+    };
+  }
+  return {
+    scope,
+    teamId: ""
+  };
+}
+
+function canWriteTagCatalogScope() {
+  if (!isAuthenticated()) {
+    return false;
+  }
+  const context = getTagCatalogScopeRequestContext();
+  if (context.scope === "self") {
+    return true;
+  }
+  if (context.scope === "team") {
+    return context.teamId !== "";
+  }
+  return isGlobalTagEditorUser();
+}
+
+function renderTagCatalogScopeControls() {
+  syncTagCatalogScopeState();
+  const scopeOptions = getTagCatalogScopeOptions();
+  const teamOptions = getChampionTagLeadTeamOptions();
+  const context = getTagCatalogScopeRequestContext();
+  const activeScopeLabel = scopeOptions.find((option) => option.value === context.scope)?.label ?? "Global";
+  const activeTeamLabel = context.teamId
+    ? teamOptions.find((option) => option.value === context.teamId)?.label ?? "Selected team"
+    : "";
+
+  const scopeHelp = context.scope === "team"
+    ? `Reading and writing team-scoped tag definitions${activeTeamLabel ? ` for ${activeTeamLabel}` : ""}.`
+    : context.scope === "self"
+      ? "Reading and writing your personal tag definitions with global fallback."
+      : "Reading and writing the shared global tag catalog.";
+
+  if (elements.tagsScope) {
+    replaceOptions(elements.tagsScope, scopeOptions);
+    elements.tagsScope.value = context.scope;
+    elements.tagsScope.disabled = scopeOptions.length <= 1;
+  }
+  if (elements.tagsScopeReadout) {
+    elements.tagsScopeReadout.textContent =
+      context.scope === "team" && activeTeamLabel ? `${activeScopeLabel}: ${activeTeamLabel}` : activeScopeLabel;
+  }
+  if (elements.tagsScopeHelp) {
+    elements.tagsScopeHelp.textContent = scopeHelp;
+  }
+  if (elements.tagsTeamGroup) {
+    elements.tagsTeamGroup.hidden = context.scope !== "team";
+  }
+  if (elements.tagsTeam) {
+    replaceOptions(elements.tagsTeam, teamOptions, false, "No lead teams available");
+    elements.tagsTeam.value = context.teamId;
+    elements.tagsTeam.disabled = context.scope !== "team" || teamOptions.length < 1;
+  }
 }
 
 function resolveCompositionCatalogTeamId() {
@@ -2048,6 +2187,8 @@ function clearChampionTagEditorState() {
   state.api.championMetadataResolvedScope = "all";
   state.api.championEditorSavedSnapshot = null;
   state.api.championProfileActiveRole = null;
+  state.api.championEditorTags = [];
+  state.api.championEditorTagById = {};
   state.api.isLoadingChampionTags = false;
   state.api.isSavingChampionTags = false;
   setChampionTagEditorMeta("");
@@ -3861,12 +4002,32 @@ function normalizeTagCatalogEntry(rawTag) {
   if (!name) {
     return null;
   }
-  return { id, name, definition };
+  return {
+    id,
+    name,
+    definition,
+    resolvedScope: normalizeChampionTagScope(rawTag.resolved_scope ?? rawTag.resolvedScope ?? "all"),
+    hasCustomDefinition:
+      rawTag.has_custom_definition === true ||
+      rawTag.hasCustomDefinition === true ||
+      (
+        rawTag.has_custom_definition === undefined &&
+        rawTag.hasCustomDefinition === undefined &&
+        normalizeChampionTagScope(rawTag.resolved_scope ?? rawTag.resolvedScope ?? "all") === "all"
+      ),
+    updatedByUserId: normalizeApiEntityId(rawTag.updated_by_user_id ?? rawTag.updatedByUserId),
+    updatedAt:
+      typeof rawTag.updated_at === "string"
+        ? rawTag.updated_at
+        : typeof rawTag.updatedAt === "string"
+          ? rawTag.updatedAt
+          : ""
+  };
 }
 
 async function loadTagCatalogFromApi() {
   try {
-    const payload = await fetchJson(resolveApiUrl("/tags"));
+    const payload = await apiRequest("/tags", { auth: isAuthenticated() });
     const source = Array.isArray(payload?.tags) ? payload.tags : [];
     const tags = source.map(normalizeTagCatalogEntry).filter(Boolean);
     state.api.tags = tags;
@@ -3876,6 +4037,47 @@ async function loadTagCatalogFromApi() {
   } catch (_error) {
     state.api.tags = [];
     state.api.tagById = {};
+    return false;
+  }
+}
+
+function buildTagCatalogQuery({
+  scope = "all",
+  teamId = "",
+  includeFallback = true
+} = {}) {
+  const normalizedScope = normalizeChampionTagScope(scope);
+  const query = new URLSearchParams({ scope: normalizedScope });
+  if (normalizedScope === "team") {
+    const normalizedTeamId = normalizeTeamEntityId(teamId);
+    if (!normalizedTeamId) {
+      return null;
+    }
+    query.set("team_id", normalizedTeamId);
+  }
+  if (includeFallback === false) {
+    query.set("include_fallback", "false");
+  }
+  return query;
+}
+
+async function loadScopedTagCatalogIntoState(stateKeys, { scope = "all", teamId = "", includeFallback = true } = {}) {
+  const query = buildTagCatalogQuery({ scope, teamId, includeFallback });
+  if (!query) {
+    state.api[stateKeys.tags] = [];
+    state.api[stateKeys.tagById] = {};
+    return false;
+  }
+  try {
+    const payload = await apiRequest(`/tags?${query.toString()}`, { auth: isAuthenticated() });
+    const source = Array.isArray(payload?.tags) ? payload.tags : [];
+    const tags = source.map(normalizeTagCatalogEntry).filter(Boolean);
+    state.api[stateKeys.tags] = tags;
+    state.api[stateKeys.tagById] = Object.fromEntries(tags.map((tag) => [String(tag.id), tag]));
+    return true;
+  } catch (_error) {
+    state.api[stateKeys.tags] = [];
+    state.api[stateKeys.tagById] = {};
     return false;
   }
 }
@@ -3939,7 +4141,12 @@ function getManagedTagById(tagId) {
   if (!Number.isInteger(tagId) || tagId <= 0) {
     return null;
   }
-  return state.api.tags.find((tag) => tag.id === tagId) ?? null;
+  const context = getTagCatalogScopeRequestContext();
+  const source =
+    context.scope === "all" && state.api.tagsWorkspaceCatalog.length < 1
+      ? state.api.tags
+      : state.api.tagsWorkspaceCatalog;
+  return source.find((tag) => tag.id === tagId) ?? null;
 }
 
 function readManagedTagDraftFromInputs() {
@@ -3967,12 +4174,21 @@ function beginManagedTagEdit(tagId) {
   if (elements.tagsManageDefinition) {
     elements.tagsManageDefinition.value = String(tag.definition ?? "");
   }
-  setTagsManageFeedback(`Editing '${tag.name}'.`);
+  const context = getTagCatalogScopeRequestContext();
+  const scopeLabel = getTagCatalogScopeOptions().find((option) => option.value === context.scope)?.label ?? "Global";
+  if (tag.hasCustomDefinition || context.scope === "all") {
+    setTagsManageFeedback(`Editing '${tag.name}' in ${scopeLabel.toLowerCase()} scope.`);
+  } else {
+    setTagsManageFeedback(
+      `Editing inherited '${tag.name}'. Saving will create a ${scopeLabel.toLowerCase()} tag definition.`
+    );
+  }
   renderTagsWorkspace();
 }
 
 function renderTagsManagerControls() {
-  const canManageTags = isAuthenticated() && isGlobalTagEditorUser();
+  renderTagCatalogScopeControls();
+  const canManageTags = canWriteTagCatalogScope();
   if (
     Number.isInteger(state.api.selectedTagManagerId) &&
     state.api.selectedTagManagerId > 0 &&
@@ -3980,18 +4196,29 @@ function renderTagsManagerControls() {
   ) {
     state.api.selectedTagManagerId = null;
   }
-  const isEditing = Number.isInteger(state.api.selectedTagManagerId) && state.api.selectedTagManagerId > 0;
+  const selectedTag = getManagedTagById(state.api.selectedTagManagerId);
+  const isEditing = Boolean(selectedTag);
+  const isUpdatingExact = Boolean(selectedTag && selectedTag.hasCustomDefinition);
   const controlsDisabled = !canManageTags || state.api.isSavingTagCatalog;
+  const context = getTagCatalogScopeRequestContext();
+  const scopeLabel = getTagCatalogScopeOptions().find((option) => option.value === context.scope)?.label ?? "Global";
 
   if (elements.tagsManageAccess) {
     if (!isAuthenticated()) {
       elements.tagsManageAccess.textContent = "Sign in to manage tags.";
     } else if (!canManageTags) {
-      elements.tagsManageAccess.textContent = "Your role is read-only for global tags.";
+      elements.tagsManageAccess.textContent =
+        context.scope === "all"
+          ? "Your role is read-only for global tag definitions."
+          : "Switch to a writable scope to manage tag definitions.";
+    } else if (context.scope === "self") {
+      elements.tagsManageAccess.textContent = "User scope enabled: create personal tags or override global definitions.";
+    } else if (context.scope === "team") {
+      elements.tagsManageAccess.textContent = "Team scope enabled: create team tags or override global definitions.";
     } else if (!isAdminUser()) {
-      elements.tagsManageAccess.textContent = "Global editor mode enabled: manage global tags and tag catalog entries.";
+      elements.tagsManageAccess.textContent = "Global editor mode enabled: manage global tag definitions.";
     } else {
-      elements.tagsManageAccess.textContent = "Admin mode enabled: create, update, and delete tags.";
+      elements.tagsManageAccess.textContent = "Admin mode enabled: create, update, and delete global tags.";
     }
   }
 
@@ -4003,7 +4230,11 @@ function renderTagsManagerControls() {
   }
   if (elements.tagsManageSave) {
     elements.tagsManageSave.disabled = controlsDisabled;
-    elements.tagsManageSave.textContent = isEditing ? "Update Tag" : "Create Tag";
+    elements.tagsManageSave.textContent = !isEditing
+      ? "Create Tag"
+      : isUpdatingExact || context.scope === "all"
+        ? "Update Tag"
+        : `Save to Create ${scopeLabel} Tag`;
   }
   if (elements.tagsManageCancel) {
     elements.tagsManageCancel.disabled = controlsDisabled;
@@ -4013,6 +4244,16 @@ function renderTagsManagerControls() {
 
 async function refreshTagCatalogViews() {
   await loadTagCatalogFromApi();
+  await loadScopedTagCatalogIntoState(
+    {
+      tags: "tagsWorkspaceCatalog",
+      tagById: "tagsWorkspaceTagById"
+    },
+    {
+      ...getTagCatalogScopeRequestContext(),
+      includeFallback: true
+    }
+  );
   renderChampionTagCatalog();
   renderTagsWorkspace();
   renderChampionTagEditor();
@@ -4034,17 +4275,24 @@ async function saveManagedTag() {
     return;
   }
 
-  const tagId = state.api.selectedTagManagerId;
-  const isEditing = Number.isInteger(tagId) && tagId > 0;
+  const tag = getManagedTagById(state.api.selectedTagManagerId);
+  const tagId = tag?.id ?? null;
+  const isEditing = Boolean(tag);
+  const isUpdatingExact = Boolean(tag?.hasCustomDefinition);
+  const context = getTagCatalogScopeRequestContext();
   state.api.isSavingTagCatalog = true;
-  setTagsManageFeedback(isEditing ? "Saving tag updates..." : "Creating tag...");
+  setTagsManageFeedback(isEditing ? "Saving tag definition..." : "Creating tag...");
   renderTagsWorkspace();
 
   try {
-    const payload = await apiRequest(isEditing ? `/tags/${tagId}` : "/tags", {
-      method: isEditing ? "PUT" : "POST",
+    const payload = await apiRequest(isEditing && isUpdatingExact ? `/tags/${tagId}` : "/tags", {
+      method: isEditing && isUpdatingExact ? "PUT" : "POST",
       auth: true,
-      body: draft
+      body: {
+        ...draft,
+        scope: context.scope,
+        ...(context.scope === "team" && context.teamId ? { team_id: Number(context.teamId) } : {})
+      }
     });
 
     await refreshTagCatalogViews();
@@ -4060,7 +4308,7 @@ async function saveManagedTag() {
           elements.tagsManageDefinition.value = String(savedTag.definition ?? "");
         }
       }
-      setTagsManageFeedback("Tag updated.");
+      setTagsManageFeedback(isUpdatingExact || context.scope === "all" ? "Tag updated." : "Scoped tag definition created.");
     } else {
       clearTagsManagerState();
       setTagsManageFeedback("Tag created.");
@@ -4082,9 +4330,14 @@ async function deleteManagedTag(tagId) {
   }
   const tag = getManagedTagById(tagId);
   const tagLabel = tag?.name ?? `tag #${tagId}`;
+  const context = getTagCatalogScopeRequestContext();
+  const scopeLabel = getTagCatalogScopeOptions().find((option) => option.value === context.scope)?.label ?? "Global";
   const confirmed = await confirmAction({
     title: "Confirm Tag Deletion",
-    message: `Delete global tag '${tagLabel}'? This removes it from the shared catalog.`,
+    message:
+      context.scope === "all"
+        ? `Delete global tag '${tagLabel}'? This removes it from the shared catalog.`
+        : `Delete the ${scopeLabel.toLowerCase()} tag definition for '${tagLabel}'?`,
     confirmLabel: "Delete Tag"
   });
   if (!confirmed) {
@@ -4096,7 +4349,12 @@ async function deleteManagedTag(tagId) {
   renderTagsWorkspace();
 
   try {
-    await apiRequest(`/tags/${tagId}`, {
+    const query = buildTagCatalogQuery({
+      scope: context.scope,
+      teamId: context.teamId,
+      includeFallback: true
+    });
+    await apiRequest(`/tags/${tagId}?${query?.toString() ?? ""}`, {
       method: "DELETE",
       auth: true
     });
@@ -4144,8 +4402,14 @@ function renderTagsWorkspace() {
   }
 
   renderTagsManagerControls();
-  const tags = Array.isArray(state.api.tags) ? state.api.tags : [];
+  const context = getTagCatalogScopeRequestContext();
+  const tags = Array.isArray(state.api.tagsWorkspaceCatalog) && state.api.tagsWorkspaceCatalog.length > 0
+    ? state.api.tagsWorkspaceCatalog
+    : context.scope === "all" && Array.isArray(state.api.tags)
+      ? state.api.tags
+      : [];
   const usageByTagId = buildChampionUsageByTagId();
+  const scopeLabel = getTagCatalogScopeOptions().find((option) => option.value === context.scope)?.label ?? "Global";
   elements.tagsWorkspaceCategories.innerHTML = "";
 
   if (tags.length === 0) {
@@ -4158,7 +4422,10 @@ function renderTagsWorkspace() {
   }
 
   const sortedTags = [...tags].sort((left, right) => left.name.localeCompare(right.name));
-  elements.tagsWorkspaceSummary.textContent = `${tags.length} tags in the shared catalog.`;
+  elements.tagsWorkspaceSummary.textContent =
+    context.scope === "all"
+      ? `${tags.length} tags in the shared catalog.`
+      : `${tags.length} tags visible in ${scopeLabel.toLowerCase()} scope (with global fallback).`;
 
   const list = runtimeDocument.createElement("ul");
   list.className = "tags-workspace-list";
@@ -4180,12 +4447,21 @@ function renderTagsWorkspace() {
 
     const usage = runtimeDocument.createElement("p");
     usage.className = "meta tags-workspace-usage";
-    usage.textContent = usageCount === 1 ? "Used by 1 champion" : `Used by ${usageCount} champions`;
+    if (context.scope === "all") {
+      usage.textContent = usageCount === 1 ? "Used by 1 champion" : `Used by ${usageCount} champions`;
+    } else if (tag.hasCustomDefinition) {
+      usage.textContent =
+        tag.resolvedScope === context.scope
+          ? `Custom ${scopeLabel.toLowerCase()} definition`
+          : `Resolved from ${tag.resolvedScope === "all" ? "global" : tag.resolvedScope} scope`;
+    } else {
+      usage.textContent = "Inherited from global definition";
+    }
 
     content.append(name, definition, usage);
     item.append(content);
 
-    if (isAuthenticated() && isGlobalTagEditorUser()) {
+    if (canWriteTagCatalogScope()) {
       const actions = runtimeDocument.createElement("div");
       actions.className = "tags-workspace-actions";
 
@@ -4203,9 +4479,12 @@ function renderTagsWorkspace() {
       deleteButton.type = "button";
       deleteButton.textContent = "Delete";
       deleteButton.disabled = state.api.isSavingTagCatalog;
-      deleteButton.addEventListener("click", () => {
-        void deleteManagedTag(tag.id);
-      });
+      deleteButton.hidden = context.scope !== "all" && !tag.hasCustomDefinition;
+      if (!deleteButton.hidden) {
+        deleteButton.addEventListener("click", () => {
+          void deleteManagedTag(tag.id);
+        });
+      }
 
       actions.append(editButton, deleteButton);
       item.append(actions);
@@ -5353,6 +5632,7 @@ function renderUsersAuthorizationWorkspace() {
   elements.usersAuthorizationRoles.append(createRoleCard("Roles", combinedRoles, combinedAssignments));
 
   const SCOPED_PERMISSION_RESOURCE_LABELS = Object.freeze({
+    tag_definitions: "Tag Definitions",
     champion_tags: "Champion Tags",
     champion_metadata: "Champion Metadata",
     requirements: "Requirements",
@@ -7645,8 +7925,8 @@ function renderChampionTagEditorTagOptions() {
 
   const selectedTagIds = normalizeApiTagIdArray(state.api.selectedChampionTagIds);
   const selectedTagIdSet = new Set(selectedTagIds);
-  const allTags = Array.isArray(state.api.tags)
-    ? state.api.tags
+  const allTags = Array.isArray(state.api.championEditorTags)
+    ? state.api.championEditorTags
         .map((tag) => {
           const tagId = normalizeApiEntityId(tag?.id);
           if (tagId === null) return null;
@@ -8198,6 +8478,34 @@ async function loadChampionScopedTags(championId) {
   }
 }
 
+async function loadChampionEditorTagCatalog() {
+  const query = buildTagCatalogQuery({
+    scope: state.api.championTagScope,
+    teamId: state.api.championTagTeamId,
+    includeFallback: true
+  });
+  if (!query) {
+    setChampionTagEditorFeedback("Select a team to load team-scoped tags.");
+    state.api.championEditorTags = [];
+    state.api.championEditorTagById = {};
+    return false;
+  }
+
+  try {
+    const payload = await apiRequest(`/tags?${query.toString()}`, { auth: true });
+    const source = Array.isArray(payload?.tags) ? payload.tags : [];
+    const tags = source.map(normalizeTagCatalogEntry).filter(Boolean);
+    state.api.championEditorTags = tags;
+    state.api.championEditorTagById = Object.fromEntries(tags.map((tag) => [String(tag.id), tag]));
+    return true;
+  } catch (error) {
+    state.api.championEditorTags = [];
+    state.api.championEditorTagById = {};
+    setChampionTagEditorFeedback(normalizeApiErrorMessage(error, "Failed to load scoped tag catalog."));
+    return false;
+  }
+}
+
 async function loadChampionScopedMetadata(championId) {
   if (!isAuthenticated() || !Number.isInteger(championId) || championId <= 0) {
     return false;
@@ -8233,14 +8541,15 @@ async function loadChampionEditorScopeData(championId) {
   state.api.isLoadingChampionTags = true;
   renderChampionTagEditor();
   try {
-    const [tagsLoaded, metadataLoaded] = await Promise.all([
+    const [tagsLoaded, metadataLoaded, catalogLoaded] = await Promise.all([
       loadChampionScopedTags(championId),
-      loadChampionScopedMetadata(championId)
+      loadChampionScopedMetadata(championId),
+      loadChampionEditorTagCatalog()
     ]);
-    if (tagsLoaded && metadataLoaded) {
+    if (tagsLoaded && metadataLoaded && catalogLoaded) {
       setChampionTagEditorFeedback("");
     }
-    return tagsLoaded && metadataLoaded;
+    return tagsLoaded && metadataLoaded && catalogLoaded;
   } finally {
     state.api.isLoadingChampionTags = false;
     renderChampionTagEditor();
@@ -14317,6 +14626,16 @@ async function hydrateAuthenticatedViews(preferredPoolTeamId = null, preferredAd
   await loadTeamsFromApi(preferredAdminTeamId);
   await loadTeamContextFromApi();
   await loadTagCatalogFromApi();
+  await loadScopedTagCatalogIntoState(
+    {
+      tags: "tagsWorkspaceCatalog",
+      tagById: "tagsWorkspaceTagById"
+    },
+    {
+      ...getTagCatalogScopeRequestContext(),
+      includeFallback: true
+    }
+  );
   await hydrateCompositionsWorkspaceFromApi();
   const teamWorkspaceRefreshJobs = [
     loadDiscoverTeamsFromApi(),
@@ -15044,6 +15363,44 @@ function attachEvents() {
     elements.tagsManageCancel.addEventListener("click", () => {
       clearTagsManagerState();
       renderTagsWorkspace();
+    });
+  }
+
+  if (elements.tagsScope) {
+    elements.tagsScope.addEventListener("change", () => {
+      state.api.tagsCatalogScope = normalizeChampionTagScope(elements.tagsScope.value);
+      clearTagsManagerState();
+      void loadScopedTagCatalogIntoState(
+        {
+          tags: "tagsWorkspaceCatalog",
+          tagById: "tagsWorkspaceTagById"
+        },
+        {
+          ...getTagCatalogScopeRequestContext(),
+          includeFallback: true
+        }
+      ).then(() => {
+        renderTagsWorkspace();
+      });
+    });
+  }
+
+  if (elements.tagsTeam) {
+    elements.tagsTeam.addEventListener("change", () => {
+      state.api.tagsCatalogTeamId = String(elements.tagsTeam.value ?? "");
+      clearTagsManagerState();
+      void loadScopedTagCatalogIntoState(
+        {
+          tags: "tagsWorkspaceCatalog",
+          tagById: "tagsWorkspaceTagById"
+        },
+        {
+          ...getTagCatalogScopeRequestContext(),
+          includeFallback: true
+        }
+      ).then(() => {
+        renderTagsWorkspace();
+      });
     });
   }
 

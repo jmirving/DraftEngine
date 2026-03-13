@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { badRequest, conflict, notFound } from "../errors.js";
+import { badRequest, conflict, notFound, unauthorized } from "../errors.js";
 import {
   parsePositiveInteger,
   requireArrayOfPositiveIntegers,
@@ -265,33 +265,84 @@ export function createChampionsRouter({
     });
   });
 
-  router.get("/tags", async (_request, response) => {
-    const tags = await tagsRepository.listTags();
-    response.json({ tags });
+  router.get("/tags", optionalAuth, async (request, response) => {
+    const scope = parseScope(request.query.scope, {
+      defaultScope: "all",
+      fieldName: "scope",
+      allowedScopes: CHAMPION_SCOPE_SET
+    });
+    const includeFallback = request.query.include_fallback !== "false";
+    const userId = request.user?.userId ?? null;
+    if (scope !== "all" && !Number.isInteger(userId)) {
+      throw unauthorized("Sign in to read scoped tag definitions.");
+    }
+
+    let teamId = null;
+    if (scope === "team") {
+      teamId = await resolveScopedTeamId({
+        scope,
+        rawTeamId: request.query.team_id,
+        userId,
+        usersRepository
+      });
+      await assertScopeReadAuthorization({
+        scope,
+        userId,
+        teamId,
+        teamsRepository,
+        teamReadMessage: "You must be on the selected team to view team-scoped tags."
+      });
+    }
+
+    const tags = await tagsRepository.listTags({
+      scope,
+      userId,
+      teamId,
+      includeFallback
+    });
+    response.json({ scope, team_id: teamId, tags });
   });
 
   router.post("/tags", requireAuth, async (request, response) => {
     const body = requireObject(request.body);
     const userId = request.user.userId;
+    const scope = parseScope(body.scope, {
+      defaultScope: "all",
+      fieldName: "scope",
+      allowedScopes: CHAMPION_SCOPE_SET
+    });
     const name = normalizeTagName(body.name);
     const definition = normalizeTagDefinition(body.definition);
+    const teamId = await resolveScopedTeamId({
+      scope,
+      rawTeamId: body.team_id,
+      userId,
+      usersRepository
+    });
 
     await assertScopeWriteAuthorization({
-      scope: "all",
+      scope,
       userId,
-      teamId: null,
+      teamId,
       teamsRepository,
       usersRepository,
-      teamWriteMessage: "You must be on the selected team to manage tags.",
-      teamLeadMessage: "Only team leads can manage tags.",
-      globalWriteMessage: "Only admins or global editors can manage tag catalog.",
+      teamWriteMessage: "You must be on the selected team to manage tag definitions.",
+      teamLeadMessage: "Only team leads can manage team-scoped tag definitions.",
+      globalWriteMessage: "Only admins or global editors can manage global tag definitions.",
       allowGlobalRoleWrite: true,
       allowGlobalWriteWhenNoAdmins: true
     });
 
     try {
-      const tag = await tagsRepository.createTag({ name, definition });
-      response.status(201).json({ tag });
+      const tag = await tagsRepository.createTag({
+        name,
+        definition,
+        scope,
+        userId,
+        teamId,
+        actorUserId: userId
+      });
+      response.status(201).json({ scope, team_id: teamId, tag });
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw conflict("Tag name already exists.");
@@ -304,28 +355,46 @@ export function createChampionsRouter({
     const tagId = parsePositiveInteger(request.params.id, "id");
     const body = requireObject(request.body);
     const userId = request.user.userId;
+    const scope = parseScope(body.scope, {
+      defaultScope: "all",
+      fieldName: "scope",
+      allowedScopes: CHAMPION_SCOPE_SET
+    });
     const name = normalizeTagName(body.name);
     const definition = normalizeTagDefinition(body.definition);
+    const teamId = await resolveScopedTeamId({
+      scope,
+      rawTeamId: body.team_id,
+      userId,
+      usersRepository
+    });
 
     await assertScopeWriteAuthorization({
-      scope: "all",
+      scope,
       userId,
-      teamId: null,
+      teamId,
       teamsRepository,
       usersRepository,
-      teamWriteMessage: "You must be on the selected team to manage tags.",
-      teamLeadMessage: "Only team leads can manage tags.",
-      globalWriteMessage: "Only admins or global editors can manage tag catalog.",
+      teamWriteMessage: "You must be on the selected team to manage tag definitions.",
+      teamLeadMessage: "Only team leads can manage team-scoped tag definitions.",
+      globalWriteMessage: "Only admins or global editors can manage global tag definitions.",
       allowGlobalRoleWrite: true,
       allowGlobalWriteWhenNoAdmins: true
     });
 
     try {
-      const tag = await tagsRepository.updateTag(tagId, { name, definition });
+      const tag = await tagsRepository.updateTag(tagId, {
+        name,
+        definition,
+        scope,
+        userId,
+        teamId,
+        actorUserId: userId
+      });
       if (!tag) {
         throw notFound("Tag not found.");
       }
-      response.json({ tag });
+      response.json({ scope, team_id: teamId, tag });
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw conflict("Tag name already exists.");
@@ -337,26 +406,45 @@ export function createChampionsRouter({
   router.delete("/tags/:id", requireAuth, async (request, response) => {
     const tagId = parsePositiveInteger(request.params.id, "id");
     const userId = request.user.userId;
+    const scope = parseScope(request.query.scope, {
+      defaultScope: "all",
+      fieldName: "scope",
+      allowedScopes: CHAMPION_SCOPE_SET
+    });
+    const teamId = await resolveScopedTeamId({
+      scope,
+      rawTeamId: request.query.team_id,
+      userId,
+      usersRepository
+    });
 
     await assertScopeWriteAuthorization({
-      scope: "all",
+      scope,
       userId,
-      teamId: null,
+      teamId,
       teamsRepository,
       usersRepository,
-      teamWriteMessage: "You must be on the selected team to manage tags.",
-      teamLeadMessage: "Only team leads can manage tags.",
-      globalWriteMessage: "Only admins or global editors can manage tag catalog.",
+      teamWriteMessage: "You must be on the selected team to manage tag definitions.",
+      teamLeadMessage: "Only team leads can manage team-scoped tag definitions.",
+      globalWriteMessage: "Only admins or global editors can manage global tag definitions.",
       allowGlobalRoleWrite: true,
       allowGlobalWriteWhenNoAdmins: true
     });
 
-    const assignmentCount = await tagsRepository.countTagAssignments(tagId);
+    const assignmentCount = await tagsRepository.countTagAssignments(tagId, {
+      scope,
+      userId,
+      teamId
+    });
     if (assignmentCount > 0) {
-      throw conflict("Cannot delete a tag that is assigned to champions.");
+      throw conflict("Cannot delete a tag definition that is assigned to champions in this scope.");
     }
 
-    const deletedTag = await tagsRepository.deleteTag(tagId);
+    const deletedTag = await tagsRepository.deleteTag(tagId, {
+      scope,
+      userId,
+      teamId
+    });
     if (!deletedTag) {
       throw notFound("Tag not found.");
     }

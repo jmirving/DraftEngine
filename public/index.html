@@ -454,7 +454,22 @@
             <div class="panel draft-board-panel">
               <h2 id="tags-title">Tags</h2>
               <p id="tags-meta" class="meta">Manage shared tag definitions and current champion coverage.</p>
-              <p class="meta">MVP editing remains in Champions; this page adds catalog governance and CRUD foundations.</p>
+              <p class="meta">MVP editing remains in Champions; this page adds scoped tag-definition governance and CRUD foundations.</p>
+              <div class="ced-scope-panel">
+                <div class="ced-scope-panel-copy">
+                  <p class="ced-scope-panel-label">Current Scope</p>
+                  <p id="tags-scope-readout" class="ced-scope-panel-value">Global</p>
+                  <p id="tags-scope-help" class="ced-scope-panel-help"></p>
+                </div>
+                <label class="ced-scope-label">Switch scope
+                  <select id="tags-scope"></select>
+                </label>
+              </div>
+              <div id="tags-team-group" hidden>
+                <label class="ced-team-label">Editing for team
+                  <select id="tags-team"></select>
+                </label>
+              </div>
               <p id="tags-workspace-summary" class="meta"></p>
             </div>
             <div class="panel draft-board-panel">
@@ -1204,6 +1219,12 @@
                   <li>Users workspace now supports search, role filtering, and bulk member/global permission updates from the existing admin directory.</li>
                   <li>Teams discover, join-request, and invitation sections now auto-refresh when Teams opens, use compact last-refreshed telemetry with inline refresh icons, and ship a repair migration plus startup guard for drifted invitation schema so broken databases are corrected or blocked before the Teams page loads.</li>
                 </ul>
+                <h4>Version 0.8.8</h4>
+                <ul class="coming-soon-list">
+                  <li>Tags workspace now supports `User`, `Team`, and `Global` scope selection, with global fallback so inherited definitions can be reviewed and overridden in-place.</li>
+                  <li>Saving an inherited tag from `User` or `Team` scope now creates a scoped tag definition instead of mutating the global catalog, matching the existing scoped champion-profile workflow.</li>
+                  <li>Champion tag editing now loads the tag catalog for the selected profile scope, so user/team-scoped tag definitions are available when editing those scoped champion tags.</li>
+                </ul>
                 <h4>Version 0.8.7</h4>
                 <ul class="coming-soon-list">
                   <li>Draft Path replaces Tree Map: the SVG dot graph is replaced by a 5-column pick-order layout where each column lists champion options for that role, styled like pool snapshot cards.</li>
@@ -1307,17 +1328,13 @@
                 </ul>
                 <h4>Composer</h4>
                 <ul class="coming-soon-list">
-                  <li>Per-team and per-user composition overlays remain deferred (draftflow-160)</li>
+                  <li>Composer scope selection remains deferred: users cannot yet choose how Composer resolves `User`, `Team`, and `Global` data, and generation still runs on the current global champion truth (draftflow-160).</li>
+                  <li>Saved Draft Setups remain deferred: Composer still cannot save or reload a full working state, including selected champions and Advanced Controls (draftflow-229).</li>
                   <li>Per-composition saved scoring profiles and scoped scoring presets are still deferred (draftflow-199).</li>
                   <li>Clause scoring still needs joiner-aware aggregation for OR-linked requirements so parallel OR clauses do not over-count progress (draftflow-203).</li>
                 </ul>
-                <h4>Champions</h4>
-                <ul class="coming-soon-list">
-                  <li>Ship champion auto-ingest now that global champion-tag persistence is in place (draftflow-129)</li>
-                </ul>
                 <h4>Tags</h4>
                 <ul class="coming-soon-list">
-                  <li>Global editor now covers all currently defined `*.global` permissions; custom per-permission role policy editing is deferred (draftflow-161)</li>
                   <li>Champion-tag promotion review moderation remains pending alongside the broader scoped-promotion workflow (draftflow-171).</li>
                 </ul>
                 <h4>Compositions</h4>

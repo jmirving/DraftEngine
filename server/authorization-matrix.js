@@ -46,6 +46,10 @@ const TEAM_ROSTER_ROLE_DEFINITIONS = Object.freeze([
 
 const SCOPED_RESOURCE_DEFINITIONS = Object.freeze([
   {
+    id: "tag_definitions",
+    label: "tag definitions"
+  },
+  {
     id: "champion_tags",
     label: "champion-tag assignments"
   },
