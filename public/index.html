@@ -335,14 +335,6 @@
           </section>
 
           <section id="tab-workflow" class="tab-panel tab-surface workflow-surface is-active">
-            <section id="builder-stage-guide" class="panel draft-board-panel stage-guide" aria-live="polite" hidden>
-              <h2 id="builder-workflow-title">Composer</h2>
-              <p id="builder-stage-guide-meta" class="meta"></p>
-              <div class="button-row stage-guide-actions">
-                <button id="builder-continue-validate" type="button">Review Composition</button>
-                <button id="builder-clear" type="button" class="ghost">Clear Composition</button>
-              </div>
-            </section>
             <div class="builder-grid">
               <aside id="builder-stage-setup" class="panel draft-board-panel stage-panel">
                 <h2 id="builder-stage-setup-title">Setup</h2>
@@ -1167,6 +1159,7 @@
                   <li>Comfort Level dropdown now shows grade letter only (S/A/B/C) with full description on hover tooltip; non-selected options display with a white background.</li>
                   <li>Scope selector on Edit Champions cards now uses a compact "View" pill dropdown in the meta section instead of stacked indicator buttons.</li>
                   <li>Comfort Level dropdown restyled to match role-pill color scheme and compact View pill sizing.</li>
+                  <li>Composer stage-guide header panel removed; Clear Composition now lives only in the sticky bottom bar with primary button styling.</li>
                   <li>Requirements and compositions now support explicit `User`, `Team`, and `Global` scope selection, using the same scope model as champion profile editing.</li>
                   <li>The Requirements and Compositions workspaces now load, create, update, and delete entries within the selected scope instead of forcing all catalog work through the global library.</li>
                   <li>Added a database-backed `champion_core` baseline imported from the provided processor dataset, preserving stable Riot/Data Dragon champion identity and numeric stat fields outside the draft-tag model.</li>

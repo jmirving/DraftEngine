@@ -759,9 +759,6 @@ function createElements() {
     championTagEditorFeedback: runtimeDocument.querySelector("#champion-tag-editor-feedback"),
     tagsWorkspaceSummary: runtimeDocument.querySelector("#tags-workspace-summary"),
     tagsWorkspaceCategories: runtimeDocument.querySelector("#tags-workspace-categories"),
-    builderWorkflowTitle: runtimeDocument.querySelector("#builder-workflow-title"),
-    builderStageGuide: runtimeDocument.querySelector("#builder-stage-guide"),
-    builderStageGuideMeta: runtimeDocument.querySelector("#builder-stage-guide-meta"),
     builderSetupFeedback: runtimeDocument.querySelector("#builder-setup-feedback"),
     builderInspectFeedback: runtimeDocument.querySelector("#builder-inspect-feedback"),
     builderActiveTeam: runtimeDocument.querySelector("#builder-active-team"),
@@ -781,9 +778,8 @@ function createElements() {
     builderExcludedPills: runtimeDocument.querySelector("#builder-excluded-pills"),
     builderExcludedClear: runtimeDocument.querySelector("#builder-excluded-clear"),
     builderMaxBranch: runtimeDocument.querySelector("#builder-max-branch"),
-    builderContinueValidate: runtimeDocument.querySelector("#builder-continue-validate"),
     builderGenerate: runtimeDocument.querySelector("#builder-generate"),
-    builderClear: runtimeDocument.querySelector("#builder-clear"),
+    builderClearSticky: runtimeDocument.querySelector("#builder-clear-sticky"),
     builderNextRoleReadout: runtimeDocument.querySelector("#builder-next-role-readout"),
     builderTeamContext: runtimeDocument.querySelector("#builder-team-context"),
     builderRequiredChecks: runtimeDocument.querySelector("#builder-required-checks"),
@@ -2742,28 +2738,16 @@ function clearTreeSelectionState() {
 }
 
 function renderBuilderStageGuide() {
-  const completion = getTeamCompletionInfo(state.builder.teamState);
-  elements.builderWorkflowTitle.textContent = UI_COPY.builder.workflowTitle;
   elements.builderStageSetupTitle.textContent = UI_COPY.builder.stages[0].panelTitle;
   elements.builderStageSetupMeta.textContent = UI_COPY.builder.stages[0].panelMeta;
   elements.builderStageInspectTitle.textContent = UI_COPY.builder.stages[1].panelTitle;
   elements.builderStageInspectMeta.textContent = UI_COPY.builder.stages[1].panelMeta;
-  elements.builderContinueValidate.textContent = UI_COPY.builder.continueLabel;
   elements.builderGenerate.textContent = UI_COPY.builder.generateLabel;
-  if (completion.completionState === "partial") {
-    elements.builderStageGuideMeta.textContent = "Generate finish-out options from partial picks.";
-  } else if (completion.completionState === "full") {
-    elements.builderStageGuideMeta.textContent = "Checks evaluate the full composition.";
-  } else {
-    elements.builderStageGuideMeta.textContent =
-      "Generate from an empty board or pre-select champions in Setup before inspecting options.";
-  }
 
   elements.builderStageSetup.hidden = false;
   elements.builderStageInspect.hidden = false;
 
   elements.builderGenerate.disabled = false;
-  elements.builderContinueValidate.hidden = true;
 }
 
 function createOption(value, label) {
@@ -14075,18 +14059,11 @@ function attachEvents() {
     renderBuilder();
   });
 
-  elements.builderContinueValidate.addEventListener("click", () => {
-    if (!generateTreeFromCurrentState({ scrollToResults: true })) {
-      return;
-    }
-    setSetupFeedback("");
-  });
-
   elements.builderGenerate.addEventListener("click", () => {
     generateTreeFromCurrentState({ scrollToResults: true });
   });
 
-  elements.builderClear.addEventListener("click", () => {
+  elements.builderClearSticky.addEventListener("click", () => {
     state.builder.teamState = createEmptyTeamState();
     resetBuilderTreeState();
     setBuilderStage("setup");

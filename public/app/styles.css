@@ -628,10 +628,6 @@ body:has(#app-shell.is-nav-collapsed) .panel.side-menu {
   color: #9c3f1e;
 }
 
-.stage-guide {
-  margin-bottom: 0.8rem;
-}
-
 /* ── Sticky bottom bar for Clear Composition ──────────── */
 .composer-bottom-bar {
   position: fixed;
@@ -651,13 +647,8 @@ body:has(#app-shell.is-nav-collapsed) .panel.side-menu {
   margin: 0;
 }
 
-.workflow-surface .stage-guide,
 .workflow-surface .stage-panel {
   width: 100%;
-}
-
-.stage-guide-actions {
-  margin-bottom: 0.45rem;
 }
 
 .stage-panel {
