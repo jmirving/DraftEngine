@@ -279,7 +279,9 @@
                     <div class="ced-scope-inline">
                       <span class="ced-scope-editing-label">Editing</span>
                       <select id="champion-tag-editor-scope" class="ced-scope-select"></select>
-                      <span id="champion-tag-editor-scope-tip" class="ced-scope-tip" tabindex="0" role="img" aria-label="Scope info">&#9432;
+                      <span class="ced-scope-word">Scope</span>
+                      <span id="champion-tag-editor-scope-tip" class="ced-scope-tip" tabindex="0" role="img" aria-label="Scope info">
+                        <svg class="ced-scope-tip-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><text x="12" y="17" text-anchor="middle" fill="currentColor" font-size="14" font-weight="700" font-family="serif">i</text></svg>
                         <span id="champion-tag-editor-scope-tip-text" class="ced-scope-tip-text"></span>
                       </span>
                     </div>
@@ -1150,8 +1152,9 @@
                   <li>Power Spikes replace Early/Mid/Late effectiveness: champion profiles now use drag-to-select level 1–18 ranges (up to 2 ranges per role), with a full-width ruler-style progress bar on cards and a multi-select level filter on the Champions grid.</li>
                   <li>Power spike ruler on champion cards now spans the full card width with visible tick marks and green progress bars for selected ranges.</li>
                   <li>My Champions comfort dropdown z-index fixed so it no longer appears behind cards.</li>
+                  <li>Champion card now switches to the saved scope view after saving scoped metadata, so cleared power spikes are immediately reflected on the card.</li>
                   <li>All existing power spike / effectiveness data reset to empty so profiles can be re-entered from scratch with the new UI.</li>
-                  <li>Scope panel redesigned as compact inline row: "Editing [scope dropdown] [info tooltip]" with team selector below when in Team scope.</li>
+                  <li>Scope panel redesigned as compact inline row: "Editing [dropdown] Scope [info icon]" with narrower dropdown, orange circle-i tooltip, and bottom border aligned with the right meta section.</li>
                   <li>Signed-in-as status line removed from page headers.</li>
                   <li>My Champions comfort filter now supports multi-select (e.g. S + A together) with checkbox-style dropdown and clear.</li>
                   <li>My Champions redesigned: selected champions now display as visual cards with champion portrait, Comfort Level pill selector (S/A/B/C), Riot mastery stats, and collapsible tags.</li>

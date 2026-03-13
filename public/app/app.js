@@ -1787,6 +1787,8 @@ function syncChampionMetadataDraftToState(championId, payload) {
   cacheExplorerScopedMetadataPayload(championId, scope, payload);
   if (!hasCustomMetadata && state.explorer.activeMetadataScopeByChampionId[String(championId)] === scope) {
     state.explorer.activeMetadataScopeByChampionId[String(championId)] = "all";
+  } else if (hasCustomMetadata && scope !== "all") {
+    state.explorer.activeMetadataScopeByChampionId[String(championId)] = scope;
   }
   state.api.championMetadataHasCustom = hasCustomMetadata;
   state.api.championMetadataResolvedScope = resolvedScope;
