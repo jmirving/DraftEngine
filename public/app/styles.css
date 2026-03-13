@@ -1984,7 +1984,7 @@ button.pool-snapshot-order-btn:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(10, 12, 14, 0.55);
+  background: rgba(26, 39, 48, 0.45);
   opacity: 0;
   transition: opacity 150ms ease;
 }
@@ -1994,17 +1994,16 @@ button.pool-snapshot-order-btn:disabled {
 }
 
 .draft-modal {
-  background: #111418;
-  color: #d4dce6;
-  border: 1px solid #2a3040;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
   border-radius: 10px;
   width: 90%;
   max-width: 720px;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  font-family: "Consolas", "Monaco", "Courier New", monospace;
+  box-shadow: 0 8px 32px rgba(26, 39, 48, 0.22);
 }
 
 .draft-modal-header {
@@ -2012,22 +2011,23 @@ button.pool-snapshot-order-btn:disabled {
   align-items: center;
   justify-content: space-between;
   padding: 0.7rem 1rem;
-  border-bottom: 1px solid #2a3040;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-strong);
+  border-radius: 10px 10px 0 0;
 }
 
 .draft-modal-header h3 {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 700;
-  color: #7fdbca;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  color: var(--accent);
+  font-family: "Fraunces", Georgia, serif;
 }
 
 .draft-modal-close {
   background: none;
   border: none;
-  color: #8899aa;
+  color: var(--muted);
   font-size: 1.3rem;
   cursor: pointer;
   padding: 0 0.3rem;
@@ -2035,7 +2035,7 @@ button.pool-snapshot-order-btn:disabled {
 }
 
 .draft-modal-close:hover {
-  color: #ff6b6b;
+  color: var(--warn);
 }
 
 .draft-modal-body {
@@ -2053,55 +2053,19 @@ button.pool-snapshot-order-btn:disabled {
 .draft-stats-row {
   display: flex;
   justify-content: space-between;
-  padding: 0.3rem 0;
-  border-bottom: 1px solid #1e2530;
-  font-size: 0.78rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8rem;
 }
 
 .draft-stats-label {
-  color: #8899aa;
+  color: var(--muted);
 }
 
 .draft-stats-value {
-  color: #7fdbca;
+  color: var(--ink);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-}
-
-/* Branch cards inside modal */
-.draft-modal-body .summary-card-list {
-  gap: 0.6rem;
-}
-
-.draft-modal-body .branch-card {
-  background: #1a1e26;
-  border-color: #2a3040;
-  color: #d4dce6;
-}
-
-.draft-modal-body .branch-rank {
-  background: #2a3040;
-  color: #7fdbca;
-}
-
-.draft-modal-body .branch-headline {
-  color: #d4dce6;
-}
-
-.draft-modal-body .branch-impact-summary,
-.draft-modal-body .branch-benefit-list,
-.draft-modal-body .branch-gap-list {
-  color: #8899aa;
-}
-
-.draft-modal-body .debug-details {
-  border-color: #2a3040;
-}
-
-.draft-modal-body .button-row button {
-  background: #cc5b34;
-  color: #fff;
-  border: none;
 }
 
 /* ── Reveal row (eye icon trigger) ──────── */
