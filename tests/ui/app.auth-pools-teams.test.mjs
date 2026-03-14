@@ -2071,7 +2071,7 @@ async function bootApp({ fetchImpl, storage, apiBaseUrl = "http://api.test" }) {
   dom.window.HTMLElement.prototype.scrollIntoView = () => {};
 
   const { initApp } = await import("../../public/app/app.js");
-  await initApp({
+  const app = await initApp({
     document: dom.window.document,
     window: dom.window,
     fetchImpl,
@@ -2080,7 +2080,7 @@ async function bootApp({ fetchImpl, storage, apiBaseUrl = "http://api.test" }) {
     apiBaseUrl
   });
 
-  return { dom };
+  return { dom, ...app };
 }
 
 function clickTab(doc, tab) {
@@ -4431,7 +4431,7 @@ describe("auth + pools + team management", () => {
       }
     });
 
-    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const { dom, state } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
 
     doc.querySelector("#builder-active-team").value = "1";
@@ -4462,6 +4462,11 @@ describe("auth + pools + team management", () => {
     expect(customScopes.checked).toBe(true);
     expect(doc.querySelector("#builder-scope-controls").hidden).toBe(false);
 
+    doc.querySelector("#builder-generate").click();
+    await flush();
+    await flush();
+    expect(state.builder.stage).toBe("inspect");
+
     const loadButton = Array.from(doc.querySelectorAll("#builder-draft-setup-list button"))
       .find((button) => button.textContent.trim() === "Load");
     expect(loadButton).toBeTruthy();
@@ -4474,6 +4479,9 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#builder-active-team").value).toBe("1");
     expect(doc.querySelector("#builder-custom-scopes-enabled").checked).toBe(false);
     expect(doc.querySelector("#builder-scope-controls").hidden).toBe(true);
+    expect(state.builder.stage).toBe("setup");
+    expect(doc.querySelector("#builder-generate").textContent).toBe("Start Draft");
+    expect(doc.querySelector("#draft-results-area").hidden).toBe(true);
   });
 
   test("profile display team selection persists across reload via API", async () => {

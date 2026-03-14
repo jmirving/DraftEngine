@@ -333,7 +333,7 @@ const UI_COPY = Object.freeze({
       }
     ],
     continueLabel: "Review Composition",
-    generateLabel: "Generate Tree",
+    generateLabel: "Start Draft",
     setupGateMessage: "Go to Review before generating the tree."
   }
 });
@@ -8092,6 +8092,7 @@ async function applyDraftSetupState(setup) {
   state.builder.defaultScopePrecedence = normalizeBuilderScopePrecedence(builderState.defaultScopePrecedence);
   state.builder.scopeResourceSettings = normalizeBuilderScopeResourceSettings(builderState.scopeResourceSettings);
 
+  setBuilderStage("setup");
   resetBuilderTreeState();
   await refreshBuilderComposerContext({ includeDraftContext: true });
   setBuilderDraftSetupFeedback(`Loaded Draft Setup '${setup.name}'.`);

@@ -251,7 +251,7 @@ describe("workflow app integration", () => {
     expect(setupPanel.hidden).toBe(false);
     expect(reviewPanel.hidden).toBe(false);
     expect(generateButton.disabled).toBe(false);
-    expect(generateButton.textContent).toBe("Generate Tree");
+    expect(generateButton.textContent).toBe("Start Draft");
   });
 
   test("requires at least one pick before entering review, then auto-generates on transition", async () => {
