@@ -3099,6 +3099,69 @@ button.pool-snapshot-order-btn:disabled {
   min-width: 11rem;
 }
 
+.my-champions-suggestion-notice {
+  margin: 0.15rem 0 0.7rem;
+  border: 1px solid #e1c8a5;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #fff8eb, #fff1df);
+  box-shadow: 0 10px 24px rgba(71, 39, 10, 0.08);
+  overflow: hidden;
+}
+
+.my-champions-suggestion-notice > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.78rem 0.9rem;
+  list-style: none;
+  cursor: pointer;
+}
+
+.my-champions-suggestion-notice > summary::-webkit-details-marker {
+  display: none;
+}
+
+.my-champions-suggestion-notice > summary::after {
+  content: "Show";
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.my-champions-suggestion-notice[open] > summary::after {
+  content: "Hide";
+}
+
+.my-champions-suggestion-notice > summary:hover {
+  background: rgba(255, 255, 255, 0.38);
+}
+
+.my-champions-suggestion-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(107, 42, 18, 0.1);
+  color: #6b2a12;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.my-champions-suggestion-text {
+  min-width: 0;
+  color: #533420;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.my-champions-suggestion-body {
+  padding: 0 0.9rem 0.85rem;
+  border-top: 1px solid rgba(107, 42, 18, 0.12);
+}
+
 /* ── My Champion cards ────────────────────────────────── */
 .my-champ-card {
   position: relative;

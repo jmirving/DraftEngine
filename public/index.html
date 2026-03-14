@@ -187,11 +187,15 @@
                 <input id="my-champions-search" type="search" placeholder="Filter by name..." />
                 <div id="my-champions-comfort-filter"></div>
               </div>
-              <div id="my-champions-suggestions-panel" class="profile-section" hidden>
-                <p class="panel-kicker">Suggested Additions</p>
-                <p id="my-champions-suggestions-summary" class="meta"></p>
-                <div id="my-champions-suggestions-list" class="summary-card-list"></div>
-              </div>
+              <details id="my-champions-suggestions-panel" class="my-champions-suggestion-notice" hidden>
+                <summary class="my-champions-suggestion-summary">
+                  <span class="my-champions-suggestion-badge">Suggestion</span>
+                  <span id="my-champions-suggestions-summary" class="my-champions-suggestion-text"></span>
+                </summary>
+                <div class="my-champions-suggestion-body">
+                  <div id="my-champions-suggestions-list" class="summary-card-list"></div>
+                </div>
+              </details>
               <div id="my-champions-card-grid" class="card-grid"></div>
               <p id="player-config-feedback" class="meta"></p>
             </div>
@@ -1283,7 +1287,7 @@
                   <li>Composer generation and requirement evaluation now run against the selected scoped champion truth instead of assuming the global catalog only.</li>
                   <li>Draft Setups let signed-in users save and reload the full Composer working state, including selected team, composition, Advanced Controls, and current draft selections.</li>
                   <li>Tags workspace now includes tag-definition promotion requests and review queues, with optional request and review comments for the first scoped-promotion workflow.</li>
-                  <li>My Champions now shows conditional one-click add notifications when Riot mastery/history suggests a strong recent champion that fits the selected role but is not yet in that role’s pool.</li>
+                  <li>My Champions now shows collapsed one-click add notifications when Riot mastery/history suggests a strong recent champion that fits the selected role but is not yet in that role’s pool.</li>
                 </ul>
                 <h4>Version 0.8.8</h4>
                 <ul class="coming-soon-list">

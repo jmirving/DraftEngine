@@ -3536,8 +3536,15 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='explorer']").click();
     await flush();
 
-    expect(doc.querySelector("#my-champions-suggestions-panel").hidden).toBe(false);
-    expect(doc.querySelector("#my-champions-suggestions-summary").textContent).toContain("worth adding");
+    const suggestionNotice = doc.querySelector("#my-champions-suggestions-panel");
+    expect(suggestionNotice.hidden).toBe(false);
+    expect(suggestionNotice.open).toBe(false);
+    expect(doc.querySelector("#my-champions-suggestions-summary").textContent).toContain("outside your current list");
+
+    suggestionNotice.open = true;
+    suggestionNotice.dispatchEvent(new dom.window.Event("toggle"));
+    await flush();
+
     expect(doc.querySelector("#my-champions-suggestions-list").textContent).toContain("Braum");
     const addButton = Array.from(doc.querySelectorAll("#my-champions-suggestions-list button"))
       .find((button) => button.textContent.trim() === "Add to Support");
@@ -3548,7 +3555,7 @@ describe("auth + pools + team management", () => {
     await flush();
 
     expect(doc.querySelector("#my-champions-card-grid").textContent).toContain("Braum");
-    expect(doc.querySelector("#my-champions-suggestions-panel").hidden).toBe(true);
+    expect(suggestionNotice.hidden).toBe(true);
   });
 
   test("creating a team from team context sends name and tag", async () => {

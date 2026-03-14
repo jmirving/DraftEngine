@@ -562,6 +562,7 @@ function createInitialState() {
       isSavingDisplayTeam: false,
       championStats: createEmptyChampionStatsState(),
       championSuggestions: [],
+      isChampionSuggestionNoticeOpen: false,
       openSetting: null,
       avatarChampionId: null,
       pendingAvatarId: null,
@@ -2853,6 +2854,7 @@ function clearAuthSession(feedback = "") {
   state.profile.isSavingAvatar = false;
   state.profile.isSavingDisplayTeam = false;
   state.profile.championStats = createEmptyChampionStatsState();
+  state.profile.isChampionSuggestionNoticeOpen = false;
   state.profile.avatarChampionId = null;
   state.profile.pendingAvatarId = null;
   state.profile.displayTeamId = null;
@@ -12121,10 +12123,18 @@ function renderMyChampionsSuggestionsSection() {
 
   const suggestions = buildProfileChampionSuggestions();
   state.profile.championSuggestions = suggestions;
+  if (!elements.myChampionsSuggestionsPanel.dataset.toggleBound) {
+    elements.myChampionsSuggestionsPanel.addEventListener("toggle", () => {
+      state.profile.isChampionSuggestionNoticeOpen = Boolean(elements.myChampionsSuggestionsPanel.open);
+    });
+    elements.myChampionsSuggestionsPanel.dataset.toggleBound = "true";
+  }
   elements.myChampionsSuggestionsPanel.hidden = true;
+  elements.myChampionsSuggestionsPanel.open = false;
   elements.myChampionsSuggestionsSummary.textContent = "";
   elements.myChampionsSuggestionsList.innerHTML = "";
   if (suggestions.length < 1) {
+    state.profile.isChampionSuggestionNoticeOpen = false;
     return;
   }
 
@@ -12132,8 +12142,9 @@ function renderMyChampionsSuggestionsSection() {
   elements.myChampionsSuggestionsPanel.hidden = false;
   elements.myChampionsSuggestionsSummary.textContent =
     suggestions.length === 1
-      ? `Recent Riot activity suggests 1 ${activeRole} champion worth adding.`
-      : `Recent Riot activity suggests ${suggestions.length} ${activeRole} champions worth adding.`;
+      ? `1 recent ${activeRole} pickup is outside your current list.`
+      : `${suggestions.length} recent ${activeRole} picks are outside your current list.`;
+  elements.myChampionsSuggestionsPanel.open = Boolean(state.profile.isChampionSuggestionNoticeOpen);
 
   for (const suggestion of suggestions) {
     const card = runtimeDocument.createElement("article");
