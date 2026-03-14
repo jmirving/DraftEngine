@@ -771,9 +771,9 @@ body:has(#app-shell.is-nav-collapsed) .composer-bottom-bar {
 .team-admin-workspace {
   display: grid;
   gap: 0.95rem;
-  margin-top: -1px;
   padding: 1rem;
   border: 1px solid rgba(90, 53, 32, 0.18);
+  border-top: none;
   border-radius: 0 18px 18px 18px;
   background: linear-gradient(180deg, #fffdf8 0%, #f8eee2 100%);
   box-shadow: 0 10px 24px rgba(90, 53, 32, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.7);
@@ -786,14 +786,27 @@ body:has(#app-shell.is-nav-collapsed) .composer-bottom-bar {
   gap: 0.35rem;
   position: relative;
   z-index: 1;
+  isolation: isolate;
+}
+
+.team-workspace-tabs::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-bottom: 1px solid rgba(90, 53, 32, 0.18);
+  z-index: 0;
+  pointer-events: none;
 }
 
 .team-workspace-tab {
   width: auto;
-  margin: 0 0 -1px;
+  position: relative;
+  z-index: 1;
+  margin: 0;
   border-radius: 16px 16px 0 0;
   border: 1px solid rgba(90, 53, 32, 0.18);
-  border-bottom: none;
   background: linear-gradient(180deg, #efe1d5 0%, #e4d2c3 100%);
   color: #6d4329;
   font-weight: 700;
@@ -802,9 +815,12 @@ body:has(#app-shell.is-nav-collapsed) .composer-bottom-bar {
 }
 
 .team-workspace-tab.is-active {
+  z-index: 2;
+  margin-bottom: -1px;
   background: linear-gradient(180deg, #fffdf8 0%, #fff4e8 100%);
   color: var(--ink);
   border-color: rgba(90, 53, 32, 0.22);
+  border-bottom-color: #fff4e8;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
