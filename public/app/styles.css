@@ -2129,13 +2129,14 @@ button.pool-snapshot-order-btn:disabled {
   color: var(--accent);
 }
 
-/* ── Review header row ──────────────────── */
-.review-header-row {
+/* ── USS Section header ──────────────────── */
+.uss-section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
-.review-header-row h2 {
+.uss-section-header h2,
+.uss-section-header h3 {
   margin: 0;
   white-space: nowrap;
 }

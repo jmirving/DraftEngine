@@ -323,7 +323,7 @@ const UI_COPY = Object.freeze({
     stages: [
       {
         key: "setup",
-        panelTitle: "Setup",
+        panelTitle: "Draft Setup",
         panelMeta: "Choose team context and lock known picks."
       },
       {
@@ -991,7 +991,6 @@ function createElements() {
     builderOptionalChecks: runtimeDocument.querySelector("#builder-optional-checks"),
     builderTree: runtimeDocument.querySelector("#builder-tree"),
     builderTreeMap: runtimeDocument.querySelector("#builder-tree-map"),
-    draftResultsArea: runtimeDocument.querySelector("#draft-results-area"),
     treeDensity: runtimeDocument.querySelector("#tree-density"),
     treeSearch: runtimeDocument.querySelector("#tree-search"),
     treeMinScore: runtimeDocument.querySelector("#tree-min-score"),
@@ -16153,9 +16152,6 @@ function renderBuilder() {
     elements.treeCandidateRedundancyPenalty.value = String(state.builder.candidateScoringWeights.redundancyPenalty);
   }
   elements.treeValidLeavesOnly.checked = state.builder.treeValidLeavesOnly;
-  if (elements.draftResultsArea) {
-    elements.draftResultsArea.hidden = !state.builder.tree;
-  }
   elements.treeSearch.disabled = !state.builder.tree;
   elements.treeMinScore.disabled = !state.builder.tree;
   elements.treeValidLeavesOnly.disabled = !state.builder.tree;
@@ -16169,7 +16165,7 @@ function renderBuilder() {
 
 function scrollReviewResultsIntoView() {
   const prefersReducedMotion = runtimeMatchMedia("(prefers-reduced-motion: reduce)").matches;
-  elements.draftResultsArea.scrollIntoView({
+  elements.builderTreeMap.scrollIntoView({
     behavior: prefersReducedMotion ? "auto" : "smooth",
     block: "start"
   });
@@ -18386,6 +18382,8 @@ async function init() {
     validateTeamSelections();
     renderTeamConfig();
     renderBuilder();
+    // Auto-generate tree on load so Draft Selector is immediately populated
+    generateTreeFromCurrentState({ scrollToResults: false });
   } catch (error) {
     setSetupFeedback(error instanceof Error ? error.message : "Failed to initialize app.");
   }

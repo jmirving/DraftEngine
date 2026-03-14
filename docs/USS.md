@@ -79,6 +79,22 @@ showUSSConfirm({
 // Returns Promise<boolean> — true = affirm (leave), false = cancel (stay)
 ```
 
+## Section Header (`.uss-section-header`)
+
+All page sections use the USS section header pattern for consistent layout:
+
+```html
+<div class="uss-section-header">
+  <h2>Section Title</h2>
+  <!-- optional action button (stats icon, pencil, etc.) -->
+</div>
+```
+
+- Flex row: title left, optional action button(s) right
+- Works with `h2` (top-level sections) and `h3` (subsections)
+- Title forced to single line (`white-space: nowrap`)
+- Action buttons should be compact icons or standard buttons as appropriate
+
 ## Scope Panel Pattern
 
 ### Inline Header

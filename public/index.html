@@ -346,7 +346,9 @@
           <section id="tab-workflow" class="tab-panel tab-surface workflow-surface is-active">
             <div class="builder-grid">
               <aside id="builder-stage-setup" class="panel draft-board-panel stage-panel">
-                <h2 id="builder-stage-setup-title">Setup</h2>
+                <div class="uss-section-header">
+                  <h2 id="builder-stage-setup-title">Setup</h2>
+                </div>
                 <p id="builder-stage-setup-meta" class="meta"></p>
                 <div class="stack">
                   <label>
@@ -360,7 +362,9 @@
                   </label>
                   <p id="builder-composition-help" class="meta"></p>
                   <div class="panel draft-board-panel">
-                    <h3>Draft Roster</h3>
+                    <div class="uss-section-header">
+                      <h3>Draft Roster</h3>
+                    </div>
                     <p id="team-config-pool-summary" class="meta"></p>
                     <div id="team-config-pool-grid" class="team-pool-grid"></div>
                   </div>
@@ -436,7 +440,7 @@
             </aside>
 
               <section id="builder-stage-inspect" class="panel draft-board-panel stage-panel">
-                <div class="review-header-row">
+                <div class="uss-section-header">
                   <h2 id="builder-stage-inspect-title">Review</h2>
                   <button id="builder-stats-btn" type="button" class="uss-stats-btn" hidden title="Generation Stats">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -451,6 +455,13 @@
                   </section>
                 </div>
                 <p id="builder-inspect-feedback" class="error-inline" hidden></p>
+                <div class="panel tree-map-panel">
+                  <div class="uss-section-header">
+                    <h3>Draft Selector</h3>
+                  </div>
+                  <p id="tree-map-legend" class="meta" hidden></p>
+                  <div id="builder-tree-map" class="draft-path-grid"></div>
+                </div>
                 <div id="draft-results-area" hidden>
                   <div class="tree-toolbar">
                     <label>
@@ -465,11 +476,6 @@
                       <input id="tree-valid-leaves-only" type="checkbox" checked />
                       Valid leaves only
                     </label>
-                  </div>
-                  <div class="panel tree-map-panel">
-                    <h3>Draft Selector</h3>
-                    <p id="tree-map-legend" class="meta" hidden></p>
-                    <div id="builder-tree-map" class="draft-path-grid"></div>
                   </div>
                   <div id="builder-tree" class="tree"></div>
                 </div>
@@ -1286,6 +1292,16 @@
               >
                 <h3>What's New</h3>
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
+                <h4>Version 0.9.3</h4>
+                <ul class="coming-soon-list">
+                  <li>Composer page restructured into three sections: Draft Setup, Draft Roster, and Draft Review.</li>
+                  <li>Draft Selector is now always visible — no longer hidden behind Start Draft.</li>
+                  <li>Tree generation auto-runs on page load so Draft Selector is immediately populated with default settings.</li>
+                  <li>USS section header pattern (<code>.uss-section-header</code>) applied to all section titles for consistent layout.</li>
+                  <li>Generation Stats icon and Draft Selector action row (Clear + Detailed View) on every role column.</li>
+                  <li>Removed team context pills, meta text, and next-role readout from Review for a cleaner layout.</li>
+                  <li>Pool Snapshot renamed to Draft Roster, Draft Path renamed to Draft Selector, Review renamed to Draft Review, Setup renamed to Draft Setup.</li>
+                </ul>
                 <h4>Version 0.9.2</h4>
                 <ul class="coming-soon-list">
                   <li>Champions tab now scrolls to the top when navigating via the left nav.</li>
