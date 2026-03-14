@@ -4441,6 +4441,8 @@ describe("auth + pools + team management", () => {
 
     expect(doc.querySelector("#builder-custom-scopes-enabled").checked).toBe(false);
     expect(doc.querySelector("#builder-scope-controls").hidden).toBe(true);
+    expect(doc.querySelector("#builder-draft-setup-save").textContent).toBe("Save Draft");
+    expect(doc.querySelector("#builder-clear-sticky").textContent).toBe("Clear Draft");
 
     doc.querySelector("#builder-draft-setup-name").value = "Pocket Setup";
     doc.querySelector("#builder-draft-setup-name").dispatchEvent(new dom.window.Event("input", { bubbles: true }));

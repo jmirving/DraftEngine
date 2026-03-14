@@ -628,7 +628,11 @@ body:has(#app-shell.is-nav-collapsed) .panel.side-menu {
   color: #9c3f1e;
 }
 
-/* ── Sticky bottom bar for Clear Composition ──────────── */
+.workflow-surface {
+  padding-bottom: 6.5rem;
+}
+
+/* ── Sticky bottom bar for Composer actions ──────────── */
 .composer-bottom-bar {
   position: fixed;
   bottom: 0;
@@ -642,13 +646,21 @@ body:has(#app-shell.is-nav-collapsed) .panel.side-menu {
   background: linear-gradient(to top, var(--surface) 60%, transparent);
 }
 
+.composer-bottom-actions {
+  pointer-events: auto;
+  width: min(900px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-items: center;
+}
+
 body:has(#app-shell.is-nav-collapsed) .composer-bottom-bar {
   left: 3.35rem;
 }
 
-.composer-bottom-bar button {
-  pointer-events: auto;
-  width: 66%;
+.composer-bottom-actions button {
+  width: 100%;
   max-width: 900px;
   margin: 0;
 }
@@ -964,6 +976,20 @@ body:has(#app-shell.is-nav-collapsed) .composer-bottom-bar {
 
   .ced-tag-columns {
     grid-template-columns: 1fr;
+  }
+
+  .workflow-surface {
+    padding-bottom: 11.5rem;
+  }
+
+  .composer-bottom-bar {
+    left: 0;
+    padding: 0.75rem;
+  }
+
+  .composer-bottom-actions {
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
   }
 
 }
@@ -4842,6 +4868,19 @@ body.has-modal-open {
 }
 
 @media (max-width: 1100px) {
+  .workflow-surface {
+    padding-bottom: 8.5rem;
+  }
+
+  .composer-bottom-bar {
+    left: 0;
+  }
+
+  .composer-bottom-actions {
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .layout {
     padding-top: 0.9rem;
   }
@@ -4919,10 +4958,6 @@ body.has-modal-open {
 
   .inspect-generate-row {
     align-items: stretch;
-  }
-
-  .inspect-generate-row button {
-    width: 100%;
   }
 
   .users-authz-role-grid {

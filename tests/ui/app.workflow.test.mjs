@@ -243,15 +243,22 @@ describe("workflow app integration", () => {
 
   test("initializes in setup stage with review stage hidden and generation gated", async () => {
     const { dom, state } = await bootApp();
-    const setupPanel = dom.window.document.querySelector("#builder-stage-setup");
-    const reviewPanel = dom.window.document.querySelector("#builder-stage-inspect");
-    const generateButton = dom.window.document.querySelector("#builder-generate");
+    const doc = dom.window.document;
+    const setupPanel = doc.querySelector("#builder-stage-setup");
+    const reviewPanel = doc.querySelector("#builder-stage-inspect");
+    const generateButton = doc.querySelector("#builder-generate");
+    const saveButton = doc.querySelector("#builder-draft-setup-save");
+    const clearButton = doc.querySelector("#builder-clear-sticky");
+    const stickyLabels = Array.from(doc.querySelectorAll(".composer-bottom-bar button"), (button) => button.textContent.trim());
 
     expect(state.activeTab).toBe("workflow");
     expect(setupPanel.hidden).toBe(false);
     expect(reviewPanel.hidden).toBe(false);
     expect(generateButton.disabled).toBe(false);
     expect(generateButton.textContent).toBe("Start Draft");
+    expect(saveButton.textContent).toBe("Save Draft");
+    expect(clearButton.textContent).toBe("Clear Draft");
+    expect(stickyLabels).toEqual(["Start Draft", "Save Draft", "Clear Draft"]);
   });
 
   test("requires at least one pick before entering review, then auto-generates on transition", async () => {

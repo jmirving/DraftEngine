@@ -15353,7 +15353,7 @@ function renderBuilderDraftSetups() {
 
   elements.builderDraftSetupName.value = state.builder.draftSetupName ?? "";
   elements.builderDraftSetupSave.disabled = !isAuthenticated() || state.builder.isSavingDraftSetup;
-  elements.builderDraftSetupSave.textContent = state.builder.isSavingDraftSetup ? "Saving..." : "Save Draft Setup";
+  elements.builderDraftSetupSave.textContent = state.builder.isSavingDraftSetup ? "Saving..." : "Save Draft";
   elements.builderDraftSetupList.innerHTML = "";
 
   if (!isAuthenticated()) {

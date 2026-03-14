@@ -359,14 +359,11 @@
                   <p id="builder-composition-help" class="meta"></p>
                   <div class="panel draft-board-panel">
                     <h3>Draft Setups</h3>
-                    <div class="grid grid-2">
+                    <div class="grid">
                       <label>
                         Setup Name
                         <input id="builder-draft-setup-name" type="text" placeholder="Spring scrim setup" />
                       </label>
-                      <div class="button-row team-inline-actions">
-                        <button id="builder-draft-setup-save" type="button">Save Draft Setup</button>
-                      </div>
                     </div>
                     <p id="builder-draft-setup-feedback" class="meta"></p>
                     <div id="builder-draft-setup-list" class="summary-card-list"></div>
@@ -452,8 +449,7 @@
                   </section>
                 </div>
                 <p id="builder-inspect-feedback" class="error-inline" hidden></p>
-                <div class="button-row inspect-generate-row">
-                  <button id="builder-generate" type="button">Start Draft</button>
+                <div class="inspect-generate-row">
                   <p class="meta inspect-generate-help">Uses current setup inputs and constraints.</p>
                   <p id="builder-next-role-readout" class="meta"></p>
                 </div>
@@ -490,7 +486,11 @@
               </section>
             </div>
             <div class="composer-bottom-bar">
-              <button id="builder-clear-sticky" type="button">Clear Composition</button>
+              <div class="composer-bottom-actions">
+                <button id="builder-generate" type="button">Start Draft</button>
+                <button id="builder-draft-setup-save" type="button">Save Draft</button>
+                <button id="builder-clear-sticky" type="button" class="ghost">Clear Draft</button>
+              </div>
             </div>
           </section>
 
@@ -1304,18 +1304,18 @@
                   <li>Draft Path replaces Tree Map: the SVG dot graph is replaced by a 5-column pick-order layout where each column lists champion options for that role, styled like pool snapshot cards.</li>
                   <li>Hover any champion in the Draft Path to see a compact tooltip with viable finishes, coverage status, impact summary, and missing coverage.</li>
                   <li>Draft Path shows ALL champions per role across the entire tree; clicking a champion filters other columns to compatible picks without locking other roles. Selections sync bidirectionally with pool snapshot cards.</li>
-                  <li>"Generate Tree" renamed to "Start Draft"; tree controls, Draft Path, and summary are hidden until Start Draft is clicked.</li>
+                  <li>Composer actions now live in a sticky footer: Start Draft, Save Draft, and Clear Draft stay visible at the bottom while tree controls, Draft Path, and summary remain hidden until Start Draft is clicked.</li>
                   <li>Generation Stats and Draft Picks now open in dark-themed tech modals via eye-icon reveal rows instead of inline details/card lists.</li>
                   <li>Density dropdown and "Summary mode" notice removed; summary is now the default view.</li>
                   <li>Tree map legend hidden; panel description simplified to "Hover for details."</li>
-                  <li>Clear Composition sticky bar now has a gradient background and respects the left nav width.</li>
+                  <li>The Composer sticky action bar uses a gradient backdrop and respects the left nav width.</li>
                   <li>Branch card and tree node "Inspect" buttons renamed to "Select."</li>
                 </ul>
                 <h4>Version 0.8.6 (Shipped)</h4>
                 <ul class="coming-soon-list">
                   <li>Comfort Level dropdown restyled to match role-pill color scheme and compact View pill sizing.</li>
                   <li>Comfort Level filter dropdown min-width set to prevent shrinking when a short value is selected.</li>
-                  <li>Composer stage-guide header panel removed; Clear Composition now lives only in the sticky bottom bar with primary button styling.</li>
+                  <li>Composer stage-guide header panel removed; primary Composer actions now live in the sticky bottom action bar.</li>
                   <li>Power Spikes interaction reworked: clicking inside an existing range now modifies that range instead of creating a new one on top; clicking a single-level range removes it; dragging from a selected level redraws that range in place.</li>
                   <li>Profile Riot Champion Stats redesigned: top 3 most-played champions displayed as portrait cards in a 3-column grid inside a single container; hint summary text removed for the normal state.</li>
                   <li>Power Spike ranges that overlap or touch now auto-merge into a single range (e.g. dragging range 2 to be adjacent to range 1 combines them).</li>
