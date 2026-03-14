@@ -746,13 +746,13 @@ body:has(#app-shell.is-nav-collapsed) .composer-bottom-bar {
 
 .team-context-panel {
   display: grid;
-  gap: 0.95rem;
+  gap: 0;
   animation: fade-in 180ms ease;
 }
 
 .team-workspace-header {
   display: grid;
-  gap: 0.55rem;
+  gap: 0;
 }
 
 .team-workspace-heading {
@@ -761,6 +761,7 @@ body:has(#app-shell.is-nav-collapsed) .composer-bottom-bar {
   align-items: end;
   justify-content: space-between;
   gap: 0.35rem 0.8rem;
+  margin-bottom: 0.7rem;
 }
 
 .team-workspace-heading h2,
