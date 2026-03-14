@@ -643,7 +643,8 @@ body:has(#app-shell.is-nav-collapsed) .panel.side-menu {
   padding: 0.7rem 1rem;
   z-index: 50;
   pointer-events: none;
-  background: linear-gradient(to top, var(--surface) 60%, transparent);
+  background: var(--bg);
+  border-top: 1px solid var(--border);
 }
 
 .composer-bottom-actions {
@@ -2105,20 +2106,32 @@ button.pool-snapshot-order-btn:disabled {
   font-weight: 700;
   color: var(--accent);
   font-family: "Fraunces", Georgia, serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .draft-modal-close {
   background: none;
   border: none;
   color: var(--muted);
-  font-size: 1.3rem;
+  font-size: 1.1rem;
   cursor: pointer;
-  padding: 0 0.3rem;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
   line-height: 1;
 }
 
 .draft-modal-close:hover {
-  color: var(--warn);
+  background: var(--warn);
+  color: #fff;
 }
 
 .draft-modal-body {
@@ -4456,12 +4469,12 @@ body.has-modal-open {
 .ced-scope-panel {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 0.35rem;
   padding: 0.25rem 0.35rem 0.5rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: 10px;
-  flex: 0 0 auto;
+  margin-top: auto;
 }
 
 /* Inline row: "Editing [select] [i]" */
