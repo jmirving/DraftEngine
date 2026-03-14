@@ -987,7 +987,7 @@ function createElements() {
     builderGenerate: runtimeDocument.querySelector("#builder-generate"),
     builderClearSticky: runtimeDocument.querySelector("#builder-clear-sticky"),
     builderNextRoleReadout: runtimeDocument.querySelector("#builder-next-role-readout"),
-    builderTeamContext: runtimeDocument.querySelector("#builder-team-context"),
+    builderStatsBtn: runtimeDocument.querySelector("#builder-stats-btn"),
     builderRequiredChecks: runtimeDocument.querySelector("#builder-required-checks"),
     builderOptionalChecks: runtimeDocument.querySelector("#builder-optional-checks"),
     builderTreeSummary: runtimeDocument.querySelector("#builder-tree-summary"),
@@ -14386,16 +14386,6 @@ function renderExplorer() {
   }
 }
 
-function renderTeamContext() {
-  elements.builderTeamContext.innerHTML = "";
-  for (const slot of SLOTS) {
-    const chip = runtimeDocument.createElement("span");
-    chip.className = "context-chip";
-    chip.textContent = `${getSlotLabel(slot)}: ${state.builder.teamState[slot] ?? "Empty"}`;
-    elements.builderTeamContext.append(chip);
-  }
-}
-
 function evaluateComposerRequirements() {
   const selectedRequirements = getBuilderSelectedRequirements();
   const { teamId, teamPools } = getEnginePoolContext();
@@ -15165,22 +15155,6 @@ function closeDraftModal() {
   if (existing) existing.remove();
 }
 
-function createRevealRow(label, onClick) {
-  const row = runtimeDocument.createElement("div");
-  row.className = "draft-reveal-row";
-  const text = runtimeDocument.createElement("span");
-  text.textContent = label;
-  const icon = runtimeDocument.createElement("button");
-  icon.type = "button";
-  icon.className = "draft-reveal-icon";
-  icon.innerHTML = "&#x1F441;";
-  icon.title = `Show ${label}`;
-  icon.addEventListener("click", onClick);
-  text.addEventListener("click", onClick);
-  text.style.cursor = "pointer";
-  row.append(text, icon);
-  return row;
-}
 
 function buildGenerationStatsContent(generationStats) {
   const container = runtimeDocument.createElement("div");
@@ -15219,61 +15193,45 @@ function buildGenerationStatsContent(generationStats) {
 function renderTreeSummary(root, rootNodeId, visibleIds) {
   elements.builderTreeSummary.innerHTML = "";
   if (!state.builder.tree || !root) {
+    if (elements.builderStatsBtn) elements.builderStatsBtn.hidden = true;
     return;
   }
   const generationStats = state.builder.tree.generationStats ?? null;
 
-  if (generationStats) {
-    elements.builderTreeSummary.append(
-      createRevealRow("Generation Stats", () => {
-        openDraftModal("Generation Stats", buildGenerationStatsContent(generationStats));
-      })
-    );
-
-    if (generationStats.completeDraftLeaves === 0) {
-      const hardFail = runtimeDocument.createElement("p");
-      hardFail.className = "meta";
-      hardFail.textContent = "All possible outcomes result in incomplete drafts.";
-      elements.builderTreeSummary.append(hardFail);
-
-      const reasons = collectIncompleteDraftReasons(root);
-      const reasonLine = runtimeDocument.createElement("p");
-      reasonLine.className = "meta";
-
-      if (reasons.unreachableRequired.length > 0) {
-        reasonLine.textContent =
-          `Fail-fast reason: required checks become unreachable on every leaf (${reasons.unreachableRequired.join(", ")}).`;
-      } else {
-        const topRole = getTopCountEntry(reasons.blockedRoles);
-        const topReason = getTopCountEntry(reasons.blockedReasons);
-        if (topRole) {
-          reasonLine.textContent = formatBlockedReason(topReason?.key, topRole.key);
-        } else {
-          reasonLine.textContent = "Fail-fast reason: no branch can finish all five roles with current pools and constraints.";
-        }
-      }
-      elements.builderTreeSummary.append(reasonLine);
-    }
+  // Show/hide stats icon in Review header
+  if (elements.builderStatsBtn) {
+    elements.builderStatsBtn.hidden = !generationStats;
+    elements.builderStatsBtn.onclick = generationStats
+      ? () => openDraftModal("Generation Stats", buildGenerationStatsContent(generationStats))
+      : null;
   }
 
-  const flat = flattenTreeForMap(root, rootNodeId).filter((entry) => visibleIds.has(entry.id));
-  const topBranches = root.children
-    .map((node, index) => ({
-      node,
-      id: `${rootNodeId}.${index}`,
-      title: `${node.addedRole}: ${node.addedChampion}`
-    }))
-    .filter((entry) => visibleIds.has(entry.id))
-    .slice(0, 8);
+  if (generationStats && generationStats.completeDraftLeaves === 0) {
+    const hardFail = runtimeDocument.createElement("p");
+    hardFail.className = "meta";
+    hardFail.textContent = "All possible outcomes result in incomplete drafts.";
+    elements.builderTreeSummary.append(hardFail);
 
-  const nextRole = topBranches[0]?.node?.addedRole ?? "Next Role";
-  elements.builderTreeSummary.append(
-    createRevealRow(`Draft Picks for ${nextRole}`, () => {
-      openDraftPicksModal(root, rootNodeId, nextRole);
-    })
-  );
+    const reasons = collectIncompleteDraftReasons(root);
+    const reasonLine = runtimeDocument.createElement("p");
+    reasonLine.className = "meta";
 
-  if (topBranches.length === 0 && root.children.length === 0) {
+    if (reasons.unreachableRequired.length > 0) {
+      reasonLine.textContent =
+        `Fail-fast reason: required checks become unreachable on every leaf (${reasons.unreachableRequired.join(", ")}).`;
+    } else {
+      const topRole = getTopCountEntry(reasons.blockedRoles);
+      const topReason = getTopCountEntry(reasons.blockedReasons);
+      if (topRole) {
+        reasonLine.textContent = formatBlockedReason(topReason?.key, topRole.key);
+      } else {
+        reasonLine.textContent = "Fail-fast reason: no branch can finish all five roles with current pools and constraints.";
+      }
+    }
+    elements.builderTreeSummary.append(reasonLine);
+  }
+
+  if (root.children.length === 0) {
     const guidance = runtimeDocument.createElement("p");
     guidance.className = "meta";
     guidance.textContent =
@@ -15725,23 +15683,42 @@ function renderTreeMap() {
 
     const header = runtimeDocument.createElement("div");
     header.className = "draft-path-column-header";
-    header.textContent = role;
+    const headerLabel = runtimeDocument.createElement("span");
+    headerLabel.textContent = role;
+    header.append(headerLabel);
+
     if (isSelected) {
-      const clear = runtimeDocument.createElement("button");
-      clear.type = "button";
-      clear.className = "draft-path-clear-btn";
-      clear.textContent = "\u00D7";
-      clear.title = `Clear ${role} selection`;
-      clear.addEventListener("click", (evt) => {
+      const actionRow = runtimeDocument.createElement("div");
+      actionRow.className = "draft-path-action-row";
+
+      const clearBtn = runtimeDocument.createElement("button");
+      clearBtn.type = "button";
+      clearBtn.className = "ghost draft-path-action-btn draft-path-action-clear";
+      clearBtn.textContent = "Clear";
+      clearBtn.title = `Clear ${role} selection`;
+      clearBtn.addEventListener("click", (evt) => {
         evt.stopPropagation();
         delete state.builder.draftPathSelections[role];
         state.builder.teamState[role] = null;
         renderTeamConfig();
         renderTreeMap();
       });
-      header.append(clear);
+
+      const detailBtn = runtimeDocument.createElement("button");
+      detailBtn.type = "button";
+      detailBtn.className = "draft-path-action-btn draft-path-action-detail";
+      detailBtn.textContent = "Detailed View";
+      detailBtn.title = `Draft Picks for ${role}`;
+      detailBtn.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        openDraftPicksModal(root, "0", role);
+      });
+
+      actionRow.append(clearBtn, detailBtn);
+      col.append(header, actionRow);
+    } else {
+      col.append(header);
     }
-    col.append(header);
 
     const list = runtimeDocument.createElement("ul");
     list.className = "draft-path-list";
@@ -16212,7 +16189,6 @@ function renderBuilder() {
   elements.treeMinScore.disabled = !state.builder.tree;
   elements.treeValidLeavesOnly.disabled = !state.builder.tree;
   updateTeamHelpAndSlotLabels();
-  renderTeamContext();
   renderDraftOrder();
   renderChecks();
   renderExcludedOptions();

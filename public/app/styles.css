@@ -1811,21 +1811,6 @@ button.pool-snapshot-order-btn:disabled {
   z-index: 1;
 }
 
-.team-context {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-bottom: 0.8rem;
-}
-
-.context-chip {
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.14rem 0.45rem;
-  font-size: 0.74rem;
-  background: #fffefa;
-  color: var(--muted);
-}
 
 .check-list,
 .missing-list {
@@ -2144,20 +2129,68 @@ button.pool-snapshot-order-btn:disabled {
   color: var(--accent);
 }
 
-.draft-path-clear-btn {
+/* ── Review header row ──────────────────── */
+.review-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.review-header-row h2 { margin: 0; }
+
+.uss-stats-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
-  border: none;
-  color: var(--accent);
-  font-size: 1rem;
-  font-weight: 700;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  padding: 0.3rem;
   cursor: pointer;
-  padding: 0 0.2rem;
-  margin-left: 0.3rem;
-  line-height: 1;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.uss-stats-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent-soft);
+  background: #fff4ef;
 }
 
-.draft-path-clear-btn:hover {
+/* ── Draft Path action row (Clear + Detailed View) ── */
+.draft-path-action-row {
+  display: flex;
+  gap: 0;
+}
+
+.draft-path-action-btn {
+  flex: 1 1 50%;
+  padding: 0.2rem 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.draft-path-action-clear {
   color: var(--warn);
+  background: var(--surface);
+  border-radius: 0 0 0 6px;
+  border-right: none;
+}
+.draft-path-action-clear:hover {
+  background: var(--warn);
+  color: #fff;
+}
+
+.draft-path-action-detail {
+  color: var(--accent);
+  background: var(--surface);
+  border-radius: 0 0 6px 0;
+}
+.draft-path-action-detail:hover {
+  background: var(--accent);
+  color: #fff;
 }
 
 /* ── Draft modal ──────────────────────────── */
@@ -2315,34 +2348,6 @@ button.pool-snapshot-order-btn:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Reveal row (eye icon trigger) ──────── */
-.draft-reveal-row {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--ink);
-  padding: 0.3rem 0;
-}
-
-.draft-reveal-row + .draft-reveal-row {
-  border-top: 1px solid var(--border);
-}
-
-.draft-reveal-icon {
-  background: none;
-  border: none;
-  font-size: 1rem;
-  cursor: pointer;
-  padding: 0 0.2rem;
-  opacity: 0.6;
-  transition: opacity 150ms;
-}
-
-.draft-reveal-icon:hover {
-  opacity: 1;
-}
 
 .champ-header {
   display: grid;
