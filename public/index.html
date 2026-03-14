@@ -347,7 +347,7 @@
             <div class="builder-grid">
               <aside id="builder-stage-setup" class="panel draft-board-panel stage-panel">
                 <div class="uss-section-header">
-                  <h2 id="builder-stage-setup-title">Setup</h2>
+                  <h2 id="builder-stage-setup-title">Draft Setup</h2>
                 </div>
                 <p id="builder-stage-setup-meta" class="meta"></p>
                 <div class="stack">
@@ -441,7 +441,7 @@
 
               <section id="builder-stage-inspect" class="panel draft-board-panel stage-panel">
                 <div class="uss-section-header">
-                  <h2 id="builder-stage-inspect-title">Review</h2>
+                  <h2 id="builder-stage-inspect-title">Draft Review</h2>
                   <button id="builder-stats-btn" type="button" class="uss-stats-btn" hidden title="Generation Stats">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
                   </button>
@@ -455,13 +455,6 @@
                   </section>
                 </div>
                 <p id="builder-inspect-feedback" class="error-inline" hidden></p>
-                <div class="panel tree-map-panel">
-                  <div class="uss-section-header">
-                    <h3>Draft Selector</h3>
-                  </div>
-                  <p id="tree-map-legend" class="meta" hidden></p>
-                  <div id="builder-tree-map" class="draft-path-grid"></div>
-                </div>
                 <div id="draft-results-area" hidden>
                   <div class="tree-toolbar">
                     <label>
@@ -486,6 +479,14 @@
                 <button id="tree-expand-all" type="button" class="ghost" hidden></button>
                 <button id="tree-collapse-all" type="button" class="ghost" hidden></button>
               </section>
+
+              <div class="panel draft-board-panel tree-map-panel">
+                <div class="uss-section-header">
+                  <h3>Draft Selector</h3>
+                </div>
+                <p id="tree-map-legend" class="meta" hidden></p>
+                <div id="builder-tree-map" class="draft-path-grid"></div>
+              </div>
             </div>
             <div class="composer-bottom-bar">
               <div class="composer-bottom-actions">
