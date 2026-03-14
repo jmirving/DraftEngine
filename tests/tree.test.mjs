@@ -435,3 +435,85 @@ test("redundancyPenalty can change candidate ordering when a pick exceeds clause
   expect(treeWithPenalty.children[0].addedChampion).toBe("BTopNoFrontline");
   expect(treeWithPenalty.children[0].candidateScore).toBeGreaterThan(treeWithPenalty.children[1].candidateScore);
 });
+
+test("OR-linked requirements stop counting inactive alternate branches in node and candidate scores", () => {
+  const championsByName = {
+    TopFrontline: {
+      name: "TopFrontline",
+      tagIds: [1],
+      tags: { Frontline: true }
+    },
+    TopFiller: {
+      name: "TopFiller",
+      tagIds: [],
+      tags: {}
+    },
+    MidFollowUp: {
+      name: "MidFollowUp",
+      tagIds: [2],
+      tags: { "Follow Up": true }
+    }
+  };
+
+  const requirements = [
+    {
+      id: 30,
+      name: "Frontline top or follow-up mid",
+      definition: "Either top brings frontline or mid brings follow-up.",
+      rules: [
+        {
+          id: "top-frontline",
+          expr: { tag: "Frontline" },
+          minCount: 1,
+          roleFilter: ["Top"]
+        },
+        {
+          id: "mid-follow-up",
+          clauseJoiner: "or",
+          expr: { tag: "Follow Up" },
+          minCount: 1,
+          roleFilter: ["Mid"]
+        }
+      ]
+    }
+  ];
+
+  const tree = generatePossibilityTree({
+    teamState: {
+      Mid: "MidFollowUp"
+    },
+    teamId: "X",
+    nextRole: "Top",
+    roleOrder: ["Top", "Jungle", "Mid", "ADC", "Support"],
+    teamPools: {
+      X: {
+        Top: ["TopFiller", "TopFrontline"],
+        Jungle: [],
+        Mid: ["MidFollowUp"],
+        ADC: [],
+        Support: []
+      }
+    },
+    championsByName,
+    requirements,
+    tagById: {
+      "1": { id: 1, name: "Frontline" },
+      "2": { id: 2, name: "Follow Up" }
+    },
+    maxDepth: 1,
+    maxBranch: 5,
+    minCandidateScore: -100,
+    pruneUnreachableRequired: false,
+    rankGoal: "candidate_score"
+  });
+
+  const topFrontline = tree.children.find((child) => child.addedChampion === "TopFrontline");
+  const topFiller = tree.children.find((child) => child.addedChampion === "TopFiller");
+
+  expect(topFrontline).toBeTruthy();
+  expect(topFiller).toBeTruthy();
+  expect(topFrontline.scoreBreakdown.totalUnderBy).toBe(0);
+  expect(topFiller.scoreBreakdown.totalUnderBy).toBe(0);
+  expect(topFrontline.candidateBreakdown.totalScore).toBe(0);
+  expect(topFiller.candidateBreakdown.totalScore).toBe(0);
+});

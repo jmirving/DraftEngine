@@ -14044,10 +14044,14 @@ function buildComposerRequirementScoreBreakdown(requirementEvaluation) {
   return buildRequirementScoreBreakdown(requirementEvaluation, getComposerRedundancyPenalty());
 }
 
-function formatRequirementHeadline(requirementResult) {
+function formatRequirementHeadline(requirementResult, requirementScore = null) {
   const clauses = Array.isArray(requirementResult?.clauses) ? requirementResult.clauses : [];
-  const totalUnderBy = clauses.reduce((sum, clause) => sum + (clause?.underBy ?? 0), 0);
-  const totalOverBy = clauses.reduce((sum, clause) => sum + (clause?.overBy ?? 0), 0);
+  const totalUnderBy = Number.isFinite(requirementScore?.totalUnderBy)
+    ? requirementScore.totalUnderBy
+    : clauses.reduce((sum, clause) => sum + (clause?.underBy ?? 0), 0);
+  const totalOverBy = Number.isFinite(requirementScore?.totalOverBy)
+    ? requirementScore.totalOverBy
+    : clauses.reduce((sum, clause) => sum + (clause?.overBy ?? 0), 0);
   if (totalUnderBy > 0) {
     return `Missing ${totalUnderBy} required match${totalUnderBy === 1 ? "" : "es"}.`;
   }
@@ -14081,7 +14085,7 @@ function buildRequirementStatusRow(requirementResult, requirementScore = null) {
 
   const detail = runtimeDocument.createElement("div");
   detail.className = "check-headline";
-  detail.textContent = formatRequirementHeadline(requirementResult);
+  detail.textContent = formatRequirementHeadline(requirementResult, requirementScore);
   item.append(titleRow, detail);
 
   if (requirementResult.definition) {
@@ -14094,8 +14098,14 @@ function buildRequirementStatusRow(requirementResult, requirementScore = null) {
   if (Array.isArray(requirementResult.clauses) && requirementResult.clauses.length > 0) {
     const clauseSummary = runtimeDocument.createElement("p");
     clauseSummary.className = "meta";
-    const clausesMissing = requirementResult.clauses.filter((clause) => (clause?.underBy ?? 0) > 0).length;
-    const clausesOverflowing = requirementResult.clauses.filter((clause) => (clause?.overBy ?? 0) > 0).length;
+    const scoredClauses = Array.isArray(requirementScore?.clauses)
+      ? requirementScore.clauses
+      : requirementResult.clauses.map((clause) => ({
+        effectiveUnderBy: clause?.underBy ?? 0,
+        effectiveOverBy: clause?.overBy ?? 0
+      }));
+    const clausesMissing = scoredClauses.filter((clause) => (clause?.effectiveUnderBy ?? 0) > 0).length;
+    const clausesOverflowing = scoredClauses.filter((clause) => (clause?.effectiveOverBy ?? 0) > 0).length;
     const summaryParts = [];
     if (clausesMissing > 0) {
       summaryParts.push(`${clausesMissing} clause${clausesMissing === 1 ? "" : "s"} still need coverage`);
@@ -14132,16 +14142,18 @@ function buildRequirementStatusRow(requirementResult, requirementScore = null) {
       const clauseItem = runtimeDocument.createElement("li");
       const rangeLabel = clause.maxCount === null ? `${clause.minCount}+` : `${clause.minCount}-${clause.maxCount}`;
       const pieces = [`${clause.currentMatches}/${rangeLabel}`];
-      if ((clause.underBy ?? 0) > 0) {
+      if (clauseScore?.countsTowardAggregate === false) {
+        pieces.push("inactive alternate branch");
+      } else if ((clause.underBy ?? 0) > 0) {
         pieces.push(`needs ${clause.underBy}`);
       } else {
         pieces.push("minimum met");
       }
-      if ((clause.overBy ?? 0) > 0) {
+      if ((clauseScore?.countsTowardAggregate !== false) && (clause.overBy ?? 0) > 0) {
         pieces.push(`overflow ${clause.overBy}`);
       }
       if (clauseScore) {
-        pieces.push(`score ${clauseScore.scoreContribution}`);
+        pieces.push(`score ${clauseScore.effectiveScoreContribution ?? clauseScore.scoreContribution}`);
       }
       clauseItem.textContent = `C${index + 1}: ${pieces.join(" | ")}`;
       clausesList.append(clauseItem);
@@ -14507,8 +14519,8 @@ function getRemainingCoverageMeta(scoreBreakdown, limit = 2) {
   }
   for (const requirement of scoreBreakdown.requirements) {
     for (const clause of requirement.clauses ?? []) {
-      if ((clause?.underBy ?? 0) > 0) {
-        lines.push(`${requirement.requirementName} ${clause.label}: needs ${clause.underBy}`);
+      if ((clause?.effectiveUnderBy ?? 0) > 0) {
+        lines.push(`${requirement.requirementName} ${clause.label}: needs ${clause.effectiveUnderBy}`);
       }
     }
   }

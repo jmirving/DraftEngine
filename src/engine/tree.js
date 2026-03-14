@@ -195,20 +195,26 @@ function buildClauseDeltaScoreBreakdown(currentEvaluation, projectedEvaluation, 
 
     const clauses = projectedRequirement.clauses.map((projectedClause) => {
       const currentClause = currentClausesById.get(projectedClause.id) ?? null;
-      const underDelta = (currentClause?.underBy ?? 0) - projectedClause.underBy;
-      const overDelta = projectedClause.overBy - (currentClause?.overBy ?? 0);
+      const currentUnderBy = Number.isFinite(currentClause?.effectiveUnderBy) ? currentClause.effectiveUnderBy : 0;
+      const projectedUnderBy = Number.isFinite(projectedClause?.effectiveUnderBy) ? projectedClause.effectiveUnderBy : 0;
+      const currentOverBy = Number.isFinite(currentClause?.effectiveOverBy) ? currentClause.effectiveOverBy : 0;
+      const projectedOverBy = Number.isFinite(projectedClause?.effectiveOverBy) ? projectedClause.effectiveOverBy : 0;
+      const underDelta = currentUnderBy - projectedUnderBy;
+      const overDelta = projectedOverBy - currentOverBy;
       const scoreContribution = underDelta - overDelta * redundancyPenalty;
       return {
         id: projectedClause.id,
         label: projectedClause.label,
         status: projectedClause.status,
         previousStatus: currentClause?.status ?? null,
+        countsTowardAggregate: projectedClause.countsTowardAggregate === true,
+        previousCountsTowardAggregate: currentClause?.countsTowardAggregate === true,
         currentMatches: projectedClause.currentMatches,
         previousMatches: currentClause?.currentMatches ?? 0,
         minCount: projectedClause.minCount,
         maxCount: projectedClause.maxCount,
-        underBy: projectedClause.underBy,
-        overBy: projectedClause.overBy,
+        underBy: projectedUnderBy,
+        overBy: projectedOverBy,
         underDelta,
         overDelta,
         scoreContribution

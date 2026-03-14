@@ -331,6 +331,7 @@ function evaluateClause({
       typeof clause?.id === "string" && clause.id.trim() !== ""
         ? clause.id.trim()
         : `clause-${clauseIndex + 1}`,
+    clauseJoiner: normalizeJoiner(clause?.clauseJoiner, "and"),
     status,
     reason,
     failType,

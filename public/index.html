@@ -1285,6 +1285,7 @@
                 <ul class="coming-soon-list">
                   <li>Composer Advanced Controls now support custom scope resolution, with per-resource scope toggles and precedence controls for champion metadata, champion tags, tag definitions, requirements, and compositions.</li>
                   <li>Composer generation and requirement evaluation now run against the selected scoped champion truth instead of assuming the global catalog only.</li>
+                  <li>OR-linked requirement scoring now uses joiner-aware aggregation so inactive alternate branches no longer inflate missing coverage or branch scores in Review and tree ranking.</li>
                   <li>Draft Setups let signed-in users save and reload the full Composer working state, including selected team, composition, Advanced Controls, and current draft selections.</li>
                   <li>Tags workspace now includes tag-definition promotion requests and review queues, with optional request and review comments for the first scoped-promotion workflow.</li>
                   <li>My Champions now shows collapsed one-click add notifications when Riot mastery/history suggests a strong recent champion that fits the selected role but is not yet in that role’s pool.</li>
@@ -1401,8 +1402,8 @@
                 </ul>
                 <h4>Composer</h4>
                 <ul class="coming-soon-list">
+                  <li>`Use custom scopes` currently defaults on in Advanced Controls; follow-up will make scoped resolution opt-in before per-resource overrides appear (draftflow-230).</li>
                   <li>Per-composition saved scoring profiles and scoped scoring presets are still deferred (draftflow-199).</li>
-                  <li>Clause scoring still needs joiner-aware aggregation for OR-linked requirements so parallel OR clauses do not over-count progress (draftflow-203).</li>
                 </ul>
                 <h4>Tags</h4>
                 <ul class="coming-soon-list">
