@@ -2402,11 +2402,11 @@ button.pool-snapshot-order-btn:disabled {
 
 .advanced-scope-edit-btn {
   background: none;
-  border: none;
+  border: 1px solid transparent;
   color: var(--muted);
   cursor: pointer;
-  padding: 0.15rem;
-  border-radius: 4px;
+  padding: 0.18rem 0.3rem;
+  border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2414,11 +2414,14 @@ button.pool-snapshot-order-btn:disabled {
   min-height: unset;
   height: auto;
   line-height: 1;
+  margin-left: auto;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
 }
 
 .advanced-scope-edit-btn:hover {
   color: var(--accent);
-  background: var(--accent-soft);
+  border-color: var(--accent-soft);
+  background: #fff4ef;
 }
 
 .advanced-excluded-section {
@@ -4427,6 +4430,11 @@ body.has-modal-open {
   flex-shrink: 0;
   width: auto;
   min-width: 0;
+  min-height: unset;
+  height: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: color 0.12s, border-color 0.12s, background 0.12s;
 }
 
