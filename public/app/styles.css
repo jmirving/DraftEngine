@@ -1278,32 +1278,71 @@ button.ghost {
   font-size: 0.84rem;
 }
 
+.explorer-workspace-shell {
+  display: grid;
+  gap: 0;
+}
+
 .explorer-sub-nav {
   display: flex;
-  gap: 0.25rem;
-  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.35rem;
+  margin-bottom: 0;
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+}
+
+.explorer-sub-nav::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-bottom: 1px solid rgba(90, 53, 32, 0.18);
+  z-index: 0;
+  pointer-events: none;
 }
 
 .explorer-sub-nav-btn {
-  padding: 0.45rem 1.1rem;
-  border: 1px solid var(--accent-soft);
-  border-radius: 10px;
-  background: transparent;
-  color: var(--accent);
-  font-size: 0.85rem;
+  width: auto;
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  padding: 0.58rem 1rem 0.62rem;
+  border: 1px solid rgba(90, 53, 32, 0.18);
+  border-radius: 16px 16px 0 0;
+  background: linear-gradient(180deg, #efe1d5 0%, #e4d2c3 100%);
+  color: #6d4329;
+  font-size: 0.92rem;
   font-weight: 700;
   cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
   transition: background 0.15s, color 0.15s;
 }
 
 .explorer-sub-nav-btn:hover {
-  background: var(--accent-soft);
+  background: linear-gradient(180deg, #f7ecdf 0%, #ecd9ca 100%);
 }
 
 .explorer-sub-nav-btn.is-active {
-  background: var(--accent);
-  color: #fff7f2;
-  border-color: transparent;
+  z-index: 2;
+  margin-bottom: -1px;
+  background: linear-gradient(180deg, #fffdf8 0%, #fff4e8 100%);
+  color: var(--ink);
+  border-color: rgba(90, 53, 32, 0.22);
+  border-bottom-color: #fff4e8;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+.explorer-sub-panel {
+  border-top: none;
+  border-radius: 0 18px 18px 18px;
+}
+
+.explorer-sub-panel.panel {
+  margin-bottom: 0;
 }
 
 .card-grid {
@@ -3743,6 +3782,13 @@ button.pool-snapshot-order-btn:disabled {
 .my-champions-header-links {
   display: flex;
   gap: 1rem;
+}
+
+@media (max-width: 680px) {
+  .explorer-sub-nav-btn {
+    flex: 1 1 calc(50% - 0.35rem);
+    text-align: center;
+  }
 }
 
 /* --- Role Modals (compact) --- */

@@ -496,6 +496,8 @@ describe("workflow app integration", () => {
 
     openExplorerEditor(doc);
 
+    expect(doc.querySelector(".explorer-workspace-shell")).toBeTruthy();
+    expect(doc.querySelector("#champion-grid-panel").classList.contains("explorer-sub-panel")).toBe(true);
     expect(expectedChampionCount).toBeGreaterThan(0);
     expect(doc.querySelectorAll("#explorer-results .champ-card").length).toBe(expectedChampionCount);
     expect(doc.querySelector("#explorer-count").textContent).toContain(`Results: ${expectedChampionCount}`);

@@ -164,105 +164,107 @@
       <div id="app-shell" class="app-shell" hidden>
         <div class="main-content">
           <section id="tab-explorer" class="tab-panel tab-surface">
-            <div class="explorer-sub-nav">
-              <button class="explorer-sub-nav-btn is-active" data-explorer-sub="my-champions" type="button">My Champions</button>
-              <button class="explorer-sub-nav-btn" data-explorer-sub="edit-champions" type="button">Edit Champions</button>
-            </div>
-            <div id="my-champions-panel" class="panel draft-board-panel">
-              <div class="my-champions-header">
-                <h2>My Champions</h2>
-                <div class="my-champions-header-links">
-                  <a href="#" class="profile-role-link" id="my-champions-set-primary">Set primary role</a>
-                  <a href="#" class="profile-role-link" id="my-champions-set-others">Set other role(s)</a>
-                </div>
+            <div class="explorer-workspace-shell">
+              <div class="explorer-sub-nav">
+                <button class="explorer-sub-nav-btn is-active" data-explorer-sub="my-champions" type="button">My Champions</button>
+                <button class="explorer-sub-nav-btn" data-explorer-sub="edit-champions" type="button">Edit Champions</button>
               </div>
-              <div class="my-champions-controls">
-                <label>
-                  Role
-                  <select id="player-config-team"></select>
-                </label>
-                <button id="my-champions-add-btn" type="button">Add Champions</button>
-              </div>
-              <div class="my-champions-filter-row">
-                <input id="my-champions-search" type="search" placeholder="Filter by name..." />
-                <div id="my-champions-comfort-filter"></div>
-              </div>
-              <details id="my-champions-suggestions-panel" class="my-champions-suggestion-notice" hidden>
-                <summary class="my-champions-suggestion-summary">
-                  <span class="my-champions-suggestion-badge">Suggestion</span>
-                  <span id="my-champions-suggestions-summary" class="my-champions-suggestion-text"></span>
-                </summary>
-                <div class="my-champions-suggestion-body">
-                  <div id="my-champions-suggestions-list" class="summary-card-list"></div>
+              <div id="my-champions-panel" class="panel draft-board-panel explorer-sub-panel">
+                <div class="my-champions-header">
+                  <h2>My Champions</h2>
+                  <div class="my-champions-header-links">
+                    <a href="#" class="profile-role-link" id="my-champions-set-primary">Set primary role</a>
+                    <a href="#" class="profile-role-link" id="my-champions-set-others">Set other role(s)</a>
+                  </div>
                 </div>
-              </details>
-              <div id="my-champions-card-grid" class="card-grid"></div>
-              <p id="player-config-feedback" class="meta"></p>
-            </div>
-            <div id="champion-grid-panel" class="panel draft-board-panel" hidden>
-              <h2 id="explorer-title">Champions</h2>
-              <div class="explorer-filter-section">
-                <div class="explorer-filter-bar">
-                  <button id="explorer-filter-toggle" class="explorer-filter-toggle" type="button" aria-expanded="true">▾ Filters</button>
-                  <div id="explorer-active-pills" class="explorer-active-pills"></div>
+                <div class="my-champions-controls">
+                  <label>
+                    Role
+                    <select id="player-config-team"></select>
+                  </label>
+                  <button id="my-champions-add-btn" type="button">Add Champions</button>
                 </div>
-                <p class="explorer-tag-warning">⚠ Include and Exclude tags are mutually exclusive. Selecting one removes it from the other.</p>
-                <div id="explorer-filter-body" class="explorer-filter-body">
-                  <div class="explorer-filters-grid">
-                    <label>
-                      <span class="filter-label-header">Champion Name <button id="explorer-clear-search" class="filter-clear-btn" type="button" aria-label="Clear search">×</button></span>
-                      <input id="explorer-search" type="search" placeholder="Enter name" />
-                    </label>
-                    <label>
-                      <span class="filter-label-header">Roles <button id="explorer-clear-role" class="filter-clear-btn" type="button" aria-label="Clear roles">×</button></span>
-                      <div id="explorer-role"></div>
-                    </label>
-                    <label>
-                      <span class="filter-label-header">Damage Type <button id="explorer-clear-damage" class="filter-clear-btn" type="button" aria-label="Clear damage type">×</button></span>
-                      <div id="explorer-damage"></div>
-                    </label>
-                    <label>
-                      <span class="filter-label-header">Power Spike Level <button id="explorer-clear-scaling" class="filter-clear-btn" type="button" aria-label="Clear power spike level">×</button></span>
-                      <div id="explorer-scaling"></div>
-                    </label>
-                    <label>
-                      <span class="filter-label-header">Sort Cards <button id="explorer-clear-sort" class="filter-clear-btn" type="button" aria-label="Reset sort">×</button></span>
-                      <select id="explorer-sort"></select>
-                    </label>
-                    <label>
-                      <span class="filter-label-header">Custom Metadata <button id="explorer-clear-metadata-scope" class="filter-clear-btn" type="button" aria-label="Clear custom metadata filter">×</button></span>
-                      <select id="explorer-metadata-scope"></select>
-                    </label>
-                    <label>
-                      <span class="filter-label-header">Include Tags <button id="explorer-clear-include" class="filter-clear-btn" type="button" aria-label="Clear include tags">×</button></span>
-                      <div id="explorer-include-tags"></div>
-                    </label>
-                    <label>
-                      <span class="filter-label-header">Exclude Tags <button id="explorer-clear-exclude" class="filter-clear-btn" type="button" aria-label="Clear exclude tags">×</button></span>
-                      <div id="explorer-exclude-tags"></div>
-                    </label>
-                    <div class="explorer-filter-catalog" id="explorer-catalog-field">
-                      <span class="filter-label-header">Tag Catalog</span>
-                      <div class="explorer-catalog-wrapper">
-                        <button class="explorer-catalog-toggle" id="explorer-catalog-toggle" type="button" aria-expanded="false">
-                          Tag Catalog <span class="explorer-catalog-caret">▾</span>
-                        </button>
-                        <div class="explorer-catalog-panel" id="explorer-catalog-panel" hidden>
-                          <p id="champion-tag-catalog-meta" class="meta"></p>
-                          <input id="explorer-catalog-search" type="search" placeholder="Filter tags..." />
-                          <div id="champion-tag-catalog-list" class="chip-row"></div>
+                <div class="my-champions-filter-row">
+                  <input id="my-champions-search" type="search" placeholder="Filter by name..." />
+                  <div id="my-champions-comfort-filter"></div>
+                </div>
+                <details id="my-champions-suggestions-panel" class="my-champions-suggestion-notice" hidden>
+                  <summary class="my-champions-suggestion-summary">
+                    <span class="my-champions-suggestion-badge">Suggestion</span>
+                    <span id="my-champions-suggestions-summary" class="my-champions-suggestion-text"></span>
+                  </summary>
+                  <div class="my-champions-suggestion-body">
+                    <div id="my-champions-suggestions-list" class="summary-card-list"></div>
+                  </div>
+                </details>
+                <div id="my-champions-card-grid" class="card-grid"></div>
+                <p id="player-config-feedback" class="meta"></p>
+              </div>
+              <div id="champion-grid-panel" class="panel draft-board-panel explorer-sub-panel" hidden>
+                <h2 id="explorer-title">Champions</h2>
+                <div class="explorer-filter-section">
+                  <div class="explorer-filter-bar">
+                    <button id="explorer-filter-toggle" class="explorer-filter-toggle" type="button" aria-expanded="true">▾ Filters</button>
+                    <div id="explorer-active-pills" class="explorer-active-pills"></div>
+                  </div>
+                  <p class="explorer-tag-warning">⚠ Include and Exclude tags are mutually exclusive. Selecting one removes it from the other.</p>
+                  <div id="explorer-filter-body" class="explorer-filter-body">
+                    <div class="explorer-filters-grid">
+                      <label>
+                        <span class="filter-label-header">Champion Name <button id="explorer-clear-search" class="filter-clear-btn" type="button" aria-label="Clear search">×</button></span>
+                        <input id="explorer-search" type="search" placeholder="Enter name" />
+                      </label>
+                      <label>
+                        <span class="filter-label-header">Roles <button id="explorer-clear-role" class="filter-clear-btn" type="button" aria-label="Clear roles">×</button></span>
+                        <div id="explorer-role"></div>
+                      </label>
+                      <label>
+                        <span class="filter-label-header">Damage Type <button id="explorer-clear-damage" class="filter-clear-btn" type="button" aria-label="Clear damage type">×</button></span>
+                        <div id="explorer-damage"></div>
+                      </label>
+                      <label>
+                        <span class="filter-label-header">Power Spike Level <button id="explorer-clear-scaling" class="filter-clear-btn" type="button" aria-label="Clear power spike level">×</button></span>
+                        <div id="explorer-scaling"></div>
+                      </label>
+                      <label>
+                        <span class="filter-label-header">Sort Cards <button id="explorer-clear-sort" class="filter-clear-btn" type="button" aria-label="Reset sort">×</button></span>
+                        <select id="explorer-sort"></select>
+                      </label>
+                      <label>
+                        <span class="filter-label-header">Custom Metadata <button id="explorer-clear-metadata-scope" class="filter-clear-btn" type="button" aria-label="Clear custom metadata filter">×</button></span>
+                        <select id="explorer-metadata-scope"></select>
+                      </label>
+                      <label>
+                        <span class="filter-label-header">Include Tags <button id="explorer-clear-include" class="filter-clear-btn" type="button" aria-label="Clear include tags">×</button></span>
+                        <div id="explorer-include-tags"></div>
+                      </label>
+                      <label>
+                        <span class="filter-label-header">Exclude Tags <button id="explorer-clear-exclude" class="filter-clear-btn" type="button" aria-label="Clear exclude tags">×</button></span>
+                        <div id="explorer-exclude-tags"></div>
+                      </label>
+                      <div class="explorer-filter-catalog" id="explorer-catalog-field">
+                        <span class="filter-label-header">Tag Catalog</span>
+                        <div class="explorer-catalog-wrapper">
+                          <button class="explorer-catalog-toggle" id="explorer-catalog-toggle" type="button" aria-expanded="false">
+                            Tag Catalog <span class="explorer-catalog-caret">▾</span>
+                          </button>
+                          <div class="explorer-catalog-panel" id="explorer-catalog-panel" hidden>
+                            <p id="champion-tag-catalog-meta" class="meta"></p>
+                            <input id="explorer-catalog-search" type="search" placeholder="Filter tags..." />
+                            <div id="champion-tag-catalog-list" class="chip-row"></div>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                  <div class="explorer-filter-clear-row">
-                    <button id="explorer-clear-all" class="ghost" type="button">Clear All Filters</button>
+                    <div class="explorer-filter-clear-row">
+                      <button id="explorer-clear-all" class="ghost" type="button">Clear All Filters</button>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div id="explorer-results-container">
-                <p id="explorer-count" class="meta"></p>
-                <div id="explorer-results" class="card-grid"></div>
+                <div id="explorer-results-container">
+                  <p id="explorer-count" class="meta"></p>
+                  <div id="explorer-results" class="card-grid"></div>
+                </div>
               </div>
             </div>
 
@@ -1385,7 +1387,7 @@
                   <li>Champion avatar selection: click the avatar circle to open a modal picker with search filtering; select a champion then Save to set your portrait.</li>
                   <li>Team identity display: team name and large logo shown on the right side of the profile header; clicking either navigates to the Teams tab.</li>
                   <li>My Roles setting: "Set primary role" and "Set other role(s)" text links open compact modals for quick role editing; same links are duplicated in the My Champions tab header.</li>
-                  <li>My Champions moved from Profile to the Champions tab with a persistent sub-navigation header (My Champions / Edit Champions toggle).</li>
+                  <li>My Champions moved from Profile to the Champions tab with a connected binder-style sub-navigation header for the My Champions / Edit Champions workspace toggle.</li>
                   <li>Champions tab now defaults to "My Champions" when navigated to.</li>
                   <li>Account settings editor: view email, game name, and tagline; edit first name and last name inline on the Profile page; and change password.</li>
                   <li>Admin Users shortcut moved from the left navigation bar into the Profile settings list (visible to admin users only); Admin Tools section removed from the nav.</li>
