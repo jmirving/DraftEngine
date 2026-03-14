@@ -692,7 +692,7 @@ function createInitialState() {
       composerTagById: {},
       composerTags: [],
       composerChampionsByName: {},
-      useCustomScopes: true,
+      useCustomScopes: false,
       defaultScopePrecedence: BUILDER_SCOPE_DEFAULT_PRECEDENCE,
       scopeResourceSettings: createDefaultBuilderScopeResourceSettings(),
       scopeLoadError: "",
@@ -946,6 +946,7 @@ function createElements() {
     builderStageInspect: runtimeDocument.querySelector("#builder-stage-inspect"),
     builderAdvancedControls: runtimeDocument.querySelector("#builder-advanced-controls"),
     builderCustomScopesEnabled: runtimeDocument.querySelector("#builder-custom-scopes-enabled"),
+    builderScopeControls: runtimeDocument.querySelector("#builder-scope-controls"),
     builderScopeDefaultPrecedence: runtimeDocument.querySelector("#builder-scope-default-precedence"),
     builderScopeResourceList: runtimeDocument.querySelector("#builder-scope-resource-list"),
     builderScopeFeedback: runtimeDocument.querySelector("#builder-scope-feedback"),
@@ -8087,7 +8088,7 @@ async function applyDraftSetupState(setup) {
     ? Math.max(0, Number(builderState.treeMinScore))
     : 0;
   state.builder.treeValidLeavesOnly = builderState.treeValidLeavesOnly !== false;
-  state.builder.useCustomScopes = builderState.useCustomScopes !== false;
+  state.builder.useCustomScopes = builderState.useCustomScopes === true;
   state.builder.defaultScopePrecedence = normalizeBuilderScopePrecedence(builderState.defaultScopePrecedence);
   state.builder.scopeResourceSettings = normalizeBuilderScopeResourceSettings(builderState.scopeResourceSettings);
 
@@ -13031,7 +13032,7 @@ function resetBuilderToDefaults() {
     ...BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS
   };
   state.builder.treeValidLeavesOnly = true;
-  state.builder.useCustomScopes = true;
+  state.builder.useCustomScopes = false;
   state.builder.defaultScopePrecedence = BUILDER_SCOPE_DEFAULT_PRECEDENCE;
   state.builder.scopeResourceSettings = createDefaultBuilderScopeResourceSettings();
   state.builder.selectedDraftSetupId = null;
@@ -15288,6 +15289,9 @@ function renderBuilderScopeControls() {
   }
 
   elements.builderCustomScopesEnabled.checked = state.builder.useCustomScopes;
+  if (elements.builderScopeControls) {
+    elements.builderScopeControls.hidden = !state.builder.useCustomScopes;
+  }
   elements.builderScopeDefaultPrecedence.value = normalizeBuilderScopePrecedence(state.builder.defaultScopePrecedence);
   elements.builderScopeDefaultPrecedence.disabled = !state.builder.useCustomScopes;
   elements.builderScopeResourceList.innerHTML = "";

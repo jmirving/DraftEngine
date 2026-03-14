@@ -4439,6 +4439,9 @@ describe("auth + pools + team management", () => {
     await flush();
     await flush();
 
+    expect(doc.querySelector("#builder-custom-scopes-enabled").checked).toBe(false);
+    expect(doc.querySelector("#builder-scope-controls").hidden).toBe(true);
+
     doc.querySelector("#builder-draft-setup-name").value = "Pocket Setup";
     doc.querySelector("#builder-draft-setup-name").dispatchEvent(new dom.window.Event("input", { bubbles: true }));
     doc.querySelector("#builder-draft-setup-save").click();
@@ -4449,14 +4452,15 @@ describe("auth + pools + team management", () => {
     expect(createCall).toBeTruthy();
     expect(createCall.body.name).toBe("Pocket Setup");
     expect(createCall.body.state_json.builder.teamId).toBe("1");
-    expect(createCall.body.state_json.builder.useCustomScopes).toBe(true);
+    expect(createCall.body.state_json.builder.useCustomScopes).toBe(false);
 
     const customScopes = doc.querySelector("#builder-custom-scopes-enabled");
-    customScopes.checked = false;
+    customScopes.checked = true;
     customScopes.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
     await flush();
     await flush();
-    expect(customScopes.checked).toBe(false);
+    expect(customScopes.checked).toBe(true);
+    expect(doc.querySelector("#builder-scope-controls").hidden).toBe(false);
 
     const loadButton = Array.from(doc.querySelectorAll("#builder-draft-setup-list button"))
       .find((button) => button.textContent.trim() === "Load");
@@ -4468,7 +4472,8 @@ describe("auth + pools + team management", () => {
     await flush();
 
     expect(doc.querySelector("#builder-active-team").value).toBe("1");
-    expect(doc.querySelector("#builder-custom-scopes-enabled").checked).toBe(true);
+    expect(doc.querySelector("#builder-custom-scopes-enabled").checked).toBe(false);
+    expect(doc.querySelector("#builder-scope-controls").hidden).toBe(true);
   });
 
   test("profile display team selection persists across reload via API", async () => {

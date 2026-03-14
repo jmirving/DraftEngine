@@ -383,10 +383,10 @@
                     <div class="advanced-scoring-section">
                       <span class="advanced-compact-label">Composer Scopes</span>
                       <label class="inline-checkbox">
-                        <input id="builder-custom-scopes-enabled" type="checkbox" checked />
+                        <input id="builder-custom-scopes-enabled" type="checkbox" />
                         Use Custom Scopes
                       </label>
-                      <div id="builder-scope-controls">
+                      <div id="builder-scope-controls" hidden>
                         <label class="advanced-compact-label">
                           Default Scope Order
                           <select id="builder-scope-default-precedence">
@@ -1283,7 +1283,7 @@
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
                 <h4>Version 0.9.0</h4>
                 <ul class="coming-soon-list">
-                  <li>Composer Advanced Controls now support custom scope resolution, with per-resource scope toggles and precedence controls for champion metadata, champion tags, tag definitions, requirements, and compositions.</li>
+                  <li>Composer Advanced Controls now support opt-in custom scope resolution, with per-resource scope toggles and precedence controls for champion metadata, champion tags, tag definitions, requirements, and compositions.</li>
                   <li>Composer generation and requirement evaluation now run against the selected scoped champion truth instead of assuming the global catalog only.</li>
                   <li>OR-linked requirement scoring now uses joiner-aware aggregation so inactive alternate branches no longer inflate missing coverage or branch scores in Review and tree ranking.</li>
                   <li>Draft Setups let signed-in users save and reload the full Composer working state, including selected team, composition, Advanced Controls, and current draft selections.</li>
@@ -1396,13 +1396,8 @@
                 <ul class="coming-soon-list">
                   <li>Champion core baseline data is now viewable in the admin workspace, but release ingestion is still manual and broader champion_core baseline adoption across champion/Riot lookup flows is still in progress (draftflow-129, draftflow-212).</li>
                 </ul>
-                <h4>Profile</h4>
-                <ul class="coming-soon-list">
-                  <li>Expand champion suggestions beyond mastery-based role fit so they can use richer real match-history signals when that data path is ready (draftflow-145).</li>
-                </ul>
                 <h4>Composer</h4>
                 <ul class="coming-soon-list">
-                  <li>`Use custom scopes` currently defaults on in Advanced Controls; follow-up will make scoped resolution opt-in before per-resource overrides appear (draftflow-230).</li>
                   <li>Per-composition saved scoring profiles and scoped scoring presets are still deferred (draftflow-199).</li>
                 </ul>
                 <h4>Tags</h4>
