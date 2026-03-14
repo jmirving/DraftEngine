@@ -3797,6 +3797,8 @@ describe("auth + pools + team management", () => {
     const memberTab = doc.querySelector("#team-workspace-tab-member");
     const manageTab = doc.querySelector("#team-workspace-tab-manage");
     const createTab = doc.querySelector("#team-workspace-tab-create");
+    const workspaceHeader = doc.querySelector(".team-workspace-header");
+    const legacyOuterPanel = doc.querySelector("#tab-team-config > .team-context-stack .team-context-panel");
     const composerActiveTeamSelect = doc.querySelector("#builder-active-team");
     const activeTeamOptions = Array.from(composerActiveTeamSelect.options, (option) => option.textContent);
     const editAction = doc.querySelector("#team-admin-open-edit");
@@ -3812,6 +3814,8 @@ describe("auth + pools + team management", () => {
     expect(memberTab.getAttribute("aria-selected")).toBe("true");
     expect(manageTab.getAttribute("aria-selected")).toBe("false");
     expect(createTab.getAttribute("aria-selected")).toBe("false");
+    expect(workspaceHeader).toBeTruthy();
+    expect(legacyOuterPanel).toBeNull();
 
     manageTab.click();
     await flush();
