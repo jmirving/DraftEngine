@@ -3679,6 +3679,10 @@ function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
   elements.tabComingSoon.classList.toggle("is-active", resolvedTab === "coming-soon");
   applyHeroCopy(resolvedTab);
 
+  if (tabChanged) {
+    window.scrollTo(0, 0);
+  }
+
   if (resolvedTab === "team-config" && state.data) {
     renderTeamConfig();
     renderTeamAdmin();
@@ -9546,11 +9550,12 @@ function showNavWarning(onLeave) {
     const leaveBtn = runtimeDocument.createElement("button");
     leaveBtn.type = "button";
     leaveBtn.id = "nav-warning-leave";
+    leaveBtn.className = "ghost";
+    leaveBtn.style.color = "var(--warn)";
     leaveBtn.textContent = "Leave Anyway";
 
     const stayBtn = runtimeDocument.createElement("button");
     stayBtn.type = "button";
-    stayBtn.className = "ghost";
     stayBtn.id = "nav-warning-stay";
     stayBtn.textContent = "Stay";
 
@@ -9574,6 +9579,52 @@ function hideNavWarning() {
   _navWarningPendingAction = null;
   const toast = runtimeDocument.getElementById("nav-warning-toast");
   if (toast) toast.hidden = true;
+}
+
+/** USS confirmation modal — returns a Promise that resolves true (affirm) or false (cancel). */
+function showUSSConfirm({ title = "Unsaved Changes", body = "", affirmLabel = "Leave Anyway", cancelLabel = "Stay", destructive = true } = {}) {
+  return new Promise((resolve) => {
+    const overlay = runtimeDocument.createElement("div");
+    overlay.className = "nav-warning-toast";
+    const box = runtimeDocument.createElement("div");
+    box.className = "nav-warning-box";
+
+    const titleEl = runtimeDocument.createElement("p");
+    titleEl.className = "nav-warning-title";
+    titleEl.textContent = title;
+
+    const bodyEl = runtimeDocument.createElement("p");
+    bodyEl.className = "nav-warning-body";
+    bodyEl.textContent = body;
+
+    const btnRow = runtimeDocument.createElement("div");
+    btnRow.className = "button-row";
+
+    const affirmBtn = runtimeDocument.createElement("button");
+    affirmBtn.type = "button";
+    affirmBtn.className = "ghost";
+    if (destructive) affirmBtn.style.color = "var(--warn)";
+    affirmBtn.textContent = affirmLabel;
+
+    const cancelBtn = runtimeDocument.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.textContent = cancelLabel;
+
+    function cleanup(result) {
+      overlay.remove();
+      resolve(result);
+    }
+
+    affirmBtn.addEventListener("click", () => cleanup(true));
+    cancelBtn.addEventListener("click", () => cleanup(false));
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) cleanup(false); });
+
+    btnRow.append(affirmBtn, cancelBtn);
+    box.append(titleEl, bodyEl, btnRow);
+    overlay.append(box);
+    runtimeDocument.body.append(overlay);
+    overlay.hidden = false;
+  });
 }
 
 function setChampionEditorTab(tab) {
@@ -15770,7 +15821,7 @@ function renderBuilderScopeControls() {
     elements.builderScopeModeSelect.value = state.builder.useCustomScopes ? "custom" : "global";
   }
   if (elements.builderScopeControls) {
-    elements.builderScopeControls.hidden = !state.builder.useCustomScopes;
+    elements.builderScopeControls.hidden = true;
   }
   elements.builderScopeDefaultPrecedence.value = normalizeBuilderScopePrecedence(state.builder.defaultScopePrecedence);
   elements.builderScopeDefaultPrecedence.disabled = !state.builder.useCustomScopes;
@@ -15844,9 +15895,16 @@ function openScopeConfigModal() {
       || JSON.stringify(draft.resources) !== JSON.stringify(snapshot.scopeResourceSettings);
   }
 
-  function handleCancel() {
+  async function handleCancel() {
     if (isDirty()) {
-      if (!confirm("You have unsaved scope changes. Leave anyway?")) return;
+      const leave = await showUSSConfirm({
+        title: "Unsaved Changes",
+        body: "You have unsaved scope changes. Leaving now will discard them.",
+        affirmLabel: "Leave Anyway",
+        cancelLabel: "Stay",
+        destructive: true
+      });
+      if (!leave) return;
     }
     state.builder.defaultScopePrecedence = snapshot.defaultScopePrecedence;
     state.builder.scopeResourceSettings = JSON.parse(JSON.stringify(snapshot.scopeResourceSettings));
