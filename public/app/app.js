@@ -536,6 +536,10 @@ function createEmptyConfirmationState() {
   };
 }
 
+function normalizeDraftSetupSaveMode(rawValue) {
+  return rawValue === "settings_only" ? "settings_only" : "full";
+}
+
 function createInitialState() {
   return {
     data: null,
@@ -703,6 +707,7 @@ function createInitialState() {
       selectedDraftSetupId: null,
       draftSetupName: "",
       draftSetupDescription: "",
+      draftSetupSaveMode: "full",
       draftSetupFeedback: "",
       isLoadingDraftSetups: false,
       isSavingDraftSetup: false,
@@ -943,6 +948,7 @@ function createElements() {
     builderSaveDraftModal: runtimeDocument.querySelector("#builder-save-draft-modal"),
     builderSaveDraftName: runtimeDocument.querySelector("#builder-save-draft-name"),
     builderSaveDraftDescription: runtimeDocument.querySelector("#builder-save-draft-description"),
+    builderSaveDraftSettingsOnly: runtimeDocument.querySelector("#builder-save-draft-settings-only"),
     builderSaveDraftCancel: runtimeDocument.querySelector("#builder-save-draft-cancel"),
     builderSaveDraftConfirm: runtimeDocument.querySelector("#builder-save-draft-confirm"),
     builderSaveDraftFeedback: runtimeDocument.querySelector("#builder-save-draft-feedback"),
@@ -8181,25 +8187,34 @@ async function refreshBuilderComposerContext({ includeDraftContext = true } = {}
   }
 }
 
-function createDefaultDraftSetupState() {
-  return {
-    builder: {
+function createDefaultDraftSetupState(saveMode = state.builder.draftSetupSaveMode) {
+  const normalizedSaveMode = normalizeDraftSetupSaveMode(saveMode);
+  const builderState = {
+    maxBranch: state.builder.maxBranch,
+    treeMinCandidateScore: state.builder.treeMinCandidateScore,
+    treeRankGoal: state.builder.treeRankGoal,
+    candidateScoringWeights: { ...state.builder.candidateScoringWeights },
+    treeMinScore: state.builder.treeMinScore,
+    treeValidLeavesOnly: state.builder.treeValidLeavesOnly,
+    useCustomScopes: state.builder.useCustomScopes,
+    defaultScopePrecedence: state.builder.defaultScopePrecedence,
+    scopeResourceSettings: normalizeBuilderScopeResourceSettings(state.builder.scopeResourceSettings)
+  };
+
+  if (normalizedSaveMode !== "settings_only") {
+    Object.assign(builderState, {
       teamId: state.builder.teamId,
       activeCompositionId: state.builder.activeCompositionId,
       teamState: { ...state.builder.teamState },
       draftOrder: [...state.builder.draftOrder],
       slotPoolRole: { ...state.builder.slotPoolRole },
-      excludedChampions: [...state.builder.excludedChampions],
-      maxBranch: state.builder.maxBranch,
-      treeMinCandidateScore: state.builder.treeMinCandidateScore,
-      treeRankGoal: state.builder.treeRankGoal,
-      candidateScoringWeights: { ...state.builder.candidateScoringWeights },
-      treeMinScore: state.builder.treeMinScore,
-      treeValidLeavesOnly: state.builder.treeValidLeavesOnly,
-      useCustomScopes: state.builder.useCustomScopes,
-      defaultScopePrecedence: state.builder.defaultScopePrecedence,
-      scopeResourceSettings: normalizeBuilderScopeResourceSettings(state.builder.scopeResourceSettings)
-    }
+      excludedChampions: [...state.builder.excludedChampions]
+    });
+  }
+
+  return {
+    saveMode: normalizedSaveMode,
+    builder: builderState
   };
 }
 
@@ -8215,6 +8230,7 @@ function normalizeDraftSetupRecord(rawSetup) {
     id,
     name: typeof rawSetup.name === "string" ? rawSetup.name.trim() : "",
     description: typeof rawSetup.description === "string" ? rawSetup.description.trim() : "",
+    saveMode: normalizeDraftSetupSaveMode(rawSetup.save_mode ?? rawSetup.state_json?.saveMode ?? rawSetup.stateJson?.saveMode),
     stateJson:
       rawSetup.state_json && typeof rawSetup.state_json === "object" && !Array.isArray(rawSetup.state_json)
         ? rawSetup.state_json
@@ -8267,6 +8283,7 @@ async function loadDraftSetupsFromApi() {
     state.builder.draftSetups = [];
     state.builder.selectedDraftSetupId = null;
     state.builder.draftSetupDescription = "";
+    state.builder.draftSetupSaveMode = "full";
     state.builder.draftSetupFeedback = "";
     renderBuilder();
     return;
@@ -8291,21 +8308,25 @@ async function applyDraftSetupState(setup) {
   const builderState = setup?.stateJson?.builder && typeof setup.stateJson.builder === "object"
     ? setup.stateJson.builder
     : {};
+  const saveMode = normalizeDraftSetupSaveMode(setup?.saveMode ?? setup?.stateJson?.saveMode);
   state.builder.selectedDraftSetupId = setup.id;
   state.builder.draftSetupName = setup.name;
   state.builder.draftSetupDescription = setup.description ?? "";
-  state.builder.teamId = normalizeConfiguredTeamId(builderState.teamId);
-  state.teamConfig.activeTeamId = state.builder.teamId;
-  saveTeamConfig();
-  state.builder.activeCompositionId = normalizeApiEntityId(builderState.activeCompositionId);
-  state.builder.teamState = normalizeTeamState(builderState.teamState);
-  state.builder.draftOrder = Array.isArray(builderState.draftOrder) ? builderState.draftOrder.filter((role) => SLOTS.includes(role)) : [...SLOTS];
-  state.builder.slotPoolRole = builderState.slotPoolRole && typeof builderState.slotPoolRole === "object"
-    ? Object.fromEntries(SLOTS.map((slot) => [slot, builderState.slotPoolRole[slot] ?? slot]))
-    : Object.fromEntries(SLOTS.map((slot) => [slot, slot]));
-  state.builder.excludedChampions = Array.isArray(builderState.excludedChampions)
-    ? builderState.excludedChampions.filter((name) => typeof name === "string")
-    : [];
+  state.builder.draftSetupSaveMode = saveMode;
+  if (saveMode !== "settings_only") {
+    state.builder.teamId = normalizeConfiguredTeamId(builderState.teamId);
+    state.teamConfig.activeTeamId = state.builder.teamId;
+    saveTeamConfig();
+    state.builder.activeCompositionId = normalizeApiEntityId(builderState.activeCompositionId);
+    state.builder.teamState = normalizeTeamState(builderState.teamState);
+    state.builder.draftOrder = Array.isArray(builderState.draftOrder) ? builderState.draftOrder.filter((role) => SLOTS.includes(role)) : [...SLOTS];
+    state.builder.slotPoolRole = builderState.slotPoolRole && typeof builderState.slotPoolRole === "object"
+      ? Object.fromEntries(SLOTS.map((slot) => [slot, builderState.slotPoolRole[slot] ?? slot]))
+      : Object.fromEntries(SLOTS.map((slot) => [slot, slot]));
+    state.builder.excludedChampions = Array.isArray(builderState.excludedChampions)
+      ? builderState.excludedChampions.filter((name) => typeof name === "string")
+      : [];
+  }
   state.builder.maxBranch = Number.isFinite(Number(builderState.maxBranch))
     ? Math.max(1, Number(builderState.maxBranch))
     : state.builder.maxBranch;
@@ -8326,7 +8347,11 @@ async function applyDraftSetupState(setup) {
   resetBuilderTreeState();
   await refreshBuilderComposerContext({ includeDraftContext: true });
   closeBuilderLoadDraftModal();
-  setBuilderDraftSetupFeedback(`Loaded Draft Setup '${setup.name}'.`);
+  setBuilderDraftSetupFeedback(
+    saveMode === "settings_only"
+      ? `Applied settings from Draft Setup '${setup.name}'.`
+      : `Loaded Draft Setup '${setup.name}'.`
+  );
 }
 
 async function saveCurrentDraftSetup() {
@@ -8343,6 +8368,7 @@ async function saveCurrentDraftSetup() {
   }
   state.builder.draftSetupName = name;
   state.builder.draftSetupDescription = description;
+  const saveMode = normalizeDraftSetupSaveMode(state.builder.draftSetupSaveMode);
   state.builder.isSavingDraftSetup = true;
   renderBuilder();
   try {
@@ -8355,7 +8381,7 @@ async function saveCurrentDraftSetup() {
         body: {
           name,
           description,
-          state_json: createDefaultDraftSetupState()
+          state_json: createDefaultDraftSetupState(saveMode)
         }
       }
     );
@@ -8364,10 +8390,15 @@ async function saveCurrentDraftSetup() {
       state.builder.selectedDraftSetupId = savedSetup.id;
       state.builder.draftSetupName = savedSetup.name;
       state.builder.draftSetupDescription = savedSetup.description ?? "";
+      state.builder.draftSetupSaveMode = savedSetup.saveMode;
     }
     await loadDraftSetupsFromApi();
     state.builder.isSaveDraftModalOpen = false;
-    setBuilderDraftSetupFeedback(setupId ? "Draft Setup updated." : "Draft Setup saved.");
+    setBuilderDraftSetupFeedback(
+      saveMode === "settings_only"
+        ? (setupId ? "Settings-only draft updated." : "Settings-only draft saved.")
+        : (setupId ? "Draft Setup updated." : "Draft Setup saved.")
+    );
   } catch (error) {
     setBuilderDraftSetupFeedback(normalizeApiErrorMessage(error, "Failed to save Draft Setup."));
   } finally {
@@ -8386,6 +8417,7 @@ async function deleteDraftSetup(setupId) {
       state.builder.selectedDraftSetupId = null;
       state.builder.draftSetupName = "";
       state.builder.draftSetupDescription = "";
+      state.builder.draftSetupSaveMode = "full";
     }
     await loadDraftSetupsFromApi();
     setBuilderDraftSetupFeedback("Draft Setup deleted.");
@@ -13321,6 +13353,7 @@ function resetBuilderToDefaults() {
   state.builder.selectedDraftSetupId = null;
   state.builder.draftSetupName = "";
   state.builder.draftSetupDescription = "";
+  state.builder.draftSetupSaveMode = "full";
   state.builder.draftSetupFeedback = "";
   state.builder.isSaveDraftModalOpen = false;
   state.builder.isLoadDraftModalOpen = false;
@@ -15698,6 +15731,10 @@ function renderBuilderDraftSetups() {
   if (elements.builderSaveDraftDescription) {
     elements.builderSaveDraftDescription.value = state.builder.draftSetupDescription ?? "";
   }
+  if (elements.builderSaveDraftSettingsOnly) {
+    elements.builderSaveDraftSettingsOnly.checked = normalizeDraftSetupSaveMode(state.builder.draftSetupSaveMode) === "settings_only";
+    elements.builderSaveDraftSettingsOnly.disabled = state.builder.isSavingDraftSetup;
+  }
   if (elements.builderSaveDraftConfirm) {
     elements.builderSaveDraftConfirm.disabled = state.builder.isSavingDraftSetup;
     elements.builderSaveDraftConfirm.textContent = state.builder.isSavingDraftSetup ? "Saving..." : "Save Draft";
@@ -15759,6 +15796,9 @@ function renderBuilderDraftSetups() {
     if (setup.id === state.builder.selectedDraftSetupId) {
       metaParts.push("Currently loaded");
     }
+    if (setup.saveMode === "settings_only") {
+      metaParts.push("Settings only");
+    }
     metaParts.push(setup.updatedAt ? `Updated ${formatTimestampMeta(setup.updatedAt)}` : "Saved draft");
     meta.textContent = metaParts.join(" | ");
 
@@ -15778,9 +15818,12 @@ function renderBuilderDraftSetups() {
     loadButton.textContent = "Load";
     loadButton.addEventListener("click", () => {
       void confirmAction({
-        title: "Load Draft",
-        message: `Replace the current Composer state with '${setup.name}'?`,
-        confirmLabel: "Load"
+        title: setup.saveMode === "settings_only" ? "Apply Draft Settings" : "Load Draft",
+        message:
+          setup.saveMode === "settings_only"
+            ? `Apply Composer settings from '${setup.name}'? Current team, composition, picks, and exclusions will stay in place.`
+            : `Replace the current Composer state with '${setup.name}'?`,
+        confirmLabel: setup.saveMode === "settings_only" ? "Apply Settings" : "Load"
       }).then((confirmed) => {
         if (confirmed) {
           void applyDraftSetupState(setup);
@@ -17031,6 +17074,12 @@ function attachEvents() {
   if (elements.builderSaveDraftDescription) {
     elements.builderSaveDraftDescription.addEventListener("input", () => {
       state.builder.draftSetupDescription = elements.builderSaveDraftDescription.value;
+    });
+  }
+
+  if (elements.builderSaveDraftSettingsOnly) {
+    elements.builderSaveDraftSettingsOnly.addEventListener("change", () => {
+      state.builder.draftSetupSaveMode = elements.builderSaveDraftSettingsOnly.checked ? "settings_only" : "full";
     });
   }
 

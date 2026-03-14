@@ -4563,6 +4563,7 @@ describe("auth + pools + team management", () => {
     doc.querySelector("#builder-save-draft-name").dispatchEvent(new dom.window.Event("input", { bubbles: true }));
     doc.querySelector("#builder-save-draft-description").value = "Primary engage version";
     doc.querySelector("#builder-save-draft-description").dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+    expect(doc.querySelector("#builder-save-draft-settings-only").checked).toBe(false);
     doc.querySelector("#builder-save-draft-confirm").click();
     await flush();
     await flush();
@@ -4571,6 +4572,7 @@ describe("auth + pools + team management", () => {
     expect(createCall).toBeTruthy();
     expect(createCall.body.name).toBe("Pocket Setup");
     expect(createCall.body.description).toBe("Primary engage version");
+    expect(createCall.body.state_json.saveMode).toBe("full");
     expect(createCall.body.state_json.builder.teamId).toBe("1");
     expect(createCall.body.state_json.builder.useCustomScopes).toBe(false);
 
@@ -4608,6 +4610,101 @@ describe("auth + pools + team management", () => {
     expect(state.builder.stage).toBe("setup");
     expect(doc.querySelector("#builder-generate").textContent).toBe("Start Draft");
     expect(doc.querySelector("#draft-results-area").hidden).toBe(true);
+  });
+
+  test("settings-only draft saves restore Composer controls without replacing current team context", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", role: "admin", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness({
+      loginUser: { id: 11, email: "lead@example.com", role: "admin", gameName: "LeadPlayer", tagline: "NA1" },
+      teams: [
+        { id: 1, name: "Team Echo", tag: "ECHO", membership_role: "lead", membership_team_role: "primary" },
+        { id: 2, name: "Team Nova", tag: "NOVA", membership_role: "lead", membership_team_role: "primary" }
+      ],
+      membersByTeam: {
+        "1": [{ team_id: 1, user_id: 11, role: "lead", team_role: "primary", email: "lead@example.com" }],
+        "2": [{ team_id: 2, user_id: 11, role: "lead", team_role: "primary", email: "lead@example.com" }]
+      }
+    });
+
+    const { dom, state } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector("#builder-active-team").value = "1";
+    doc.querySelector("#builder-active-team").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await flush();
+    await flush();
+
+    doc.querySelector("#tree-rank-goal").value = "candidate_score";
+    doc.querySelector("#tree-rank-goal").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await flush();
+    doc.querySelector("#tree-min-candidate-score").value = "7";
+    doc.querySelector("#tree-min-candidate-score").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await flush();
+    doc.querySelector("#builder-custom-scopes-enabled").checked = true;
+    doc.querySelector("#builder-custom-scopes-enabled").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await flush();
+    await flush();
+
+    doc.querySelector("#builder-draft-setup-save").click();
+    await flush();
+    await flush();
+    doc.querySelector("#builder-save-draft-name").value = "Scoring Defaults";
+    doc.querySelector("#builder-save-draft-name").dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+    doc.querySelector("#builder-save-draft-settings-only").checked = true;
+    doc.querySelector("#builder-save-draft-settings-only").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    doc.querySelector("#builder-save-draft-confirm").click();
+    await flush();
+    await flush();
+
+    const createCall = harness.calls.find((call) => call.path === "/me/draft-setups" && call.method === "POST");
+    expect(createCall).toBeTruthy();
+    expect(createCall.body.state_json.saveMode).toBe("settings_only");
+    expect(createCall.body.state_json.builder.teamId).toBeUndefined();
+    expect(createCall.body.state_json.builder.treeRankGoal).toBe("candidate_score");
+    expect(createCall.body.state_json.builder.treeMinCandidateScore).toBe(7);
+    expect(createCall.body.state_json.builder.useCustomScopes).toBe(true);
+
+    doc.querySelector("#builder-active-team").value = "2";
+    doc.querySelector("#builder-active-team").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await flush();
+    await flush();
+
+    doc.querySelector("#tree-rank-goal").value = "valid_end_states";
+    doc.querySelector("#tree-rank-goal").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await flush();
+    doc.querySelector("#tree-min-candidate-score").value = "1";
+    doc.querySelector("#tree-min-candidate-score").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await flush();
+    doc.querySelector("#builder-custom-scopes-enabled").checked = false;
+    doc.querySelector("#builder-custom-scopes-enabled").dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await flush();
+    await flush();
+
+    doc.querySelector("#builder-draft-setup-load").click();
+    await flush();
+    await flush();
+    expect(doc.querySelector("#builder-load-draft-list").textContent).toContain("Settings only");
+
+    const loadButton = Array.from(doc.querySelectorAll("#builder-load-draft-list button"))
+      .find((button) => button.textContent.trim() === "Load");
+    expect(loadButton).toBeTruthy();
+    loadButton.click();
+    await flush();
+    expect(doc.querySelector("#confirmation-title").textContent).toBe("Apply Draft Settings");
+    doc.querySelector("#confirmation-confirm").click();
+    await flush();
+    await flush();
+
+    expect(doc.querySelector("#builder-active-team").value).toBe("2");
+    expect(state.builder.teamId).toBe("2");
+    expect(doc.querySelector("#tree-rank-goal").value).toBe("candidate_score");
+    expect(doc.querySelector("#tree-min-candidate-score").value).toBe("7");
+    expect(doc.querySelector("#builder-custom-scopes-enabled").checked).toBe(true);
   });
 
   test("profile display team selection persists across reload via API", async () => {

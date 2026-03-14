@@ -3317,6 +3317,7 @@ describe("API routes", () => {
         name: "Pocket Setup",
         description: "Primary engage version.",
         state_json: {
+          saveMode: "settings_only",
           builder: {
             teamId: 1,
             activeCompositionId: 1,
@@ -3327,6 +3328,7 @@ describe("API routes", () => {
     expect(created.status).toBe(201);
     expect(created.body.draft_setup.name).toBe("Pocket Setup");
     expect(created.body.draft_setup.description).toBe("Primary engage version.");
+    expect(created.body.draft_setup.state_json.saveMode).toBe("settings_only");
 
     const listed = await request(app)
       .get("/me/draft-setups")
@@ -3341,6 +3343,7 @@ describe("API routes", () => {
         name: "Pocket Setup v2",
         description: "Updated description.",
         state_json: {
+          saveMode: "full",
           builder: {
             teamId: 1,
             activeCompositionId: 1,
@@ -3351,6 +3354,7 @@ describe("API routes", () => {
     expect(updated.status).toBe(200);
     expect(updated.body.draft_setup.name).toBe("Pocket Setup v2");
     expect(updated.body.draft_setup.description).toBe("Updated description.");
+    expect(updated.body.draft_setup.state_json.saveMode).toBe("full");
 
     const deleted = await request(app)
       .delete(`/me/draft-setups/${created.body.draft_setup.id}`)

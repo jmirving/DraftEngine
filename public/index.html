@@ -1392,7 +1392,7 @@
                 </ul>
                 <h4>Composer</h4>
                 <ul class="coming-soon-list">
-                  <li>Per-composition saved scoring profiles and scoped scoring presets are still deferred (draftflow-199).</li>
+                  <li>Settings-only draft saves now cover reusable personal Composer defaults; first-class per-composition scoring profiles and scoped/shared scoring presets are still deferred (draftflow-199).</li>
                 </ul>
                 <h4>Tags</h4>
                 <ul class="coming-soon-list">
@@ -1680,6 +1680,11 @@
               placeholder="Optional notes about when to use this draft."
             ></textarea>
           </label>
+          <label class="inline-checkbox">
+            <input id="builder-save-draft-settings-only" type="checkbox" />
+            Save only settings
+          </label>
+          <p class="meta">Settings-only drafts preserve scoring and scope controls without replacing team, composition, picks, or exclusions on load.</p>
           <div class="button-row">
             <button id="builder-save-draft-cancel" class="ghost" type="button">Cancel</button>
             <button id="builder-save-draft-confirm" type="button">Save Draft</button>
