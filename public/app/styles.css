@@ -650,7 +650,7 @@ body:has(#app-shell.is-nav-collapsed) .panel.side-menu {
   pointer-events: auto;
   width: min(900px, 100%);
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.75rem;
   align-items: center;
 }
@@ -661,8 +661,27 @@ body:has(#app-shell.is-nav-collapsed) .composer-bottom-bar {
 
 .composer-bottom-actions button {
   width: 100%;
-  max-width: 900px;
   margin: 0;
+}
+
+.draft-setup-modal-content {
+  width: min(560px, calc(100vw - 2rem));
+}
+
+.draft-setup-modal-content textarea {
+  min-height: 6.5rem;
+  resize: vertical;
+}
+
+.draft-setup-modal-list {
+  max-height: min(55vh, 28rem);
+  overflow: auto;
+}
+
+.draft-setup-card-description {
+  margin: 0.35rem 0 0.55rem;
+  color: var(--muted);
+  white-space: pre-wrap;
 }
 
 .workflow-surface .stage-panel {
@@ -4878,7 +4897,7 @@ body.has-modal-open {
 
   .composer-bottom-actions {
     width: 100%;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .layout {

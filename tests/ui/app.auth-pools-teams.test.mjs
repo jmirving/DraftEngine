@@ -1034,6 +1034,7 @@ function createFetchHarness({
 
     if (path === "/me/draft-setups" && method === "POST") {
       const name = typeof body?.name === "string" ? body.name.trim() : "";
+      const description = typeof body?.description === "string" ? body.description.trim() : "";
       if (!name) {
         return createJsonResponse({ error: { code: "BAD_REQUEST", message: "Name is required." } }, 400);
       }
@@ -1041,6 +1042,7 @@ function createFetchHarness({
         id: nextDraftSetupId,
         user_id: Number(resolvedLoginUser.id),
         name,
+        description,
         state_json: body?.state_json ?? {},
         created_at: "2026-01-01T00:00:00.000Z",
         updated_at: "2026-01-01T00:00:00.000Z"
@@ -1058,6 +1060,7 @@ function createFetchHarness({
         return createJsonResponse({ error: { code: "NOT_FOUND", message: "Draft Setup not found." } }, 404);
       }
       setup.name = typeof body?.name === "string" ? body.name.trim() : setup.name;
+      setup.description = typeof body?.description === "string" ? body.description.trim() : (setup.description ?? "");
       setup.state_json = body?.state_json ?? setup.state_json;
       setup.updated_at = "2026-01-01T00:00:00.000Z";
       return createJsonResponse({ draft_setup: setup });
@@ -4442,17 +4445,25 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#builder-custom-scopes-enabled").checked).toBe(false);
     expect(doc.querySelector("#builder-scope-controls").hidden).toBe(true);
     expect(doc.querySelector("#builder-draft-setup-save").textContent).toBe("Save Draft");
+    expect(doc.querySelector("#builder-draft-setup-load").textContent).toBe("Load Draft");
     expect(doc.querySelector("#builder-clear-sticky").textContent).toBe("Clear Draft");
 
-    doc.querySelector("#builder-draft-setup-name").value = "Pocket Setup";
-    doc.querySelector("#builder-draft-setup-name").dispatchEvent(new dom.window.Event("input", { bubbles: true }));
     doc.querySelector("#builder-draft-setup-save").click();
+    await flush();
+    await flush();
+    expect(doc.querySelector("#builder-save-draft-modal").hidden).toBe(false);
+    doc.querySelector("#builder-save-draft-name").value = "Pocket Setup";
+    doc.querySelector("#builder-save-draft-name").dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+    doc.querySelector("#builder-save-draft-description").value = "Primary engage version";
+    doc.querySelector("#builder-save-draft-description").dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+    doc.querySelector("#builder-save-draft-confirm").click();
     await flush();
     await flush();
 
     const createCall = harness.calls.find((call) => call.path === "/me/draft-setups" && call.method === "POST");
     expect(createCall).toBeTruthy();
     expect(createCall.body.name).toBe("Pocket Setup");
+    expect(createCall.body.description).toBe("Primary engage version");
     expect(createCall.body.state_json.builder.teamId).toBe("1");
     expect(createCall.body.state_json.builder.useCustomScopes).toBe(false);
 
@@ -4469,7 +4480,13 @@ describe("auth + pools + team management", () => {
     await flush();
     expect(state.builder.stage).toBe("inspect");
 
-    const loadButton = Array.from(doc.querySelectorAll("#builder-draft-setup-list button"))
+    doc.querySelector("#builder-draft-setup-load").click();
+    await flush();
+    await flush();
+    expect(doc.querySelector("#builder-load-draft-modal").hidden).toBe(false);
+    expect(doc.querySelector("#builder-load-draft-list").textContent).toContain("Primary engage version");
+
+    const loadButton = Array.from(doc.querySelectorAll("#builder-load-draft-list button"))
       .find((button) => button.textContent.trim() === "Load");
     expect(loadButton).toBeTruthy();
     loadButton.click();

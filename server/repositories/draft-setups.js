@@ -3,6 +3,7 @@ function mapDraftSetupRow(row) {
     id: Number(row.id),
     user_id: Number(row.user_id),
     name: row.name,
+    description: row.description ?? "",
     state_json: row.state_json ?? {},
     created_at: row.created_at,
     updated_at: row.updated_at
@@ -14,7 +15,7 @@ export function createDraftSetupsRepository(pool) {
     async listDraftSetupsByUser(userId) {
       const result = await pool.query(
         `
-          SELECT id, user_id, name, state_json, created_at, updated_at
+          SELECT id, user_id, name, description, state_json, created_at, updated_at
           FROM user_draft_setups
           WHERE user_id = $1
           ORDER BY lower(name) ASC, updated_at DESC, id ASC
@@ -27,7 +28,7 @@ export function createDraftSetupsRepository(pool) {
     async getDraftSetupById(setupId, userId) {
       const result = await pool.query(
         `
-          SELECT id, user_id, name, state_json, created_at, updated_at
+          SELECT id, user_id, name, description, state_json, created_at, updated_at
           FROM user_draft_setups
           WHERE id = $1
             AND user_id = $2
@@ -38,30 +39,31 @@ export function createDraftSetupsRepository(pool) {
       return result.rowCount > 0 ? mapDraftSetupRow(result.rows[0]) : null;
     },
 
-    async createDraftSetup({ userId, name, stateJson }) {
+    async createDraftSetup({ userId, name, description, stateJson }) {
       const result = await pool.query(
         `
-          INSERT INTO user_draft_setups (user_id, name, state_json)
-          VALUES ($1, $2, $3::jsonb)
-          RETURNING id, user_id, name, state_json, created_at, updated_at
+          INSERT INTO user_draft_setups (user_id, name, description, state_json)
+          VALUES ($1, $2, $3, $4::jsonb)
+          RETURNING id, user_id, name, description, state_json, created_at, updated_at
         `,
-        [userId, name, stateJson]
+        [userId, name, description ?? "", stateJson]
       );
       return result.rows[0] ? mapDraftSetupRow(result.rows[0]) : null;
     },
 
-    async updateDraftSetup(setupId, { userId, name, stateJson }) {
+    async updateDraftSetup(setupId, { userId, name, description, stateJson }) {
       const result = await pool.query(
         `
           UPDATE user_draft_setups
           SET name = $3,
-              state_json = $4::jsonb,
+              description = $4,
+              state_json = $5::jsonb,
               updated_at = current_timestamp
           WHERE id = $1
             AND user_id = $2
-          RETURNING id, user_id, name, state_json, created_at, updated_at
+          RETURNING id, user_id, name, description, state_json, created_at, updated_at
         `,
-        [setupId, userId, name, stateJson]
+        [setupId, userId, name, description ?? "", stateJson]
       );
       return result.rows[0] ? mapDraftSetupRow(result.rows[0]) : null;
     },

@@ -358,17 +358,6 @@
                   </label>
                   <p id="builder-composition-help" class="meta"></p>
                   <div class="panel draft-board-panel">
-                    <h3>Draft Setups</h3>
-                    <div class="grid">
-                      <label>
-                        Setup Name
-                        <input id="builder-draft-setup-name" type="text" placeholder="Spring scrim setup" />
-                      </label>
-                    </div>
-                    <p id="builder-draft-setup-feedback" class="meta"></p>
-                    <div id="builder-draft-setup-list" class="summary-card-list"></div>
-                  </div>
-                  <div class="panel draft-board-panel">
                     <h3>Pool Snapshot</h3>
                     <p id="team-config-pool-summary" class="meta"></p>
                     <div id="team-config-pool-grid" class="team-pool-grid"></div>
@@ -489,6 +478,7 @@
               <div class="composer-bottom-actions">
                 <button id="builder-generate" type="button">Start Draft</button>
                 <button id="builder-draft-setup-save" type="button">Save Draft</button>
+                <button id="builder-draft-setup-load" type="button">Load Draft</button>
                 <button id="builder-clear-sticky" type="button" class="ghost">Clear Draft</button>
               </div>
             </div>
@@ -1286,7 +1276,7 @@
                   <li>Composer Advanced Controls now support opt-in custom scope resolution, with per-resource scope toggles and precedence controls for champion metadata, champion tags, tag definitions, requirements, and compositions.</li>
                   <li>Composer generation and requirement evaluation now run against the selected scoped champion truth instead of assuming the global catalog only.</li>
                   <li>OR-linked requirement scoring now uses joiner-aware aggregation so inactive alternate branches no longer inflate missing coverage or branch scores in Review and tree ranking.</li>
-                  <li>Draft Setups let signed-in users save and reload the full Composer working state, including selected team, composition, Advanced Controls, and current draft selections.</li>
+                  <li>Draft saves now use dedicated Save Draft and Load Draft modals, with optional descriptions and full Composer-state reload support.</li>
                   <li>Tags workspace now includes tag-definition promotion requests and review queues, with optional request and review comments for the first scoped-promotion workflow.</li>
                   <li>My Champions now shows collapsed one-click add notifications when Riot mastery/history suggests a strong recent champion that fits the selected role but is not yet in that role’s pool.</li>
                 </ul>
@@ -1304,7 +1294,7 @@
                   <li>Draft Path replaces Tree Map: the SVG dot graph is replaced by a 5-column pick-order layout where each column lists champion options for that role, styled like pool snapshot cards.</li>
                   <li>Hover any champion in the Draft Path to see a compact tooltip with viable finishes, coverage status, impact summary, and missing coverage.</li>
                   <li>Draft Path shows ALL champions per role across the entire tree; clicking a champion filters other columns to compatible picks without locking other roles. Selections sync bidirectionally with pool snapshot cards.</li>
-                  <li>Composer actions now live in a sticky footer: Start Draft, Save Draft, and Clear Draft stay visible at the bottom while tree controls, Draft Path, and summary remain hidden until Start Draft is clicked.</li>
+                  <li>Composer actions now live in a sticky footer: Start Draft, Save Draft, Load Draft, and Clear Draft stay visible at the bottom while tree controls, Draft Path, and summary remain hidden until Start Draft is clicked.</li>
                   <li>Generation Stats and Draft Picks now open in dark-themed tech modals via eye-icon reveal rows instead of inline details/card lists.</li>
                   <li>Density dropdown and "Summary mode" notice removed; summary is now the default view.</li>
                   <li>Tree map legend hidden; panel description simplified to "Hover for details."</li>
@@ -1667,6 +1657,40 @@
           <div class="button-row champion-selector-actions">
             <button id="champion-selector-cancel" class="ghost" type="button">Cancel</button>
             <button id="champion-selector-done" type="button">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="builder-save-draft-modal" hidden>
+        <div class="modal-content draft-setup-modal-content">
+          <h3>Save Draft</h3>
+          <label>
+            Draft Name
+            <input id="builder-save-draft-name" type="text" placeholder="Spring scrim setup" />
+          </label>
+          <label>
+            Description
+            <textarea
+              id="builder-save-draft-description"
+              rows="4"
+              placeholder="Optional notes about when to use this draft."
+            ></textarea>
+          </label>
+          <div class="button-row">
+            <button id="builder-save-draft-cancel" class="ghost" type="button">Cancel</button>
+            <button id="builder-save-draft-confirm" type="button">Save Draft</button>
+          </div>
+          <p id="builder-save-draft-feedback" class="meta"></p>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="builder-load-draft-modal" hidden>
+        <div class="modal-content draft-setup-modal-content" role="dialog" aria-modal="true" aria-labelledby="builder-load-draft-title">
+          <h3 id="builder-load-draft-title">Load Draft</h3>
+          <div id="builder-load-draft-list" class="summary-card-list draft-setup-modal-list"></div>
+          <p id="builder-load-draft-feedback" class="meta"></p>
+          <div class="button-row">
+            <button id="builder-load-draft-close" class="ghost" type="button">Close</button>
           </div>
         </div>
       </div>

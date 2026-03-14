@@ -1295,11 +1295,12 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
     async getDraftSetupById(setupId, userId) {
       return state.draftSetups.find((setup) => setup.id === setupId && setup.user_id === userId) ?? null;
     },
-    async createDraftSetup({ userId, name, stateJson }) {
+    async createDraftSetup({ userId, name, description, stateJson }) {
       const setup = {
         id: nextDraftSetupId,
         user_id: userId,
         name,
+        description: description ?? "",
         state_json: stateJson ?? {},
         created_at: "2026-01-01T00:00:00.000Z",
         updated_at: "2026-01-01T00:00:00.000Z"
@@ -1308,12 +1309,13 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
       state.draftSetups.push(setup);
       return setup;
     },
-    async updateDraftSetup(setupId, { userId, name, stateJson }) {
+    async updateDraftSetup(setupId, { userId, name, description, stateJson }) {
       const setup = state.draftSetups.find((candidate) => candidate.id === setupId && candidate.user_id === userId) ?? null;
       if (!setup) {
         return null;
       }
       setup.name = name;
+      setup.description = description ?? "";
       setup.state_json = stateJson ?? {};
       setup.updated_at = "2026-01-01T00:00:00.000Z";
       return setup;
@@ -3270,6 +3272,7 @@ describe("API routes", () => {
       .set("Authorization", buildAuthHeader(2, config))
       .send({
         name: "Pocket Setup",
+        description: "Primary engage version.",
         state_json: {
           builder: {
             teamId: 1,
@@ -3280,6 +3283,7 @@ describe("API routes", () => {
       });
     expect(created.status).toBe(201);
     expect(created.body.draft_setup.name).toBe("Pocket Setup");
+    expect(created.body.draft_setup.description).toBe("Primary engage version.");
 
     const listed = await request(app)
       .get("/me/draft-setups")
@@ -3292,6 +3296,7 @@ describe("API routes", () => {
       .set("Authorization", buildAuthHeader(2, config))
       .send({
         name: "Pocket Setup v2",
+        description: "Updated description.",
         state_json: {
           builder: {
             teamId: 1,
@@ -3302,6 +3307,7 @@ describe("API routes", () => {
       });
     expect(updated.status).toBe(200);
     expect(updated.body.draft_setup.name).toBe("Pocket Setup v2");
+    expect(updated.body.draft_setup.description).toBe("Updated description.");
 
     const deleted = await request(app)
       .delete(`/me/draft-setups/${created.body.draft_setup.id}`)

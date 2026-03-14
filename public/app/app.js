@@ -699,8 +699,12 @@ function createInitialState() {
       draftSetups: [],
       selectedDraftSetupId: null,
       draftSetupName: "",
+      draftSetupDescription: "",
+      draftSetupFeedback: "",
       isLoadingDraftSetups: false,
       isSavingDraftSetup: false,
+      isSaveDraftModalOpen: false,
+      isLoadDraftModalOpen: false,
       draftContext: null,
       teamState: createEmptyTeamState(),
       draftOrder: [...SLOTS],
@@ -932,10 +936,18 @@ function createElements() {
     builderActiveTeam: runtimeDocument.querySelector("#builder-active-team"),
     builderActiveComposition: runtimeDocument.querySelector("#builder-active-composition"),
     builderCompositionHelp: runtimeDocument.querySelector("#builder-composition-help"),
-    builderDraftSetupName: runtimeDocument.querySelector("#builder-draft-setup-name"),
     builderDraftSetupSave: runtimeDocument.querySelector("#builder-draft-setup-save"),
-    builderDraftSetupFeedback: runtimeDocument.querySelector("#builder-draft-setup-feedback"),
-    builderDraftSetupList: runtimeDocument.querySelector("#builder-draft-setup-list"),
+    builderDraftSetupLoad: runtimeDocument.querySelector("#builder-draft-setup-load"),
+    builderSaveDraftModal: runtimeDocument.querySelector("#builder-save-draft-modal"),
+    builderSaveDraftName: runtimeDocument.querySelector("#builder-save-draft-name"),
+    builderSaveDraftDescription: runtimeDocument.querySelector("#builder-save-draft-description"),
+    builderSaveDraftCancel: runtimeDocument.querySelector("#builder-save-draft-cancel"),
+    builderSaveDraftConfirm: runtimeDocument.querySelector("#builder-save-draft-confirm"),
+    builderSaveDraftFeedback: runtimeDocument.querySelector("#builder-save-draft-feedback"),
+    builderLoadDraftModal: runtimeDocument.querySelector("#builder-load-draft-modal"),
+    builderLoadDraftList: runtimeDocument.querySelector("#builder-load-draft-list"),
+    builderLoadDraftFeedback: runtimeDocument.querySelector("#builder-load-draft-feedback"),
+    builderLoadDraftClose: runtimeDocument.querySelector("#builder-load-draft-close"),
     builderTeamHelp: runtimeDocument.querySelector("#builder-team-help"),
     builderStageSetupTitle: runtimeDocument.querySelector("#builder-stage-setup-title"),
     builderStageSetupMeta: runtimeDocument.querySelector("#builder-stage-setup-meta"),
@@ -1281,8 +1293,14 @@ function setTagPromotionFeedback(message) {
 }
 
 function setBuilderDraftSetupFeedback(message) {
-  if (elements.builderDraftSetupFeedback) {
-    elements.builderDraftSetupFeedback.textContent = message;
+  if (state?.builder) {
+    state.builder.draftSetupFeedback = message;
+  }
+  if (elements.builderSaveDraftFeedback) {
+    elements.builderSaveDraftFeedback.textContent = message;
+  }
+  if (elements.builderLoadDraftFeedback) {
+    elements.builderLoadDraftFeedback.textContent = message;
   }
 }
 
@@ -4846,7 +4864,9 @@ function updateBodyModalState() {
   }
   const hasOpenModal =
     state?.api?.issueReporting?.isOpen === true ||
-    state?.api?.confirmation?.isOpen === true;
+    state?.api?.confirmation?.isOpen === true ||
+    state?.builder?.isSaveDraftModalOpen === true ||
+    state?.builder?.isLoadDraftModalOpen === true;
   runtimeDocument.body.classList.toggle("has-modal-open", hasOpenModal);
 }
 
@@ -8024,6 +8044,7 @@ function normalizeDraftSetupRecord(rawSetup) {
   return {
     id,
     name: typeof rawSetup.name === "string" ? rawSetup.name.trim() : "",
+    description: typeof rawSetup.description === "string" ? rawSetup.description.trim() : "",
     stateJson:
       rawSetup.state_json && typeof rawSetup.state_json === "object" && !Array.isArray(rawSetup.state_json)
         ? rawSetup.state_json
@@ -8035,10 +8056,48 @@ function normalizeDraftSetupRecord(rawSetup) {
   };
 }
 
+function openBuilderSaveDraftModal() {
+  if (!isAuthenticated()) {
+    return;
+  }
+  state.builder.isLoadDraftModalOpen = false;
+  state.builder.isSaveDraftModalOpen = true;
+  setBuilderDraftSetupFeedback("");
+  renderBuilder();
+  runtimeWindow.setTimeout(() => {
+    elements.builderSaveDraftName?.focus();
+  }, 0);
+}
+
+function closeBuilderSaveDraftModal() {
+  state.builder.isSaveDraftModalOpen = false;
+  setBuilderDraftSetupFeedback("");
+  renderBuilder();
+}
+
+function openBuilderLoadDraftModal() {
+  if (!isAuthenticated()) {
+    return;
+  }
+  state.builder.isSaveDraftModalOpen = false;
+  state.builder.isLoadDraftModalOpen = true;
+  setBuilderDraftSetupFeedback("");
+  renderBuilder();
+  void loadDraftSetupsFromApi();
+}
+
+function closeBuilderLoadDraftModal() {
+  state.builder.isLoadDraftModalOpen = false;
+  setBuilderDraftSetupFeedback("");
+  renderBuilder();
+}
+
 async function loadDraftSetupsFromApi() {
   if (!isAuthenticated()) {
     state.builder.draftSetups = [];
     state.builder.selectedDraftSetupId = null;
+    state.builder.draftSetupDescription = "";
+    state.builder.draftSetupFeedback = "";
     renderBuilder();
     return;
   }
@@ -8064,6 +8123,7 @@ async function applyDraftSetupState(setup) {
     : {};
   state.builder.selectedDraftSetupId = setup.id;
   state.builder.draftSetupName = setup.name;
+  state.builder.draftSetupDescription = setup.description ?? "";
   state.builder.teamId = normalizeConfiguredTeamId(builderState.teamId);
   state.teamConfig.activeTeamId = state.builder.teamId;
   saveTeamConfig();
@@ -8095,6 +8155,7 @@ async function applyDraftSetupState(setup) {
   setBuilderStage("setup");
   resetBuilderTreeState();
   await refreshBuilderComposerContext({ includeDraftContext: true });
+  closeBuilderLoadDraftModal();
   setBuilderDraftSetupFeedback(`Loaded Draft Setup '${setup.name}'.`);
 }
 
@@ -8102,11 +8163,16 @@ async function saveCurrentDraftSetup() {
   if (!isAuthenticated() || state.builder.isSavingDraftSetup) {
     return;
   }
-  const name = String(elements.builderDraftSetupName?.value ?? state.builder.draftSetupName ?? "").trim();
+  const name = String(elements.builderSaveDraftName?.value ?? state.builder.draftSetupName ?? "").trim();
+  const description = String(
+    elements.builderSaveDraftDescription?.value ?? state.builder.draftSetupDescription ?? ""
+  ).trim();
   if (!name) {
     setBuilderDraftSetupFeedback("Draft Setup name is required.");
     return;
   }
+  state.builder.draftSetupName = name;
+  state.builder.draftSetupDescription = description;
   state.builder.isSavingDraftSetup = true;
   renderBuilder();
   try {
@@ -8118,6 +8184,7 @@ async function saveCurrentDraftSetup() {
         auth: true,
         body: {
           name,
+          description,
           state_json: createDefaultDraftSetupState()
         }
       }
@@ -8126,8 +8193,10 @@ async function saveCurrentDraftSetup() {
     if (savedSetup) {
       state.builder.selectedDraftSetupId = savedSetup.id;
       state.builder.draftSetupName = savedSetup.name;
+      state.builder.draftSetupDescription = savedSetup.description ?? "";
     }
     await loadDraftSetupsFromApi();
+    state.builder.isSaveDraftModalOpen = false;
     setBuilderDraftSetupFeedback(setupId ? "Draft Setup updated." : "Draft Setup saved.");
   } catch (error) {
     setBuilderDraftSetupFeedback(normalizeApiErrorMessage(error, "Failed to save Draft Setup."));
@@ -8146,6 +8215,7 @@ async function deleteDraftSetup(setupId) {
     if (state.builder.selectedDraftSetupId === setupId) {
       state.builder.selectedDraftSetupId = null;
       state.builder.draftSetupName = "";
+      state.builder.draftSetupDescription = "";
     }
     await loadDraftSetupsFromApi();
     setBuilderDraftSetupFeedback("Draft Setup deleted.");
@@ -13038,6 +13108,10 @@ function resetBuilderToDefaults() {
   state.builder.scopeResourceSettings = createDefaultBuilderScopeResourceSettings();
   state.builder.selectedDraftSetupId = null;
   state.builder.draftSetupName = "";
+  state.builder.draftSetupDescription = "";
+  state.builder.draftSetupFeedback = "";
+  state.builder.isSaveDraftModalOpen = false;
+  state.builder.isLoadDraftModalOpen = false;
 
   const rawBranch = Number.parseInt(String(state.data.config.treeDefaults.maxBranch), 10);
   state.builder.maxBranch = Number.isFinite(rawBranch) ? Math.max(1, rawBranch) : 8;
@@ -15347,36 +15421,68 @@ function renderBuilderScopeControls() {
 }
 
 function renderBuilderDraftSetups() {
-  if (!elements.builderDraftSetupList || !elements.builderDraftSetupName || !elements.builderDraftSetupSave) {
+  if (!elements.builderDraftSetupSave || !elements.builderDraftSetupLoad) {
     return;
   }
 
-  elements.builderDraftSetupName.value = state.builder.draftSetupName ?? "";
-  elements.builderDraftSetupSave.disabled = !isAuthenticated() || state.builder.isSavingDraftSetup;
-  elements.builderDraftSetupSave.textContent = state.builder.isSavingDraftSetup ? "Saving..." : "Save Draft";
-  elements.builderDraftSetupList.innerHTML = "";
+  const canUseDraftSetups = isAuthenticated();
+  elements.builderDraftSetupSave.disabled = !canUseDraftSetups;
+  elements.builderDraftSetupLoad.disabled = !canUseDraftSetups;
 
-  if (!isAuthenticated()) {
+  if (elements.builderSaveDraftModal) {
+    elements.builderSaveDraftModal.hidden = !state.builder.isSaveDraftModalOpen;
+  }
+  if (elements.builderSaveDraftName) {
+    elements.builderSaveDraftName.value = state.builder.draftSetupName ?? "";
+  }
+  if (elements.builderSaveDraftDescription) {
+    elements.builderSaveDraftDescription.value = state.builder.draftSetupDescription ?? "";
+  }
+  if (elements.builderSaveDraftConfirm) {
+    elements.builderSaveDraftConfirm.disabled = state.builder.isSavingDraftSetup;
+    elements.builderSaveDraftConfirm.textContent = state.builder.isSavingDraftSetup ? "Saving..." : "Save Draft";
+  }
+  if (elements.builderSaveDraftFeedback) {
+    elements.builderSaveDraftFeedback.textContent = state.builder.draftSetupFeedback || "";
+  }
+
+  if (elements.builderLoadDraftModal) {
+    elements.builderLoadDraftModal.hidden = !state.builder.isLoadDraftModalOpen;
+  }
+  if (elements.builderLoadDraftFeedback) {
+    elements.builderLoadDraftFeedback.textContent = state.builder.draftSetupFeedback || "";
+  }
+  if (!elements.builderLoadDraftList) {
+    updateBodyModalState();
+    return;
+  }
+
+  elements.builderLoadDraftList.innerHTML = "";
+
+  if (!canUseDraftSetups) {
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
-    empty.textContent = "Sign in to save Draft Setups.";
-    elements.builderDraftSetupList.append(empty);
+    empty.textContent = "Sign in to load saved drafts.";
+    elements.builderLoadDraftList.append(empty);
+    updateBodyModalState();
     return;
   }
 
   if (state.builder.isLoadingDraftSetups) {
     const loading = runtimeDocument.createElement("p");
     loading.className = "meta";
-    loading.textContent = "Loading Draft Setups...";
-    elements.builderDraftSetupList.append(loading);
+    loading.textContent = "Loading saved drafts...";
+    elements.builderLoadDraftList.append(loading);
+    updateBodyModalState();
     return;
   }
 
   if (!Array.isArray(state.builder.draftSetups) || state.builder.draftSetups.length < 1) {
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
-    empty.textContent = "No saved Draft Setups yet.";
-    elements.builderDraftSetupList.append(empty);
+    empty.textContent = "No saved drafts yet.";
+    elements.builderLoadDraftList.append(empty);
+    updateBodyModalState();
     return;
   }
 
@@ -15386,9 +15492,23 @@ function renderBuilderDraftSetups() {
 
     const title = runtimeDocument.createElement("strong");
     title.textContent = setup.name;
+
     const meta = runtimeDocument.createElement("p");
     meta.className = "meta";
-    meta.textContent = setup.updatedAt ? `Updated ${formatTimestampMeta(setup.updatedAt)}` : "Saved setup";
+    const metaParts = [];
+    if (setup.id === state.builder.selectedDraftSetupId) {
+      metaParts.push("Currently loaded");
+    }
+    metaParts.push(setup.updatedAt ? `Updated ${formatTimestampMeta(setup.updatedAt)}` : "Saved draft");
+    meta.textContent = metaParts.join(" | ");
+
+    card.append(title, meta);
+    if (setup.description) {
+      const description = runtimeDocument.createElement("p");
+      description.className = "draft-setup-card-description";
+      description.textContent = setup.description;
+      card.append(description);
+    }
 
     const actions = runtimeDocument.createElement("div");
     actions.className = "button-row";
@@ -15398,7 +15518,7 @@ function renderBuilderDraftSetups() {
     loadButton.textContent = "Load";
     loadButton.addEventListener("click", () => {
       void confirmAction({
-        title: "Load Draft Setup",
+        title: "Load Draft",
         message: `Replace the current Composer state with '${setup.name}'?`,
         confirmLabel: "Load"
       }).then((confirmed) => {
@@ -15414,7 +15534,7 @@ function renderBuilderDraftSetups() {
     deleteButton.textContent = "Delete";
     deleteButton.addEventListener("click", () => {
       void confirmAction({
-        title: "Delete Draft Setup",
+        title: "Delete Draft",
         message: `Delete '${setup.name}' permanently?`,
         confirmLabel: "Delete"
       }).then((confirmed) => {
@@ -15425,9 +15545,11 @@ function renderBuilderDraftSetups() {
     });
 
     actions.append(loadButton, deleteButton);
-    card.append(title, meta, actions);
-    elements.builderDraftSetupList.append(card);
+    card.append(actions);
+    elements.builderLoadDraftList.append(card);
   }
+
+  updateBodyModalState();
 }
 
 function renderBuilder() {
@@ -16628,15 +16750,57 @@ function attachEvents() {
     });
   }
 
-  if (elements.builderDraftSetupName) {
-    elements.builderDraftSetupName.addEventListener("input", () => {
-      state.builder.draftSetupName = elements.builderDraftSetupName.value;
+  if (elements.builderDraftSetupSave) {
+    elements.builderDraftSetupSave.addEventListener("click", () => {
+      openBuilderSaveDraftModal();
     });
   }
 
-  if (elements.builderDraftSetupSave) {
-    elements.builderDraftSetupSave.addEventListener("click", () => {
+  if (elements.builderDraftSetupLoad) {
+    elements.builderDraftSetupLoad.addEventListener("click", () => {
+      openBuilderLoadDraftModal();
+    });
+  }
+
+  if (elements.builderSaveDraftName) {
+    elements.builderSaveDraftName.addEventListener("input", () => {
+      state.builder.draftSetupName = elements.builderSaveDraftName.value;
+    });
+  }
+
+  if (elements.builderSaveDraftDescription) {
+    elements.builderSaveDraftDescription.addEventListener("input", () => {
+      state.builder.draftSetupDescription = elements.builderSaveDraftDescription.value;
+    });
+  }
+
+  if (elements.builderSaveDraftCancel) {
+    elements.builderSaveDraftCancel.addEventListener("click", closeBuilderSaveDraftModal);
+  }
+
+  if (elements.builderSaveDraftConfirm) {
+    elements.builderSaveDraftConfirm.addEventListener("click", () => {
       void saveCurrentDraftSetup();
+    });
+  }
+
+  if (elements.builderSaveDraftModal) {
+    elements.builderSaveDraftModal.addEventListener("click", (event) => {
+      if (event.target === elements.builderSaveDraftModal && !state.builder.isSavingDraftSetup) {
+        closeBuilderSaveDraftModal();
+      }
+    });
+  }
+
+  if (elements.builderLoadDraftClose) {
+    elements.builderLoadDraftClose.addEventListener("click", closeBuilderLoadDraftModal);
+  }
+
+  if (elements.builderLoadDraftModal) {
+    elements.builderLoadDraftModal.addEventListener("click", (event) => {
+      if (event.target === elements.builderLoadDraftModal) {
+        closeBuilderLoadDraftModal();
+      }
     });
   }
 

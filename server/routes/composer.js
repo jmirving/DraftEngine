@@ -20,6 +20,7 @@ const PRECEDENCE_MODES = new Map([
   ["global_only", ["all"]]
 ]);
 const MAX_DRAFT_SETUP_NAME_LENGTH = 80;
+const MAX_DRAFT_SETUP_DESCRIPTION_LENGTH = 500;
 
 function normalizeOptionalPositiveInteger(value) {
   if (value === undefined || value === null || value === "") {
@@ -41,6 +42,22 @@ function normalizeDraftSetupName(rawValue) {
   const normalized = rawValue.trim();
   if (normalized.length > MAX_DRAFT_SETUP_NAME_LENGTH) {
     throw badRequest(`Expected 'name' to be ${MAX_DRAFT_SETUP_NAME_LENGTH} characters or fewer.`);
+  }
+  return normalized;
+}
+
+function normalizeDraftSetupDescription(rawValue) {
+  if (rawValue === undefined || rawValue === null) {
+    return "";
+  }
+  if (typeof rawValue !== "string") {
+    throw badRequest("Expected 'description' to be a string.");
+  }
+  const normalized = rawValue.trim();
+  if (normalized.length > MAX_DRAFT_SETUP_DESCRIPTION_LENGTH) {
+    throw badRequest(
+      `Expected 'description' to be ${MAX_DRAFT_SETUP_DESCRIPTION_LENGTH} characters or fewer.`
+    );
   }
   return normalized;
 }
@@ -171,6 +188,7 @@ function serializeDraftSetup(setup) {
     id: Number(setup.id),
     user_id: Number(setup.user_id),
     name: setup.name,
+    description: setup.description ?? "",
     state_json: setup.state_json ?? {},
     created_at: setup.created_at,
     updated_at: setup.updated_at
@@ -288,6 +306,7 @@ export function createComposerRouter({
   router.post("/me/draft-setups", requireAuth, async (request, response) => {
     const body = requireObject(request.body);
     const name = normalizeDraftSetupName(body.name);
+    const description = normalizeDraftSetupDescription(body.description);
     const stateJson =
       body.state_json && typeof body.state_json === "object" && !Array.isArray(body.state_json)
         ? body.state_json
@@ -298,6 +317,7 @@ export function createComposerRouter({
     const setup = await draftSetupsRepository.createDraftSetup({
       userId: request.user.userId,
       name,
+      description,
       stateJson
     });
     response.status(201).json({ draft_setup: serializeDraftSetup(setup) });
@@ -307,6 +327,7 @@ export function createComposerRouter({
     const setupId = parsePositiveInteger(request.params.id, "id");
     const body = requireObject(request.body);
     const name = normalizeDraftSetupName(body.name);
+    const description = normalizeDraftSetupDescription(body.description);
     const stateJson =
       body.state_json && typeof body.state_json === "object" && !Array.isArray(body.state_json)
         ? body.state_json
@@ -317,6 +338,7 @@ export function createComposerRouter({
     const setup = await draftSetupsRepository.updateDraftSetup(setupId, {
       userId: request.user.userId,
       name,
+      description,
       stateJson
     });
     if (!setup) {

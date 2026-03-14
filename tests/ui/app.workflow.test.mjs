@@ -248,6 +248,7 @@ describe("workflow app integration", () => {
     const reviewPanel = doc.querySelector("#builder-stage-inspect");
     const generateButton = doc.querySelector("#builder-generate");
     const saveButton = doc.querySelector("#builder-draft-setup-save");
+    const loadButton = doc.querySelector("#builder-draft-setup-load");
     const clearButton = doc.querySelector("#builder-clear-sticky");
     const stickyLabels = Array.from(doc.querySelectorAll(".composer-bottom-bar button"), (button) => button.textContent.trim());
 
@@ -257,8 +258,9 @@ describe("workflow app integration", () => {
     expect(generateButton.disabled).toBe(false);
     expect(generateButton.textContent).toBe("Start Draft");
     expect(saveButton.textContent).toBe("Save Draft");
+    expect(loadButton.textContent).toBe("Load Draft");
     expect(clearButton.textContent).toBe("Clear Draft");
-    expect(stickyLabels).toEqual(["Start Draft", "Save Draft", "Clear Draft"]);
+    expect(stickyLabels).toEqual(["Start Draft", "Save Draft", "Load Draft", "Clear Draft"]);
   });
 
   test("requires at least one pick before entering review, then auto-generates on transition", async () => {
