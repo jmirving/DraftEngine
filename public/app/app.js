@@ -986,7 +986,6 @@ function createElements() {
     builderMaxBranch: runtimeDocument.querySelector("#builder-max-branch"),
     builderGenerate: runtimeDocument.querySelector("#builder-generate"),
     builderClearSticky: runtimeDocument.querySelector("#builder-clear-sticky"),
-    builderNextRoleReadout: runtimeDocument.querySelector("#builder-next-role-readout"),
     builderStatsBtn: runtimeDocument.querySelector("#builder-stats-btn"),
     builderRequiredChecks: runtimeDocument.querySelector("#builder-required-checks"),
     builderOptionalChecks: runtimeDocument.querySelector("#builder-optional-checks"),
@@ -10939,7 +10938,7 @@ function renderTeamConfig() {
 
     const count = runtimeDocument.createElement("p");
     count.className = "meta";
-    count.textContent = `${champions.length} champion${champions.length === 1 ? "" : "s"} in pool.`;
+    count.textContent = `${champions.length} champion${champions.length === 1 ? "" : "s"} in roster.`;
 
     const filter = runtimeDocument.createElement("input");
     filter.type = "text";
@@ -14679,15 +14678,6 @@ function moveSlotInDraftOrder(slot, direction) {
   renderBuilder();
 }
 
-function renderDraftOrder() {
-  const activeNextRole = getActiveNextRole(state.builder.draftOrder, state.builder.teamState);
-  if (activeNextRole) {
-    elements.builderNextRoleReadout.textContent = `Next expansion role: ${getSlotLabel(activeNextRole)}`;
-  } else {
-    elements.builderNextRoleReadout.textContent = "All roles are already filled.";
-  }
-}
-
 function getNodeById(nodeId = "0") {
   if (!state.builder.tree) {
     return null;
@@ -16170,7 +16160,6 @@ function renderBuilder() {
   elements.treeMinScore.disabled = !state.builder.tree;
   elements.treeValidLeavesOnly.disabled = !state.builder.tree;
   updateTeamHelpAndSlotLabels();
-  renderDraftOrder();
   renderChecks();
   renderExcludedOptions();
   renderExcludedPills();
