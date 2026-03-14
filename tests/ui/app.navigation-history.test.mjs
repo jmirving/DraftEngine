@@ -416,7 +416,6 @@ describe("hash navigation routing", () => {
     ).filter((heading) => !heading.startsWith("Version "));
     expect(comingSoonCategories).toEqual([
       "General",
-      "Composer",
       "Tags",
       "Compositions"
     ]);
