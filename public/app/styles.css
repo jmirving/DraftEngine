@@ -2143,9 +2143,9 @@ button.pool-snapshot-order-btn:disabled {
 }
 
 .draft-modal-close {
-  background: none;
+  background: var(--warn);
   border: none;
-  color: var(--muted);
+  color: #fff;
   font-size: 1.1rem;
   cursor: pointer;
   width: 2rem;
@@ -2160,14 +2160,55 @@ button.pool-snapshot-order-btn:disabled {
 }
 
 .draft-modal-close:hover {
-  background: var(--warn);
-  color: #fff;
+  background: #7a2f14;
+}
+
+.draft-modal-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.draft-modal-filters > label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.draft-modal-filters > label.inline-checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
+  padding-bottom: 0.25rem;
+}
+
+.draft-modal-filters > label.inline-checkbox input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+.draft-modal-filters input[type="search"],
+.draft-modal-filters input[type="number"] {
+  font-size: 0.8rem;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
 }
 
 .draft-modal-body {
   padding: 0.8rem 1rem;
   overflow-y: auto;
   flex: 1;
+}
+
+.scope-config-resources {
+  margin-top: 0.6rem;
 }
 
 /* Stats grid inside modal */
@@ -2301,7 +2342,44 @@ button.pool-snapshot-order-btn:disabled {
   grid-template-columns: 1fr 1fr 1fr;
   gap: 0.5rem;
   margin-top: 0.55rem;
-  align-items: start;
+  align-items: stretch;
+}
+
+.advanced-column {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.5rem 0.6rem;
+}
+
+.advanced-scope-row {
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.advanced-scope-row .ced-scope-inline {
+  gap: 0.35rem;
+}
+
+.advanced-scope-edit-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0.15rem;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-height: unset;
+  height: auto;
+  line-height: 1;
+}
+
+.advanced-scope-edit-btn:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .advanced-excluded-section {
@@ -2368,10 +2446,7 @@ button.pool-snapshot-order-btn:disabled {
 }
 
 .tree-toolbar {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 0.55rem;
-  margin-bottom: 0.55rem;
+  display: none;
 }
 
 .tree-toolbar > label {
@@ -5038,8 +5113,8 @@ body.has-modal-open {
     grid-template-columns: 1fr;
   }
 
-  .tree-toolbar {
-    grid-template-columns: 1fr;
+  .draft-modal-filters {
+    flex-wrap: wrap;
   }
 
   .explorer-toolbar button {

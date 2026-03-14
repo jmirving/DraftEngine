@@ -973,6 +973,8 @@ function createElements() {
     builderStageInspect: runtimeDocument.querySelector("#builder-stage-inspect"),
     builderAdvancedControls: runtimeDocument.querySelector("#builder-advanced-controls"),
     builderCustomScopesEnabled: runtimeDocument.querySelector("#builder-custom-scopes-enabled"),
+    builderScopeModeSelect: runtimeDocument.querySelector("#builder-scope-mode-select"),
+    builderScopeConfigureBtn: runtimeDocument.querySelector("#builder-scope-configure-btn"),
     builderScopeControls: runtimeDocument.querySelector("#builder-scope-controls"),
     builderScopeDefaultPrecedence: runtimeDocument.querySelector("#builder-scope-default-precedence"),
     builderScopeResourceList: runtimeDocument.querySelector("#builder-scope-resource-list"),
@@ -15216,18 +15218,7 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
   const nextRole = topBranches[0]?.node?.addedRole ?? "Next Role";
   elements.builderTreeSummary.append(
     createRevealRow(`Draft Picks for ${nextRole}`, () => {
-      const content = runtimeDocument.createElement("div");
-      content.className = "summary-card-list";
-      if (topBranches.length === 0) {
-        const empty = runtimeDocument.createElement("p");
-        empty.className = "meta";
-        empty.textContent = "No branches match current filters.";
-        content.append(empty);
-      }
-      for (const entry of topBranches) {
-        content.append(buildBranchCard(entry, topBranches));
-      }
-      openDraftModal(`Draft Picks \u2014 ${nextRole}`, content);
+      openDraftPicksModal(root, rootNodeId, nextRole);
     })
   );
 
@@ -15238,6 +15229,124 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
       "No viable branches were generated. Adjust slot picks, exclusions, or active composition requirements.";
     elements.builderTreeSummary.append(guidance);
   }
+}
+
+function openDraftPicksModal(root, rootNodeId, nextRole) {
+  closeDraftModal();
+  const overlay = runtimeDocument.createElement("div");
+  overlay.className = "draft-modal-overlay";
+  overlay.addEventListener("click", (evt) => {
+    if (evt.target === overlay) closeDraftModal();
+  });
+
+  const dialog = runtimeDocument.createElement("div");
+  dialog.className = "draft-modal";
+
+  const header = runtimeDocument.createElement("div");
+  header.className = "draft-modal-header";
+  const title = runtimeDocument.createElement("h3");
+  title.textContent = `Draft Picks \u2014 ${nextRole}`;
+  const close = runtimeDocument.createElement("button");
+  close.type = "button";
+  close.className = "draft-modal-close";
+  close.textContent = "\u00D7";
+  close.addEventListener("click", closeDraftModal);
+  header.append(title, close);
+
+  // Filter toolbar inside modal
+  const toolbar = runtimeDocument.createElement("div");
+  toolbar.className = "draft-modal-filters";
+
+  const searchLabel = runtimeDocument.createElement("label");
+  searchLabel.textContent = "Search";
+  const searchInput = runtimeDocument.createElement("input");
+  searchInput.type = "search";
+  searchInput.placeholder = "Champion, role, or slot";
+  searchInput.value = state.builder.treeSearch;
+  searchLabel.append(searchInput);
+
+  const scoreLabel = runtimeDocument.createElement("label");
+  scoreLabel.textContent = "Min Score";
+  const scoreInput = runtimeDocument.createElement("input");
+  scoreInput.type = "number";
+  scoreInput.step = "1";
+  scoreInput.min = "0";
+  scoreInput.value = String(state.builder.treeMinScore);
+  scoreLabel.append(scoreInput);
+
+  const validLabel = runtimeDocument.createElement("label");
+  validLabel.className = "inline-checkbox";
+  const validCheck = runtimeDocument.createElement("input");
+  validCheck.type = "checkbox";
+  validCheck.checked = state.builder.treeValidLeavesOnly;
+  validLabel.append(validCheck);
+  validLabel.append(" Valid leaves only");
+
+  toolbar.append(searchLabel, scoreLabel, validLabel);
+
+  const body = runtimeDocument.createElement("div");
+  body.className = "draft-modal-body";
+
+  function rebuildCards() {
+    const ids = new Set();
+    collectVisibleNodeIds(
+      root, rootNodeId, ids,
+      state.builder.treeMinScore,
+      state.builder.treeSearch,
+      SLOTS,
+      state.builder.treeValidLeavesOnly
+    );
+    const branches = root.children
+      .map((node, index) => ({
+        node,
+        id: `${rootNodeId}.${index}`,
+        title: `${node.addedRole}: ${node.addedChampion}`
+      }))
+      .filter((entry) => ids.has(entry.id))
+      .slice(0, 8);
+
+    body.innerHTML = "";
+    const list = runtimeDocument.createElement("div");
+    list.className = "summary-card-list";
+    if (branches.length === 0) {
+      const empty = runtimeDocument.createElement("p");
+      empty.className = "meta";
+      empty.textContent = "No branches match current filters.";
+      list.append(empty);
+    }
+    for (const entry of branches) {
+      list.append(buildBranchCard(entry, branches));
+    }
+    body.append(list);
+
+    // Sync the hidden HTML elements so renderTree stays consistent
+    elements.treeSearch.value = state.builder.treeSearch;
+    elements.treeMinScore.value = String(state.builder.treeMinScore);
+    elements.treeValidLeavesOnly.checked = state.builder.treeValidLeavesOnly;
+    renderTreeMap();
+  }
+
+  searchInput.addEventListener("input", () => {
+    state.builder.treeSearch = searchInput.value;
+    rebuildCards();
+  });
+  scoreInput.addEventListener("change", () => {
+    const parsed = Number.parseInt(scoreInput.value, 10);
+    state.builder.treeMinScore = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+    scoreInput.value = String(state.builder.treeMinScore);
+    rebuildCards();
+  });
+  validCheck.addEventListener("change", () => {
+    state.builder.treeValidLeavesOnly = Boolean(validCheck.checked);
+    rebuildCards();
+  });
+
+  rebuildCards();
+
+  dialog.append(header, toolbar, body);
+  overlay.append(dialog);
+  runtimeDocument.body.append(overlay);
+  requestAnimationFrame(() => overlay.classList.add("is-open"));
 }
 
 function buildBranchCard(entry, allEntries) {
@@ -15657,6 +15766,9 @@ function renderBuilderScopeControls() {
   }
 
   elements.builderCustomScopesEnabled.checked = state.builder.useCustomScopes;
+  if (elements.builderScopeModeSelect) {
+    elements.builderScopeModeSelect.value = state.builder.useCustomScopes ? "custom" : "global";
+  }
   if (elements.builderScopeControls) {
     elements.builderScopeControls.hidden = !state.builder.useCustomScopes;
   }
@@ -15711,6 +15823,123 @@ function renderBuilderScopeControls() {
   }
 
   setBuilderScopeFeedback(state.builder.scopeLoadError || "");
+}
+
+function openScopeConfigModal() {
+  closeDraftModal();
+  const overlay = runtimeDocument.createElement("div");
+  overlay.className = "draft-modal-overlay";
+  overlay.addEventListener("click", (evt) => {
+    if (evt.target === overlay) closeDraftModal();
+  });
+
+  const dialog = runtimeDocument.createElement("div");
+  dialog.className = "draft-modal";
+
+  const header = runtimeDocument.createElement("div");
+  header.className = "draft-modal-header";
+  const title = runtimeDocument.createElement("h3");
+  title.textContent = "Configure Custom Scopes";
+  const close = runtimeDocument.createElement("button");
+  close.type = "button";
+  close.className = "draft-modal-close";
+  close.textContent = "\u00D7";
+  close.addEventListener("click", closeDraftModal);
+  header.append(title, close);
+
+  const body = runtimeDocument.createElement("div");
+  body.className = "draft-modal-body";
+
+  // Default Scope Order
+  const defaultLabel = runtimeDocument.createElement("label");
+  defaultLabel.className = "advanced-compact-label";
+  defaultLabel.textContent = "Default Scope Order";
+  const defaultSelect = runtimeDocument.createElement("select");
+  replaceOptions(defaultSelect, BUILDER_SCOPE_PRECEDENCE_OPTIONS, false);
+  defaultSelect.value = normalizeBuilderScopePrecedence(state.builder.defaultScopePrecedence);
+  defaultSelect.addEventListener("change", () => {
+    state.builder.defaultScopePrecedence = normalizeBuilderScopePrecedence(defaultSelect.value);
+    for (const resource of BUILDER_SCOPE_RESOURCES) {
+      const resourceConfig = state.builder.scopeResourceSettings?.[resource] ?? {};
+      state.builder.scopeResourceSettings[resource] = {
+        enabled: resourceConfig.enabled !== false,
+        precedence: normalizeBuilderScopePrecedence(resourceConfig.precedence, state.builder.defaultScopePrecedence)
+      };
+    }
+    rebuildResourceCards();
+    setBuilderStage("setup");
+    resetBuilderTreeState();
+    void refreshBuilderComposerContext({ includeDraftContext: false });
+  });
+  defaultLabel.append(defaultSelect);
+  body.append(defaultLabel);
+
+  const resourceList = runtimeDocument.createElement("div");
+  resourceList.className = "summary-card-list scope-config-resources";
+
+  function rebuildResourceCards() {
+    resourceList.innerHTML = "";
+    for (const resource of BUILDER_SCOPE_RESOURCES) {
+      const config = state.builder.scopeResourceSettings?.[resource] ?? {
+        enabled: true,
+        precedence: BUILDER_SCOPE_DEFAULT_PRECEDENCE
+      };
+      const card = runtimeDocument.createElement("article");
+      card.className = "summary-card";
+
+      const label = runtimeDocument.createElement("strong");
+      label.textContent = BUILDER_SCOPE_RESOURCE_LABELS[resource] ?? resource;
+
+      const checkboxLabel = runtimeDocument.createElement("label");
+      checkboxLabel.className = "inline-checkbox";
+      const checkbox = runtimeDocument.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = config.enabled !== false;
+      checkbox.addEventListener("change", () => {
+        state.builder.scopeResourceSettings[resource] = {
+          ...state.builder.scopeResourceSettings[resource],
+          enabled: checkbox.checked
+        };
+        rebuildResourceCards();
+        void refreshBuilderComposerContext({ includeDraftContext: false });
+      });
+      checkboxLabel.append(checkbox, runtimeDocument.createTextNode("Use custom scope"));
+
+      const selectLabel = runtimeDocument.createElement("label");
+      selectLabel.className = "advanced-compact-label";
+      selectLabel.textContent = "Scope order";
+      const select = runtimeDocument.createElement("select");
+      replaceOptions(select, BUILDER_SCOPE_PRECEDENCE_OPTIONS, false);
+      select.value = normalizeBuilderScopePrecedence(config.precedence, state.builder.defaultScopePrecedence);
+      select.disabled = config.enabled === false;
+      select.addEventListener("change", () => {
+        state.builder.scopeResourceSettings[resource] = {
+          ...state.builder.scopeResourceSettings[resource],
+          precedence: normalizeBuilderScopePrecedence(select.value, state.builder.defaultScopePrecedence)
+        };
+        void refreshBuilderComposerContext({ includeDraftContext: false });
+      });
+      selectLabel.append(select);
+
+      card.append(label, checkboxLabel, selectLabel);
+      resourceList.append(card);
+    }
+  }
+
+  rebuildResourceCards();
+  body.append(resourceList);
+
+  if (state.builder.scopeLoadError) {
+    const feedback = runtimeDocument.createElement("p");
+    feedback.className = "meta";
+    feedback.textContent = state.builder.scopeLoadError;
+    body.append(feedback);
+  }
+
+  dialog.append(header, body);
+  overlay.append(dialog);
+  runtimeDocument.body.append(overlay);
+  requestAnimationFrame(() => overlay.classList.add("is-open"));
 }
 
 function renderBuilderDraftSetups() {
@@ -17034,6 +17263,22 @@ function attachEvents() {
       setBuilderStage("setup");
       resetBuilderTreeState();
       void refreshBuilderComposerContext({ includeDraftContext: false });
+    });
+  }
+
+  if (elements.builderScopeModeSelect) {
+    elements.builderScopeModeSelect.addEventListener("change", () => {
+      state.builder.useCustomScopes = elements.builderScopeModeSelect.value === "custom";
+      elements.builderCustomScopesEnabled.checked = state.builder.useCustomScopes;
+      setBuilderStage("setup");
+      resetBuilderTreeState();
+      void refreshBuilderComposerContext({ includeDraftContext: false });
+    });
+  }
+
+  if (elements.builderScopeConfigureBtn) {
+    elements.builderScopeConfigureBtn.addEventListener("click", () => {
+      openScopeConfigModal();
     });
   }
 

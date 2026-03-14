@@ -366,60 +366,67 @@
                 <details id="builder-advanced-controls" class="advanced-controls">
                   <summary>Advanced Controls (Scoring + Constraints)</summary>
                   <div class="advanced-controls-content">
-                    <div class="advanced-scoring-section">
-                      <span class="advanced-compact-label">Composer Scopes</span>
-                      <label class="inline-checkbox">
-                        <input id="builder-custom-scopes-enabled" type="checkbox" />
-                        Use Custom Scopes
-                      </label>
-                      <div id="builder-scope-controls" hidden>
-                        <label class="advanced-compact-label">
-                          Default Scope Order
-                          <select id="builder-scope-default-precedence">
-                            <option value="user_team_global">User > Team > Global</option>
-                            <option value="team_user_global">Team > User > Global</option>
-                            <option value="user_global">User > Global</option>
-                            <option value="team_global">Team > Global</option>
-                            <option value="global_only">Global only</option>
+                    <div class="advanced-column advanced-scope-scoring-column">
+                      <div class="advanced-scope-row">
+                        <div class="ced-scope-inline">
+                          <span class="ced-scope-editing-label">Using</span>
+                          <select id="builder-scope-mode-select" class="ced-scope-select">
+                            <option value="global">Global</option>
+                            <option value="custom">Custom</option>
                           </select>
-                        </label>
+                          <span class="ced-scope-word">Scope</span>
+                          <button id="builder-scope-configure-btn" type="button" class="advanced-scope-edit-btn" title="Configure Custom Scopes">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                          </button>
+                        </div>
+                      </div>
+                      <!-- hidden elements for state sync -->
+                      <input id="builder-custom-scopes-enabled" type="checkbox" hidden />
+                      <div id="builder-scope-controls" hidden>
+                        <select id="builder-scope-default-precedence">
+                          <option value="user_team_global">User > Team > Global</option>
+                          <option value="team_user_global">Team > User > Global</option>
+                          <option value="user_global">User > Global</option>
+                          <option value="team_global">Team > Global</option>
+                          <option value="global_only">Global only</option>
+                        </select>
                         <div id="builder-scope-resource-list" class="summary-card-list"></div>
                         <p id="builder-scope-feedback" class="meta"></p>
                       </div>
+                      <div class="advanced-scoring-section">
+                        <span class="advanced-compact-label">Scoring</span>
+                        <div class="advanced-scoring-grid">
+                          <label class="advanced-compact-label">
+                            maxBranch
+                            <input id="builder-max-branch" type="number" min="1" max="25" step="1" />
+                          </label>
+                          <label class="advanced-compact-label">
+                            Min Candidate Score
+                            <input id="tree-min-candidate-score" type="number" min="0" step="1" value="1" />
+                          </label>
+                          <label class="advanced-compact-label">
+                            Rank Goal
+                            <select id="tree-rank-goal">
+                              <option value="valid_end_states" selected>Valid end states</option>
+                              <option value="candidate_score">Candidate score</option>
+                            </select>
+                          </label>
+                          <label class="advanced-compact-label">
+                            redundancyPenalty
+                            <input id="tree-candidate-redundancy-penalty" type="number" min="0" step="1" value="1" />
+                          </label>
+                        </div>
+                      </div>
                     </div>
-                    <div class="advanced-excluded-section">
+                    <div class="advanced-column advanced-excluded-section">
                       <span class="advanced-compact-label">Excluded Champions</span>
                       <input id="builder-excluded-search" type="search" class="pool-snapshot-filter" placeholder="Filter..." />
                       <ul id="builder-excluded-options" class="excluded-options"></ul>
                       <button id="builder-excluded-clear" type="button" class="ghost advanced-clear-btn">Clear</button>
                     </div>
-                    <div class="advanced-excluded-pills-column">
+                    <div class="advanced-column advanced-excluded-pills-column">
                       <span class="advanced-compact-label">Active Exclusions</span>
                       <div id="builder-excluded-pills" class="chip-row advanced-excluded-pills"></div>
-                    </div>
-                    <div class="advanced-scoring-section">
-                      <span class="advanced-compact-label">Scoring</span>
-                      <div class="advanced-scoring-grid">
-                        <label class="advanced-compact-label">
-                          maxBranch
-                          <input id="builder-max-branch" type="number" min="1" max="25" step="1" />
-                        </label>
-                        <label class="advanced-compact-label">
-                          Min Candidate Score
-                          <input id="tree-min-candidate-score" type="number" min="0" step="1" value="1" />
-                        </label>
-                        <label class="advanced-compact-label">
-                          Rank Goal
-                          <select id="tree-rank-goal">
-                            <option value="valid_end_states" selected>Valid end states</option>
-                            <option value="candidate_score">Candidate score</option>
-                          </select>
-                        </label>
-                        <label class="advanced-compact-label">
-                          redundancyPenalty
-                          <input id="tree-candidate-redundancy-penalty" type="number" min="0" step="1" value="1" />
-                        </label>
-                      </div>
                     </div>
                   </div>
                 </details>
@@ -1275,6 +1282,15 @@
               >
                 <h3>What's New</h3>
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
+                <h4>Version 0.9.1</h4>
+                <ul class="coming-soon-list">
+                  <li>Draft Picks modal now includes inline Search, Min Score, and Valid-leaves-only filters so results update in real time without closing the modal.</li>
+                  <li>Scope panel in the champion editor now bottom-aligns with the power spikes section.</li>
+                  <li>Composer sticky bar uses a solid background with a top border for better contrast against body content.</li>
+                  <li>Draft modal titles are forced to a single line; close button is now a Windows-style red square.</li>
+                  <li>Advanced Controls scope section redesigned: compact "Using [Global/Custom] Scope" inline selector with a pencil icon that opens a Configure Custom Scopes modal for per-resource scope settings.</li>
+                  <li>Advanced Controls columns now have bordered panels with equal-height alignment for better visual separation.</li>
+                </ul>
                 <h4>Version 0.9.0</h4>
                 <ul class="coming-soon-list">
                   <li>Composer Advanced Controls now support opt-in custom scope resolution, with per-resource scope toggles and precedence controls for champion metadata, champion tags, tag definitions, requirements, and compositions.</li>
