@@ -15687,38 +15687,35 @@ function renderTreeMap() {
     headerLabel.textContent = role;
     header.append(headerLabel);
 
-    if (isSelected) {
-      const actionRow = runtimeDocument.createElement("div");
-      actionRow.className = "draft-path-action-row";
+    const actionRow = runtimeDocument.createElement("div");
+    actionRow.className = "draft-path-action-row";
 
-      const clearBtn = runtimeDocument.createElement("button");
-      clearBtn.type = "button";
-      clearBtn.className = "ghost draft-path-action-btn draft-path-action-clear";
-      clearBtn.textContent = "Clear";
-      clearBtn.title = `Clear ${role} selection`;
-      clearBtn.addEventListener("click", (evt) => {
-        evt.stopPropagation();
-        delete state.builder.draftPathSelections[role];
-        state.builder.teamState[role] = null;
-        renderTeamConfig();
-        renderTreeMap();
-      });
+    const clearBtn = runtimeDocument.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.className = "ghost draft-path-action-btn draft-path-action-clear";
+    clearBtn.textContent = "Clear";
+    clearBtn.title = `Clear ${role} selection`;
+    clearBtn.disabled = !isSelected;
+    clearBtn.addEventListener("click", (evt) => {
+      evt.stopPropagation();
+      delete state.builder.draftPathSelections[role];
+      state.builder.teamState[role] = null;
+      renderTeamConfig();
+      renderTreeMap();
+    });
 
-      const detailBtn = runtimeDocument.createElement("button");
-      detailBtn.type = "button";
-      detailBtn.className = "draft-path-action-btn draft-path-action-detail";
-      detailBtn.textContent = "Detailed View";
-      detailBtn.title = `Draft Picks for ${role}`;
-      detailBtn.addEventListener("click", (evt) => {
-        evt.stopPropagation();
-        openDraftPicksModal(root, "0", role);
-      });
+    const detailBtn = runtimeDocument.createElement("button");
+    detailBtn.type = "button";
+    detailBtn.className = "draft-path-action-btn draft-path-action-detail";
+    detailBtn.textContent = "Detailed View";
+    detailBtn.title = `Draft Picks for ${role}`;
+    detailBtn.addEventListener("click", (evt) => {
+      evt.stopPropagation();
+      openDraftPicksModal(root, "0", role);
+    });
 
-      actionRow.append(clearBtn, detailBtn);
-      col.append(header, actionRow);
-    } else {
-      col.append(header);
-    }
+    actionRow.append(clearBtn, detailBtn);
+    col.append(header, actionRow);
 
     const list = runtimeDocument.createElement("ul");
     list.className = "draft-path-list";

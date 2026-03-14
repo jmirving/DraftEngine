@@ -2142,12 +2142,13 @@ button.pool-snapshot-order-btn:disabled {
   align-items: center;
   justify-content: center;
   background: none;
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: 6px;
   color: var(--muted);
-  padding: 0.3rem;
+  padding: 0.18rem 0.3rem;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  line-height: 1;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
 }
 .uss-stats-btn:hover {
   color: var(--accent);
@@ -2178,9 +2179,13 @@ button.pool-snapshot-order-btn:disabled {
   border-radius: 0 0 0 6px;
   border-right: none;
 }
-.draft-path-action-clear:hover {
+.draft-path-action-clear:hover:not(:disabled) {
   background: var(--warn);
   color: #fff;
+}
+.draft-path-action-clear:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .draft-path-action-detail {
