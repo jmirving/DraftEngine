@@ -499,19 +499,20 @@
               <p id="tags-meta" class="meta">Manage shared tag definitions and current champion coverage.</p>
               <p class="meta">MVP editing remains in Champions; this page adds scoped tag-definition governance and CRUD foundations.</p>
               <div class="ced-scope-panel">
-                <div class="ced-scope-panel-copy">
-                  <p class="ced-scope-panel-label">Current Scope</p>
-                  <p id="tags-scope-readout" class="ced-scope-panel-value">Global</p>
-                  <p id="tags-scope-help" class="ced-scope-panel-help"></p>
+                <div class="ced-scope-inline">
+                  <span class="ced-scope-editing-label">Editing</span>
+                  <select id="tags-scope" class="ced-scope-select"></select>
+                  <span class="ced-scope-word">Scope</span>
+                  <span class="ced-scope-tip" tabindex="0" role="img" aria-label="Scope info">
+                    <svg class="ced-scope-tip-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><text x="12" y="17" text-anchor="middle" fill="currentColor" font-size="14" font-weight="700" font-family="serif">i</text></svg>
+                    <span id="tags-scope-help" class="ced-scope-tip-text"></span>
+                  </span>
                 </div>
-                <label class="ced-scope-label">Switch scope
-                  <select id="tags-scope"></select>
-                </label>
-              </div>
-              <div id="tags-team-group" hidden>
-                <label class="ced-team-label">Editing for team
-                  <select id="tags-team"></select>
-                </label>
+                <p id="tags-scope-readout" class="sr-only">Global</p>
+                <div id="tags-team-group" class="ced-scope-team-row" hidden>
+                  <span class="ced-scope-team-label">Team</span>
+                  <select id="tags-team" class="ced-scope-team-select"></select>
+                </div>
               </div>
               <p id="tags-workspace-summary" class="meta"></p>
             </div>
@@ -1126,19 +1127,20 @@
                 Define reusable requirement clauses with condition logic and champion separation constraints.
               </p>
               <div class="ced-scope-panel">
-                <div class="ced-scope-panel-copy">
-                  <p class="ced-scope-panel-label">Current Scope</p>
-                  <p id="requirements-scope-readout" class="ced-scope-panel-value">Global</p>
-                  <p id="requirements-scope-help" class="ced-scope-panel-help"></p>
+                <div class="ced-scope-inline">
+                  <span class="ced-scope-editing-label">Editing</span>
+                  <select id="requirements-scope" class="ced-scope-select"></select>
+                  <span class="ced-scope-word">Scope</span>
+                  <span class="ced-scope-tip" tabindex="0" role="img" aria-label="Scope info">
+                    <svg class="ced-scope-tip-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><text x="12" y="17" text-anchor="middle" fill="currentColor" font-size="14" font-weight="700" font-family="serif">i</text></svg>
+                    <span id="requirements-scope-help" class="ced-scope-tip-text"></span>
+                  </span>
                 </div>
-                <label class="ced-scope-label">Switch scope
-                  <select id="requirements-scope"></select>
-                </label>
-              </div>
-              <div id="requirements-team-group" hidden>
-                <label class="ced-team-label">Editing for team
-                  <select id="requirements-team"></select>
-                </label>
+                <p id="requirements-scope-readout" class="sr-only">Global</p>
+                <div id="requirements-team-group" class="ced-scope-team-row" hidden>
+                  <span class="ced-scope-team-label">Team</span>
+                  <select id="requirements-team" class="ced-scope-team-select"></select>
+                </div>
               </div>
             </div>
             <div class="panel draft-board-panel">
@@ -1183,19 +1185,20 @@
                 Group requirement definitions into reusable named composition bundles.
               </p>
               <div class="ced-scope-panel">
-                <div class="ced-scope-panel-copy">
-                  <p class="ced-scope-panel-label">Current Scope</p>
-                  <p id="compositions-scope-readout" class="ced-scope-panel-value">Global</p>
-                  <p id="compositions-scope-help" class="ced-scope-panel-help"></p>
+                <div class="ced-scope-inline">
+                  <span class="ced-scope-editing-label">Editing</span>
+                  <select id="compositions-scope" class="ced-scope-select"></select>
+                  <span class="ced-scope-word">Scope</span>
+                  <span class="ced-scope-tip" tabindex="0" role="img" aria-label="Scope info">
+                    <svg class="ced-scope-tip-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><text x="12" y="17" text-anchor="middle" fill="currentColor" font-size="14" font-weight="700" font-family="serif">i</text></svg>
+                    <span id="compositions-scope-help" class="ced-scope-tip-text"></span>
+                  </span>
                 </div>
-                <label class="ced-scope-label">Switch scope
-                  <select id="compositions-scope"></select>
-                </label>
-              </div>
-              <div id="compositions-team-group" hidden>
-                <label class="ced-team-label">Editing for team
-                  <select id="compositions-team"></select>
-                </label>
+                <p id="compositions-scope-readout" class="sr-only">Global</p>
+                <div id="compositions-team-group" class="ced-scope-team-row" hidden>
+                  <span class="ced-scope-team-label">Team</span>
+                  <select id="compositions-team" class="ced-scope-team-select"></select>
+                </div>
               </div>
               <p id="compositions-summary" class="meta"></p>
             </div>
@@ -1292,6 +1295,8 @@
                   <li>Draft modal titles are forced to a single line; close button is now a Windows-style red square.</li>
                   <li>Advanced Controls scope section redesigned: compact "Using [Global/Custom] Scope" inline selector with a pencil icon that opens a Configure Custom Scopes modal for per-resource scope settings.</li>
                   <li>Advanced Controls columns now have bordered panels with equal-height alignment for better visual separation.</li>
+                  <li>Unified pencil edit icon (SVG) across champion cards and Advanced Controls scope configure button, with matching hover style.</li>
+                  <li>Tags, Requirements, and Compositions scope panels unified to the same inline "Editing [dropdown] Scope (i)" design used in the champion editor, with tooltip help text and inline team selector.</li>
                 </ul>
                 <h4>Version 0.9.0</h4>
                 <ul class="coming-soon-list">
