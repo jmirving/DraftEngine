@@ -6,6 +6,12 @@ Implement tasks for this repo safely and incrementally.
 ## Design System
 All UI work must follow the **Unified Site Styling (USS)** guide at [`docs/USS.md`](docs/USS.md). This covers theme variables, button rules, confirmation modals, scope panels, modal patterns, and more. Read it before making any visual changes.
 
+### Layout Rules
+- **No stretch** — don't stretch elements to fill space. Use compact/fixed sizing.
+- **Section-based** — pages use nested sections, not full-width blocks.
+- **Settings in modals** — configuration goes in modals, not inline. Page surface is for data and primary actions only.
+- **Modal triggers** — use small icon buttons for compact triggers, or standard buttons when the action needs more visibility.
+
 ## Coming Soon Sync (Mandatory)
 
 For every user-facing feature or behavior change:

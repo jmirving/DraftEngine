@@ -1,5 +1,13 @@
 # Unified Site Styling (USS) — DraftEngine Design System
 
+## Layout Philosophy
+
+- **No stretch** — Elements should not stretch to fill space. Use fixed/compact sizing.
+- **Section-based design** — Pages use nested sections at non-default sizes depending on the page function. Sections create visual hierarchy without full-width stretching.
+- **Minimize scrolling** — Display relevant data compactly so the user doesn't have to scroll the main page excessively.
+- **Settings in modals** — Configuration and settings go in modals, not inline on the page. Only core functionality and data the user needs to actively reference belongs on the page surface.
+- **Modal triggers** — Use small icon buttons (pencil, stats, gear) for compact triggers, or standard buttons when the action needs more visibility. Don't dedicate page real estate to settings that can be accessed on demand.
+
 ## CSS Variables (Theme)
 
 | Variable          | Value     | Purpose                    |
