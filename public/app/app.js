@@ -15827,10 +15827,45 @@ function renderBuilderScopeControls() {
 
 function openScopeConfigModal() {
   closeDraftModal();
+
+  // Snapshot current settings so we can revert on cancel
+  const snapshot = {
+    defaultScopePrecedence: state.builder.defaultScopePrecedence,
+    scopeResourceSettings: JSON.parse(JSON.stringify(state.builder.scopeResourceSettings))
+  };
+  // Working copy the modal edits manipulate
+  const draft = {
+    defaultScopePrecedence: snapshot.defaultScopePrecedence,
+    resources: JSON.parse(JSON.stringify(snapshot.scopeResourceSettings))
+  };
+
+  function isDirty() {
+    return draft.defaultScopePrecedence !== snapshot.defaultScopePrecedence
+      || JSON.stringify(draft.resources) !== JSON.stringify(snapshot.scopeResourceSettings);
+  }
+
+  function handleCancel() {
+    if (isDirty()) {
+      if (!confirm("You have unsaved scope changes. Leave anyway?")) return;
+    }
+    state.builder.defaultScopePrecedence = snapshot.defaultScopePrecedence;
+    state.builder.scopeResourceSettings = JSON.parse(JSON.stringify(snapshot.scopeResourceSettings));
+    closeDraftModal();
+  }
+
+  function handleUpdate() {
+    state.builder.defaultScopePrecedence = draft.defaultScopePrecedence;
+    state.builder.scopeResourceSettings = JSON.parse(JSON.stringify(draft.resources));
+    setBuilderStage("setup");
+    resetBuilderTreeState();
+    void refreshBuilderComposerContext({ includeDraftContext: false });
+    closeDraftModal();
+  }
+
   const overlay = runtimeDocument.createElement("div");
   overlay.className = "draft-modal-overlay";
   overlay.addEventListener("click", (evt) => {
-    if (evt.target === overlay) closeDraftModal();
+    if (evt.target === overlay) handleCancel();
   });
 
   const dialog = runtimeDocument.createElement("div");
@@ -15844,7 +15879,7 @@ function openScopeConfigModal() {
   close.type = "button";
   close.className = "draft-modal-close";
   close.textContent = "\u00D7";
-  close.addEventListener("click", closeDraftModal);
+  close.addEventListener("click", handleCancel);
   header.append(title, close);
 
   const body = runtimeDocument.createElement("div");
@@ -15856,20 +15891,18 @@ function openScopeConfigModal() {
   defaultLabel.textContent = "Default Scope Order";
   const defaultSelect = runtimeDocument.createElement("select");
   replaceOptions(defaultSelect, BUILDER_SCOPE_PRECEDENCE_OPTIONS, false);
-  defaultSelect.value = normalizeBuilderScopePrecedence(state.builder.defaultScopePrecedence);
+  defaultSelect.value = normalizeBuilderScopePrecedence(draft.defaultScopePrecedence);
   defaultSelect.addEventListener("change", () => {
-    state.builder.defaultScopePrecedence = normalizeBuilderScopePrecedence(defaultSelect.value);
+    draft.defaultScopePrecedence = normalizeBuilderScopePrecedence(defaultSelect.value);
     for (const resource of BUILDER_SCOPE_RESOURCES) {
-      const resourceConfig = state.builder.scopeResourceSettings?.[resource] ?? {};
-      state.builder.scopeResourceSettings[resource] = {
-        enabled: resourceConfig.enabled !== false,
-        precedence: normalizeBuilderScopePrecedence(resourceConfig.precedence, state.builder.defaultScopePrecedence)
+      draft.resources[resource] = {
+        ...draft.resources[resource],
+        precedence: normalizeBuilderScopePrecedence(
+          draft.resources[resource]?.precedence, draft.defaultScopePrecedence
+        )
       };
     }
     rebuildResourceCards();
-    setBuilderStage("setup");
-    resetBuilderTreeState();
-    void refreshBuilderComposerContext({ includeDraftContext: false });
   });
   defaultLabel.append(defaultSelect);
   body.append(defaultLabel);
@@ -15880,7 +15913,7 @@ function openScopeConfigModal() {
   function rebuildResourceCards() {
     resourceList.innerHTML = "";
     for (const resource of BUILDER_SCOPE_RESOURCES) {
-      const config = state.builder.scopeResourceSettings?.[resource] ?? {
+      const config = draft.resources[resource] ?? {
         enabled: true,
         precedence: BUILDER_SCOPE_DEFAULT_PRECEDENCE
       };
@@ -15896,12 +15929,8 @@ function openScopeConfigModal() {
       checkbox.type = "checkbox";
       checkbox.checked = config.enabled !== false;
       checkbox.addEventListener("change", () => {
-        state.builder.scopeResourceSettings[resource] = {
-          ...state.builder.scopeResourceSettings[resource],
-          enabled: checkbox.checked
-        };
+        draft.resources[resource] = { ...draft.resources[resource], enabled: checkbox.checked };
         rebuildResourceCards();
-        void refreshBuilderComposerContext({ includeDraftContext: false });
       });
       checkboxLabel.append(checkbox, runtimeDocument.createTextNode("Use custom scope"));
 
@@ -15910,14 +15939,13 @@ function openScopeConfigModal() {
       selectLabel.textContent = "Scope order";
       const select = runtimeDocument.createElement("select");
       replaceOptions(select, BUILDER_SCOPE_PRECEDENCE_OPTIONS, false);
-      select.value = normalizeBuilderScopePrecedence(config.precedence, state.builder.defaultScopePrecedence);
+      select.value = normalizeBuilderScopePrecedence(config.precedence, draft.defaultScopePrecedence);
       select.disabled = config.enabled === false;
       select.addEventListener("change", () => {
-        state.builder.scopeResourceSettings[resource] = {
-          ...state.builder.scopeResourceSettings[resource],
-          precedence: normalizeBuilderScopePrecedence(select.value, state.builder.defaultScopePrecedence)
+        draft.resources[resource] = {
+          ...draft.resources[resource],
+          precedence: normalizeBuilderScopePrecedence(select.value, draft.defaultScopePrecedence)
         };
-        void refreshBuilderComposerContext({ includeDraftContext: false });
       });
       selectLabel.append(select);
 
@@ -15936,7 +15964,21 @@ function openScopeConfigModal() {
     body.append(feedback);
   }
 
-  dialog.append(header, body);
+  // Footer with Cancel / Update
+  const footer = runtimeDocument.createElement("div");
+  footer.className = "draft-modal-footer";
+  const cancelBtn = runtimeDocument.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "ghost";
+  cancelBtn.textContent = "Cancel";
+  cancelBtn.addEventListener("click", handleCancel);
+  const updateBtn = runtimeDocument.createElement("button");
+  updateBtn.type = "button";
+  updateBtn.textContent = "Update";
+  updateBtn.addEventListener("click", handleUpdate);
+  footer.append(cancelBtn, updateBtn);
+
+  dialog.append(header, body, footer);
   overlay.append(dialog);
   runtimeDocument.body.append(overlay);
   requestAnimationFrame(() => overlay.classList.add("is-open"));
@@ -17273,6 +17315,9 @@ function attachEvents() {
       setBuilderStage("setup");
       resetBuilderTreeState();
       void refreshBuilderComposerContext({ includeDraftContext: false });
+      if (state.builder.useCustomScopes) {
+        openScopeConfigModal();
+      }
     });
   }
 

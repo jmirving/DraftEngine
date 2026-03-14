@@ -2258,6 +2258,16 @@ button.pool-snapshot-order-btn:disabled {
   flex: 1;
 }
 
+.draft-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface-strong);
+  border-radius: 0 0 10px 10px;
+}
+
 .scope-config-resources {
   margin-top: 0.6rem;
 }
@@ -2402,14 +2412,21 @@ button.pool-snapshot-order-btn:disabled {
   padding: 0.5rem 0.6rem;
 }
 
-.advanced-scope-row {
-  margin-bottom: 0.5rem;
-  padding-bottom: 0.45rem;
-  border-bottom: 1px solid var(--border);
+.advanced-scope-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.advanced-scope-row .ced-scope-inline {
-  gap: 0.35rem;
+.advanced-scope-column > .ced-scope-panel {
+  flex: 0 0 auto;
+  border: none;
+  padding: 0;
+  margin-top: 0;
+}
+
+.advanced-scope-column > .advanced-scoring-section {
+  margin-top: auto;
 }
 
 .advanced-scope-edit-btn {
