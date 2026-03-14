@@ -1127,6 +1127,19 @@ function createFetchHarness({
       return createJsonResponse({ promotion_requests: results });
     }
 
+    const tagPromotionCancelMatch = path.match(/^\/tags\/promotion-requests\/(\d+)$/);
+    if (tagPromotionCancelMatch && method === "DELETE") {
+      const requestId = Number(tagPromotionCancelMatch[1]);
+      const index = promotionRequests.findIndex(
+        (candidate) => candidate.id === requestId && candidate.requested_by === Number(resolvedLoginUser.id) && candidate.status === "pending"
+      );
+      if (index < 0) {
+        return createJsonResponse({ error: { code: "NOT_FOUND", message: "Promotion request not found." } }, 404);
+      }
+      const [requestRecord] = promotionRequests.splice(index, 1);
+      return createJsonResponse({ promotion_request: requestRecord });
+    }
+
     const tagPromotionReviewMatch = path.match(/^\/tags\/promotion-requests\/(\d+)\/review$/);
     if (tagPromotionReviewMatch && method === "POST") {
       const requestId = Number(tagPromotionReviewMatch[1]);
@@ -2739,6 +2752,100 @@ describe("auth + pools + team management", () => {
     const deleteCall = harness.calls.find((call) => /^\/tags\/\d+$/.test(call.path) && call.method === "DELETE");
     expect(deleteCall).toBeTruthy();
     expect(doc.querySelector("#tags-workspace-summary").textContent).toContain("3 tags");
+  });
+
+  test("tags workspace opens tag promotions from the non-global editor and cancels pending requests", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", role: "admin", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness({
+      loginUser: { id: 11, email: "lead@example.com", role: "admin", gameName: "LeadPlayer", tagline: "NA1" },
+      teams: [{ id: 1, name: "Team Echo", tag: "ECHO", membership_role: "lead" }]
+    });
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    doc.querySelector(".side-menu-link[data-tab='tags']").click();
+    await flush();
+    await flush();
+
+    const promoteButton = doc.querySelector("#tags-promotion-open");
+    expect(promoteButton.hidden).toBe(true);
+
+    const scopeSelect = doc.querySelector("#tags-scope");
+    scopeSelect.value = "team";
+    scopeSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await flush();
+    await flush();
+
+    const teamSelect = doc.querySelector("#tags-team");
+    teamSelect.value = "1";
+    teamSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await flush();
+    await flush();
+
+    expect(promoteButton.hidden).toBe(false);
+    expect(promoteButton.disabled).toBe(true);
+    expect(promoteButton.textContent).toBe("Request Global Promotion");
+
+    doc.querySelector("#tags-manage-name").value = "macro";
+    doc.querySelector("#tags-manage-definition").value = "Strong map rotations and objective setup.";
+    doc.querySelector("#tags-manage-save").click();
+    await flush();
+    await flush();
+
+    const createCall = harness.calls.find((call) => call.path === "/tags" && call.method === "POST");
+    expect(createCall).toBeTruthy();
+    expect(createCall.body).toMatchObject({ scope: "team", team_id: 1, name: "macro" });
+    expect(promoteButton.disabled).toBe(false);
+
+    promoteButton.click();
+    await flush();
+
+    expect(doc.querySelector("#tags-promotion-modal").hidden).toBe(false);
+    expect(doc.body.classList.contains("has-modal-open")).toBe(true);
+    expect(doc.querySelector("#tags-promotion-modal-context").textContent).toContain("macro");
+
+    const modalComment = doc.querySelector("#tags-promotion-modal-comment");
+    modalComment.value = "Share this tag globally.";
+    modalComment.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+    doc.querySelector("#tags-promotion-modal-submit").click();
+    await flush();
+    await flush();
+    await flush();
+
+    const requestCall = harness.calls.find(
+      (call) => /^\/tags\/\d+\/promotion-requests$/.test(call.path) && call.method === "POST"
+    );
+    expect(requestCall).toBeTruthy();
+    expect(requestCall.body).toMatchObject({
+      source_scope: "team",
+      target_scope: "all",
+      team_id: 1,
+      request_comment: "Share this tag globally."
+    });
+    expect(doc.querySelector("#tags-promotion-modal").hidden).toBe(true);
+    expect(doc.querySelector("#tags-promotion-request-list").textContent).toContain("macro");
+
+    const cancelButton = [...doc.querySelectorAll("#tags-promotion-request-list button")].find(
+      (button) => button.textContent.trim() === "Cancel Request"
+    );
+    expect(cancelButton).toBeTruthy();
+    cancelButton.click();
+    await flush();
+    doc.querySelector("#confirmation-confirm").click();
+    await flush();
+    await flush();
+    await flush();
+
+    const cancelCall = harness.calls.find(
+      (call) => /^\/tags\/promotion-requests\/\d+$/.test(call.path) && call.method === "DELETE"
+    );
+    expect(cancelCall).toBeTruthy();
+    expect(doc.querySelector("#tags-promotion-request-list").textContent).toContain("No submitted tag promotions yet.");
   });
 
   test("users workspace lists users, updates permissions, and supports one-time Riot ID correction", async () => {

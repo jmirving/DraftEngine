@@ -1283,6 +1283,16 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
       requestRecord.reviewed_by_user_id = reviewedByUserId;
       requestRecord.reviewed_at = "2026-01-01T00:00:00.000Z";
       return requestRecord;
+    },
+    async cancelPromotionRequest(requestId, requestedBy) {
+      const index = state.promotionRequests.findIndex(
+        (candidate) => candidate.id === requestId && candidate.requested_by === requestedBy && candidate.status === "pending"
+      );
+      if (index < 0) {
+        return null;
+      }
+      const [requestRecord] = state.promotionRequests.splice(index, 1);
+      return requestRecord;
     }
   };
 
@@ -2419,6 +2429,39 @@ describe("API routes", () => {
       .set("Authorization", buildAuthHeader(1, config));
     expect(teamTags.status).toBe(200);
     expect(teamTags.body.tags.find((tag) => tag.id === 1)?.definition).toBe("Member override definition.");
+  });
+
+  it("allows requesters to cancel pending tag promotion requests", async () => {
+    const { app, config, state } = createMockContext();
+
+    const createScopedTag = await request(app)
+      .post("/tags")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        scope: "self",
+        name: "engage",
+        definition: "Member override definition."
+      });
+    expect(createScopedTag.status).toBe(201);
+
+    const requestedPromotion = await request(app)
+      .post("/tags/1/promotion-requests")
+      .set("Authorization", buildAuthHeader(2, config))
+      .send({
+        source_scope: "self",
+        target_scope: "team",
+        target_team_id: 1,
+        request_comment: "Promote this definition to the team catalog."
+      });
+    expect(requestedPromotion.status).toBe(201);
+    expect(state.promotionRequests).toHaveLength(1);
+
+    const canceledPromotion = await request(app)
+      .delete("/tags/promotion-requests/1")
+      .set("Authorization", buildAuthHeader(2, config));
+    expect(canceledPromotion.status).toBe(200);
+    expect(canceledPromotion.body.promotion_request.id).toBe(1);
+    expect(state.promotionRequests).toHaveLength(0);
   });
 
   it("allows member global champion tag edits when no admins exist", async () => {

@@ -602,6 +602,9 @@ function createInitialState() {
       tagPromotionRequests: [],
       tagPromotionReviewQueue: [],
       isLoadingTagPromotions: false,
+      isSubmittingTagPromotion: false,
+      isTagPromotionModalOpen: false,
+      tagPromotionDraftComment: "",
       championEditorTags: [],
       championEditorTagById: {},
       selectedChampionTagEditorId: null,
@@ -801,8 +804,7 @@ function createElements() {
     tagsManageSave: runtimeDocument.querySelector("#tags-manage-save"),
     tagsManageCancel: runtimeDocument.querySelector("#tags-manage-cancel"),
     tagsManageFeedback: runtimeDocument.querySelector("#tags-manage-feedback"),
-    tagsPromotionRequestComment: runtimeDocument.querySelector("#tags-promotion-request-comment"),
-    tagsPromotionRequest: runtimeDocument.querySelector("#tags-promotion-request"),
+    tagsPromotionOpen: runtimeDocument.querySelector("#tags-promotion-open"),
     tagsPromotionRefresh: runtimeDocument.querySelector("#tags-promotion-refresh"),
     tagsPromotionFeedback: runtimeDocument.querySelector("#tags-promotion-feedback"),
     tagsPromotionRequestList: runtimeDocument.querySelector("#tags-promotion-request-list"),
@@ -948,6 +950,13 @@ function createElements() {
     builderLoadDraftList: runtimeDocument.querySelector("#builder-load-draft-list"),
     builderLoadDraftFeedback: runtimeDocument.querySelector("#builder-load-draft-feedback"),
     builderLoadDraftClose: runtimeDocument.querySelector("#builder-load-draft-close"),
+    tagsPromotionModal: runtimeDocument.querySelector("#tags-promotion-modal"),
+    tagsPromotionModalTitle: runtimeDocument.querySelector("#tags-promotion-modal-title"),
+    tagsPromotionModalContext: runtimeDocument.querySelector("#tags-promotion-modal-context"),
+    tagsPromotionModalComment: runtimeDocument.querySelector("#tags-promotion-modal-comment"),
+    tagsPromotionModalCancel: runtimeDocument.querySelector("#tags-promotion-modal-cancel"),
+    tagsPromotionModalSubmit: runtimeDocument.querySelector("#tags-promotion-modal-submit"),
+    tagsPromotionModalFeedback: runtimeDocument.querySelector("#tags-promotion-modal-feedback"),
     builderTeamHelp: runtimeDocument.querySelector("#builder-team-help"),
     builderStageSetupTitle: runtimeDocument.querySelector("#builder-stage-setup-title"),
     builderStageSetupMeta: runtimeDocument.querySelector("#builder-stage-setup-meta"),
@@ -1289,6 +1298,12 @@ function setTagsManageFeedback(message) {
 function setTagPromotionFeedback(message) {
   if (elements.tagsPromotionFeedback) {
     elements.tagsPromotionFeedback.textContent = message;
+  }
+}
+
+function setTagPromotionModalFeedback(message) {
+  if (elements.tagsPromotionModalFeedback) {
+    elements.tagsPromotionModalFeedback.textContent = message;
   }
 }
 
@@ -2355,7 +2370,10 @@ function clearChampionTagEditorState() {
 function clearTagsManagerState({ clearInputs = true } = {}) {
   state.api.selectedTagManagerId = null;
   state.api.isSavingTagCatalog = false;
+  state.api.isTagPromotionModalOpen = false;
+  state.api.tagPromotionDraftComment = "";
   setTagsManageFeedback("");
+  setTagPromotionModalFeedback("");
   if (clearInputs) {
     if (elements.tagsManageName) {
       elements.tagsManageName.value = "";
@@ -2364,6 +2382,66 @@ function clearTagsManagerState({ clearInputs = true } = {}) {
       elements.tagsManageDefinition.value = "";
     }
   }
+}
+
+function getTagPromotionScopeLabel(scope) {
+  return getTagCatalogScopeOptions().find((option) => option.value === scope)?.label ?? "Global";
+}
+
+function getTagPromotionUiState() {
+  const context = getTagCatalogScopeRequestContext();
+  const canManageTags = canWriteTagCatalogScope();
+  const selectedTag = getManagedTagById(state.api.selectedTagManagerId);
+  const targetScope = context.scope === "self" ? "team" : "all";
+  const showButton = isAuthenticated() && canManageTags && context.scope !== "all";
+  const hasScopedDefinition = Boolean(selectedTag?.hasCustomDefinition);
+  const canRequestPromotion = showButton && hasScopedDefinition;
+  const actionLabel = context.scope === "team" ? "Request Global Promotion" : "Request Team Promotion";
+  let disabledReason = "";
+  if (showButton && !selectedTag) {
+    disabledReason = "Save a scoped tag before requesting promotion.";
+  } else if (showButton && !hasScopedDefinition) {
+    disabledReason = "Save this inherited tag as a scoped definition before requesting promotion.";
+  }
+  return {
+    context,
+    selectedTag,
+    targetScope,
+    showButton,
+    canRequestPromotion,
+    actionLabel,
+    disabledReason
+  };
+}
+
+function closeTagPromotionModal({ clearDraft = true } = {}) {
+  if (!state?.api) {
+    return;
+  }
+  state.api.isTagPromotionModalOpen = false;
+  if (clearDraft) {
+    state.api.tagPromotionDraftComment = "";
+  }
+  setTagPromotionModalFeedback("");
+  renderTagsWorkspace();
+}
+
+function openTagPromotionModal() {
+  const promotionUi = getTagPromotionUiState();
+  if (!promotionUi.showButton) {
+    return;
+  }
+  if (!promotionUi.canRequestPromotion) {
+    setTagPromotionFeedback(promotionUi.disabledReason || "Save a scoped tag before requesting promotion.");
+    return;
+  }
+  state.api.isTagPromotionModalOpen = true;
+  state.api.tagPromotionDraftComment = "";
+  setTagPromotionModalFeedback("");
+  renderTagsWorkspace();
+  runtimeWindow.setTimeout(() => {
+    elements.tagsPromotionModalComment?.focus();
+  }, 0);
 }
 
 function formatTeamCardTitle(team) {
@@ -4397,6 +4475,16 @@ function renderTagsManagerControls() {
     elements.tagsManageCancel.disabled = controlsDisabled;
     elements.tagsManageCancel.textContent = isEditing ? "Cancel Edit" : "Clear";
   }
+  if (elements.tagsPromotionOpen) {
+    const promotionUi = getTagPromotionUiState();
+    elements.tagsPromotionOpen.hidden = !promotionUi.showButton;
+    elements.tagsPromotionOpen.disabled =
+      state.api.isLoadingTagPromotions ||
+      state.api.isSubmittingTagPromotion ||
+      !promotionUi.canRequestPromotion;
+    elements.tagsPromotionOpen.textContent = promotionUi.actionLabel;
+    elements.tagsPromotionOpen.title = promotionUi.canRequestPromotion ? "" : promotionUi.disabledReason;
+  }
 }
 
 async function refreshTagCatalogViews() {
@@ -4467,7 +4555,19 @@ async function saveManagedTag() {
       }
       setTagsManageFeedback(isUpdatingExact || context.scope === "all" ? "Tag updated." : "Scoped tag definition created.");
     } else {
-      clearTagsManagerState();
+      const savedTagId = normalizeApiEntityId(payload?.tag?.id);
+      const savedTag = savedTagId ? getManagedTagById(savedTagId) : null;
+      if (savedTagId && savedTag) {
+        state.api.selectedTagManagerId = savedTagId;
+        if (elements.tagsManageName) {
+          elements.tagsManageName.value = savedTag.name;
+        }
+        if (elements.tagsManageDefinition) {
+          elements.tagsManageDefinition.value = String(savedTag.definition ?? "");
+        }
+      } else {
+        clearTagsManagerState();
+      }
       setTagsManageFeedback("Tag created.");
     }
   } catch (error) {
@@ -4560,6 +4660,7 @@ function renderTagsWorkspace() {
 
   renderTagsManagerControls();
   renderTagPromotionPanels();
+  renderTagPromotionModal();
   const context = getTagCatalogScopeRequestContext();
   const tags = Array.isArray(state.api.tagsWorkspaceCatalog) && state.api.tagsWorkspaceCatalog.length > 0
     ? state.api.tagsWorkspaceCatalog
@@ -4657,25 +4758,30 @@ function renderTagPromotionPanels() {
     return;
   }
 
-  const context = getTagCatalogScopeRequestContext();
-  const selectedTag = Array.isArray(state.api.tagsWorkspaceCatalog)
-    ? state.api.tagsWorkspaceCatalog.find((tag) => tag.id === state.api.selectedTagManagerId) ?? null
-    : null;
-  const canRequestPromotion = isAuthenticated() && context.scope !== "all" && !!selectedTag;
-  if (elements.tagsPromotionRequest) {
-    elements.tagsPromotionRequest.disabled = !canRequestPromotion || state.api.isLoadingTagPromotions;
-    elements.tagsPromotionRequest.textContent = context.scope === "team" ? "Request Global Promotion" : "Request Team Promotion";
-  }
   if (elements.tagsPromotionRefresh) {
-    elements.tagsPromotionRefresh.disabled = state.api.isLoadingTagPromotions;
+    elements.tagsPromotionRefresh.disabled = !isAuthenticated() || state.api.isLoadingTagPromotions;
   }
 
   const renderPromotionCards = (target, requests, { reviewMode = false } = {}) => {
     target.innerHTML = "";
+    if (!isAuthenticated()) {
+      const empty = runtimeDocument.createElement("p");
+      empty.className = "meta";
+      empty.textContent = "Sign in to view tag promotion activity.";
+      target.append(empty);
+      return;
+    }
+    if (state.api.isLoadingTagPromotions) {
+      const loading = runtimeDocument.createElement("p");
+      loading.className = "meta";
+      loading.textContent = "Loading tag promotions...";
+      target.append(loading);
+      return;
+    }
     if (!Array.isArray(requests) || requests.length < 1) {
       const empty = runtimeDocument.createElement("p");
       empty.className = "meta";
-      empty.textContent = reviewMode ? "No tag promotions awaiting review." : "No tag promotion requests yet.";
+      empty.textContent = reviewMode ? "No tag promotions awaiting review." : "No submitted tag promotions yet.";
       target.append(empty);
       return;
     }
@@ -4689,13 +4795,23 @@ function renderTagPromotionPanels() {
 
       const route = runtimeDocument.createElement("p");
       route.className = "meta";
-      route.textContent = `${request.sourceScope} -> ${request.targetScope} | ${request.status}`;
+      const statusLabel = request.status ? `${request.status.charAt(0).toUpperCase()}${request.status.slice(1)}` : "Pending";
+      route.textContent =
+        `${getTagPromotionScopeLabel(request.sourceScope)} -> ${getTagPromotionScopeLabel(request.targetScope)} | ${statusLabel}`;
 
       const requestComment = runtimeDocument.createElement("p");
       requestComment.className = "meta";
-      requestComment.textContent = request.requestComment || "No request comment.";
+      requestComment.textContent = request.requestComment || "No promotion note.";
 
       card.append(title, route, requestComment);
+
+      const createdMeta = formatTimestampMeta(request.createdAt);
+      if (createdMeta) {
+        const created = runtimeDocument.createElement("p");
+        created.className = "meta";
+        created.textContent = `Submitted ${createdMeta}`;
+        card.append(created);
+      }
 
       if (reviewMode && request.status === "pending") {
         const reviewInput = runtimeDocument.createElement("input");
@@ -4723,6 +4839,20 @@ function renderTagPromotionPanels() {
 
         actions.append(approve, reject);
         card.append(reviewInput, actions);
+      } else if (!reviewMode && request.status === "pending") {
+        const actions = runtimeDocument.createElement("div");
+        actions.className = "button-row";
+
+        const cancel = runtimeDocument.createElement("button");
+        cancel.type = "button";
+        cancel.className = "ghost";
+        cancel.textContent = "Cancel Request";
+        cancel.addEventListener("click", () => {
+          void cancelTagPromotion(request.id);
+        });
+
+        actions.append(cancel);
+        card.append(actions);
       } else if (request.reviewComment) {
         const reviewComment = runtimeDocument.createElement("p");
         reviewComment.className = "meta";
@@ -4736,6 +4866,45 @@ function renderTagPromotionPanels() {
 
   renderPromotionCards(elements.tagsPromotionRequestList, state.api.tagPromotionRequests, { reviewMode: false });
   renderPromotionCards(elements.tagsPromotionReviewList, state.api.tagPromotionReviewQueue, { reviewMode: true });
+}
+
+function renderTagPromotionModal() {
+  if (!elements.tagsPromotionModal) {
+    return;
+  }
+
+  const promotionUi = getTagPromotionUiState();
+  if (state.api.isTagPromotionModalOpen && !promotionUi.canRequestPromotion) {
+    state.api.isTagPromotionModalOpen = false;
+    state.api.tagPromotionDraftComment = "";
+    setTagPromotionModalFeedback("");
+  }
+
+  elements.tagsPromotionModal.hidden = !state.api.isTagPromotionModalOpen;
+  if (elements.tagsPromotionModalTitle) {
+    elements.tagsPromotionModalTitle.textContent = promotionUi.actionLabel;
+  }
+  if (elements.tagsPromotionModalContext) {
+    if (promotionUi.selectedTag) {
+      elements.tagsPromotionModalContext.textContent =
+        `Promote '${promotionUi.selectedTag.name}' from ${getTagPromotionScopeLabel(promotionUi.context.scope).toLowerCase()} ` +
+        `scope to ${getTagPromotionScopeLabel(promotionUi.targetScope).toLowerCase()} scope.`;
+    } else {
+      elements.tagsPromotionModalContext.textContent = "";
+    }
+  }
+  if (elements.tagsPromotionModalComment) {
+    elements.tagsPromotionModalComment.value = state.api.tagPromotionDraftComment ?? "";
+    elements.tagsPromotionModalComment.disabled = state.api.isSubmittingTagPromotion;
+  }
+  if (elements.tagsPromotionModalCancel) {
+    elements.tagsPromotionModalCancel.disabled = state.api.isSubmittingTagPromotion;
+  }
+  if (elements.tagsPromotionModalSubmit) {
+    elements.tagsPromotionModalSubmit.disabled = state.api.isSubmittingTagPromotion || !promotionUi.canRequestPromotion;
+    elements.tagsPromotionModalSubmit.textContent = state.api.isSubmittingTagPromotion ? "Submitting..." : "Submit Request";
+  }
+  updateBodyModalState();
 }
 
 function normalizeApiUserRole(value) {
@@ -4865,6 +5034,7 @@ function updateBodyModalState() {
   const hasOpenModal =
     state?.api?.issueReporting?.isOpen === true ||
     state?.api?.confirmation?.isOpen === true ||
+    state?.api?.isTagPromotionModalOpen === true ||
     state?.builder?.isSaveDraftModalOpen === true ||
     state?.builder?.isLoadDraftModalOpen === true;
   runtimeDocument.body.classList.toggle("has-modal-open", hasOpenModal);
@@ -8256,6 +8426,8 @@ async function loadTagPromotionQueuesFromApi() {
   if (!isAuthenticated()) {
     state.api.tagPromotionRequests = [];
     state.api.tagPromotionReviewQueue = [];
+    state.api.isTagPromotionModalOpen = false;
+    state.api.tagPromotionDraftComment = "";
     renderTagsWorkspace();
     return;
   }
@@ -8290,21 +8462,30 @@ async function loadTagPromotionQueuesFromApi() {
 }
 
 async function requestTagPromotion() {
+  if (!isAuthenticated() || state.api.isSubmittingTagPromotion) {
+    return;
+  }
+  const promotionUi = getTagPromotionUiState();
+  if (!promotionUi.canRequestPromotion) {
+    setTagPromotionModalFeedback(promotionUi.disabledReason || "Save a scoped tag before requesting promotion.");
+    renderTagsWorkspace();
+    return;
+  }
   const selectedTagId = normalizeApiEntityId(state.api.selectedTagManagerId);
   if (!selectedTagId) {
-    setTagPromotionFeedback("Select a tag before requesting promotion.");
+    setTagPromotionModalFeedback("Select a tag before requesting promotion.");
     return;
   }
-  const context = getTagCatalogScopeRequestContext();
+  const context = promotionUi.context;
   if (context.scope === "all") {
-    setTagPromotionFeedback("Global tags do not need promotion.");
+    setTagPromotionModalFeedback("Global tags do not need promotion.");
     return;
   }
-  const targetScope = context.scope === "self" ? "team" : "all";
+  const targetScope = promotionUi.targetScope;
   const body = {
     source_scope: context.scope,
     target_scope: targetScope,
-    request_comment: String(elements.tagsPromotionRequestComment?.value ?? "").trim()
+    request_comment: String(state.api.tagPromotionDraftComment ?? "").trim()
   };
   if (context.scope === "team" && context.teamId) {
     body.team_id = Number.parseInt(context.teamId, 10);
@@ -8314,24 +8495,30 @@ async function requestTagPromotion() {
       ? normalizeConfiguredTeamId(state.builder.teamId || state.teamConfig.activeTeamId)
       : context.teamId;
     if (!targetTeamId || targetTeamId === NONE_TEAM_ID) {
-      setTagPromotionFeedback("Select an active team before requesting team promotion.");
+      setTagPromotionModalFeedback("Select an active team before requesting team promotion.");
       return;
     }
     body.target_team_id = Number.parseInt(targetTeamId, 10);
   }
+  state.api.isSubmittingTagPromotion = true;
+  setTagPromotionModalFeedback("Submitting promotion request...");
+  renderTagsWorkspace();
   try {
     await apiRequest(`/tags/${selectedTagId}/promotion-requests`, {
       method: "POST",
       auth: true,
       body
     });
-    if (elements.tagsPromotionRequestComment) {
-      elements.tagsPromotionRequestComment.value = "";
-    }
+    state.api.tagPromotionDraftComment = "";
+    state.api.isTagPromotionModalOpen = false;
+    setTagPromotionModalFeedback("");
     await loadTagPromotionQueuesFromApi();
     setTagPromotionFeedback("Promotion request created.");
   } catch (error) {
-    setTagPromotionFeedback(normalizeApiErrorMessage(error, "Failed to create promotion request."));
+    setTagPromotionModalFeedback(normalizeApiErrorMessage(error, "Failed to create promotion request."));
+  } finally {
+    state.api.isSubmittingTagPromotion = false;
+    renderTagsWorkspace();
   }
 }
 
@@ -8349,6 +8536,31 @@ async function reviewTagPromotion(requestId, decision, reviewComment = "") {
     setTagPromotionFeedback(`Promotion ${decision}.`);
   } catch (error) {
     setTagPromotionFeedback(normalizeApiErrorMessage(error, "Failed to review promotion request."));
+  }
+}
+
+async function cancelTagPromotion(requestId) {
+  if (!Number.isInteger(requestId) || requestId <= 0) {
+    return;
+  }
+  const confirmed = await confirmAction({
+    title: "Cancel Promotion Request",
+    message: "Cancel this pending tag promotion request?",
+    confirmLabel: "Cancel Request"
+  });
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    await apiRequest(`/tags/promotion-requests/${requestId}`, {
+      method: "DELETE",
+      auth: true
+    });
+    await loadTagPromotionQueuesFromApi();
+    setTagPromotionFeedback("Promotion request canceled.");
+  } catch (error) {
+    setTagPromotionFeedback(normalizeApiErrorMessage(error, "Failed to cancel promotion request."));
   }
 }
 
@@ -16852,15 +17064,39 @@ function attachEvents() {
     });
   }
 
-  if (elements.tagsPromotionRequest) {
-    elements.tagsPromotionRequest.addEventListener("click", () => {
+  if (elements.tagsPromotionRefresh) {
+    elements.tagsPromotionRefresh.addEventListener("click", () => {
+      void loadTagPromotionQueuesFromApi();
+    });
+  }
+
+  if (elements.tagsPromotionOpen) {
+    elements.tagsPromotionOpen.addEventListener("click", openTagPromotionModal);
+  }
+
+  if (elements.tagsPromotionModalComment) {
+    elements.tagsPromotionModalComment.addEventListener("input", () => {
+      state.api.tagPromotionDraftComment = elements.tagsPromotionModalComment.value;
+    });
+  }
+
+  if (elements.tagsPromotionModalCancel) {
+    elements.tagsPromotionModalCancel.addEventListener("click", () => {
+      closeTagPromotionModal();
+    });
+  }
+
+  if (elements.tagsPromotionModalSubmit) {
+    elements.tagsPromotionModalSubmit.addEventListener("click", () => {
       void requestTagPromotion();
     });
   }
 
-  if (elements.tagsPromotionRefresh) {
-    elements.tagsPromotionRefresh.addEventListener("click", () => {
-      void loadTagPromotionQueuesFromApi();
+  if (elements.tagsPromotionModal) {
+    elements.tagsPromotionModal.addEventListener("click", (event) => {
+      if (event.target === elements.tagsPromotionModal && !state.api.isSubmittingTagPromotion) {
+        closeTagPromotionModal();
+      }
     });
   }
 

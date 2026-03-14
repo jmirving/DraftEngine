@@ -522,21 +522,25 @@
               <div class="button-row">
                 <button id="tags-manage-save" type="button">Create Tag</button>
                 <button id="tags-manage-cancel" class="ghost" type="button">Clear</button>
+                <button id="tags-promotion-open" class="ghost" type="button" hidden>Request Promotion</button>
               </div>
               <p id="tags-manage-feedback" class="meta"></p>
               <div class="panel draft-board-panel">
-                <h3>Tag Promotions</h3>
-                <div class="grid grid-2">
-                  <label>
-                    Promotion Note (optional)
-                    <input id="tags-promotion-request-comment" type="text" maxlength="500" placeholder="Why promote this tag?" />
-                  </label>
-                  <div class="button-row team-inline-actions">
-                    <button id="tags-promotion-request" type="button">Request Promotion</button>
-                    <button id="tags-promotion-refresh" class="ghost" type="button">Refresh Requests</button>
+                <div class="compact-section-heading">
+                  <h3>Tag Promotions</h3>
+                  <div class="meta-action-row">
+                    <p id="tags-promotion-feedback" class="meta"></p>
+                    <button
+                      id="tags-promotion-refresh"
+                      class="ghost icon-button"
+                      type="button"
+                      aria-label="Refresh tag promotion requests"
+                      title="Refresh tag promotion requests"
+                    >
+                      &#x21bb;
+                    </button>
                   </div>
                 </div>
-                <p id="tags-promotion-feedback" class="meta"></p>
                 <div class="grid grid-2">
                   <div>
                     <p class="panel-kicker">My Requests</p>
@@ -1277,7 +1281,7 @@
                   <li>Composer generation and requirement evaluation now run against the selected scoped champion truth instead of assuming the global catalog only.</li>
                   <li>OR-linked requirement scoring now uses joiner-aware aggregation so inactive alternate branches no longer inflate missing coverage or branch scores in Review and tree ranking.</li>
                   <li>Draft saves now use dedicated Save Draft and Load Draft modals, with optional descriptions and full Composer-state reload support.</li>
-                  <li>Tags workspace now includes tag-definition promotion requests and review queues, with optional request and review comments for the first scoped-promotion workflow.</li>
+                  <li>Tags workspace now opens tag-definition promotion requests from the non-global tag editor, shows the request note in a modal, and lets requesters cancel pending submissions while review queues stay visible in-page.</li>
                   <li>My Champions now shows collapsed one-click add notifications when Riot mastery/history suggests a strong recent champion that fits the selected role but is not yet in that role’s pool.</li>
                 </ul>
                 <h4>Version 0.8.8</h4>
@@ -1692,6 +1696,27 @@
           <div class="button-row">
             <button id="builder-load-draft-close" class="ghost" type="button">Close</button>
           </div>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="tags-promotion-modal" hidden>
+        <div class="modal-content draft-setup-modal-content" role="dialog" aria-modal="true" aria-labelledby="tags-promotion-modal-title">
+          <h3 id="tags-promotion-modal-title">Request Promotion</h3>
+          <p id="tags-promotion-modal-context" class="meta"></p>
+          <label>
+            Promotion Note (optional)
+            <textarea
+              id="tags-promotion-modal-comment"
+              rows="4"
+              maxlength="500"
+              placeholder="Why should this tag be promoted?"
+            ></textarea>
+          </label>
+          <div class="button-row">
+            <button id="tags-promotion-modal-cancel" class="ghost" type="button">Cancel</button>
+            <button id="tags-promotion-modal-submit" type="button">Submit Request</button>
+          </div>
+          <p id="tags-promotion-modal-feedback" class="meta"></p>
         </div>
       </div>
 

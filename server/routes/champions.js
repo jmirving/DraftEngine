@@ -861,6 +861,29 @@ export function createChampionsRouter({
     response.json({ promotion_requests: promotionRequests });
   });
 
+  router.delete("/tags/promotion-requests/:id", requireAuth, async (request, response) => {
+    const promotionRequestId = parsePositiveInteger(request.params.id, "id");
+    const userId = request.user.userId;
+
+    const promotionRequest = await promotionRequestsRepository.getPromotionRequestById(promotionRequestId);
+    if (!promotionRequest || promotionRequest.entity_type !== "tag_definitions") {
+      throw notFound("Promotion request not found.");
+    }
+    if (promotionRequest.requested_by !== userId) {
+      throw forbidden("You can only cancel your own promotion requests.");
+    }
+    if (promotionRequest.status !== "pending") {
+      throw conflict("Only pending promotion requests can be canceled.");
+    }
+
+    const canceled = await promotionRequestsRepository.cancelPromotionRequest(promotionRequestId, userId);
+    if (!canceled) {
+      throw conflict("Promotion request is no longer pending.");
+    }
+
+    response.json({ promotion_request: canceled });
+  });
+
   router.post("/tags/promotion-requests/:id/review", requireAuth, async (request, response) => {
     const promotionRequestId = parsePositiveInteger(request.params.id, "id");
     const body = requireObject(request.body);

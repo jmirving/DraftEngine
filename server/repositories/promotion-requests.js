@@ -229,6 +229,35 @@ export function createPromotionRequestsRepository(pool) {
         [requestId, status, reviewComment, reviewedByUserId]
       );
       return result.rowCount > 0 ? mapPromotionRequest(result.rows[0]) : null;
+    },
+
+    async cancelPromotionRequest(requestId, requestedBy) {
+      const result = await pool.query(
+        `
+          DELETE FROM scope_promotion_requests
+          WHERE id = $1
+            AND requested_by = $2
+            AND status = 'pending'
+          RETURNING id,
+                    entity_type,
+                    resource_id,
+                    source_scope,
+                    source_user_id,
+                    source_team_id,
+                    target_scope,
+                    target_team_id,
+                    requested_by,
+                    status,
+                    request_comment,
+                    review_comment,
+                    reviewed_by_user_id,
+                    reviewed_at,
+                    payload_json,
+                    created_at
+        `,
+        [requestId, requestedBy]
+      );
+      return result.rowCount > 0 ? mapPromotionRequest(result.rows[0]) : null;
     }
   };
 }
