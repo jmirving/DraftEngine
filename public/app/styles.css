@@ -1696,7 +1696,7 @@ button.ghost {
   gap: 0.6rem;
 }
 
-/* Pool Snapshot controls row (pick order, status, reorder arrows) */
+/* Draft Roster controls row (pick order, status, reorder arrows) */
 .pool-snapshot-controls {
   display: flex;
   align-items: center;
@@ -1979,7 +1979,7 @@ button.pool-snapshot-order-btn:disabled {
   font-size: 0.78rem;
 }
 
-/* Draft Path — column-based tree map replacement */
+/* Draft Selector — column-based tree map replacement */
 .draft-path-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -2097,7 +2097,7 @@ button.pool-snapshot-order-btn:disabled {
   text-align: center;
 }
 
-/* Draft Path tooltip */
+/* Draft Selector tooltip */
 .draft-path-tooltip {
   position: fixed;
   z-index: 9999;
@@ -2156,7 +2156,7 @@ button.pool-snapshot-order-btn:disabled {
   background: #fff4ef;
 }
 
-/* ── Draft Path action row (Clear + Detailed View) ── */
+/* ── Draft Selector action row (Clear + Detailed View) ── */
 .draft-path-action-row {
   display: flex;
   gap: 0;
@@ -2598,20 +2598,6 @@ button.pool-snapshot-order-btn:disabled {
   margin: 0;
 }
 
-.tree-summary {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: #fffefa;
-  padding: 0.8rem;
-  margin-top: 0.7rem;
-}
-
-.tree-summary-headline {
-  margin: 0 0 0.2rem;
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--ink);
-}
 
 .summary-card-list {
   display: grid;

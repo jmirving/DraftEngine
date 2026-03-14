@@ -328,7 +328,7 @@ const UI_COPY = Object.freeze({
       },
       {
         key: "inspect",
-        panelTitle: "Review",
+        panelTitle: "Draft Review",
         panelMeta: "Run checks and inspect generated branches."
       }
     ],
@@ -990,7 +990,6 @@ function createElements() {
     builderStatsBtn: runtimeDocument.querySelector("#builder-stats-btn"),
     builderRequiredChecks: runtimeDocument.querySelector("#builder-required-checks"),
     builderOptionalChecks: runtimeDocument.querySelector("#builder-optional-checks"),
-    builderTreeSummary: runtimeDocument.querySelector("#builder-tree-summary"),
     builderTree: runtimeDocument.querySelector("#builder-tree"),
     builderTreeMap: runtimeDocument.querySelector("#builder-tree-map"),
     draftResultsArea: runtimeDocument.querySelector("#draft-results-area"),
@@ -15191,9 +15190,9 @@ function buildGenerationStatsContent(generationStats) {
 }
 
 function renderTreeSummary(root, rootNodeId, visibleIds) {
-  elements.builderTreeSummary.innerHTML = "";
   if (!state.builder.tree || !root) {
     if (elements.builderStatsBtn) elements.builderStatsBtn.hidden = true;
+    setInspectFeedback("");
     return;
   }
   const generationStats = state.builder.tree.generationStats ?? null;
@@ -15207,36 +15206,22 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
   }
 
   if (generationStats && generationStats.completeDraftLeaves === 0) {
-    const hardFail = runtimeDocument.createElement("p");
-    hardFail.className = "meta";
-    hardFail.textContent = "All possible outcomes result in incomplete drafts.";
-    elements.builderTreeSummary.append(hardFail);
-
     const reasons = collectIncompleteDraftReasons(root);
-    const reasonLine = runtimeDocument.createElement("p");
-    reasonLine.className = "meta";
-
+    let reason;
     if (reasons.unreachableRequired.length > 0) {
-      reasonLine.textContent =
-        `Fail-fast reason: required checks become unreachable on every leaf (${reasons.unreachableRequired.join(", ")}).`;
+      reason = `Fail-fast: required checks become unreachable on every leaf (${reasons.unreachableRequired.join(", ")}).`;
     } else {
       const topRole = getTopCountEntry(reasons.blockedRoles);
       const topReason = getTopCountEntry(reasons.blockedReasons);
-      if (topRole) {
-        reasonLine.textContent = formatBlockedReason(topReason?.key, topRole.key);
-      } else {
-        reasonLine.textContent = "Fail-fast reason: no branch can finish all five roles with current pools and constraints.";
-      }
+      reason = topRole
+        ? formatBlockedReason(topReason?.key, topRole.key)
+        : "No branch can finish all five roles with current pools and constraints.";
     }
-    elements.builderTreeSummary.append(reasonLine);
-  }
-
-  if (root.children.length === 0) {
-    const guidance = runtimeDocument.createElement("p");
-    guidance.className = "meta";
-    guidance.textContent =
-      "No viable branches were generated. Adjust slot picks, exclusions, or active composition requirements.";
-    elements.builderTreeSummary.append(guidance);
+    setInspectFeedback(`All outcomes result in incomplete drafts. ${reason}`);
+  } else if (root.children.length === 0) {
+    setInspectFeedback("No viable branches were generated. Adjust slot picks, exclusions, or active composition requirements.");
+  } else {
+    setInspectFeedback("");
   }
 }
 
@@ -15463,7 +15448,6 @@ function setAllTreeDetails(open) {
 }
 
 function renderTree() {
-  elements.builderTreeSummary.innerHTML = "";
   elements.builderTree.innerHTML = "";
   if (!state.builder.tree) {
     const empty = runtimeDocument.createElement("p");
@@ -15615,7 +15599,7 @@ function renderTreeMap() {
     return;
   }
 
-  // Filter paths by current Draft Path selections
+  // Filter paths by current Draft Selector selections
   const selections = state.builder.draftPathSelections ?? {};
   const hasSelections = Object.values(selections).some((v) => v);
 
@@ -16196,7 +16180,7 @@ function renderBuilder() {
 
 function scrollReviewResultsIntoView() {
   const prefersReducedMotion = runtimeMatchMedia("(prefers-reduced-motion: reduce)").matches;
-  elements.builderTreeSummary.scrollIntoView({
+  elements.draftResultsArea.scrollIntoView({
     behavior: prefersReducedMotion ? "auto" : "smooth",
     block: "start"
   });
