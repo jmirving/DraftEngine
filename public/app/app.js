@@ -100,6 +100,7 @@ const MAX_TEAM_LOGO_BYTES = 512 * 1024;
 const PREFILLED_RECOMMENDATION_LIMIT = 3;
 const HIGH_SIGNAL_MASTERY_LEVEL = 6;
 const HIGH_SIGNAL_CHAMPION_POINTS = 100000;
+const RECENT_SUGGESTION_WINDOW_DAYS = 30;
 const MAX_PROMOTION_COMMENT_LENGTH = 500;
 const OWNER_ADMIN_EMAIL_SET = new Set(["jirving0311@gmail.com", "tylerjtriplett@gmail.com"]);
 
@@ -1080,6 +1081,7 @@ function createElements() {
     profileRiotStatsSummary: runtimeDocument.querySelector("#profile-riot-stats-summary"),
     profileRiotTopChampion: runtimeDocument.querySelector("#profile-riot-top-champion"),
     profileRiotStatsList: runtimeDocument.querySelector("#profile-riot-stats-list"),
+    myChampionsSuggestionsPanel: runtimeDocument.querySelector("#my-champions-suggestions-panel"),
     myChampionsSuggestionsSummary: runtimeDocument.querySelector("#my-champions-suggestions-summary"),
     myChampionsSuggestionsList: runtimeDocument.querySelector("#my-champions-suggestions-list"),
     profileIdentity: runtimeDocument.querySelector("#profile-identity"),
@@ -12027,74 +12029,111 @@ function renderProfileChampionStatsSection() {
 }
 
 function buildProfileChampionSuggestions() {
-  const authenticated = isAuthenticated();
-  if (!authenticated) {
+  if (!isAuthenticated()) {
     return [];
   }
+  const activeRole = parseRolePoolTeamId(state.playerConfig.teamId) ?? state.profile.primaryRole;
+  if (!activeRole) {
+    return [];
+  }
+  const activePlayer = getMyChampionsActivePlayer();
+  if (!activePlayer) {
+    return [];
+  }
+
   const championStats = normalizeChampionStats(state.profile.championStats);
   if (championStats.status !== "ok" || championStats.champions.length < 1) {
     return [];
   }
 
-  const preferredRoles = new Set([state.profile.primaryRole, ...state.profile.secondaryRoles].filter(Boolean));
-  const currentPoolId = buildRolePoolTeamId(state.profile.primaryRole);
-  const currentPlayers = state.playerConfig.byTeam[currentPoolId] ?? [];
-  const currentPrimaryPool = new Set(
-    currentPlayers.flatMap((player) => Array.isArray(player.champions) ? player.champions : [])
+  const currentRolePool = new Set(
+    Array.isArray(activePlayer.champions) ? activePlayer.champions : []
   );
+  const recentThresholdMs = RECENT_SUGGESTION_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  const nowMs = Date.now();
 
   const suggestions = [];
   for (const masteryEntry of championStats.champions) {
-    const championName = getProfileChampionLabel(masteryEntry);
-    const champion = state.data.championsByName?.[championName];
-    if (!champion || currentPrimaryPool.has(champion.name)) {
+    if (!isHighSignalMasteryEntry(masteryEntry)) {
       continue;
     }
-    const matchingRoles = Array.isArray(champion.roles)
-      ? champion.roles.filter((role) => preferredRoles.has(role))
-      : [];
-    if (matchingRoles.length < 1) {
+    const playedAt = typeof masteryEntry.lastPlayedAt === "string" ? new Date(masteryEntry.lastPlayedAt) : null;
+    if (!playedAt || Number.isNaN(playedAt.getTime()) || (nowMs - playedAt.getTime()) > recentThresholdMs) {
+      continue;
+    }
+    const championName = getProfileChampionLabel(masteryEntry);
+    const champion = state.data.championsByName?.[championName];
+    if (!champion || currentRolePool.has(champion.name)) {
+      continue;
+    }
+    if (!Array.isArray(champion.roles) || !champion.roles.includes(activeRole)) {
       continue;
     }
     suggestions.push({
       champion,
       masteryEntry,
+      role: activeRole,
+      familiarity: deriveFamiliarityFromMastery(masteryEntry),
       rationale: [
-        `High Riot familiarity: Mastery ${masteryEntry.championLevel} with ${NUMBER_FORMATTER.format(masteryEntry.championPoints)} points.`,
-        `Role fit: ${matchingRoles.join(", ")}.`
+        `Mastery ${masteryEntry.championLevel} with ${NUMBER_FORMATTER.format(masteryEntry.championPoints)} points.`,
+        `Played recently on ${playedAt.toLocaleDateString()}.`,
+        `Fits your ${activeRole} pool.`
       ]
     });
   }
 
-  return suggestions.slice(0, 5);
+  return suggestions.slice(0, 3);
+}
+
+async function addSuggestedChampionToActiveRole(suggestion) {
+  const activePlayer = getMyChampionsActivePlayer();
+  if (!activePlayer || !suggestion?.champion?.name) {
+    return;
+  }
+  if (activePlayer.champions.includes(suggestion.champion.name)) {
+    renderMyChampions();
+    return;
+  }
+  activePlayer.champions = [...activePlayer.champions, suggestion.champion.name].sort((left, right) => left.localeCompare(right));
+  activePlayer.familiarityByChampion = normalizeFamiliarityByChampion(
+    activePlayer.champions,
+    {
+      ...(activePlayer.familiarityByChampion ?? {}),
+      [suggestion.champion.name]: suggestion.familiarity
+    }
+  );
+  setPlayerPoolDirty(state.playerConfig.teamId, true);
+  syncDerivedTeamDataFromPlayerConfig();
+  syncConfiguredTeamSelection();
+  setBuilderStage("setup");
+  resetBuilderTreeState();
+  validateTeamSelections();
+  renderTeamConfig();
+  renderBuilder();
+  renderMyChampions();
+  await saveActivePlayerPoolSelection();
 }
 
 function renderMyChampionsSuggestionsSection() {
-  if (!elements.myChampionsSuggestionsSummary || !elements.myChampionsSuggestionsList) {
+  if (!elements.myChampionsSuggestionsPanel || !elements.myChampionsSuggestionsSummary || !elements.myChampionsSuggestionsList) {
     return;
   }
 
-  const authenticated = isAuthenticated();
   const suggestions = buildProfileChampionSuggestions();
   state.profile.championSuggestions = suggestions;
+  elements.myChampionsSuggestionsPanel.hidden = true;
+  elements.myChampionsSuggestionsSummary.textContent = "";
   elements.myChampionsSuggestionsList.innerHTML = "";
-
-  if (!authenticated) {
-    elements.myChampionsSuggestionsSummary.textContent = "Sign in to load Riot-driven suggestions.";
-    return;
-  }
-
   if (suggestions.length < 1) {
-    const championStats = normalizeChampionStats(state.profile.championStats);
-    elements.myChampionsSuggestionsSummary.textContent =
-      championStats.status === "ok"
-        ? "No new role-fit suggestions yet from your current Riot champion history."
-        : "Riot champion stats are required before suggestions can be generated.";
     return;
   }
 
+  const activeRole = suggestions[0]?.role ?? (parseRolePoolTeamId(state.playerConfig.teamId) ?? state.profile.primaryRole);
+  elements.myChampionsSuggestionsPanel.hidden = false;
   elements.myChampionsSuggestionsSummary.textContent =
-    `Showing ${suggestions.length} suggestions based on Riot mastery history and your configured roles.`;
+    suggestions.length === 1
+      ? `Recent Riot activity suggests 1 ${activeRole} champion worth adding.`
+      : `Recent Riot activity suggests ${suggestions.length} ${activeRole} champions worth adding.`;
 
   for (const suggestion of suggestions) {
     const card = runtimeDocument.createElement("article");
@@ -12112,7 +12151,18 @@ function renderMyChampionsSuggestionsSection() {
     meta.className = "meta";
     meta.textContent = suggestion.rationale.join(" ");
 
-    card.append(titleRow, meta);
+    const actions = runtimeDocument.createElement("div");
+    actions.className = "button-row";
+    const addButton = runtimeDocument.createElement("button");
+    addButton.type = "button";
+    addButton.textContent = `Add to ${suggestion.role}`;
+    addButton.disabled = state.playerConfig.isSavingPool;
+    addButton.addEventListener("click", () => {
+      void addSuggestedChampionToActiveRole(suggestion);
+    });
+    actions.append(addButton);
+
+    card.append(titleRow, meta, actions);
     elements.myChampionsSuggestionsList.append(card);
   }
 }

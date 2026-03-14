@@ -3492,7 +3492,7 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#profile-riot-stats-list").textContent.trim()).toBe("");
   });
 
-  test("my champions page shows mastery-based champion suggestions for configured roles", async () => {
+  test("my champions page shows one-click add notifications for strong recent Riot signals", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -3536,8 +3536,19 @@ describe("auth + pools + team management", () => {
     doc.querySelector(".side-menu-link[data-tab='explorer']").click();
     await flush();
 
-    expect(doc.querySelector("#my-champions-suggestions-summary").textContent).toContain("Showing 1 suggestions");
+    expect(doc.querySelector("#my-champions-suggestions-panel").hidden).toBe(false);
+    expect(doc.querySelector("#my-champions-suggestions-summary").textContent).toContain("worth adding");
     expect(doc.querySelector("#my-champions-suggestions-list").textContent).toContain("Braum");
+    const addButton = Array.from(doc.querySelectorAll("#my-champions-suggestions-list button"))
+      .find((button) => button.textContent.trim() === "Add to Support");
+    expect(addButton).toBeTruthy();
+
+    addButton.click();
+    await flush();
+    await flush();
+
+    expect(doc.querySelector("#my-champions-card-grid").textContent).toContain("Braum");
+    expect(doc.querySelector("#my-champions-suggestions-panel").hidden).toBe(true);
   });
 
   test("creating a team from team context sends name and tag", async () => {
