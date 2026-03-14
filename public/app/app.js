@@ -1080,8 +1080,8 @@ function createElements() {
     profileRiotStatsSummary: runtimeDocument.querySelector("#profile-riot-stats-summary"),
     profileRiotTopChampion: runtimeDocument.querySelector("#profile-riot-top-champion"),
     profileRiotStatsList: runtimeDocument.querySelector("#profile-riot-stats-list"),
-    profileChampionSuggestionsSummary: runtimeDocument.querySelector("#profile-champion-suggestions-summary"),
-    profileChampionSuggestionsList: runtimeDocument.querySelector("#profile-champion-suggestions-list"),
+    myChampionsSuggestionsSummary: runtimeDocument.querySelector("#my-champions-suggestions-summary"),
+    myChampionsSuggestionsList: runtimeDocument.querySelector("#my-champions-suggestions-list"),
     profileIdentity: runtimeDocument.querySelector("#profile-identity"),
     profileAvatarDisplay: runtimeDocument.querySelector("#profile-avatar-display"),
     navAvatarDisplay: runtimeDocument.querySelector("#nav-avatar-display"),
@@ -12069,31 +12069,31 @@ function buildProfileChampionSuggestions() {
   return suggestions.slice(0, 5);
 }
 
-function renderProfileChampionSuggestionsSection() {
-  if (!elements.profileChampionSuggestionsSummary || !elements.profileChampionSuggestionsList) {
+function renderMyChampionsSuggestionsSection() {
+  if (!elements.myChampionsSuggestionsSummary || !elements.myChampionsSuggestionsList) {
     return;
   }
 
   const authenticated = isAuthenticated();
   const suggestions = buildProfileChampionSuggestions();
   state.profile.championSuggestions = suggestions;
-  elements.profileChampionSuggestionsList.innerHTML = "";
+  elements.myChampionsSuggestionsList.innerHTML = "";
 
   if (!authenticated) {
-    elements.profileChampionSuggestionsSummary.textContent = "Sign in to load Riot-driven suggestions.";
+    elements.myChampionsSuggestionsSummary.textContent = "Sign in to load Riot-driven suggestions.";
     return;
   }
 
   if (suggestions.length < 1) {
     const championStats = normalizeChampionStats(state.profile.championStats);
-    elements.profileChampionSuggestionsSummary.textContent =
+    elements.myChampionsSuggestionsSummary.textContent =
       championStats.status === "ok"
         ? "No new role-fit suggestions yet from your current Riot champion history."
         : "Riot champion stats are required before suggestions can be generated.";
     return;
   }
 
-  elements.profileChampionSuggestionsSummary.textContent =
+  elements.myChampionsSuggestionsSummary.textContent =
     `Showing ${suggestions.length} suggestions based on Riot mastery history and your configured roles.`;
 
   for (const suggestion of suggestions) {
@@ -12113,7 +12113,7 @@ function renderProfileChampionSuggestionsSection() {
     meta.textContent = suggestion.rationale.join(" ");
 
     card.append(titleRow, meta);
-    elements.profileChampionSuggestionsList.append(card);
+    elements.myChampionsSuggestionsList.append(card);
   }
 }
 
@@ -12522,7 +12522,6 @@ function renderPlayerConfig() {
   // --- Sub-renders ---
   renderProfileRolesSection();
   renderProfileChampionStatsSection();
-  renderProfileChampionSuggestionsSection();
 }
 
 function openAvatarModal() {
@@ -13377,6 +13376,7 @@ function renderMyChampions() {
     const count = activePlayer ? activePlayer.champions.length : 0;
     elements.myChampionsAddBtn.textContent = `Add Champions (${count} selected)`;
   }
+  renderMyChampionsSuggestionsSection();
 
   const grid = elements.myChampionsCardGrid ?? elements.playerConfigGrid;
   grid.innerHTML = "";

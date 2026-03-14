@@ -3492,7 +3492,7 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#profile-riot-stats-list").textContent.trim()).toBe("");
   });
 
-  test("profile page shows mastery-based champion suggestions for configured roles", async () => {
+  test("my champions page shows mastery-based champion suggestions for configured roles", async () => {
     const storage = createStorageStub({
       "draftflow.authSession.v1": JSON.stringify({
         token: "token-123",
@@ -3533,11 +3533,11 @@ describe("auth + pools + team management", () => {
 
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
-    doc.querySelector(".nav-avatar-link[data-tab='profile']").click();
+    doc.querySelector(".side-menu-link[data-tab='explorer']").click();
     await flush();
 
-    expect(doc.querySelector("#profile-champion-suggestions-summary").textContent).toContain("Showing 1 suggestions");
-    expect(doc.querySelector("#profile-champion-suggestions-list").textContent).toContain("Braum");
+    expect(doc.querySelector("#my-champions-suggestions-summary").textContent).toContain("Showing 1 suggestions");
+    expect(doc.querySelector("#my-champions-suggestions-list").textContent).toContain("Braum");
   });
 
   test("creating a team from team context sends name and tag", async () => {
