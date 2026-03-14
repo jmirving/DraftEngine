@@ -14623,7 +14623,9 @@ function getBranchImpactSummary(candidateBreakdown) {
     parts.push(`Loses ${summary.totalCoverageLoss} required coverage`);
   }
   if (parts.length < 1) {
-    return "No immediate clause coverage change; ranked via downstream viable finishes.";
+    return normalizeBuilderRankGoal(state.builder.treeRankGoal) === BUILDER_RANK_GOAL_CANDIDATE_SCORE
+      ? "No immediate clause coverage change; ranked via immediate candidate score."
+      : "No immediate clause coverage change; ranked via downstream viable finishes.";
   }
   return parts.join(" | ");
 }
@@ -14644,6 +14646,28 @@ function getRankGoalLabel() {
   return normalizeBuilderRankGoal(state.builder.treeRankGoal) === BUILDER_RANK_GOAL_CANDIDATE_SCORE
     ? "Ranked by immediate candidate score"
     : "Ranked by viable end states first";
+}
+
+function getNodeCandidateScore(node) {
+  const value = Number(node?.candidateScore);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function getDraftPathMetricMeta(node, data = {}) {
+  const viableCount = data.viableCount ?? data.totalValidLeaves ?? 0;
+  if (normalizeBuilderRankGoal(state.builder.treeRankGoal) === BUILDER_RANK_GOAL_CANDIDATE_SCORE) {
+    const candidateScore = getNodeCandidateScore(node);
+    return {
+      badgeText: String(candidateScore),
+      badgeTitle: `Candidate score ${candidateScore}`,
+      headline: `Candidate score ${candidateScore} | ${viableCount} viable finish${viableCount === 1 ? "" : "es"}`
+    };
+  }
+  return {
+    badgeText: String(viableCount),
+    badgeTitle: `${viableCount} viable finish${viableCount === 1 ? "" : "es"}`,
+    headline: `${viableCount} viable finish${viableCount === 1 ? "" : "es"}`
+  };
 }
 
 function renderTreeNode(node, depth = 0, nodeId = "0", visibleIds = null) {
@@ -14986,9 +15010,10 @@ function buildBranchCard(entry, allEntries) {
 
   const headline = runtimeDocument.createElement("p");
   headline.className = "branch-headline";
-  headline.textContent =
-    `${entry.node.branchPotential?.validLeafCount ?? 0} viable finish${(entry.node.branchPotential?.validLeafCount ?? 0) === 1 ? "" : "es"} | ` +
-    `${getBranchStatusLine(entry.node)}.`;
+  const metric = getDraftPathMetricMeta(entry.node, {
+    totalValidLeaves: entry.node.branchPotential?.validLeafCount ?? 0
+  });
+  headline.textContent = `${metric.headline} | ${getBranchStatusLine(entry.node)}.`;
 
   const impact = runtimeDocument.createElement("p");
   impact.className = "branch-impact-summary";
@@ -15000,7 +15025,11 @@ function buildBranchCard(entry, allEntries) {
   const benefitLines =
     candidateBenefitMeta.lines.length > 0
       ? candidateBenefitMeta.lines
-      : ["No immediate clause coverage gain; ranked via downstream viable finishes."];
+      : [
+          normalizeBuilderRankGoal(state.builder.treeRankGoal) === BUILDER_RANK_GOAL_CANDIDATE_SCORE
+            ? "No immediate clause coverage gain; ranked via immediate candidate score."
+            : "No immediate clause coverage gain; ranked via downstream viable finishes."
+        ];
   for (const line of benefitLines) {
     const item = runtimeDocument.createElement("li");
     item.textContent = line;
@@ -15129,7 +15158,12 @@ function showDraftPathTooltip(evt, node, champName, data) {
   const coverageMeta = getRemainingCoverageMeta(node.scoreBreakdown, 2);
 
   const lines = [];
-  lines.push(`${champName} — ${viableCount} viable finish${viableCount === 1 ? "" : "es"}`);
+  if (normalizeBuilderRankGoal(state.builder.treeRankGoal) === BUILDER_RANK_GOAL_CANDIDATE_SCORE) {
+    lines.push(`${champName} — candidate score ${getNodeCandidateScore(node)}`);
+    lines.push(`${viableCount} viable finish${viableCount === 1 ? "" : "es"}`);
+  } else {
+    lines.push(`${champName} — ${viableCount} viable finish${viableCount === 1 ? "" : "es"}`);
+  }
   lines.push(statusLine);
   if (impactLine) lines.push(impactLine);
   if (benefitMeta.lines.length > 0) {
@@ -15253,9 +15287,15 @@ function renderTreeMap() {
         } else {
           existing.pathCount += 1;
           if (isViable) existing.viableCount += 1;
-          const existingLeaves = existing.bestNode.branchPotential?.validLeafCount ?? 0;
-          const newLeaves = step.node.branchPotential?.validLeafCount ?? 0;
-          if (newLeaves > existingLeaves) {
+          const existingPrimary = normalizeBuilderRankGoal(state.builder.treeRankGoal) === BUILDER_RANK_GOAL_CANDIDATE_SCORE
+            ? getNodeCandidateScore(existing.bestNode)
+            : existing.bestNode.branchPotential?.validLeafCount ?? 0;
+          const nextPrimary = normalizeBuilderRankGoal(state.builder.treeRankGoal) === BUILDER_RANK_GOAL_CANDIDATE_SCORE
+            ? getNodeCandidateScore(step.node)
+            : step.node.branchPotential?.validLeafCount ?? 0;
+          const existingSecondary = existing.bestNode.branchPotential?.validLeafCount ?? 0;
+          const nextSecondary = step.node.branchPotential?.validLeafCount ?? 0;
+          if (nextPrimary > existingPrimary || (nextPrimary === existingPrimary && nextSecondary > existingSecondary)) {
             existing.bestNode = step.node;
             existing.bestId = step.id;
           }
@@ -15263,7 +15303,15 @@ function renderTreeMap() {
       }
     }
 
-    const sorted = [...champMap.entries()].sort((a, b) => b[1].viableCount - a[1].viableCount);
+    const sorted = [...champMap.entries()].sort((a, b) => {
+      const primaryDelta = normalizeBuilderRankGoal(state.builder.treeRankGoal) === BUILDER_RANK_GOAL_CANDIDATE_SCORE
+        ? getNodeCandidateScore(b[1].bestNode) - getNodeCandidateScore(a[1].bestNode)
+        : b[1].viableCount - a[1].viableCount;
+      if (primaryDelta !== 0) {
+        return primaryDelta;
+      }
+      return b[1].viableCount - a[1].viableCount;
+    });
     const isSelected = !!selections[role];
 
     const col = runtimeDocument.createElement("div");
@@ -15310,8 +15358,9 @@ function renderTreeMap() {
 
       const leafBadge = runtimeDocument.createElement("span");
       leafBadge.className = "draft-path-leaf-badge";
-      leafBadge.textContent = `${viableCount}`;
-      leafBadge.title = `${viableCount} viable finish${viableCount === 1 ? "" : "es"}`;
+      const metric = getDraftPathMetricMeta(node, data);
+      leafBadge.textContent = metric.badgeText;
+      leafBadge.title = metric.badgeTitle;
 
       li.append(nameSpan, leafBadge);
 
@@ -15349,9 +15398,8 @@ function renderTreeMap() {
   // Legend
   if (elements.treeMapLegend) {
     const selCount = Object.values(selections).filter((v) => v).length;
-    const viableLeaves = viablePaths.filter((p) => p[p.length - 1].node.viability?.isTerminalValid).length;
     const parts = [];
-    parts.push(`${viableLeaves} viable composition${viableLeaves === 1 ? "" : "s"}`);
+    parts.push(getRankGoalLabel());
     parts.push(`${roleOrder.length} role${roleOrder.length === 1 ? "" : "s"}`);
     if (selCount > 0) parts.push(`${selCount} selected`);
     elements.treeMapLegend.textContent = parts.join(" | ") + ". Click to filter, click again to clear.";

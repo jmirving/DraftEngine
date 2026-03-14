@@ -368,6 +368,8 @@ describe("workflow app integration", () => {
     expect(state.builder.tree.children.length).toBeGreaterThan(0);
     expect(state.builder.tree.children.every((child) => child.passesMinScore === false)).toBe(true);
     expect(state.builder.tree.children.every((child) => typeof child.candidateScore === "number")).toBe(true);
+    expect(doc.querySelector("#tree-map-legend").textContent).toContain("Ranked by immediate candidate score");
+    expect(doc.querySelector("#builder-tree-map .draft-path-leaf-badge").title).toContain("Candidate score");
   });
 
   test("empty root summary shows the current fail-fast messaging for impossible drafts", async () => {
