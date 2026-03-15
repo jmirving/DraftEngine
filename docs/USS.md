@@ -53,6 +53,10 @@ All new UI must use these variables. Never use hardcoded hex colors — always r
 
 ## Button Set Rules
 
+### Ghost Button Sizing
+- Ghost buttons (`button.ghost`) always use `width: auto` — they are compact action buttons, never full-width. This is set globally in CSS and must not be overridden to stretch.
+- Primary (solid) buttons default to `width: 100%` for form contexts but should use `width: auto` when placed inline (e.g. in header action rows, flex containers, or alongside ghost buttons).
+
 ### Orientation
 - Buttons align to the **lower-right corner** of their containing section/element.
 - **Right button**: primary/affirm action (accent color) — Accept, Save, Stay, Update

@@ -1202,6 +1202,8 @@ button:disabled {
 }
 
 button.ghost {
+  width: auto;
+  margin-top: 0;
   background: transparent;
   color: var(--accent);
   border-color: var(--accent-soft);
@@ -3803,6 +3805,7 @@ button.pool-snapshot-order-btn:disabled {
   align-items: flex-start;
   gap: 1rem;
 }
+
 
 .tags-promotion-section {
   border: 1px solid var(--border);
