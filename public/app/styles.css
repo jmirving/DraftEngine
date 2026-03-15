@@ -709,7 +709,7 @@ textarea {
 }
 
 .draft-setup-modal-content textarea {
-  min-height: 6.5rem;
+  min-height: auto;
 }
 
 .draft-setup-modal-list {
@@ -1149,6 +1149,7 @@ textarea {
 
 label,
 legend {
+  display: block;
   font-size: 0.88rem;
   color: var(--muted);
 }

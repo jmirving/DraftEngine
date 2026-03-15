@@ -8575,8 +8575,20 @@ function openRequirementEditorModal(requirement = null) {
   saveBtn.type = "button";
   saveBtn.textContent = isEditing ? "Update" : "Create";
 
+  function stripTransientClauseFields(draftJson) {
+    const parsed = JSON.parse(draftJson);
+    if (Array.isArray(parsed.rules)) {
+      for (const rule of parsed.rules) {
+        delete rule.isOpen;
+        delete rule.activeTermIndex;
+        delete rule.termSearchByKind;
+      }
+    }
+    return JSON.stringify(parsed);
+  }
+
   async function handleClose() {
-    const isDirty = JSON.stringify(state.api.requirementDefinitionDraft) !== draftAtOpen;
+    const isDirty = stripTransientClauseFields(JSON.stringify(state.api.requirementDefinitionDraft)) !== stripTransientClauseFields(draftAtOpen);
     if (isDirty) {
       const confirmed = await showUSSConfirm({
         title: "Unsaved Changes",
@@ -15487,9 +15499,10 @@ function openClauseDetailModal(requirementResult, requirementScore) {
 
       row.append(dot, label, editBtn);
 
-      // Clause expression popover on hover (uses original definition terms)
-      const clauseDef = originalRules[index];
-      if (clauseDef) {
+      // Clause expression popover on hover (converts API expr to draft terms)
+      const clauseRaw = originalRules[index];
+      if (clauseRaw) {
+        const clauseDraft = createRequirementRuleClauseDraft(clauseRaw);
         const popover = runtimeDocument.createElement("div");
         popover.className = "clause-popover";
         const popoverInner = runtimeDocument.createElement("div");
@@ -15499,8 +15512,8 @@ function openClauseDetailModal(requirementResult, requirementScore) {
         popoverInner.append(popoverHeading);
         const popoverExpr = runtimeDocument.createElement("div");
         popoverExpr.className = "clause-popover-detail clause-popover-expr";
-        const defTerms = normalizeRequirementClauseTerms(clauseDef.terms);
-        const defJoiners = normalizeRequirementClauseTermJoiners(clauseDef.termJoiners, defTerms.length);
+        const defTerms = normalizeRequirementClauseTerms(clauseDraft.terms);
+        const defJoiners = normalizeRequirementClauseTermJoiners(clauseDraft.termJoiners, defTerms.length);
         for (let ti = 0; ti < defTerms.length; ti++) {
           if (ti > 0) {
             const j = runtimeDocument.createElement("span");
@@ -15520,11 +15533,11 @@ function openClauseDetailModal(requirementResult, requirementScore) {
           popoverExpr.append(empty);
         }
         popoverInner.append(popoverExpr);
-        const roleFilterCount = normalizeRequirementRoleFilter(clauseDef.roleFilter).length;
-        const separateCount = normalizeRequirementClauseReferenceIds(clauseDef.separateFrom).length;
+        const roleFilterCount = normalizeRequirementRoleFilter(clauseDraft.roleFilter).length;
+        const separateCount = normalizeRequirementClauseReferenceIds(clauseDraft.separateFrom).length;
         const constraintParts = [
-          `min ${Number.parseInt(String(clauseDef.minCount), 10) || 1}`,
-          String(clauseDef.maxCount ?? "").trim() === "" ? "no max" : `max ${String(clauseDef.maxCount).trim()}`,
+          `min ${Number.parseInt(String(clauseDraft.minCount), 10) || 1}`,
+          String(clauseDraft.maxCount ?? "").trim() === "" ? "no max" : `max ${String(clauseDraft.maxCount).trim()}`,
           roleFilterCount > 0 ? `${roleFilterCount} role filter${roleFilterCount === 1 ? "" : "s"}` : null,
           separateCount > 0 ? `separate from ${separateCount} clause${separateCount === 1 ? "" : "s"}` : null
         ].filter(Boolean);
@@ -15627,8 +15640,20 @@ function openClauseEditorModal(requirementResult, requirementScore, clauseIndex)
   close.className = "draft-modal-close";
   close.textContent = "\u00D7";
 
+  function stripTransientClauseFields(draftJson) {
+    const parsed = JSON.parse(draftJson);
+    if (Array.isArray(parsed.rules)) {
+      for (const rule of parsed.rules) {
+        delete rule.isOpen;
+        delete rule.activeTermIndex;
+        delete rule.termSearchByKind;
+      }
+    }
+    return JSON.stringify(parsed);
+  }
+
   async function handleClose() {
-    const isDirty = JSON.stringify(state.api.requirementDefinitionDraft) !== draftAtOpen;
+    const isDirty = stripTransientClauseFields(JSON.stringify(state.api.requirementDefinitionDraft)) !== stripTransientClauseFields(draftAtOpen);
     if (isDirty) {
       const confirmed = await showUSSConfirm({
         title: "Unsaved Changes",

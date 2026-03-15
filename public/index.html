@@ -1333,6 +1333,8 @@
                   <li>Clause popovers now use fixed positioning (appended to body) — no longer clipped by scrollable card grid containers.</li>
                   <li>Clause Detail Modal: clause rows now show expression popover on hover with terms, joiners, and constraints.</li>
                   <li>USS textarea rule: definition/description textareas default to `rows="2"` for compact layout.</li>
+                  <li>Labels globally set to `display: block` — label text now stacks above inputs/textareas (fixes Description/Definition side-by-side layout in issue report and Create Tag modals).</li>
+                  <li>Dirty check now strips transient UI fields (`isOpen`, `activeTermIndex`, `termSearchByKind`) — toggling clause open/close no longer falsely triggers "Unsaved Changes".</li>
                 </ul>
                 <h4>Version 0.9.8 (Contributor — IWantWaffleFries1999)</h4>
                 <ul class="coming-soon-list">
