@@ -14,6 +14,13 @@ All UI work must follow the **Unified Site Styling (USS)** guide at [`docs/USS.m
 
 ## Code Quality Rules
 
+### CSS Bug Root-Cause Analysis
+When a visual bug is reported (stretch, overflow, z-index conflict, misalignment):
+1. **Trace the CSS cascade** — find the global rule causing the behavior before writing any fix.
+2. **Don't apply scoped patches** — adding `width: auto` to one container or changing `justify-content` treats the symptom. If the root cause is a global default, fix the default.
+3. **Prompt for a design decision** — if the root cause is a global default that conflicts with how a class of elements is used, ask the user before changing it: "The global default is X. Should we change the default for [class] so this doesn't recur?"
+4. **Update USS.md** — if a global default is changed, document it so all agents enforce it.
+
 ### Refactoring Cleanup
 When refactoring existing UI (moving elements, removing sections, restructuring pages), proactively audit:
 - Redundant render calls (e.g., `renderBuilder()` called 3+ times during init when once suffices)
