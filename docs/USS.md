@@ -55,7 +55,7 @@ All new UI must use these variables. Never use hardcoded hex colors — always r
 
 ### Ghost Button Sizing
 - Ghost buttons (`button.ghost`) always use `width: auto` — they are compact action buttons, never full-width. This is set globally in CSS and must not be overridden to stretch.
-- Primary (solid) buttons default to `width: 100%` for form contexts but should use `width: auto` when placed inline (e.g. in header action rows, flex containers, or alongside ghost buttons).
+- Primary (solid) buttons use `width: auto` by default — they stay compact at their content size, same as ghost buttons. Use `width: 100%` only when a specific form layout explicitly requires it (e.g. a single full-width submit button).
 
 ### Button Sizing in Containers (Modals, Popovers, Footers)
 - Buttons in `.draft-modal-footer`, `.button-row`, and `.tour-btn-row` must be `width: auto`, single-line (`white-space: nowrap`), and `margin-top: 0`.

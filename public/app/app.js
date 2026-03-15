@@ -17108,7 +17108,19 @@ function renderTreeMap() {
     detailBtn.title = `Draft Picks for ${role}`;
     detailBtn.addEventListener("click", (evt) => {
       evt.stopPropagation();
-      openDraftPicksModal(root, "0", role);
+      // Build a virtual root whose children are all nodes for this role
+      const roleNodes = [];
+      const seenChampions = new Set();
+      for (const path of viablePaths) {
+        for (const step of path) {
+          if (step.role === role && !seenChampions.has(step.champion)) {
+            seenChampions.add(step.champion);
+            roleNodes.push(step.node);
+          }
+        }
+      }
+      const virtualRoot = { children: roleNodes };
+      openDraftPicksModal(virtualRoot, "0", role);
     });
 
     actionRow.append(clearBtn, detailBtn);

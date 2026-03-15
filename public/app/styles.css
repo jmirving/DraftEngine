@@ -1189,6 +1189,7 @@ select[multiple] {
 }
 
 button {
+  width: auto;
   cursor: pointer;
   background: var(--accent);
   color: #fff7f2;
