@@ -1,5 +1,19 @@
 # Unified Site Styling (USS) — DraftEngine Design System
 
+## Design Checklist (Pre-Commit Gate)
+
+Before presenting work for commit, verify:
+
+- [ ] All colors use CSS variables — no hardcoded hex values
+- [ ] No element stretches beyond its content width
+- [ ] Popovers/dropdowns don't clip in scrollable containers
+- [ ] Render calls audited for redundancy (no duplicate init renders)
+- [ ] HTML default text matches JS runtime values (no flash of stale content)
+- [ ] Removed elements fully cleaned up (HTML, JS, CSS, element registrations)
+- [ ] Hidden elements retain their code intact
+- [ ] New patterns documented in this file if reusable
+- [ ] What's New / Coming Soon updated in `public/index.html`
+
 ## Layout Philosophy
 
 - **No stretch** — Elements should not stretch to fill space. Use fixed/compact sizing.

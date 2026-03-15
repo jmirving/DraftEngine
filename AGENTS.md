@@ -12,6 +12,25 @@ All UI work must follow the **Unified Site Styling (USS)** guide at [`docs/USS.m
 - **Settings in modals** — configuration goes in modals, not inline. Page surface is for data and primary actions only.
 - **Modal triggers** — use small icon buttons for compact triggers, or standard buttons when the action needs more visibility.
 
+## Code Quality Rules
+
+### Refactoring Cleanup
+When refactoring existing UI (moving elements, removing sections, restructuring pages), proactively audit:
+- Redundant render calls (e.g., `renderBuilder()` called 3+ times during init when once suffices)
+- Duplicate state sync (e.g., `validateTeamSelections()` called twice in the same flow)
+- Stale event handlers or element registrations for removed elements
+- Dead code paths that reference removed UI
+
+Do this during the refactor — don't leave it for the user to discover via visual glitches.
+
+### Removal vs Hide
+- **Removal** ("remove X", "not needed anymore"): Fully delete the HTML element, render function, element registration in `createElements()`, CSS rules, and all call sites. No orphaned code.
+- **Hide** ("hide X"): Keep the element and code intact, just add `hidden` attribute. The element may be re-enabled later.
+- **When unclear**: Ask whether they mean temporary hide or permanent removal.
+
+### HTML/JS Sync
+When an HTML element has default text that JS overwrites at runtime, always set the HTML default to match the JS value. Otherwise the user sees a flash of stale content during page load.
+
 ## Coming Soon Sync (Mandatory)
 
 For every user-facing feature or behavior change:
