@@ -256,3 +256,72 @@ Compact status cards for requirement evaluation results.
 ### Checkbox-Multi Dropdowns
 - Absolute positioning with `z-index: 80`
 - Parent section gets `position: relative; z-index: 5` to keep dropdowns above cards
+
+## Guided Tour Pattern
+
+Page-level tours teach users how to complete multi-step workflows (e.g. creating a requirement, building a composition).
+
+### Tour Callout (`.tour-callout`)
+A prominent banner displayed on the page to invite the user to start the tour.
+
+```html
+<div id="{page}-tour-callout" class="tour-callout">
+  <div class="tour-callout-content">
+    <strong>New to {Feature}?</strong>
+    <span>Learn how to {action description}.</span>
+  </div>
+  <button id="{page}-tour-btn" type="button" class="tour-callout-btn">Start Tour</button>
+  <button id="{page}-tour-dismiss" type="button" class="ghost tour-callout-dismiss" aria-label="Dismiss">&times;</button>
+</div>
+```
+
+- Placed below the section header, above page content
+- Visible when `state.ui.showGettingStarted` is true and session is not dismissed
+- Dismiss (`×`) is session-only — callout reappears on next page load
+- Profile setting ("Getting Started Guide") controls persistent visibility across sessions
+
+### Tour Popover (`.tour-popover`)
+Positioned popovers that highlight each element in sequence during the tour.
+
+- Target element gets `.tour-highlight` (green outline via `var(--good)`)
+- Popover shows: step counter, message text, three buttons: Exit Tour, Restart, Next/Finish
+- Tour overlay at `z-index: 9998`, popover at `z-index: 10000` — layers above modals (`z-index: 9000`)
+- Popover auto-positions below target, flips above if viewport constrained
+
+### Tour Implementation Template
+```javascript
+function start{Page}Tour() {
+  runGuidedTour([
+    {
+      target: "#{page}-create-btn",        // CSS selector or function returning element
+      message: "Description of this step."
+    },
+    {
+      target: () => document.querySelector(".modal .input"),  // Function for dynamic elements
+      message: "Description of this step.",
+      before: () => {                      // Optional: runs before step renders
+        // Open modal, add clause, etc.
+      }
+    }
+  ], {
+    onFinish: () => {                      // Optional: runs on Finish or Exit
+      closeAllDraftModals();               // Clean up modals opened during tour
+    }
+  });
+}
+```
+
+### Tour Step Definition
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `target` | string or function | Yes | CSS selector or function returning the DOM element to highlight |
+| `message` | string | Yes | Instruction text shown in the popover |
+| `before` | function | No | Runs before the step renders — use to open modals, add elements, etc. |
+
+### Adding a Tour to a New Page
+1. Add `.tour-callout` HTML below the section header
+2. Register callout, button, and dismiss elements in `createElements()`
+3. Add visibility logic in the page render function: `callout.hidden = !state.ui.showGettingStarted || state.ui.gettingStartedDismissed`
+4. Wire click events: tour button calls `start{Page}Tour()`, dismiss sets `state.ui.gettingStartedDismissed = true`
+5. Add `renderAllGettingStartedBars()` call in dismiss handler to sync all callouts
+6. Define `start{Page}Tour()` with steps array and `onFinish` callback

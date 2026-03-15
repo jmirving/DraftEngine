@@ -1140,10 +1140,17 @@
               <div class="uss-section-header">
                 <h2 id="requirements-title">Requirements</h2>
                 <div class="comp-header-actions">
-                  <button id="requirements-tour-btn" type="button" class="ghost comp-action-btn" title="Getting Started tour">Getting Started</button>
                   <button id="requirements-create-btn" type="button" class="ghost comp-action-btn">+ New</button>
                   <button id="requirements-nav-compositions" type="button" class="ghost comp-action-btn comp-nav-link">Manage Compositions</button>
                 </div>
+              </div>
+              <div id="requirements-tour-callout" class="tour-callout">
+                <div class="tour-callout-content">
+                  <strong>New to Requirements?</strong>
+                  <span>Learn how to create and configure a requirement for your draft.</span>
+                </div>
+                <button id="requirements-tour-btn" type="button" class="tour-callout-btn">Start Tour</button>
+                <button id="requirements-tour-dismiss" type="button" class="ghost tour-callout-dismiss" aria-label="Dismiss">&times;</button>
               </div>
               <div class="ced-scope-panel">
                 <div class="ced-scope-inline">
@@ -1207,7 +1214,14 @@
                   <select id="compositions-team" class="ced-scope-team-select"></select>
                 </div>
               </div>
-              <div id="compositions-getting-started" class="getting-started-bar" hidden></div>
+              <div id="compositions-tour-callout" class="tour-callout">
+                <div class="tour-callout-content">
+                  <strong>New to Compositions?</strong>
+                  <span>Learn how to group requirements into a composition for drafting.</span>
+                </div>
+                <button id="compositions-tour-btn" type="button" class="tour-callout-btn">Start Tour</button>
+                <button id="compositions-tour-dismiss" type="button" class="ghost tour-callout-dismiss" aria-label="Dismiss">&times;</button>
+              </div>
               <p id="compositions-summary" class="meta"></p>
               <div id="compositions-list" class="comp-card-grid"></div>
               <p id="compositions-feedback" class="meta"></p>
@@ -1288,10 +1302,11 @@
                   <li>Tag Promotions wrapped in a bordered section for visual grouping within the top panel.</li>
                   <li>Clause Detail Modal: champion pills now use first-match-wins — once a champion is claimed by a clause, it won't appear as a duplicate pill in subsequent clauses.</li>
                   <li>"Back to Composer" navigation button added to the lower-right of Requirements and Compositions pages.</li>
-                  <li>Requirements page: Getting Started bar replaced with a "Getting Started" tour button. Clicking it launches a guided popover tour that walks through creating a valid requirement step by step, highlighting each element with a green outline.</li>
-                  <li>Getting Started dismiss (×) is now session-only — guides reappear on next page load. Profile toggle controls persistent visibility.</li>
-                  <li>Fixed "+ Add Clause" button in Requirement Editor modal — no longer stretches across the modal width.</li>
-                  <li>USS design system updated: textarea resize disabled globally, stacked form field rule added for modal forms, no-stretch rule expanded with explicit button guidance.</li>
+                  <li>Guided Tour system: Requirements and Compositions pages now feature prominent "New to...?" callout banners with "Start Tour" buttons. Tours walk users through creating requirements/compositions step by step with highlighted elements and positioned popovers.</li>
+                  <li>Tour controls: Exit Tour, Restart, and Next/Finish buttons on every step. Finish closes any modals opened during the tour.</li>
+                  <li>Getting Started dismiss (×) is now session-only — callouts reappear on next page load. Profile toggle controls persistent visibility.</li>
+                  <li>Fixed ghost buttons globally — `button.ghost` now defaults to `width: auto` so ghost buttons never stretch full-width.</li>
+                  <li>USS design system updated: Guided Tour pattern documented, Ghost Button Sizing rule added, textarea resize disabled globally, stacked form field rule added for modal forms.</li>
                 </ul>
                 <h4>Version 0.9.8 (Contributor — IWantWaffleFries1999)</h4>
                 <ul class="coming-soon-list">

@@ -880,8 +880,12 @@ function createElements() {
     compositionsCreateBtn: runtimeDocument.querySelector("#compositions-create-btn"),
     compositionsNavRequirements: runtimeDocument.querySelector("#compositions-nav-requirements"),
     compositionsNavComposer: runtimeDocument.querySelector("#compositions-nav-composer"),
-    compositionsGettingStarted: runtimeDocument.querySelector("#compositions-getting-started"),
+    requirementsTourCallout: runtimeDocument.querySelector("#requirements-tour-callout"),
     requirementsTourBtn: runtimeDocument.querySelector("#requirements-tour-btn"),
+    requirementsTourDismiss: runtimeDocument.querySelector("#requirements-tour-dismiss"),
+    compositionsTourCallout: runtimeDocument.querySelector("#compositions-tour-callout"),
+    compositionsTourBtn: runtimeDocument.querySelector("#compositions-tour-btn"),
+    compositionsTourDismiss: runtimeDocument.querySelector("#compositions-tour-dismiss"),
     profileShowGettingStarted: runtimeDocument.querySelector("#profile-show-getting-started"),
     profileSaveGettingStarted: runtimeDocument.querySelector("#profile-save-getting-started"),
     profileGettingStartedFeedback: runtimeDocument.querySelector("#profile-getting-started-feedback"),
@@ -7880,8 +7884,8 @@ function renderRequirementDefinitionsWorkspace() {
     elements.requirementsDelete.disabled = controlsDisabled || !isEditing;
   }
 
-  if (elements.requirementsTourBtn) {
-    elements.requirementsTourBtn.hidden = !state.ui.showGettingStarted || state.ui.gettingStartedDismissed;
+  if (elements.requirementsTourCallout) {
+    elements.requirementsTourCallout.hidden = !state.ui.showGettingStarted || state.ui.gettingStartedDismissed;
   }
 
   elements.requirementsList.innerHTML = "";
@@ -8081,11 +8085,9 @@ function renderCompositionBundlesWorkspace() {
       : "No active composition selected.";
   }
 
-  renderGettingStartedBar(elements.compositionsGettingStarted, {
-    message: "Create at least one requirement before building a composition.",
-    actionLabel: "Go to Requirements",
-    actionTab: "requirements"
-  });
+  if (elements.compositionsTourCallout) {
+    elements.compositionsTourCallout.hidden = !state.ui.showGettingStarted || state.ui.gettingStartedDismissed;
+  }
 
   elements.compositionsList.innerHTML = "";
   if (!isAuthenticated()) {
@@ -11322,14 +11324,13 @@ function renderAllGettingStartedBars() {
     hideWhenAllDone: true
   });
 
-  /* Compositions page */
-  renderGettingStartedBar(elements.compositionsGettingStarted, {
-    message: "Create at least one requirement before building a composition.",
-    actionLabel: "Go to Requirements",
-    actionTab: "requirements"
-  });
-
-  /* Requirements page — now uses tour button, no bar */
+  /* Compositions + Requirements — now use tour callouts, no bars */
+  if (elements.compositionsTourCallout) {
+    elements.compositionsTourCallout.hidden = !state.ui.showGettingStarted || state.ui.gettingStartedDismissed;
+  }
+  if (elements.requirementsTourCallout) {
+    elements.requirementsTourCallout.hidden = !state.ui.showGettingStarted || state.ui.gettingStartedDismissed;
+  }
 
   /* Profile setting value */
   if (elements.profileSettingGettingStartedValue) {
@@ -11339,7 +11340,7 @@ function renderAllGettingStartedBars() {
 
 /* ── Guided Tour System ── */
 
-function runGuidedTour(steps) {
+function runGuidedTour(steps, { onFinish = null } = {}) {
   let currentStep = 0;
 
   function cleanup() {
@@ -11349,21 +11350,35 @@ function runGuidedTour(steps) {
     for (const el of highlighted) el.classList.remove("tour-highlight");
   }
 
+  function finish() {
+    cleanup();
+    if (onFinish) onFinish();
+  }
+
+  function restart() {
+    cleanup();
+    currentStep = 0;
+    showStep();
+  }
+
   function showStep() {
     cleanup();
     if (currentStep >= steps.length) return;
 
     const step = steps[currentStep];
-    const target = typeof step.target === "function" ? step.target() : runtimeDocument.querySelector(step.target);
 
     if (step.before) step.before();
 
+    const resolveTarget = () =>
+      typeof step.target === "function" ? step.target() : runtimeDocument.querySelector(step.target);
+
+    const target = resolveTarget();
+
     if (!target) {
-      /* Target not found — skip to next step after a tick (element may need to render) */
       runtimeWindow.setTimeout(() => {
-        const retryTarget = typeof step.target === "function" ? step.target() : runtimeDocument.querySelector(step.target);
+        const retryTarget = resolveTarget();
         if (retryTarget) {
-          renderPopover(retryTarget, step);
+          renderPopover(retryTarget);
         } else {
           currentStep++;
           showStep();
@@ -11372,10 +11387,11 @@ function runGuidedTour(steps) {
       return;
     }
 
-    renderPopover(target, step);
+    renderPopover(target);
   }
 
-  function renderPopover(target, step) {
+  function renderPopover(target) {
+    const step = steps[currentStep];
     target.classList.add("tour-highlight");
     target.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
@@ -11400,8 +11416,15 @@ function runGuidedTour(steps) {
     exitBtn.type = "button";
     exitBtn.className = "ghost tour-exit-btn";
     exitBtn.textContent = "Exit Tour";
-    exitBtn.addEventListener("click", cleanup);
-    btnRow.append(exitBtn);
+    exitBtn.addEventListener("click", finish);
+
+    const restartBtn = runtimeDocument.createElement("button");
+    restartBtn.type = "button";
+    restartBtn.className = "ghost tour-exit-btn";
+    restartBtn.textContent = "Restart";
+    restartBtn.addEventListener("click", restart);
+
+    btnRow.append(exitBtn, restartBtn);
 
     if (currentStep < steps.length - 1) {
       const nextBtn = runtimeDocument.createElement("button");
@@ -11418,7 +11441,7 @@ function runGuidedTour(steps) {
       finishBtn.type = "button";
       finishBtn.className = "tour-next-btn";
       finishBtn.textContent = "Finish";
-      finishBtn.addEventListener("click", cleanup);
+      finishBtn.addEventListener("click", finish);
       btnRow.append(finishBtn);
     }
 
@@ -11426,14 +11449,12 @@ function runGuidedTour(steps) {
     overlay.append(popover);
     runtimeDocument.body.append(overlay);
 
-    /* Position the popover near the target */
     requestAnimationFrame(() => {
       const rect = target.getBoundingClientRect();
       const popRect = popover.getBoundingClientRect();
       let top = rect.bottom + 8;
       let left = rect.left;
 
-      /* Keep within viewport */
       if (top + popRect.height > runtimeWindow.innerHeight - 12) {
         top = rect.top - popRect.height - 8;
       }
@@ -11450,8 +11471,13 @@ function runGuidedTour(steps) {
   showStep();
 }
 
+function closeAllDraftModals() {
+  const overlays = runtimeDocument.querySelectorAll(".draft-modal-overlay");
+  for (const o of overlays) o.remove();
+}
+
 function startRequirementsTour() {
-  const steps = [
+  runGuidedTour([
     {
       target: "#requirements-create-btn",
       message: "Click \"+ New\" to open the requirement editor and start building a new requirement."
@@ -11477,7 +11503,6 @@ function startRequirementsTour() {
       target: () => runtimeDocument.querySelector(".draft-modal.clause-editor-modal .requirement-clause-card"),
       message: "Set the expression to define what champions must match — e.g. a specific tag, role, or damage type.",
       before: () => {
-        /* Auto-add a clause if none exist so user sees the clause card */
         if (!runtimeDocument.querySelector(".draft-modal.clause-editor-modal .requirement-clause-card")) {
           const addBtn = runtimeDocument.querySelector(".draft-modal.clause-editor-modal .comp-card-header .comp-action-btn");
           if (addBtn) addBtn.click();
@@ -11499,9 +11524,52 @@ function startRequirementsTour() {
       target: () => runtimeDocument.querySelector(".draft-modal.clause-editor-modal .draft-modal-footer button:not(.ghost)"),
       message: "Click \"Create\" to save your requirement. It will appear as a card on the Requirements page."
     }
-  ];
+  ], {
+    onFinish: () => {
+      closeAllDraftModals();
+    }
+  });
+}
 
-  runGuidedTour(steps);
+function startCompositionsTour() {
+  runGuidedTour([
+    {
+      target: "#compositions-create-btn",
+      message: "Click \"+ New\" to open the composition editor. A composition groups requirements together for use in drafting."
+    },
+    {
+      target: () => runtimeDocument.querySelector(".draft-modal .draft-modal-body label input[type='text'][placeholder*='Teamfight']"),
+      message: "Enter a name for your composition — e.g. \"Teamfight Core\" or \"Poke Comp\".",
+      before: () => {
+        if (!runtimeDocument.querySelector(".draft-modal")) {
+          openCompositionEditorModal(null);
+        }
+      }
+    },
+    {
+      target: () => runtimeDocument.querySelector(".draft-modal .draft-modal-body label input[type='text'][placeholder*='Optional context']"),
+      message: "Add an optional description to provide context for this composition."
+    },
+    {
+      target: () => runtimeDocument.querySelector(".draft-modal .draft-modal-body .inline-checkbox"),
+      message: "Check this box to set this composition as the active one used during drafting. Only one composition can be active at a time."
+    },
+    {
+      target: () => runtimeDocument.querySelector(".draft-modal .draft-modal-body .excluded-options"),
+      message: "Select which requirements to include in this composition. Check each requirement that should be evaluated during a draft.",
+      before: () => {
+        /* Ensure requirement options are visible */
+      }
+    },
+    {
+      target: () => runtimeDocument.querySelector(".draft-modal .draft-modal-footer button:not(.ghost)"),
+      message: "Click \"Create\" to save your composition. It will appear as a card on the Compositions page and can be selected in the Composer."
+    }
+  ], {
+    onFinish: () => {
+      closeAllDraftModals();
+    }
+  });
 }
 
 function syncBuilderCompositionControls() {
@@ -18628,6 +18696,14 @@ function attachEvents() {
     });
   }
 
+  if (elements.requirementsTourDismiss) {
+    elements.requirementsTourDismiss.addEventListener("click", () => {
+      state.ui.gettingStartedDismissed = true;
+      renderAllGettingStartedBars();
+      if (elements.requirementsTourCallout) elements.requirementsTourCallout.hidden = true;
+    });
+  }
+
   if (elements.requirementsNavCompositions) {
     elements.requirementsNavCompositions.addEventListener("click", () => {
       setTab("compositions", { syncRoute: true });
@@ -18681,6 +18757,20 @@ function attachEvents() {
   if (elements.compositionsCreateBtn) {
     elements.compositionsCreateBtn.addEventListener("click", () => {
       openCompositionEditorModal(null);
+    });
+  }
+
+  if (elements.compositionsTourBtn) {
+    elements.compositionsTourBtn.addEventListener("click", () => {
+      startCompositionsTour();
+    });
+  }
+
+  if (elements.compositionsTourDismiss) {
+    elements.compositionsTourDismiss.addEventListener("click", () => {
+      state.ui.gettingStartedDismissed = true;
+      renderAllGettingStartedBars();
+      if (elements.compositionsTourCallout) elements.compositionsTourCallout.hidden = true;
     });
   }
 
