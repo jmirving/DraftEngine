@@ -42,8 +42,6 @@
         <button class="side-menu-link" data-tab="team-config" type="button">Teams</button>
         <button class="side-menu-link" data-tab="explorer" type="button">Champions</button>
         <button class="side-menu-link" data-tab="tags" type="button">Tags</button>
-        <button class="side-menu-link" data-tab="requirements" type="button">Requirements</button>
-        <button class="side-menu-link" data-tab="compositions" type="button">Compositions</button>
         <div class="side-menu-spacer"></div>
         <button class="nav-avatar-link" data-tab="profile" type="button" title="Profile">
           <div class="nav-avatar-circle" id="nav-avatar-display"></div>
@@ -350,17 +348,29 @@
                   <h2 id="builder-stage-setup-title">Draft Setup</h2>
                 </div>
                 <p id="builder-stage-setup-meta" class="meta"></p>
+                <div id="builder-getting-started" class="getting-started-bar" hidden></div>
                 <div class="stack">
                   <label>
                     Active Team
                     <select id="builder-active-team"></select>
                   </label>
                   <p id="builder-team-help" class="meta"></p>
-                  <label>
-                    Active Composition
-                    <select id="builder-active-composition"></select>
-                  </label>
-                  <p id="builder-composition-help" class="meta"></p>
+                  <div class="comp-card-header">
+                    <label style="flex:1">
+                      Active Composition
+                      <select id="builder-active-composition"></select>
+                    </label>
+                    <div class="comp-header-actions">
+                      <button id="builder-comp-edit" type="button" class="clause-edit-btn" title="Edit selected composition">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                      </button>
+                      <button id="builder-comp-create" type="button" class="ghost comp-action-btn">+ New</button>
+                    </div>
+                  </div>
+                  <div class="builder-comp-meta-row">
+                    <p id="builder-composition-help" class="meta" style="flex:1;margin:0"></p>
+                    <button id="builder-comp-manage" type="button" class="ghost comp-action-btn comp-nav-link">Manage Compositions</button>
+                  </div>
                   <div class="panel draft-board-panel">
                     <div class="uss-section-header">
                       <h3>Draft Roster</h3>
@@ -1128,10 +1138,13 @@
 
           <section id="tab-requirements" class="tab-panel tab-surface">
             <div class="panel draft-board-panel">
-              <h2 id="requirements-title">Requirements</h2>
-              <p id="requirements-meta" class="meta">
-                Define reusable requirement clauses with condition logic and champion separation constraints.
-              </p>
+              <div class="uss-section-header">
+                <h2 id="requirements-title">Requirements</h2>
+                <div class="comp-header-actions">
+                  <button id="requirements-create-btn" type="button" class="ghost comp-action-btn">+ New</button>
+                  <button id="requirements-nav-compositions" type="button" class="ghost comp-action-btn comp-nav-link">Manage Compositions</button>
+                </div>
+              </div>
               <div class="ced-scope-panel">
                 <div class="ced-scope-inline">
                   <span class="ced-scope-editing-label">Editing</span>
@@ -1148,48 +1161,33 @@
                   <select id="requirements-team" class="ced-scope-team-select"></select>
                 </div>
               </div>
-            </div>
-            <div class="panel draft-board-panel">
-              <p class="panel-kicker">Requirement Definitions</p>
-              <div class="button-row">
-                <button id="requirements-open-editor" type="button">Create New Requirement</button>
-              </div>
-              <div id="requirements-editor">
-                <div class="grid grid-2">
-                  <label>
-                    Name
-                    <input id="requirements-name" type="text" placeholder="e.g. Frontline Anchor" />
-                  </label>
-                  <label>
-                    Definition
-                    <input id="requirements-definition" type="text" placeholder="What this requirement enforces" />
-                  </label>
-                </div>
-                <div>
-                  <div class="button-row">
-                    <button id="requirements-add-clause" class="ghost" type="button">Add Clause</button>
-                  </div>
-                  <div id="requirements-clauses" class="requirements-clause-list"></div>
-                </div>
-                <div class="button-row">
-                  <button id="requirements-save" type="button">Create Requirement</button>
-                  <button id="requirements-cancel" class="ghost" type="button">Close</button>
-                  <button id="requirements-delete" class="ghost" type="button" hidden>Delete</button>
-                </div>
-              </div>
+              <div id="requirements-list" class="comp-card-grid"></div>
               <p id="requirements-feedback" class="meta"></p>
             </div>
-            <div class="panel draft-board-panel">
-              <div id="requirements-list" class="summary-card-list"></div>
+            <!-- Hidden elements kept for state sync -->
+            <div hidden>
+              <button id="requirements-open-editor" type="button"></button>
+              <div id="requirements-editor">
+                <input id="requirements-name" type="text" />
+                <input id="requirements-definition" type="text" />
+                <button id="requirements-add-clause" type="button"></button>
+                <div id="requirements-clauses"></div>
+                <button id="requirements-save" type="button"></button>
+                <button id="requirements-cancel" type="button"></button>
+                <button id="requirements-delete" type="button" hidden></button>
+              </div>
             </div>
           </section>
 
           <section id="tab-compositions" class="tab-panel tab-surface">
             <div class="panel draft-board-panel">
-              <h2 id="compositions-title">Compositions</h2>
-              <p id="compositions-meta" class="meta">
-                Group requirement definitions into reusable named composition bundles.
-              </p>
+              <div class="uss-section-header">
+                <h2 id="compositions-title">Compositions</h2>
+                <div class="comp-header-actions">
+                  <button id="compositions-create-btn" type="button" class="ghost comp-action-btn">+ New</button>
+                  <button id="compositions-nav-requirements" type="button" class="ghost comp-action-btn comp-nav-link">Manage Requirements</button>
+                </div>
+              </div>
               <div class="ced-scope-panel">
                 <div class="ced-scope-inline">
                   <span class="ced-scope-editing-label">Editing</span>
@@ -1206,37 +1204,20 @@
                   <select id="compositions-team" class="ced-scope-team-select"></select>
                 </div>
               </div>
+              <div id="compositions-getting-started" class="getting-started-bar" hidden></div>
               <p id="compositions-summary" class="meta"></p>
-            </div>
-            <div class="panel draft-board-panel">
-              <p class="panel-kicker">Compositions</p>
-              <div class="grid grid-2">
-                <label>
-                  Name
-                  <input id="compositions-name" type="text" placeholder="e.g. Teamfight Core" />
-                </label>
-                <label class="inline-checkbox">
-                  <input id="compositions-is-active" type="checkbox" />
-                  Set as active composition
-                </label>
-              </div>
-              <label>
-                Description
-                <input id="compositions-description" type="text" placeholder="Optional context for this bundle" />
-              </label>
-              <div>
-                <p class="meta">Included requirement definitions</p>
-                <div id="compositions-requirement-options" class="excluded-options"></div>
-              </div>
-              <div class="button-row">
-                <button id="compositions-save" type="button">Create Composition</button>
-                <button id="compositions-cancel" class="ghost" type="button">Clear</button>
-                <button id="compositions-delete" class="ghost" type="button" hidden>Delete</button>
-              </div>
+              <div id="compositions-list" class="comp-card-grid"></div>
               <p id="compositions-feedback" class="meta"></p>
             </div>
-            <div class="panel draft-board-panel">
-              <div id="compositions-list" class="summary-card-list"></div>
+            <!-- Hidden elements kept for state sync (used by existing JS) -->
+            <div hidden>
+              <input id="compositions-name" type="text" />
+              <input id="compositions-description" type="text" />
+              <input id="compositions-is-active" type="checkbox" />
+              <div id="compositions-requirement-options"></div>
+              <button id="compositions-save" type="button"></button>
+              <button id="compositions-cancel" type="button"></button>
+              <button id="compositions-delete" type="button" hidden></button>
             </div>
           </section>
 
@@ -1293,6 +1274,17 @@
               >
                 <h3>What's New</h3>
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
+                <h4>Version 0.9.5</h4>
+                <ul class="coming-soon-list">
+                  <li>Compositions page restructured: top two sections merged into a single panel with USS section header, card grid, and Getting Started guidance when no requirements exist.</li>
+                  <li>Composition cards redesigned with USS pencil edit icon, requirement name pills, active indicator (accent left border), and status dot.</li>
+                  <li>Composition Editor Modal for creating and editing compositions (name, description, active toggle, requirement checkboxes) with USS snapshot/draft pattern and delete confirmation.</li>
+                  <li>Requirements page restructured: panels merged, cards in USS grid with pencil edit icon, clause count with hover popover showing human-readable clause summaries.</li>
+                  <li>Requirement Editor Modal for creating and editing requirements with full clause editing UI, add/remove clauses, and delete confirmation.</li>
+                  <li>Composer Setup now includes composition access controls: pencil icon to edit selected composition, + New button, and Manage Compositions link.</li>
+                  <li>Getting Started step indicator in Composer Setup shows progress through requirements, compositions, and drafting readiness with clickable navigation.</li>
+                  <li>Requirements and Compositions removed from left navigation — now accessed via in-context links from Composer Setup and cross-page navigation buttons.</li>
+                </ul>
                 <h4>Version 0.9.4</h4>
                 <ul class="coming-soon-list">
                   <li>Requirement Status redesigned as a compact card grid (3 rows, scrollable) with green/red tint backgrounds and badge pills showing pass/fail counts.</li>
@@ -1452,9 +1444,11 @@
                   <li>Re-evaluate migration scope for broader scoped rollout once the current tag-scope and tag-promotion UX has been validated in real use (draftflow-228).</li>
                   <li>Expand the scoped-promotion workflow beyond tags once the tag moderation UX is confirmed (draftflow-171).</li>
                 </ul>
-                <h4>Compositions</h4>
+                <h4>Compositions &amp; Requirements</h4>
                 <ul class="coming-soon-list">
                   <li>Promotion moderation for scoped requirement/composition changes is still deferred (draftflow-171).</li>
+                  <li>Clause labels are auto-generated (C1, C2, etc.) — descriptive clause naming is planned for a future release.</li>
+                  <li>Composition and Requirement pages are accessible via URL hash routing but no longer in the side nav — deep link bookmarks still work.</li>
                 </ul>
               </div>
 

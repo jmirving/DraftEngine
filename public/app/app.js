@@ -862,6 +862,8 @@ function createElements() {
     requirementsDelete: runtimeDocument.querySelector("#requirements-delete"),
     requirementsFeedback: runtimeDocument.querySelector("#requirements-feedback"),
     requirementsList: runtimeDocument.querySelector("#requirements-list"),
+    requirementsCreateBtn: runtimeDocument.querySelector("#requirements-create-btn"),
+    requirementsNavCompositions: runtimeDocument.querySelector("#requirements-nav-compositions"),
     compositionsName: runtimeDocument.querySelector("#compositions-name"),
     compositionsDescription: runtimeDocument.querySelector("#compositions-description"),
     compositionsIsActive: runtimeDocument.querySelector("#compositions-is-active"),
@@ -871,6 +873,9 @@ function createElements() {
     compositionsDelete: runtimeDocument.querySelector("#compositions-delete"),
     compositionsFeedback: runtimeDocument.querySelector("#compositions-feedback"),
     compositionsList: runtimeDocument.querySelector("#compositions-list"),
+    compositionsCreateBtn: runtimeDocument.querySelector("#compositions-create-btn"),
+    compositionsNavRequirements: runtimeDocument.querySelector("#compositions-nav-requirements"),
+    compositionsGettingStarted: runtimeDocument.querySelector("#compositions-getting-started"),
     comingSoonTitle: runtimeDocument.querySelector("#coming-soon-title"),
     comingSoonMeta: runtimeDocument.querySelector("#coming-soon-meta"),
     tabExplorer: runtimeDocument.querySelector("#tab-explorer"),
@@ -943,6 +948,10 @@ function createElements() {
     builderActiveTeam: runtimeDocument.querySelector("#builder-active-team"),
     builderActiveComposition: runtimeDocument.querySelector("#builder-active-composition"),
     builderCompositionHelp: runtimeDocument.querySelector("#builder-composition-help"),
+    builderCompEdit: runtimeDocument.querySelector("#builder-comp-edit"),
+    builderCompCreate: runtimeDocument.querySelector("#builder-comp-create"),
+    builderCompManage: runtimeDocument.querySelector("#builder-comp-manage"),
+    builderGettingStarted: runtimeDocument.querySelector("#builder-getting-started"),
     builderDraftSetupSave: runtimeDocument.querySelector("#builder-draft-setup-save"),
     builderDraftSetupLoad: runtimeDocument.querySelector("#builder-draft-setup-load"),
     builderSaveDraftModal: runtimeDocument.querySelector("#builder-save-draft-modal"),
@@ -7852,46 +7861,76 @@ function renderRequirementDefinitionsWorkspace() {
 
   for (const requirement of requirements) {
     const card = runtimeDocument.createElement("article");
-    card.className = "summary-card";
+    card.className = "comp-card";
 
+    const titleRow = runtimeDocument.createElement("div");
+    titleRow.className = "comp-card-header";
     const title = runtimeDocument.createElement("strong");
+    title.className = "comp-card-name";
     title.textContent = requirement.name;
+    titleRow.append(title);
 
-    const definition = runtimeDocument.createElement("p");
-    definition.className = "meta";
-    definition.textContent = requirement.definition || "No definition provided.";
+    if (canWriteCompositionCatalogScope()) {
+      const editBtn = runtimeDocument.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "clause-edit-btn";
+      editBtn.title = `Edit ${requirement.name}`;
+      editBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>';
+      editBtn.disabled = state.api.isSavingRequirementDefinition;
+      editBtn.addEventListener("click", () => {
+        openRequirementEditorModal(requirement);
+      });
+      titleRow.append(editBtn);
+    }
+    card.append(titleRow);
 
-    const ruleCount = runtimeDocument.createElement("p");
-    ruleCount.className = "meta";
-    ruleCount.textContent = `${requirement.rules.length} rule clause${requirement.rules.length === 1 ? "" : "s"}.`;
+    if (requirement.definition) {
+      const defEl = runtimeDocument.createElement("p");
+      defEl.className = "meta comp-card-desc";
+      defEl.textContent = requirement.definition;
+      card.append(defEl);
+    }
+
+    const clauseCount = runtimeDocument.createElement("span");
+    clauseCount.className = "req-clause-count";
+    const clauseNum = Array.isArray(requirement.rules) ? requirement.rules.length : 0;
+    clauseCount.textContent = `${clauseNum} clause${clauseNum === 1 ? "" : "s"}`;
+
+    if (clauseNum > 0) {
+      const popoverLines = [];
+      for (const [idx, rule] of requirement.rules.entries()) {
+        const clauseDraft = createRequirementRuleClauseDraft(rule);
+        const exprSummary = formatRequirementClauseExpressionSummary(clauseDraft);
+        const minCount = Number.parseInt(String(clauseDraft.minCount), 10) || 1;
+        const maxCountRaw = String(clauseDraft.maxCount ?? "").trim();
+        const maxLabel = maxCountRaw === "" ? "no max" : `max ${maxCountRaw}`;
+        const roleFilterCount = normalizeRequirementRoleFilter(clauseDraft.roleFilter).length;
+        const separateCount = normalizeRequirementClauseReferenceIds(clauseDraft.separateFrom).length;
+        let line = `Clause ${idx + 1}: ${exprSummary} — min ${minCount}, ${maxLabel}`;
+        if (roleFilterCount > 0) line += `, ${roleFilterCount} role filter${roleFilterCount === 1 ? "" : "s"}`;
+        if (separateCount > 0) line += `, separate from ${separateCount} clause${separateCount === 1 ? "" : "s"}`;
+        popoverLines.push(line);
+      }
+      clauseCount.title = popoverLines.join("\n");
+      clauseCount.style.cursor = "help";
+      clauseCount.style.textDecoration = "underline dotted";
+    }
+    card.append(clauseCount);
+
     const audit = formatAuditMeta(
       "Last edited",
       requirement.updated_by_user_id,
       requirement.updated_by_display_name,
       requirement.updated_at
     );
-
-    card.append(title, definition, ruleCount);
     if (audit) {
-      card.append(createMetaParagraph(audit));
+      const auditEl = runtimeDocument.createElement("p");
+      auditEl.className = "meta";
+      auditEl.style.margin = "0";
+      auditEl.textContent = audit;
+      card.append(auditEl);
     }
-    if (canWriteCompositionCatalogScope()) {
-      const edit = runtimeDocument.createElement("button");
-      edit.type = "button";
-      edit.className = "ghost requirement-inline-button";
-      edit.textContent = "Edit";
-      edit.disabled = state.api.isSavingRequirementDefinition;
-      edit.addEventListener("click", () => {
-        setRequirementDefinitionDraft(requirement);
-        state.api.isRequirementDefinitionEditorOpen = true;
-        setRequirementsFeedback(`Editing '${requirement.name}'.`);
-        renderRequirementDefinitionsWorkspace();
-      });
-      const actionRow = runtimeDocument.createElement("div");
-      actionRow.className = "button-row requirement-inline-actions";
-      actionRow.append(edit);
-      card.append(actionRow);
-    }
+
     elements.requirementsList.append(card);
   }
 }
@@ -7945,6 +7984,25 @@ function renderCompositionBundlesWorkspace() {
       : "No active composition selected.";
   }
 
+  if (elements.compositionsGettingStarted) {
+    const requirements = Array.isArray(state.api.requirementDefinitions) ? state.api.requirementDefinitions : [];
+    if (requirements.length < 1) {
+      elements.compositionsGettingStarted.hidden = false;
+      elements.compositionsGettingStarted.innerHTML = "";
+      const msg = runtimeDocument.createElement("span");
+      msg.className = "getting-started-msg";
+      msg.textContent = "Create at least one requirement before building a composition.";
+      const navBtn = runtimeDocument.createElement("button");
+      navBtn.type = "button";
+      navBtn.className = "ghost getting-started-action";
+      navBtn.textContent = "Go to Requirements";
+      navBtn.addEventListener("click", () => setTab("requirements", { syncRoute: true }));
+      elements.compositionsGettingStarted.append(msg, navBtn);
+    } else {
+      elements.compositionsGettingStarted.hidden = true;
+    }
+  }
+
   elements.compositionsList.innerHTML = "";
   if (!isAuthenticated()) {
     const empty = runtimeDocument.createElement("p");
@@ -7976,56 +8034,528 @@ function renderCompositionBundlesWorkspace() {
   );
   for (const composition of compositions) {
     const card = runtimeDocument.createElement("article");
-    card.className = "summary-card";
+    card.className = `comp-card${composition.is_active ? " is-active" : ""}`;
 
+    const titleRow = runtimeDocument.createElement("div");
+    titleRow.className = "comp-card-header";
     const title = runtimeDocument.createElement("strong");
+    title.className = "comp-card-name";
     title.textContent = composition.name;
+    titleRow.append(title);
 
-    const description = runtimeDocument.createElement("p");
-    description.className = "meta";
-    description.textContent = composition.description || "No description provided.";
-
-    const includedRequirementNames = composition.requirement_ids
-      .map((requirementId) => requirementById.get(requirementId)?.name ?? `Requirement ${requirementId}`)
-      .join(", ");
-    const included = runtimeDocument.createElement("p");
-    included.className = "meta";
-    included.textContent = includedRequirementNames
-      ? `Includes: ${includedRequirementNames}`
-      : "Includes: none";
-
-    const activeLabel = runtimeDocument.createElement("p");
-    activeLabel.className = "meta";
-    activeLabel.textContent = composition.is_active ? "Active composition" : "Inactive composition";
-    const audit = formatAuditMeta(
-      "Last edited",
-      composition.updated_by_user_id,
-      composition.updated_by_display_name,
-      composition.updated_at
-    );
-
-    card.append(title, description, included, activeLabel);
-    if (audit) {
-      card.append(createMetaParagraph(audit));
-    }
     if (canWriteCompositionCatalogScope()) {
-      const edit = runtimeDocument.createElement("button");
-      edit.type = "button";
-      edit.className = "ghost requirement-inline-button";
-      edit.textContent = "Edit";
-      edit.disabled = state.api.isSavingCompositionBundle;
-      edit.addEventListener("click", () => {
-        setCompositionBundleDraft(composition);
-        setCompositionsFeedback(`Editing '${composition.name}'.`);
-        renderCompositionBundlesWorkspace();
+      const editBtn = runtimeDocument.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "clause-edit-btn";
+      editBtn.title = `Edit ${composition.name}`;
+      editBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>';
+      editBtn.disabled = state.api.isSavingCompositionBundle;
+      editBtn.addEventListener("click", () => {
+        openCompositionEditorModal(composition);
       });
-      const actionRow = runtimeDocument.createElement("div");
-      actionRow.className = "button-row requirement-inline-actions";
-      actionRow.append(edit);
-      card.append(actionRow);
+      titleRow.append(editBtn);
     }
+
+    card.append(titleRow);
+
+    if (composition.description) {
+      const desc = runtimeDocument.createElement("p");
+      desc.className = "meta comp-card-desc";
+      desc.textContent = composition.description;
+      card.append(desc);
+    }
+
+    if (composition.requirement_ids.length > 0) {
+      const pillRow = runtimeDocument.createElement("div");
+      pillRow.className = "comp-card-pills";
+      for (const reqId of composition.requirement_ids) {
+        const reqDef = requirementById.get(reqId);
+        const pill = runtimeDocument.createElement("span");
+        pill.className = "clause-champ-pill";
+        pill.textContent = reqDef?.name ?? `Req ${reqId}`;
+        if (reqDef) {
+          pill.title = reqDef.definition || reqDef.name;
+        }
+        pillRow.append(pill);
+      }
+      card.append(pillRow);
+    } else {
+      const noneText = runtimeDocument.createElement("p");
+      noneText.className = "meta";
+      noneText.textContent = "No requirements";
+      card.append(noneText);
+    }
+
+    const statusRow = runtimeDocument.createElement("div");
+    statusRow.className = "comp-card-status";
+    const dot = runtimeDocument.createElement("span");
+    dot.className = `clause-dot ${composition.is_active ? "is-passed" : ""}`;
+    dot.textContent = "\u25CF";
+    if (!composition.is_active) {
+      dot.style.color = "var(--muted)";
+    }
+    const statusText = runtimeDocument.createElement("span");
+    statusText.className = "meta";
+    statusText.style.margin = "0";
+    statusText.textContent = composition.is_active ? "Active" : "Inactive";
+    statusRow.append(dot, statusText);
+    card.append(statusRow);
+
     elements.compositionsList.append(card);
   }
+}
+
+function openCompositionEditorModal(composition = null) {
+  closeDraftModal();
+  const isEditing = Boolean(composition);
+  const snapshotDraft = JSON.parse(JSON.stringify(state.api.compositionBundleDraft));
+  const snapshotSelectedId = state.api.selectedCompositionBundleId;
+
+  if (isEditing) {
+    setCompositionBundleDraft(composition);
+  } else {
+    setCompositionBundleDraft(null);
+  }
+  const draftAtOpen = JSON.stringify(state.api.compositionBundleDraft);
+
+  const overlay = runtimeDocument.createElement("div");
+  overlay.className = "draft-modal-overlay";
+
+  const dialog = runtimeDocument.createElement("div");
+  dialog.className = "draft-modal";
+
+  const header = runtimeDocument.createElement("div");
+  header.className = "draft-modal-header";
+  const title = runtimeDocument.createElement("h3");
+  title.textContent = isEditing ? `Edit Composition — ${composition.name}` : "Create Composition";
+  const close = runtimeDocument.createElement("button");
+  close.type = "button";
+  close.className = "draft-modal-close";
+  close.textContent = "\u00D7";
+  header.append(title, close);
+
+  const body = runtimeDocument.createElement("div");
+  body.className = "draft-modal-body";
+
+  const nameLabel = runtimeDocument.createElement("label");
+  nameLabel.textContent = "Name";
+  const nameInput = runtimeDocument.createElement("input");
+  nameInput.type = "text";
+  nameInput.placeholder = "e.g. Teamfight Core";
+  nameInput.value = state.api.compositionBundleDraft.name;
+  nameInput.addEventListener("input", () => {
+    state.api.compositionBundleDraft.name = nameInput.value;
+  });
+  nameLabel.append(runtimeDocument.createElement("br"), nameInput);
+
+  const descLabel = runtimeDocument.createElement("label");
+  descLabel.textContent = "Description";
+  const descInput = runtimeDocument.createElement("input");
+  descInput.type = "text";
+  descInput.placeholder = "Optional context for this bundle";
+  descInput.value = state.api.compositionBundleDraft.description;
+  descInput.addEventListener("input", () => {
+    state.api.compositionBundleDraft.description = descInput.value;
+  });
+  descLabel.append(runtimeDocument.createElement("br"), descInput);
+
+  const activeLabel = runtimeDocument.createElement("label");
+  activeLabel.className = "inline-checkbox";
+  const activeCheckbox = runtimeDocument.createElement("input");
+  activeCheckbox.type = "checkbox";
+  activeCheckbox.checked = state.api.compositionBundleDraft.isActive === true;
+  activeCheckbox.addEventListener("change", () => {
+    state.api.compositionBundleDraft.isActive = activeCheckbox.checked;
+  });
+  const activeText = runtimeDocument.createElement("span");
+  activeText.textContent = " Set as active composition";
+  activeLabel.append(activeCheckbox, activeText);
+
+  const reqSection = runtimeDocument.createElement("div");
+  const reqTitle = runtimeDocument.createElement("p");
+  reqTitle.className = "meta";
+  reqTitle.textContent = "Included requirement definitions";
+  const reqOptionsContainer = runtimeDocument.createElement("div");
+  reqOptionsContainer.className = "excluded-options";
+  reqSection.append(reqTitle, reqOptionsContainer);
+
+  renderCompositionRequirementOptionsInContainer(reqOptionsContainer);
+
+  const feedbackEl = runtimeDocument.createElement("p");
+  feedbackEl.className = "meta";
+
+  body.append(nameLabel, descLabel, activeLabel, reqSection, feedbackEl);
+
+  const footer = runtimeDocument.createElement("div");
+  footer.className = "draft-modal-footer";
+
+  const deleteBtn = runtimeDocument.createElement("button");
+  deleteBtn.type = "button";
+  deleteBtn.className = "ghost";
+  deleteBtn.style.color = "var(--warn)";
+  deleteBtn.textContent = "Delete";
+  deleteBtn.hidden = !isEditing;
+  deleteBtn.addEventListener("click", async () => {
+    const confirmed = await showUSSConfirm({
+      title: "Delete Composition",
+      body: `Delete composition '${composition?.name ?? ""}'? This cannot be undone.`,
+      affirmLabel: "Delete",
+      cancelLabel: "Keep",
+      destructive: true
+    });
+    if (!confirmed) return;
+    state.api.isSavingCompositionBundle = true;
+    feedbackEl.textContent = "Deleting...";
+    try {
+      await apiRequest(`/compositions/${composition.id}`, { method: "DELETE", auth: true });
+      setCompositionBundleDraft(null);
+      await loadCompositionBundlesFromApi();
+      overlay.remove();
+      renderCompositionBundlesWorkspace();
+    } catch (error) {
+      feedbackEl.textContent = normalizeApiErrorMessage(error, "Failed to delete.");
+    } finally {
+      state.api.isSavingCompositionBundle = false;
+    }
+  });
+
+  const cancelBtn = runtimeDocument.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "ghost";
+  cancelBtn.textContent = "Cancel";
+
+  const saveBtn = runtimeDocument.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.textContent = isEditing ? "Update" : "Create";
+
+  async function handleClose() {
+    const isDirty = JSON.stringify(state.api.compositionBundleDraft) !== draftAtOpen;
+    if (isDirty) {
+      const confirmed = await showUSSConfirm({
+        title: "Unsaved Changes",
+        body: "You have unsaved composition edits. Discard them?",
+        affirmLabel: "Discard",
+        cancelLabel: "Keep Editing",
+        destructive: true
+      });
+      if (!confirmed) return;
+    }
+    state.api.compositionBundleDraft = JSON.parse(JSON.stringify(snapshotDraft));
+    state.api.selectedCompositionBundleId = snapshotSelectedId;
+    overlay.remove();
+  }
+
+  close.addEventListener("click", handleClose);
+  cancelBtn.addEventListener("click", handleClose);
+  overlay.addEventListener("click", (evt) => {
+    if (evt.target === overlay) handleClose();
+  });
+
+  saveBtn.addEventListener("click", async () => {
+    const name = String(state.api.compositionBundleDraft.name ?? "").trim();
+    if (!name) {
+      feedbackEl.textContent = "Composition name is required.";
+      return;
+    }
+    const payload = {
+      name,
+      description: String(state.api.compositionBundleDraft.description ?? "").trim(),
+      requirement_ids: normalizeApiTagIdArray(state.api.compositionBundleDraft.requirementIds),
+      is_active: state.api.compositionBundleDraft.isActive === true
+    };
+    const scopeContext = getCompositionCatalogScopeRequestContext();
+    payload.scope = scopeContext.scope;
+    if (scopeContext.scope === "team") {
+      if (!scopeContext.teamId) {
+        feedbackEl.textContent = "Select a team before saving team-scoped compositions.";
+        return;
+      }
+      payload.team_id = Number(scopeContext.teamId);
+    }
+    state.api.isSavingCompositionBundle = true;
+    feedbackEl.textContent = isEditing ? "Saving..." : "Creating...";
+    saveBtn.disabled = true;
+    try {
+      await apiRequest(
+        isEditing ? `/compositions/${composition.id}` : "/compositions",
+        { method: isEditing ? "PUT" : "POST", auth: true, body: payload }
+      );
+      await loadCompositionBundlesFromApi();
+      state.api.compositionBundleDraft = JSON.parse(JSON.stringify(snapshotDraft));
+      state.api.selectedCompositionBundleId = snapshotSelectedId;
+      overlay.remove();
+      renderCompositionBundlesWorkspace();
+    } catch (error) {
+      feedbackEl.textContent = normalizeApiErrorMessage(error, "Failed to save composition.");
+      saveBtn.disabled = false;
+    } finally {
+      state.api.isSavingCompositionBundle = false;
+    }
+  });
+
+  if (isEditing) {
+    footer.append(deleteBtn);
+    const separator = runtimeDocument.createElement("span");
+    separator.className = "composer-btn-separator";
+    footer.append(separator);
+  }
+  footer.append(cancelBtn, saveBtn);
+
+  dialog.append(header, body, footer);
+  overlay.append(dialog);
+  runtimeDocument.body.append(overlay);
+  requestAnimationFrame(() => overlay.classList.add("is-open"));
+}
+
+function renderCompositionRequirementOptionsInContainer(container) {
+  container.innerHTML = "";
+  const requirements = Array.isArray(state.api.requirementDefinitions) ? state.api.requirementDefinitions : [];
+  if (requirements.length < 1) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "Create at least one requirement definition first.";
+    container.append(empty);
+    return;
+  }
+  const selectedIdSet = new Set(normalizeApiTagIdArray(state.api.compositionBundleDraft.requirementIds));
+  for (const requirement of requirements) {
+    const label = runtimeDocument.createElement("label");
+    label.className = "selection-option";
+    const checkbox = runtimeDocument.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = selectedIdSet.has(requirement.id);
+    checkbox.addEventListener("change", () => {
+      const next = new Set(state.api.compositionBundleDraft.requirementIds);
+      if (checkbox.checked) {
+        next.add(requirement.id);
+      } else {
+        next.delete(requirement.id);
+      }
+      state.api.compositionBundleDraft.requirementIds = [...next].sort((left, right) => left - right);
+    });
+    const text = runtimeDocument.createElement("span");
+    text.textContent = requirement.name;
+    label.append(checkbox, text);
+    container.append(label);
+  }
+}
+
+function openRequirementEditorModal(requirement = null) {
+  closeDraftModal();
+  const isEditing = Boolean(requirement);
+  const snapshotDraft = JSON.parse(JSON.stringify(state.api.requirementDefinitionDraft));
+  const snapshotSelectedId = state.api.selectedRequirementDefinitionId;
+
+  if (isEditing) {
+    setRequirementDefinitionDraft(requirement);
+  } else {
+    setRequirementDefinitionDraft(null);
+  }
+  const draftAtOpen = JSON.stringify(state.api.requirementDefinitionDraft);
+
+  const overlay = runtimeDocument.createElement("div");
+  overlay.className = "draft-modal-overlay";
+
+  const dialog = runtimeDocument.createElement("div");
+  dialog.className = "draft-modal clause-editor-modal";
+
+  const header = runtimeDocument.createElement("div");
+  header.className = "draft-modal-header";
+  const title = runtimeDocument.createElement("h3");
+  title.textContent = isEditing ? `Edit Requirement — ${requirement.name}` : "Create Requirement";
+  const close = runtimeDocument.createElement("button");
+  close.type = "button";
+  close.className = "draft-modal-close";
+  close.textContent = "\u00D7";
+  header.append(title, close);
+
+  const body = runtimeDocument.createElement("div");
+  body.className = "draft-modal-body";
+
+  const nameLabel = runtimeDocument.createElement("label");
+  nameLabel.textContent = "Name";
+  const nameInput = runtimeDocument.createElement("input");
+  nameInput.type = "text";
+  nameInput.placeholder = "e.g. Frontline Anchor";
+  nameInput.value = state.api.requirementDefinitionDraft.name;
+  nameInput.addEventListener("input", () => {
+    state.api.requirementDefinitionDraft.name = nameInput.value;
+  });
+  nameLabel.append(runtimeDocument.createElement("br"), nameInput);
+
+  const defLabel = runtimeDocument.createElement("label");
+  defLabel.textContent = "Definition";
+  const defInput = runtimeDocument.createElement("input");
+  defInput.type = "text";
+  defInput.placeholder = "What this requirement enforces";
+  defInput.value = state.api.requirementDefinitionDraft.definition;
+  defInput.addEventListener("input", () => {
+    state.api.requirementDefinitionDraft.definition = defInput.value;
+  });
+  defLabel.append(runtimeDocument.createElement("br"), defInput);
+
+  const clauseSection = runtimeDocument.createElement("div");
+  const clauseHeader = runtimeDocument.createElement("div");
+  clauseHeader.className = "comp-card-header";
+  clauseHeader.style.marginTop = "0.5rem";
+  const clauseTitle = runtimeDocument.createElement("p");
+  clauseTitle.className = "meta";
+  clauseTitle.style.margin = "0";
+  clauseTitle.textContent = "Clauses";
+  const addClauseBtn = runtimeDocument.createElement("button");
+  addClauseBtn.type = "button";
+  addClauseBtn.className = "ghost comp-action-btn";
+  addClauseBtn.textContent = "+ Add Clause";
+  addClauseBtn.addEventListener("click", () => {
+    const nextRules = Array.isArray(state.api.requirementDefinitionDraft.rules)
+      ? [...state.api.requirementDefinitionDraft.rules]
+      : [];
+    for (const existingClause of nextRules) {
+      existingClause.isOpen = false;
+    }
+    nextRules.push(createDefaultRequirementRuleClauseDraft());
+    state.api.requirementDefinitionDraft.rules = nextRules;
+    renderClauseEditorInModal(clauseContainer);
+  });
+  clauseHeader.append(clauseTitle, addClauseBtn);
+
+  const clauseContainer = runtimeDocument.createElement("div");
+  clauseContainer.className = "requirements-clause-list";
+  clauseSection.append(clauseHeader, clauseContainer);
+
+  const feedbackEl = runtimeDocument.createElement("p");
+  feedbackEl.className = "meta";
+
+  body.append(nameLabel, defLabel, clauseSection, feedbackEl);
+
+  const footer = runtimeDocument.createElement("div");
+  footer.className = "draft-modal-footer";
+
+  const deleteBtn = runtimeDocument.createElement("button");
+  deleteBtn.type = "button";
+  deleteBtn.className = "ghost";
+  deleteBtn.style.color = "var(--warn)";
+  deleteBtn.textContent = "Delete";
+  deleteBtn.hidden = !isEditing;
+  deleteBtn.addEventListener("click", async () => {
+    const confirmed = await showUSSConfirm({
+      title: "Delete Requirement",
+      body: `Delete requirement '${requirement?.name ?? ""}'? This also removes it from any compositions that include it.`,
+      affirmLabel: "Delete",
+      cancelLabel: "Keep",
+      destructive: true
+    });
+    if (!confirmed) return;
+    state.api.isSavingRequirementDefinition = true;
+    feedbackEl.textContent = "Deleting...";
+    try {
+      await apiRequest(`/requirements/${requirement.id}`, { method: "DELETE", auth: true });
+      setRequirementDefinitionDraft(null);
+      state.api.isRequirementDefinitionEditorOpen = false;
+      await hydrateCompositionsWorkspaceFromApi();
+      overlay.remove();
+      renderCompositionsWorkspace();
+    } catch (error) {
+      feedbackEl.textContent = normalizeApiErrorMessage(error, "Failed to delete.");
+    } finally {
+      state.api.isSavingRequirementDefinition = false;
+    }
+  });
+
+  const cancelBtn = runtimeDocument.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "ghost";
+  cancelBtn.textContent = "Cancel";
+
+  const saveBtn = runtimeDocument.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.textContent = isEditing ? "Update" : "Create";
+
+  async function handleClose() {
+    const isDirty = JSON.stringify(state.api.requirementDefinitionDraft) !== draftAtOpen;
+    if (isDirty) {
+      const confirmed = await showUSSConfirm({
+        title: "Unsaved Changes",
+        body: "You have unsaved requirement edits. Discard them?",
+        affirmLabel: "Discard",
+        cancelLabel: "Keep Editing",
+        destructive: true
+      });
+      if (!confirmed) return;
+    }
+    state.api.requirementDefinitionDraft = JSON.parse(JSON.stringify(snapshotDraft));
+    state.api.selectedRequirementDefinitionId = snapshotSelectedId;
+    overlay.remove();
+  }
+
+  close.addEventListener("click", handleClose);
+  cancelBtn.addEventListener("click", handleClose);
+  overlay.addEventListener("click", (evt) => {
+    if (evt.target === overlay) handleClose();
+  });
+
+  saveBtn.addEventListener("click", async () => {
+    const name = String(state.api.requirementDefinitionDraft.name ?? "").trim();
+    if (!name) {
+      feedbackEl.textContent = "Requirement name is required.";
+      return;
+    }
+    let parsedRules;
+    try {
+      parsedRules = parseRequirementRulesFromDraftClauses();
+    } catch (error) {
+      feedbackEl.textContent = error instanceof Error ? error.message : "Rules are invalid.";
+      return;
+    }
+    const payload = {
+      name,
+      definition: String(state.api.requirementDefinitionDraft.definition ?? "").trim(),
+      rules: parsedRules
+    };
+    const scopeContext = getCompositionCatalogScopeRequestContext();
+    payload.scope = scopeContext.scope;
+    if (scopeContext.scope === "team") {
+      if (!scopeContext.teamId) {
+        feedbackEl.textContent = "Select a team before saving team-scoped requirements.";
+        return;
+      }
+      payload.team_id = Number(scopeContext.teamId);
+    }
+    state.api.isSavingRequirementDefinition = true;
+    feedbackEl.textContent = isEditing ? "Saving..." : "Creating...";
+    saveBtn.disabled = true;
+    try {
+      await apiRequest(
+        isEditing ? `/requirements/${requirement.id}` : "/requirements",
+        { method: isEditing ? "PUT" : "POST", auth: true, body: payload }
+      );
+      await hydrateCompositionsWorkspaceFromApi();
+      state.api.requirementDefinitionDraft = JSON.parse(JSON.stringify(snapshotDraft));
+      state.api.selectedRequirementDefinitionId = snapshotSelectedId;
+      state.api.isRequirementDefinitionEditorOpen = false;
+      overlay.remove();
+      renderCompositionsWorkspace();
+    } catch (error) {
+      feedbackEl.textContent = normalizeApiErrorMessage(error, "Failed to save requirement.");
+      saveBtn.disabled = false;
+    } finally {
+      state.api.isSavingRequirementDefinition = false;
+    }
+  });
+
+  if (isEditing) {
+    footer.append(deleteBtn);
+    const separator = runtimeDocument.createElement("span");
+    separator.className = "composer-btn-separator";
+    footer.append(separator);
+  }
+  footer.append(cancelBtn, saveBtn);
+
+  dialog.append(header, body, footer);
+  overlay.append(dialog);
+  runtimeDocument.body.append(overlay);
+  requestAnimationFrame(() => overlay.classList.add("is-open"));
+  renderClauseEditorInModal(clauseContainer);
 }
 
 function renderCompositionsWorkspace() {
@@ -10621,8 +11151,57 @@ function syncBuilderCompositionControls() {
     elements.builderActiveComposition.disabled = compositionOptions.length < 1;
   }
 
+  const selectedComposition = getBuilderSelectedComposition();
+
+  /* Pencil icon: disable when nothing is selected */
+  if (elements.builderCompEdit) {
+    elements.builderCompEdit.disabled = !selectedComposition;
+  }
+
+  /* Getting Started step indicator */
+  if (elements.builderGettingStarted) {
+    const requirements = Array.isArray(state.api.requirementDefinitions) ? state.api.requirementDefinitions : [];
+    const compositions = Array.isArray(state.api.compositionBundles) ? state.api.compositionBundles : [];
+    const hasRequirements = requirements.length > 0;
+    const hasCompositions = compositions.length > 0;
+    const hasSelection = !!selectedComposition;
+
+    if (hasRequirements && hasCompositions && hasSelection) {
+      elements.builderGettingStarted.hidden = true;
+    } else {
+      elements.builderGettingStarted.hidden = false;
+      elements.builderGettingStarted.innerHTML = "";
+
+      const steps = [
+        { label: "1. Create Requirements", done: hasRequirements, tab: "requirements" },
+        { label: "2. Build Composition", done: hasCompositions, tab: "compositions" },
+        { label: "3. Start Drafting", done: hasSelection, tab: null }
+      ];
+
+      const bar = runtimeDocument.createElement("div");
+      bar.className = "getting-started-steps";
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        const el = runtimeDocument.createElement("span");
+        el.className = "getting-started-step" + (step.done ? " is-done" : "");
+        el.textContent = step.done ? "\u2713 " + step.label : step.label;
+        if (!step.done && step.tab) {
+          el.classList.add("is-actionable");
+          el.addEventListener("click", () => setTab(step.tab, { syncRoute: true }));
+        }
+        bar.append(el);
+        if (i < steps.length - 1) {
+          const arrow = runtimeDocument.createElement("span");
+          arrow.className = "getting-started-arrow";
+          arrow.textContent = "\u2192";
+          bar.append(arrow);
+        }
+      }
+      elements.builderGettingStarted.append(bar);
+    }
+  }
+
   if (elements.builderCompositionHelp) {
-    const selectedComposition = getBuilderSelectedComposition();
     if (!selectedComposition) {
       elements.builderCompositionHelp.textContent = "No composition selected. Create one in the Compositions page.";
       return;
@@ -17670,6 +18249,18 @@ function attachEvents() {
     });
   }
 
+  if (elements.requirementsCreateBtn) {
+    elements.requirementsCreateBtn.addEventListener("click", () => {
+      openRequirementEditorModal(null);
+    });
+  }
+
+  if (elements.requirementsNavCompositions) {
+    elements.requirementsNavCompositions.addEventListener("click", () => {
+      setTab("compositions", { syncRoute: true });
+    });
+  }
+
   if (elements.compositionsName) {
     elements.compositionsName.addEventListener("input", () => {
       state.api.compositionBundleDraft.name = elements.compositionsName.value;
@@ -17705,6 +18296,18 @@ function attachEvents() {
   if (elements.compositionsDelete) {
     elements.compositionsDelete.addEventListener("click", () => {
       void deleteCompositionBundleFromWorkspace();
+    });
+  }
+
+  if (elements.compositionsCreateBtn) {
+    elements.compositionsCreateBtn.addEventListener("click", () => {
+      openCompositionEditorModal(null);
+    });
+  }
+
+  if (elements.compositionsNavRequirements) {
+    elements.compositionsNavRequirements.addEventListener("click", () => {
+      setTab("requirements", { syncRoute: true });
     });
   }
 
@@ -17802,6 +18405,27 @@ function attachEvents() {
       resetBuilderTreeState();
       clearBuilderFeedback();
       renderBuilder();
+    });
+  }
+
+  if (elements.builderCompEdit) {
+    elements.builderCompEdit.addEventListener("click", () => {
+      const selected = getBuilderSelectedComposition();
+      if (selected) {
+        openCompositionEditorModal(selected);
+      }
+    });
+  }
+
+  if (elements.builderCompCreate) {
+    elements.builderCompCreate.addEventListener("click", () => {
+      openCompositionEditorModal(null);
+    });
+  }
+
+  if (elements.builderCompManage) {
+    elements.builderCompManage.addEventListener("click", () => {
+      setTab("compositions", { syncRoute: true });
     });
   }
 
