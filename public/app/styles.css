@@ -2239,6 +2239,12 @@ button.pool-snapshot-order-btn:disabled {
   color: var(--warn);
 }
 
+.comp-nav-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
 /* Getting Started Bar */
 .getting-started-bar {
   display: flex;
@@ -3712,6 +3718,13 @@ button.pool-snapshot-order-btn:disabled {
   border-color: rgba(35, 109, 63, 0.45);
   background: #eaf7ee;
   color: #1f6a3b;
+}
+
+.tags-scope-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .tags-promotion-section {

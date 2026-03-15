@@ -866,6 +866,7 @@ function createElements() {
     requirementsList: runtimeDocument.querySelector("#requirements-list"),
     requirementsCreateBtn: runtimeDocument.querySelector("#requirements-create-btn"),
     requirementsNavCompositions: runtimeDocument.querySelector("#requirements-nav-compositions"),
+    requirementsNavComposer: runtimeDocument.querySelector("#requirements-nav-composer"),
     compositionsName: runtimeDocument.querySelector("#compositions-name"),
     compositionsDescription: runtimeDocument.querySelector("#compositions-description"),
     compositionsIsActive: runtimeDocument.querySelector("#compositions-is-active"),
@@ -877,6 +878,7 @@ function createElements() {
     compositionsList: runtimeDocument.querySelector("#compositions-list"),
     compositionsCreateBtn: runtimeDocument.querySelector("#compositions-create-btn"),
     compositionsNavRequirements: runtimeDocument.querySelector("#compositions-nav-requirements"),
+    compositionsNavComposer: runtimeDocument.querySelector("#compositions-nav-composer"),
     compositionsGettingStarted: runtimeDocument.querySelector("#compositions-getting-started"),
     requirementsGettingStarted: runtimeDocument.querySelector("#requirements-getting-started"),
     profileShowGettingStarted: runtimeDocument.querySelector("#profile-show-getting-started"),
@@ -7878,15 +7880,11 @@ function renderRequirementDefinitionsWorkspace() {
   }
 
   /* Requirements Getting Started */
-  if (!hasCompositions()) {
-    renderGettingStartedBar(elements.requirementsGettingStarted, {
-      message: "Define requirements here, then create compositions to group them.",
-      actionLabel: "Go to Compositions",
-      actionTab: "compositions"
-    });
-  } else if (elements.requirementsGettingStarted) {
-    elements.requirementsGettingStarted.hidden = true;
-  }
+  renderGettingStartedBar(elements.requirementsGettingStarted, {
+    message: "Define requirements here, then create compositions to group them.",
+    actionLabel: "Go to Compositions",
+    actionTab: "compositions"
+  });
 
   elements.requirementsList.innerHTML = "";
   if (!isAuthenticated()) {
@@ -8085,15 +8083,11 @@ function renderCompositionBundlesWorkspace() {
       : "No active composition selected.";
   }
 
-  if (!hasRequirements()) {
-    renderGettingStartedBar(elements.compositionsGettingStarted, {
-      message: "Create at least one requirement before building a composition.",
-      actionLabel: "Go to Requirements",
-      actionTab: "requirements"
-    });
-  } else if (elements.compositionsGettingStarted) {
-    elements.compositionsGettingStarted.hidden = true;
-  }
+  renderGettingStartedBar(elements.compositionsGettingStarted, {
+    message: "Create at least one requirement before building a composition.",
+    actionLabel: "Go to Requirements",
+    actionTab: "requirements"
+  });
 
   elements.compositionsList.innerHTML = "";
   if (!isAuthenticated()) {
@@ -11333,26 +11327,18 @@ function renderAllGettingStartedBars() {
   });
 
   /* Compositions page */
-  if (!hasRequirements()) {
-    renderGettingStartedBar(elements.compositionsGettingStarted, {
-      message: "Create at least one requirement before building a composition.",
-      actionLabel: "Go to Requirements",
-      actionTab: "requirements"
-    });
-  } else if (elements.compositionsGettingStarted) {
-    elements.compositionsGettingStarted.hidden = true;
-  }
+  renderGettingStartedBar(elements.compositionsGettingStarted, {
+    message: "Create at least one requirement before building a composition.",
+    actionLabel: "Go to Requirements",
+    actionTab: "requirements"
+  });
 
   /* Requirements page */
-  if (!hasCompositions()) {
-    renderGettingStartedBar(elements.requirementsGettingStarted, {
-      message: "Define requirements here, then create compositions to group them.",
-      actionLabel: "Go to Compositions",
-      actionTab: "compositions"
-    });
-  } else if (elements.requirementsGettingStarted) {
-    elements.requirementsGettingStarted.hidden = true;
-  }
+  renderGettingStartedBar(elements.requirementsGettingStarted, {
+    message: "Define requirements here, then create compositions to group them.",
+    actionLabel: "Go to Compositions",
+    actionTab: "compositions"
+  });
 
   /* Profile setting value */
   if (elements.profileSettingGettingStartedValue) {
@@ -15269,6 +15255,7 @@ function openClauseDetailModal(requirementResult, requirementScore) {
   if (Array.isArray(requirementResult.clauses) && requirementResult.clauses.length > 0) {
     const clauseList = runtimeDocument.createElement("div");
     clauseList.className = "clause-detail-list";
+    const claimedChampions = new Set();
 
     for (const [index, clause] of requirementResult.clauses.entries()) {
       const clauseId =
@@ -15319,7 +15306,8 @@ function openClauseDetailModal(requirementResult, requirementScore) {
         pillRow.className = "clause-champ-pills";
         for (const role of clause.currentMatchSlots) {
           const champName = state.builder.teamState[role];
-          if (champName) {
+          if (champName && !claimedChampions.has(champName)) {
+            claimedChampions.add(champName);
             const pill = runtimeDocument.createElement("span");
             pill.className = "clause-champ-pill";
             pill.textContent = champName;
@@ -18481,6 +18469,12 @@ function attachEvents() {
     });
   }
 
+  if (elements.requirementsNavComposer) {
+    elements.requirementsNavComposer.addEventListener("click", () => {
+      setTab("workflow", { syncRoute: true });
+    });
+  }
+
   if (elements.compositionsName) {
     elements.compositionsName.addEventListener("input", () => {
       state.api.compositionBundleDraft.name = elements.compositionsName.value;
@@ -18528,6 +18522,12 @@ function attachEvents() {
   if (elements.compositionsNavRequirements) {
     elements.compositionsNavRequirements.addEventListener("click", () => {
       setTab("requirements", { syncRoute: true });
+    });
+  }
+
+  if (elements.compositionsNavComposer) {
+    elements.compositionsNavComposer.addEventListener("click", () => {
+      setTab("workflow", { syncRoute: true });
     });
   }
 

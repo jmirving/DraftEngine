@@ -513,6 +513,7 @@
             <div class="panel draft-board-panel">
               <h2 id="tags-title">Tags</h2>
               <p id="tags-meta" class="meta" hidden>Manage shared tag definitions and current champion coverage.</p>
+              <div class="tags-scope-row">
               <div class="ced-scope-panel">
                 <div class="ced-scope-inline">
                   <span class="ced-scope-editing-label">Editing</span>
@@ -522,13 +523,14 @@
                     <svg class="ced-scope-tip-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><text x="12" y="17" text-anchor="middle" fill="currentColor" font-size="14" font-weight="700" font-family="serif">i</text></svg>
                     <span id="tags-scope-help" class="ced-scope-tip-text"></span>
                   </span>
-                  <button id="tags-manage-open" class="ghost" type="button" aria-label="Create Tag" title="Create Tag">Create Tag</button>
                 </div>
                 <p id="tags-scope-readout" class="sr-only">Global</p>
                 <div id="tags-team-group" class="ced-scope-team-row" hidden>
                   <span class="ced-scope-team-label">Team</span>
                   <select id="tags-team" class="ced-scope-team-select"></select>
                 </div>
+              </div>
+              <button id="tags-manage-open" class="ghost" type="button" aria-label="Create Tag" title="Create Tag">Create Tag</button>
               </div>
               <p id="tags-workspace-summary" class="meta"></p>
               <div class="tags-promotion-section">
@@ -1161,6 +1163,9 @@
               </div>
               <div id="requirements-list" class="comp-card-grid"></div>
               <p id="requirements-feedback" class="meta"></p>
+              <div class="comp-nav-footer">
+                <button id="requirements-nav-composer" type="button" class="ghost comp-action-btn comp-nav-link">Back to Composer</button>
+              </div>
             </div>
             <!-- Hidden elements kept for state sync -->
             <div hidden>
@@ -1206,6 +1211,9 @@
               <p id="compositions-summary" class="meta"></p>
               <div id="compositions-list" class="comp-card-grid"></div>
               <p id="compositions-feedback" class="meta"></p>
+              <div class="comp-nav-footer">
+                <button id="compositions-nav-composer" type="button" class="ghost comp-action-btn comp-nav-link">Back to Composer</button>
+              </div>
             </div>
             <!-- Hidden elements kept for state sync (used by existing JS) -->
             <div hidden>
@@ -1276,7 +1284,10 @@
                 <ul class="coming-soon-list">
                   <li>Tags page restructured into two sections: top panel with scope controls, tag promotions, and Create Tag button; bottom panel with the tag card list.</li>
                   <li>Tag CRUD (create, edit, delete) moved into a Create Tag modal, accessible via inline button next to scope controls. Modal uses stacked form fields (Name above Definition) per USS form input rules.</li>
+                  <li>Create Tag button positioned in a flex row alongside the scope panel, pushed to far right — no longer inside the scope inline component.</li>
                   <li>Tag Promotions wrapped in a bordered section for visual grouping within the top panel.</li>
+                  <li>Clause Detail Modal: champion pills now use first-match-wins — once a champion is claimed by a clause, it won't appear as a duplicate pill in subsequent clauses.</li>
+                  <li>"Back to Composer" navigation button added to the lower-right of Requirements and Compositions pages.</li>
                   <li>USS design system updated: textarea resize disabled globally, stacked form field rule added for modal forms.</li>
                 </ul>
                 <h4>Version 0.9.8 (Contributor — IWantWaffleFries1999)</h4>
