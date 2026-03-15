@@ -2723,6 +2723,20 @@ describe("auth + pools + team management", () => {
     expect(optionalSection.hidden).toBe(false);
     expect(optionalSection.textContent).toContain("Ashe Composition Synergy");
     expect(optionalSection.textContent).toContain("+2 Bonus");
+
+    optionalSection.querySelector(".req-card").click();
+    await flush();
+
+    const goToChampionButton = Array.from(doc.querySelectorAll(".draft-modal-footer button")).find((node) =>
+      node.textContent.trim() === "Go to Ashe"
+    );
+    expect(goToChampionButton).toBeTruthy();
+    goToChampionButton.click();
+    await flush();
+
+    const championEditor = doc.querySelector("#champion-tag-editor");
+    expect(championEditor.hidden).toBe(false);
+    expect(doc.querySelector("#champion-tag-editor-title").textContent).toContain("Ashe");
   });
 
   test("champion explorer shows metadata scope indicators and defaults members to self scope", async () => {

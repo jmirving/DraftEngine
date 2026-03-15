@@ -10452,6 +10452,22 @@ async function openChampionTagEditor(championId) {
   renderChampionTagEditor();
 }
 
+async function navigateToChampionEditorByName(championName) {
+  const normalizedChampionName = typeof championName === "string" ? championName.trim() : "";
+  if (!normalizedChampionName) {
+    return false;
+  }
+  const championId = normalizeApiEntityId(state.data?.championIdsByName?.[normalizedChampionName]);
+  if (!championId) {
+    return false;
+  }
+  await setTab("explorer", { syncRoute: true });
+  state.explorer.subTab = "edit-champions";
+  renderExplorer();
+  await openChampionTagEditor(championId);
+  return true;
+}
+
 function closeChampionTagEditor() {
   // Sync editor scope back to the grid card's view scope
   const editorChampionId = state.api.selectedChampionTagEditorId;
@@ -15833,6 +15849,8 @@ function openClauseDetailModal(requirementResult, requirementScore) {
 
   const body = runtimeDocument.createElement("div");
   body.className = "draft-modal-body";
+  const footer = runtimeDocument.createElement("div");
+  footer.className = "draft-modal-footer";
 
   const statusBadge = runtimeDocument.createElement("span");
   statusBadge.className = `req-card-badge ${passed ? "is-passed" : "is-failed"}`;
@@ -16017,10 +16035,37 @@ function openClauseDetailModal(requirementResult, requirementScore) {
     body.append(scoreMeta);
   }
 
+  const sourceChampionName =
+    typeof requirementResult?.sourceChampionName === "string" ? requirementResult.sourceChampionName.trim() : "";
+  const canOpenSourceChampion =
+    requirementResult?.sourceType === "composition_synergy" &&
+    sourceChampionName !== "" &&
+    Boolean(state.data?.championIdsByName?.[sourceChampionName]);
+  if (canOpenSourceChampion) {
+    const closeBtn = runtimeDocument.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "ghost";
+    closeBtn.textContent = "Close";
+    closeBtn.addEventListener("click", closeModal);
+
+    const openChampionBtn = runtimeDocument.createElement("button");
+    openChampionBtn.type = "button";
+    openChampionBtn.textContent = `Go to ${sourceChampionName}`;
+    openChampionBtn.addEventListener("click", async () => {
+      closeModal();
+      await navigateToChampionEditorByName(sourceChampionName);
+    });
+    footer.append(closeBtn, openChampionBtn);
+  }
+
   dialog.append(header, body);
+  if (footer.childElementCount > 0) {
+    dialog.append(footer);
+  }
   overlay.append(dialog);
   runtimeDocument.body.append(overlay);
-  requestAnimationFrame(() => overlay.classList.add("is-open"));
+  const scheduleOpen = runtimeWindow?.requestAnimationFrame ?? ((callback) => callback());
+  scheduleOpen(() => overlay.classList.add("is-open"));
 }
 
 function openClauseEditorModal(requirementResult, requirementScore, clauseIndex) {

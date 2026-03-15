@@ -1347,6 +1347,7 @@
                   <li>Champion profiles now support direct Composition Synergies: champion-authored clause bundles that describe what the pick wants from the surrounding team.</li>
                   <li>Composer Review and tree scoring now evaluate champion composition synergies against the rest of the team, so champion-specific comp-context needs can surface without counting the champion itself.</li>
                   <li>Champion composition synergies can now be marked optional with a bonus weight, and Draft Review shows them in a separate Optional Checks section so satisfied pairings can improve ranking without creating draft-fail gaps.</li>
+                  <li>Champion-owned synergy cards in Draft Review now include a direct `Go to Champion` action that opens the source champion editor from the review modal.</li>
                   <li>Tags page restructured into two sections: top panel with scope controls, tag promotions, and Create Tag button; bottom panel with the tag card list.</li>
                   <li>Tag CRUD (create, edit, delete) moved into a Create Tag modal, accessible via inline button next to scope controls. Modal uses stacked form fields (Name above Definition) per USS form input rules.</li>
                   <li>Create Tag button positioned in a flex row alongside the scope panel, pushed to far right — no longer inside the scope inline component.</li>
@@ -1583,7 +1584,6 @@
                 <h4>Compositions &amp; Requirements</h4>
                 <ul class="coming-soon-list">
                   <li><strong>[Joseph Irving]</strong> Promotion moderation for scoped requirement/composition changes is still deferred (draftflow-171).</li>
-                  <li><strong>[IWantWaffleFries1999]</strong> Champion composition synergy cards are live in Composer Review, but direct edit/deep-link back to the source champion editor is still follow-up work (draftflow-244).</li>
                   <li><strong>[IWantWaffleFries1999]</strong> Team/User-scoped draft synergies now update Composer immediately after save in the current session, but cross-session reload behavior still needs a consistent scope-resolution decision (draftflow-246).</li>
                   <li><strong>[IWantWaffleFries1999]</strong> Clause labels are auto-generated (C1, C2, etc.) — descriptive clause naming is planned for a future release.</li>
                   <li><strong>[IWantWaffleFries1999]</strong> Composition and Requirement pages are accessible via URL hash routing but no longer in the side nav — deep link bookmarks still work.</li>
