@@ -141,6 +141,30 @@ All scope panels use the "Editing [dropdown] Scope (i)" inline pattern:
 - `.card-grid` with `max-height: 40rem; overflow-y: auto` for scrollable 3-row display
 - Champion cards use consistent border-radius and surface background
 
+## Requirement Card Grid (`.req-card-grid`)
+
+Compact status cards for requirement evaluation results.
+
+- Grid: `repeat(auto-fill, minmax(200px, 1fr))`, `max-height: 16rem`, scrollable
+- Cards: green tint (`#f0f7f2`) for pass, red tint (`#fdf0ec`) for fail
+- Badge pill: `[✓ Pass]` (good) or `[✗ N fail]` (warn) — Option 3 compact badge style
+- Background tint: Option C — color wash for instant scanability
+- Definition on hover via `title` attribute
+- Click card → Clause Detail Modal
+
+### Clause Detail Modal
+- USS modal with close button
+- Status badge, definition text, clause breakdown
+- Each clause: colored dot (`●` green/red) + match count + status text
+- USS pencil icon per clause → opens Clause Editor Modal
+- Champion name pills inline for met clauses
+
+### Clause Editor Modal
+- Full clause editing UI (conditions, min/max, role filter, separation)
+- Snapshot/draft pattern: deep-clone state on open
+- Cancel/close with dirty check → `showUSSConfirm()`
+- Save validates, updates in-memory definitions, returns to Clause Detail Modal
+
 ## Filter Pattern
 
 ### Collapsible Filter Section
