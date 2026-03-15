@@ -105,6 +105,12 @@ function buildScopedMetadataConfig(scope) {
 
 function buildNextMetadata(currentMetadata, roles, roleProfiles) {
   const normalizedCurrentMetadata = normalizeStoredMetadata(currentMetadata);
+  const compositionSynergies =
+    normalizedCurrentMetadata.compositionSynergies &&
+    typeof normalizedCurrentMetadata.compositionSynergies === "object" &&
+    !Array.isArray(normalizedCurrentMetadata.compositionSynergies)
+      ? normalizedCurrentMetadata.compositionSynergies
+      : null;
 
   const normalizedRoleProfiles =
     roleProfiles && typeof roleProfiles === "object" && !Array.isArray(roleProfiles)
@@ -119,13 +125,25 @@ function buildNextMetadata(currentMetadata, roles, roleProfiles) {
       ? normalizedRoleProfiles[primaryRole]
       : null;
 
-  return {
+  const nextMetadata = {
     ...normalizedCurrentMetadata,
     roles: [...roles],
     roleProfiles: normalizedRoleProfiles,
     damageType: mapPrimaryDamageTypeToLegacyValue(primaryRoleProfile?.primaryDamageType),
     scaling: deriveLegacyScalingFromPowerSpikes(primaryRoleProfile?.powerSpikes)
   };
+
+  if (
+    compositionSynergies &&
+    (typeof compositionSynergies.definition === "string" && compositionSynergies.definition.trim() !== "" ||
+      Array.isArray(compositionSynergies.rules) && compositionSynergies.rules.length > 0)
+  ) {
+    nextMetadata.compositionSynergies = compositionSynergies;
+  } else {
+    delete nextMetadata.compositionSynergies;
+  }
+
+  return nextMetadata;
 }
 
 async function listScopedMetadataChampionIds(pool, championIds, scope, ownerId) {
@@ -387,7 +405,8 @@ export function createChampionsRepository(pool) {
       userId = null,
       teamId = null,
       roles,
-      roleProfiles
+      roleProfiles,
+      compositionSynergies = null
     }) {
       if (scope === "all") {
         const currentResult = await pool.query(
@@ -402,7 +421,14 @@ export function createChampionsRepository(pool) {
           return null;
         }
 
-        const nextMetadata = buildNextMetadata(currentResult.rows[0]?.metadata_json, roles, roleProfiles);
+        const nextMetadata = buildNextMetadata(
+          {
+            ...(currentResult.rows[0]?.metadata_json ?? {}),
+            compositionSynergies
+          },
+          roles,
+          roleProfiles
+        );
         await pool.query(
           `
             UPDATE champions
@@ -436,7 +462,14 @@ export function createChampionsRepository(pool) {
           currentScopedResult.rowCount > 0
             ? currentScopedResult.rows[0]?.metadata_json
             : fallbackChampion.metadata;
-        const nextMetadata = buildNextMetadata(baseMetadata, roles, roleProfiles);
+        const nextMetadata = buildNextMetadata(
+          {
+            ...(baseMetadata ?? {}),
+            compositionSynergies
+          },
+          roles,
+          roleProfiles
+        );
 
         await pool.query(
           `

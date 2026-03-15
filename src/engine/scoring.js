@@ -27,6 +27,19 @@ export function normalizeCandidateScoringWeights(weights = DEFAULT_CANDIDATE_SCO
   };
 }
 
+function normalizeRequirementIdentifier(rawValue, fallback = 0) {
+  if (typeof rawValue === "string") {
+    const normalized = rawValue.trim();
+    if (normalized !== "") {
+      return normalized;
+    }
+  }
+  if (Number.isInteger(rawValue)) {
+    return rawValue;
+  }
+  return fallback;
+}
+
 function createClauseScoreDetail(clause, clauseIndex, redundancyPenalty) {
   const underBy = Number.isFinite(clause?.underBy) ? clause.underBy : 0;
   const overBy = Number.isFinite(clause?.overBy) ? clause.overBy : 0;
@@ -142,7 +155,7 @@ export function buildRequirementScoreBreakdown(
     }
 
     return {
-      requirementId: Number(requirement?.id ?? 0),
+      requirementId: normalizeRequirementIdentifier(requirement?.id, 0),
       requirementName: typeof requirement?.name === "string" ? requirement.name : "Unnamed requirement",
       status: requirement?.status ?? "pending",
       reason: requirement?.reason ?? "",

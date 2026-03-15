@@ -8,6 +8,10 @@ import {
   requireObject
 } from "../http/validation.js";
 import {
+  normalizeRequirementDefinitionText,
+  normalizeRequirementRules
+} from "../requirements-validation.js";
+import {
   assertScopeReadAuthorization,
   assertPromotionAuthorization,
   assertScopeWriteAuthorization,
@@ -218,6 +222,38 @@ function normalizeMetadataRoleProfiles(rawValue, roles) {
   }
 
   return nextProfiles;
+}
+
+function normalizeCompositionSynergies(rawValue) {
+  if (rawValue === undefined || rawValue === null) {
+    return {
+      definition: "",
+      rules: []
+    };
+  }
+  if (typeof rawValue !== "object" || Array.isArray(rawValue)) {
+    throw badRequest("Expected 'composition_synergies' to be an object.");
+  }
+
+  const definition = normalizeRequirementDefinitionText(
+    rawValue.definition,
+    "composition_synergies.definition"
+  );
+  const rawRules = rawValue.rules ?? [];
+  if (!Array.isArray(rawRules) || rawRules.length < 1) {
+    if (definition === "") {
+      return {
+        definition: "",
+        rules: []
+      };
+    }
+    throw badRequest("Expected 'composition_synergies.rules' to include at least one clause.");
+  }
+
+  return {
+    definition,
+    rules: normalizeRequirementRules(rawRules, "composition_synergies.rules")
+  };
 }
 
 function isUniqueViolation(error) {
@@ -696,6 +732,9 @@ export function createChampionsRouter({
       body.role_profiles ?? body.roleProfiles,
       roles
     );
+    const compositionSynergies = normalizeCompositionSynergies(
+      body.composition_synergies ?? body.compositionSynergies
+    );
 
     const championExists = await championsRepository.championExists(championId);
     if (!championExists) {
@@ -718,6 +757,7 @@ export function createChampionsRouter({
     const metadataResult = await championsRepository.updateChampionMetadataForScope({
       roles,
       roleProfiles,
+      compositionSynergies,
       championId,
       scope,
       userId,

@@ -317,6 +317,23 @@
               </div>
 
               <div class="ced-section">
+                <p class="ced-section-label">Composition Synergies</p>
+                <label>
+                  Summary
+                  <textarea
+                    id="champion-composition-synergy-definition"
+                    rows="2"
+                    placeholder="What this champion wants from the surrounding comp"
+                  ></textarea>
+                </label>
+                <p id="champion-composition-synergy-meta" class="meta"></p>
+                <div class="button-row">
+                  <button id="champion-composition-synergy-clear" class="ghost" type="button">Clear Synergies</button>
+                  <button id="champion-composition-synergy-edit" class="ghost" type="button">Add Synergy Clauses</button>
+                </div>
+              </div>
+
+              <div class="ced-section">
                 <p class="ced-section-label">Champion Tags</p>
                 <div class="ced-tag-columns">
                   <div class="ced-tag-column">
@@ -1306,6 +1323,8 @@
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
                 <h4>Version 0.9.9 (Contributor — IWantWaffleFries1999)</h4>
                 <ul class="coming-soon-list">
+                  <li>Champion profiles now support direct Composition Synergies: champion-authored clause bundles that describe what the pick wants from the surrounding team.</li>
+                  <li>Composer Review and tree scoring now evaluate champion composition synergies against the rest of the team, so champion-specific comp-context needs can surface without counting the champion itself.</li>
                   <li>Tags page restructured into two sections: top panel with scope controls, tag promotions, and Create Tag button; bottom panel with the tag card list.</li>
                   <li>Tag CRUD (create, edit, delete) moved into a Create Tag modal, accessible via inline button next to scope controls. Modal uses stacked form fields (Name above Definition) per USS form input rules.</li>
                   <li>Create Tag button positioned in a flex row alongside the scope panel, pushed to far right — no longer inside the scope inline component.</li>
@@ -1542,6 +1561,7 @@
                 <h4>Compositions &amp; Requirements</h4>
                 <ul class="coming-soon-list">
                   <li><strong>[Joseph Irving]</strong> Promotion moderation for scoped requirement/composition changes is still deferred (draftflow-171).</li>
+                  <li><strong>[IWantWaffleFries1999]</strong> Champion composition synergy cards are live in Composer Review, but direct edit/deep-link back to the source champion editor is still follow-up work (draftflow-244).</li>
                   <li><strong>[IWantWaffleFries1999]</strong> Clause labels are auto-generated (C1, C2, etc.) — descriptive clause naming is planned for a future release.</li>
                   <li><strong>[IWantWaffleFries1999]</strong> Composition and Requirement pages are accessible via URL hash routing but no longer in the side nav — deep link bookmarks still work.</li>
                 </ul>

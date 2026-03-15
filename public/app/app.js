@@ -488,11 +488,19 @@ function createDefaultRequirementRuleClauseDraft() {
   };
 }
 
+function createEmptyChampionCompositionSynergiesDraft() {
+  return {
+    definition: "",
+    rules: []
+  };
+}
+
 function createEmptyChampionMetadataDraft() {
   return {
     roles: [],
     roleProfiles: {},
-    useSharedRoleProfile: false
+    useSharedRoleProfile: false,
+    compositionSynergies: createEmptyChampionCompositionSynergiesDraft()
   };
 }
 
@@ -944,6 +952,10 @@ function createElements() {
     championTagEditorTeam: runtimeDocument.querySelector("#champion-tag-editor-team"),
     cedChampImage: runtimeDocument.querySelector("#ced-champ-image"),
     cedChampRoles: runtimeDocument.querySelector("#ced-champ-roles"),
+    championCompositionSynergyDefinition: runtimeDocument.querySelector("#champion-composition-synergy-definition"),
+    championCompositionSynergyMeta: runtimeDocument.querySelector("#champion-composition-synergy-meta"),
+    championCompositionSynergyClear: runtimeDocument.querySelector("#champion-composition-synergy-clear"),
+    championCompositionSynergyEdit: runtimeDocument.querySelector("#champion-composition-synergy-edit"),
     cedTagsAvailableFilter: runtimeDocument.querySelector("#ced-tags-available-filter"),
     cedTagsSelectedFilter: runtimeDocument.querySelector("#ced-tags-selected-filter"),
     cedTagsAvailable: runtimeDocument.querySelector("#ced-tags-available"),
@@ -1920,7 +1932,8 @@ function cacheExplorerScopedMetadataPayload(championId, scope, payload) {
     resolvedScope: normalizeChampionTagScope(payload?.resolved_scope ?? payload?.resolvedScope ?? "all"),
     reviewed: payload?.reviewed === true,
     roles,
-    roleProfiles: normalizeRoleProfilesFromMetadata(metadata.roleProfiles, roles)
+    roleProfiles: normalizeRoleProfilesFromMetadata(metadata.roleProfiles, roles),
+    compositionSynergies: normalizeChampionCompositionSynergiesFromMetadata(metadata.compositionSynergies)
   };
 
   const championKey = String(championId);
@@ -2289,7 +2302,8 @@ function initializeChampionMetadataDraftFromMetadata(metadata, reviewed = false)
   state.api.championMetadataDraft = {
     roles,
     roleProfiles,
-    useSharedRoleProfile
+    useSharedRoleProfile,
+    compositionSynergies: normalizeChampionCompositionSynergyDraft(metadataObject.compositionSynergies)
   };
   ensureChampionMetadataRoleProfiles();
   state.api.championReviewedDraft = reviewed === true;
@@ -2344,6 +2358,7 @@ function syncChampionMetadataDraftToState(championId, payload) {
       champion.roles = nextRoles;
     }
     champion.roleProfiles = nextRoleProfiles;
+    champion.compositionSynergies = normalizeChampionCompositionSynergiesFromMetadata(metadata.compositionSynergies);
     const previewProfile = getChampionRoleProfile(champion, champion.roles[0]);
     champion.damageType = deriveDisplayDamageTypeFromProfile(previewProfile);
     champion.scaling = deriveLegacyScalingFromProfile(previewProfile);
@@ -2372,6 +2387,7 @@ function getChampionEditorSnapshot() {
     tagIds: [...(state.api.selectedChampionTagIds ?? [])].sort((a, b) => a - b),
     roles: [...(state.api.championMetadataDraft?.roles ?? [])],
     roleProfiles: state.api.championMetadataDraft?.roleProfiles ?? {},
+    compositionSynergies: state.api.championMetadataDraft?.compositionSynergies ?? createEmptyChampionCompositionSynergiesDraft(),
     reviewed: state.api.championReviewedDraft
   });
 }
@@ -3775,8 +3791,8 @@ async function setTab(tabName, { syncRoute = false, replaceRoute = false } = {})
   elements.tabComingSoon.classList.toggle("is-active", resolvedTab === "coming-soon");
   applyHeroCopy(resolvedTab);
 
-  if (tabChanged) {
-    window.scrollTo(0, 0);
+  if (tabChanged && !String(runtimeWindow?.navigator?.userAgent ?? "").toLowerCase().includes("jsdom")) {
+    runtimeWindow?.scrollTo?.(0, 0);
   }
 
   if (resolvedTab === "team-config" && state.data) {
@@ -4100,6 +4116,7 @@ function buildChampionFromApiRecord(rawChampion, index) {
   const scaling = deriveLegacyScalingFromProfile(previewProfile);
 
   const tagIds = normalizeChampionTagIdArray(rawChampion.tagIds ?? rawChampion.tag_ids);
+  const compositionSynergies = normalizeChampionCompositionSynergiesFromMetadata(metadata.compositionSynergies);
   const reviewed = rawChampion.reviewed === true || metadata.reviewed === true;
   const reviewedByUserId = normalizeApiEntityId(rawChampion.reviewed_by_user_id ?? rawChampion.reviewedByUserId);
   const reviewedByDisplayName =
@@ -4124,6 +4141,7 @@ function buildChampionFromApiRecord(rawChampion, index) {
     roleProfiles,
     tags: deriveApiTagsFromTagIds(tagIds),
     tagIds,
+    compositionSynergies,
     reviewed,
     reviewed_by_user_id: reviewedByUserId,
     reviewed_by_display_name: reviewedByDisplayName,
@@ -7238,6 +7256,28 @@ function createRequirementRuleClauseDraft(rawClause = null) {
   };
 }
 
+function normalizeChampionCompositionSynergiesFromMetadata(rawValue) {
+  const source = rawValue && typeof rawValue === "object" && !Array.isArray(rawValue) ? rawValue : {};
+  const definition = typeof source.definition === "string" ? source.definition.trim() : "";
+  const rules = Array.isArray(source.rules)
+    ? source.rules
+        .filter((rule) => rule && typeof rule === "object" && !Array.isArray(rule))
+        .map((rule) => JSON.parse(JSON.stringify(rule)))
+    : [];
+  return {
+    definition,
+    rules
+  };
+}
+
+function normalizeChampionCompositionSynergyDraft(rawValue) {
+  const normalized = normalizeChampionCompositionSynergiesFromMetadata(rawValue);
+  return {
+    definition: normalized.definition,
+    rules: normalized.rules.map((rule) => createRequirementRuleClauseDraft(rule))
+  };
+}
+
 function setRequirementDefinitionDraft(requirement = null) {
   if (!requirement) {
     state.api.selectedRequirementDefinitionId = null;
@@ -7301,10 +7341,12 @@ function createRequirementExprNodeFromTerm(term) {
   return { tag: value };
 }
 
-function parseRequirementRulesFromDraftClauses() {
-  const rules = Array.isArray(state.api.requirementDefinitionDraft.rules)
-    ? state.api.requirementDefinitionDraft.rules
-    : [];
+function parseRequirementRulesFromDraftClauses(rawRules = null) {
+  const rules = Array.isArray(rawRules)
+    ? rawRules
+    : Array.isArray(state.api.requirementDefinitionDraft.rules)
+      ? state.api.requirementDefinitionDraft.rules
+      : [];
   if (rules.length < 1) {
     throw new Error("Add at least one rule clause.");
   }
@@ -8698,6 +8740,168 @@ function openRequirementEditorModal(requirement = null) {
   draftAtOpen = JSON.stringify(state.api.requirementDefinitionDraft);
 }
 
+function openChampionCompositionSynergyEditorModal() {
+  closeDraftModal();
+  const snapshotDraft = JSON.parse(JSON.stringify(state.api.requirementDefinitionDraft));
+  const snapshotSelectedId = state.api.selectedRequirementDefinitionId;
+  const snapshotSynergies = JSON.parse(
+    JSON.stringify(state.api.championMetadataDraft?.compositionSynergies ?? createEmptyChampionCompositionSynergiesDraft())
+  );
+  const champion = getChampionById(state.api.selectedChampionTagEditorId);
+
+  state.api.requirementDefinitionDraft = {
+    name: "",
+    definition: snapshotSynergies.definition ?? "",
+    rules: Array.isArray(snapshotSynergies.rules) ? snapshotSynergies.rules : []
+  };
+
+  let draftAtOpen = null;
+
+  const overlay = runtimeDocument.createElement("div");
+  overlay.className = "draft-modal-overlay";
+
+  const dialog = runtimeDocument.createElement("div");
+  dialog.className = "draft-modal clause-editor-modal";
+
+  const header = runtimeDocument.createElement("div");
+  header.className = "draft-modal-header";
+  const title = runtimeDocument.createElement("h3");
+  title.textContent = champion
+    ? `Edit Composition Synergies — ${champion.name}`
+    : "Edit Composition Synergies";
+  const close = runtimeDocument.createElement("button");
+  close.type = "button";
+  close.className = "draft-modal-close";
+  close.textContent = "\u00D7";
+  header.append(title, close);
+
+  const body = runtimeDocument.createElement("div");
+  body.className = "draft-modal-body";
+
+  const defLabel = runtimeDocument.createElement("label");
+  defLabel.textContent = "Summary";
+  const defInput = runtimeDocument.createElement("textarea");
+  defInput.rows = 2;
+  defInput.placeholder = "What this champion wants from the surrounding comp";
+  defInput.value = state.api.requirementDefinitionDraft.definition;
+  defInput.addEventListener("input", () => {
+    state.api.requirementDefinitionDraft.definition = defInput.value;
+  });
+  defLabel.append(runtimeDocument.createElement("br"), defInput);
+
+  const clauseSection = runtimeDocument.createElement("div");
+  const clauseHeader = runtimeDocument.createElement("div");
+  clauseHeader.className = "comp-card-header";
+  clauseHeader.style.marginTop = "0.5rem";
+  const clauseTitle = runtimeDocument.createElement("p");
+  clauseTitle.className = "meta";
+  clauseTitle.style.margin = "0";
+  clauseTitle.textContent = "Synergy Clauses";
+  const addClauseBtn = runtimeDocument.createElement("button");
+  addClauseBtn.type = "button";
+  addClauseBtn.className = "ghost comp-action-btn";
+  addClauseBtn.textContent = "+ Add Clause";
+  addClauseBtn.addEventListener("click", () => {
+    const nextRules = Array.isArray(state.api.requirementDefinitionDraft.rules)
+      ? [...state.api.requirementDefinitionDraft.rules]
+      : [];
+    for (const existingClause of nextRules) {
+      existingClause.isOpen = false;
+    }
+    nextRules.push(createDefaultRequirementRuleClauseDraft());
+    state.api.requirementDefinitionDraft.rules = nextRules;
+    renderClauseEditorInModal(clauseContainer);
+  });
+  clauseHeader.append(clauseTitle, addClauseBtn);
+
+  const clauseContainer = runtimeDocument.createElement("div");
+  clauseContainer.className = "requirements-clause-list";
+  clauseSection.append(clauseHeader, clauseContainer);
+
+  const feedbackEl = runtimeDocument.createElement("p");
+  feedbackEl.className = "meta";
+  feedbackEl.textContent =
+    "These clauses are evaluated against the rest of the team, so the champion itself does not count toward its own synergies.";
+
+  body.append(defLabel, clauseSection, feedbackEl);
+
+  const footer = runtimeDocument.createElement("div");
+  footer.className = "draft-modal-footer";
+
+  const cancelBtn = runtimeDocument.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "ghost";
+  cancelBtn.textContent = "Cancel";
+
+  const saveBtn = runtimeDocument.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.textContent = "Apply";
+
+  function stripTransientClauseFields(draftJson) {
+    const parsed = JSON.parse(draftJson);
+    if (Array.isArray(parsed.rules)) {
+      for (const rule of parsed.rules) {
+        delete rule.isOpen;
+        delete rule.activeTermIndex;
+        delete rule.termSearchByKind;
+      }
+    }
+    return JSON.stringify(parsed);
+  }
+
+  async function handleClose() {
+    const isDirty = stripTransientClauseFields(JSON.stringify(state.api.requirementDefinitionDraft)) !== stripTransientClauseFields(draftAtOpen);
+    if (isDirty) {
+      const confirmed = await showUSSConfirm({
+        title: "Unsaved Changes",
+        body: "You have unsaved composition synergy edits. Discard them?",
+        affirmLabel: "Discard",
+        cancelLabel: "Keep Editing",
+        destructive: true
+      });
+      if (!confirmed) return;
+    }
+    state.api.requirementDefinitionDraft = JSON.parse(JSON.stringify(snapshotDraft));
+    state.api.selectedRequirementDefinitionId = snapshotSelectedId;
+    overlay.remove();
+  }
+
+  close.addEventListener("click", handleClose);
+  cancelBtn.addEventListener("click", handleClose);
+  overlay.addEventListener("click", (evt) => {
+    if (evt.target === overlay) handleClose();
+  });
+
+  saveBtn.addEventListener("click", () => {
+    const definition = String(state.api.requirementDefinitionDraft.definition ?? "").trim();
+    const draftRules = Array.isArray(state.api.requirementDefinitionDraft.rules)
+      ? state.api.requirementDefinitionDraft.rules
+      : [];
+    if (draftRules.length < 1 && definition !== "") {
+      feedbackEl.textContent = "Add at least one synergy clause or clear the summary.";
+      return;
+    }
+    state.api.championMetadataDraft.compositionSynergies = {
+      definition,
+      rules: draftRules.length > 0 ? JSON.parse(JSON.stringify(draftRules)) : []
+    };
+    state.api.requirementDefinitionDraft = JSON.parse(JSON.stringify(snapshotDraft));
+    state.api.selectedRequirementDefinitionId = snapshotSelectedId;
+    overlay.remove();
+    renderChampionTagEditor();
+  });
+
+  footer.append(cancelBtn, saveBtn);
+
+  dialog.append(header, body, footer);
+  overlay.append(dialog);
+  runtimeDocument.body.append(overlay);
+  const scheduleOpen = runtimeWindow?.requestAnimationFrame ?? ((callback) => callback());
+  scheduleOpen(() => overlay.classList.add("is-open"));
+  renderClauseEditorInModal(clauseContainer);
+  draftAtOpen = JSON.stringify(state.api.requirementDefinitionDraft);
+}
+
 function renderCompositionsWorkspace() {
   renderRequirementDefinitionsWorkspace();
   renderCompositionBundlesWorkspace();
@@ -9901,6 +10105,35 @@ function renderChampionMetadataEditors() {
   renderChampionMetadataRoleProfileEditors();
 }
 
+function renderChampionCompositionSynergySection() {
+  const compositionSynergies =
+    state.api.championMetadataDraft?.compositionSynergies ?? createEmptyChampionCompositionSynergiesDraft();
+  const clauseCount = Array.isArray(compositionSynergies.rules) ? compositionSynergies.rules.length : 0;
+  const controlsDisabled = state.api.isSavingChampionTags || state.api.isLoadingChampionTags;
+
+  if (elements.championCompositionSynergyDefinition) {
+    elements.championCompositionSynergyDefinition.value = compositionSynergies.definition ?? "";
+    elements.championCompositionSynergyDefinition.disabled = controlsDisabled;
+  }
+
+  if (elements.championCompositionSynergyMeta) {
+    elements.championCompositionSynergyMeta.textContent =
+      clauseCount > 0
+        ? `${clauseCount} synergy clause${clauseCount === 1 ? "" : "s"} will be evaluated against the rest of the team, not this champion.`
+        : "Add optional champion-specific synergy clauses for what this pick wants from the surrounding comp.";
+  }
+
+  if (elements.championCompositionSynergyEdit) {
+    elements.championCompositionSynergyEdit.disabled = controlsDisabled;
+    elements.championCompositionSynergyEdit.textContent =
+      clauseCount > 0 ? `Edit Clauses (${clauseCount})` : "Add Synergy Clauses";
+  }
+  if (elements.championCompositionSynergyClear) {
+    elements.championCompositionSynergyClear.disabled =
+      controlsDisabled || (clauseCount < 1 && String(compositionSynergies.definition ?? "").trim() === "");
+  }
+}
+
 function renderChampionTagEditor() {
   if (!elements.championTagEditor) {
     return;
@@ -9984,6 +10217,7 @@ function renderChampionTagEditor() {
   renderChampionEditorTabs();
   renderChampionTagEditorTagOptions();
   renderChampionMetadataEditors();
+  renderChampionCompositionSynergySection();
   if (elements.championTagEditorReviewed) {
     elements.championTagEditorReviewed.checked = state.api.championReviewedDraft === true;
     elements.championTagEditorReviewed.disabled = state.api.isSavingChampionTags || state.api.isLoadingChampionTags;
@@ -10350,6 +10584,26 @@ async function saveChampionMetadataTab(championId) {
     roles: [...state.api.championMetadataDraft.roles],
     role_profiles: roleProfilesPayload
   };
+  const compositionSynergyDefinition = String(
+    state.api.championMetadataDraft?.compositionSynergies?.definition ?? ""
+  ).trim();
+  const compositionSynergyDraftRules = Array.isArray(state.api.championMetadataDraft?.compositionSynergies?.rules)
+    ? state.api.championMetadataDraft.compositionSynergies.rules
+    : [];
+  if (compositionSynergyDefinition !== "" || compositionSynergyDraftRules.length > 0) {
+    if (compositionSynergyDraftRules.length < 1) {
+      throw new Error("Add at least one composition synergy clause or clear the summary.");
+    }
+    payload.composition_synergies = {
+      definition: compositionSynergyDefinition,
+      rules: parseRequirementRulesFromDraftClauses(compositionSynergyDraftRules)
+    };
+  } else {
+    payload.composition_synergies = {
+      definition: "",
+      rules: []
+    };
+  }
   if (payload.scope === "team") {
     const teamId = normalizeTeamEntityId(state.api.championTagTeamId);
     if (!teamId) {
@@ -15521,10 +15775,9 @@ function openClauseDetailModal(requirementResult, requirementScore) {
       ? requirementScore.clauses.map((clause) => [clause.id, clause])
       : []
   );
+  const originalReqDef = getBuilderRequirementDefinitions().find((r) => r.id === requirementResult.id);
 
   if (Array.isArray(requirementResult.clauses) && requirementResult.clauses.length > 0) {
-    // Look up original requirement definition for clause expression details
-    const originalReqDef = getBuilderRequirementDefinitions().find((r) => r.id === requirementResult.id);
     const originalRules = Array.isArray(originalReqDef?.rules) ? originalReqDef.rules : [];
 
     const clauseList = runtimeDocument.createElement("div");
@@ -15562,20 +15815,21 @@ function openClauseDetailModal(requirementResult, requirementScore) {
       }
       label.textContent = pieces.join(" | ");
 
-      const editBtn = runtimeDocument.createElement("button");
-      editBtn.type = "button";
-      editBtn.className = "clause-edit-btn";
-      editBtn.title = `Edit Clause ${index + 1}`;
-      editBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>';
-      editBtn.addEventListener("click", (evt) => {
-        evt.stopPropagation();
-        // Remove any body-appended clause popovers before navigating
-        for (const p of runtimeDocument.body.querySelectorAll(":scope > .clause-popover")) p.remove();
-        overlay.remove();
-        openClauseEditorModal(requirementResult, requirementScore, index);
-      });
-
-      row.append(dot, label, editBtn);
+      row.append(dot, label);
+      if (originalReqDef) {
+        const editBtn = runtimeDocument.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "clause-edit-btn";
+        editBtn.title = `Edit Clause ${index + 1}`;
+        editBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>';
+        editBtn.addEventListener("click", (evt) => {
+          evt.stopPropagation();
+          for (const p of runtimeDocument.body.querySelectorAll(":scope > .clause-popover")) p.remove();
+          overlay.remove();
+          openClauseEditorModal(requirementResult, requirementScore, index);
+        });
+        row.append(editBtn);
+      }
 
       // Clause expression popover on hover (converts API expr to draft terms)
       const clauseRaw = originalRules[index];
@@ -15892,6 +16146,33 @@ function renderClauseEditorInModal(container) {
       renderClauseEditorInModal(container);
     });
     summaryControls.append(editButton);
+
+    const removeButton = runtimeDocument.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "ghost requirement-inline-button";
+    removeButton.textContent = "Remove";
+    removeButton.disabled = controlsDisabled || clauses.length <= 1;
+    removeButton.addEventListener("click", () => {
+      const nextClauses = [...clauses];
+      nextClauses.splice(index, 1);
+      const remainingIds = new Set(
+        nextClauses
+          .map((candidate) =>
+            typeof candidate?.clauseId === "string" && candidate.clauseId.trim() !== ""
+              ? candidate.clauseId.trim()
+              : null
+          )
+          .filter(Boolean)
+      );
+      for (const nextClause of nextClauses) {
+        nextClause.separateFrom = normalizeRequirementClauseReferenceIds(nextClause.separateFrom).filter((referenceId) =>
+          remainingIds.has(referenceId)
+        );
+      }
+      state.api.requirementDefinitionDraft.rules = nextClauses;
+      renderClauseEditorInModal(container);
+    });
+    summaryControls.append(removeButton);
 
     summaryRow.append(summaryText, summaryControls);
     card.append(summaryRow);
@@ -19005,6 +19286,26 @@ function attachEvents() {
   if (elements.championTagEditorReviewed) {
     elements.championTagEditorReviewed.addEventListener("change", () => {
       state.api.championReviewedDraft = elements.championTagEditorReviewed.checked;
+      renderChampionTagEditor();
+    });
+  }
+
+  if (elements.championCompositionSynergyDefinition) {
+    elements.championCompositionSynergyDefinition.addEventListener("input", () => {
+      state.api.championMetadataDraft.compositionSynergies.definition =
+        elements.championCompositionSynergyDefinition.value;
+    });
+  }
+
+  if (elements.championCompositionSynergyEdit) {
+    elements.championCompositionSynergyEdit.addEventListener("click", () => {
+      openChampionCompositionSynergyEditorModal();
+    });
+  }
+
+  if (elements.championCompositionSynergyClear) {
+    elements.championCompositionSynergyClear.addEventListener("click", () => {
+      state.api.championMetadataDraft.compositionSynergies = createEmptyChampionCompositionSynergiesDraft();
       renderChampionTagEditor();
     });
   }

@@ -454,6 +454,22 @@ function createFetchHarness({
     return {
       ...source,
       roles: Array.isArray(source.roles) ? [...source.roles] : [],
+      compositionSynergies:
+        source.compositionSynergies &&
+        typeof source.compositionSynergies === "object" &&
+        !Array.isArray(source.compositionSynergies)
+          ? {
+              definition: typeof source.compositionSynergies.definition === "string"
+                ? source.compositionSynergies.definition
+                : "",
+              rules: Array.isArray(source.compositionSynergies.rules)
+                ? source.compositionSynergies.rules.map((rule) => ({ ...rule }))
+                : []
+            }
+          : {
+              definition: "",
+              rules: []
+            },
       roleProfiles: Object.fromEntries(
         Object.entries(source.roleProfiles ?? {}).map(([role, profile]) => [
           role,
@@ -871,6 +887,17 @@ function createFetchHarness({
       const nextMetadata = {
         ...existing,
         roles: nextRoles,
+        compositionSynergies:
+          body?.composition_synergies && typeof body.composition_synergies === "object"
+            ? {
+                definition: typeof body.composition_synergies.definition === "string"
+                  ? body.composition_synergies.definition
+                  : "",
+                rules: Array.isArray(body.composition_synergies.rules)
+                  ? body.composition_synergies.rules.map((rule) => ({ ...rule }))
+                  : []
+              }
+            : normalizeHarnessMetadata(existing).compositionSynergies,
         roleProfiles: Object.fromEntries(
           Object.entries(nextRoleProfiles).map(([role, profile]) => [
             role,
@@ -2512,6 +2539,68 @@ describe("auth + pools + team management", () => {
     expect(metadataSaveCall.body.role_profiles.Mid.primary_damage_type).toBe("mixed");
     expect(new Set(metadataSaveCall.body.roles)).toEqual(new Set(["Top", "Mid"]));
     expect(doc.querySelector("#champion-tag-editor").hidden).toBe(true);
+  });
+
+  test("champion editor saves direct composition synergies on champion metadata", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness();
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    openExplorerEditChampions(doc);
+    await flush();
+
+    const editButton = getChampionCardByName(doc, "Ahri")?.querySelector(".champ-card-edit-btn");
+    expect(editButton).toBeTruthy();
+    editButton.click();
+    await flush();
+
+    const summaryInput = doc.querySelector("#champion-composition-synergy-definition");
+    expect(summaryInput).toBeTruthy();
+    summaryInput.value = "Wants knockup and follow-up setup around the pick.";
+    summaryInput.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+
+    doc.querySelector("#champion-composition-synergy-edit").click();
+    await flush();
+
+    const addClauseButton = Array.from(doc.querySelectorAll(".draft-modal .comp-action-btn")).find((node) =>
+      node.textContent.includes("Add Clause")
+    );
+    expect(addClauseButton).toBeTruthy();
+    addClauseButton.click();
+    await flush();
+
+    const engageOption = Array.from(doc.querySelectorAll(".draft-modal .requirement-tag-picker-list li")).find((node) =>
+      node.textContent.trim() === "engage"
+    );
+    expect(engageOption).toBeTruthy();
+    engageOption.click();
+    await flush();
+
+    const applyButton = Array.from(doc.querySelectorAll(".draft-modal-footer button")).find((node) =>
+      node.textContent.trim() === "Apply"
+    );
+    expect(applyButton).toBeTruthy();
+    applyButton.click();
+    await flush();
+
+    doc.querySelector("#champion-tag-editor-save").click();
+    await flush();
+
+    const metadataSaveCall = harness.calls.find(
+      (call) => /^\/champions\/\d+\/metadata$/.test(call.path) && call.method === "PUT"
+    );
+    expect(metadataSaveCall).toBeTruthy();
+    expect(metadataSaveCall.body.composition_synergies.definition).toBe(
+      "Wants knockup and follow-up setup around the pick."
+    );
+    expect(metadataSaveCall.body.composition_synergies.rules).toHaveLength(1);
+    expect(metadataSaveCall.body.composition_synergies.rules[0].expr).toEqual({ tag: "engage" });
   });
 
   test("champion explorer shows metadata scope indicators and defaults members to self scope", async () => {

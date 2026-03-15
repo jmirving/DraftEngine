@@ -489,10 +489,27 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
           ])
         )
       : {};
+    const compositionSynergies =
+      source.compositionSynergies &&
+      typeof source.compositionSynergies === "object" &&
+      !Array.isArray(source.compositionSynergies)
+        ? {
+            definition: typeof source.compositionSynergies.definition === "string"
+              ? source.compositionSynergies.definition
+              : "",
+            rules: Array.isArray(source.compositionSynergies.rules)
+              ? source.compositionSynergies.rules.map((rule) => ({ ...rule }))
+              : []
+          }
+        : {
+            definition: "",
+            rules: []
+          };
     return {
       ...source,
       roles: Array.isArray(source.roles) ? [...source.roles] : [],
-      roleProfiles
+      roleProfiles,
+      compositionSynergies
     };
   }
 
@@ -615,7 +632,15 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
         resolvedScope: scopedMetadata ? scope : "all"
       };
     },
-    async updateChampionMetadataForScope({ championId, scope = "all", userId = null, teamId = null, roles, roleProfiles }) {
+    async updateChampionMetadataForScope({
+      championId,
+      scope = "all",
+      userId = null,
+      teamId = null,
+      roles,
+      roleProfiles,
+      compositionSynergies
+    }) {
       const champion = state.champions.find((item) => item.id === championId);
       if (!champion) {
         return null;
@@ -633,7 +658,8 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
             : primaryDamageType === "utility"
               ? "Utility"
               : "Mixed",
-        scaling: "Mid"
+        scaling: "Mid",
+        compositionSynergies: cloneChampionMetadata({ compositionSynergies }).compositionSynergies
       };
 
       if (scope === "all") {
@@ -2491,6 +2517,17 @@ describe("API routes", () => {
         effectiveness: { early: "strong", mid: "neutral", late: "weak" }
       }
     };
+    const compositionSynergiesPayload = {
+      definition: "Wants knockup follow-through and engage around the pick.",
+      rules: [
+        {
+          id: "knockups",
+          expr: { tag: "Frontline" },
+          minCount: 1,
+          roleFilter: ["Top", "Jungle", "Support"]
+        }
+      ]
+    };
 
     const unauthorizedWrite = await request(app).put("/champions/1/metadata").send({
       roles: ["Top"],
@@ -2512,10 +2549,12 @@ describe("API routes", () => {
       .set("Authorization", buildAuthHeader(5, config))
       .send({
         roles: ["Top"],
-        role_profiles: roleProfilesPayload
+        role_profiles: roleProfilesPayload,
+        composition_synergies: compositionSynergiesPayload
       });
     expect(globalWrite.status).toBe(200);
     expect(globalWrite.body.champion.metadata.roleProfiles.Top.primaryDamageType).toBe("ad");
+    expect(globalWrite.body.metadata.compositionSynergies).toEqual(compositionSynergiesPayload);
 
     const invalidPayload = await request(app)
       .put("/champions/1/metadata")
@@ -2540,13 +2579,15 @@ describe("API routes", () => {
             primary_damage_type: "utility",
             effectiveness: { early: "neutral", mid: "strong", late: "weak" }
           }
-        }
+        },
+        composition_synergies: compositionSynergiesPayload
       });
     expect(adminWrite.status).toBe(200);
     expect(adminWrite.body.champion.role).toBe("Top");
     expect(adminWrite.body.champion.metadata.roles).toEqual(["Top", "Jungle"]);
     expect(adminWrite.body.champion.metadata.roleProfiles.Top.primaryDamageType).toBe("ad");
     expect(adminWrite.body.champion.metadata.roleProfiles.Jungle.primaryDamageType).toBe("utility");
+    expect(adminWrite.body.champion.metadata.compositionSynergies).toEqual(compositionSynergiesPayload);
   });
 
   it("reads personalized metadata scope indicators on champion list", async () => {

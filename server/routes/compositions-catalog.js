@@ -1,8 +1,11 @@
 import { Router } from "express";
 
-import { SLOTS } from "../../src/domain/model.js";
 import { badRequest, conflict, notFound } from "../errors.js";
 import { parsePositiveInteger, requireObject } from "../http/validation.js";
+import {
+  normalizeRequirementDefinitionText,
+  normalizeRequirementRules
+} from "../requirements-validation.js";
 import {
   assertScopeReadAuthorization,
   assertScopeWriteAuthorization,
@@ -10,10 +13,7 @@ import {
   resolveScopedTeamId
 } from "../scope-authorization.js";
 
-const SLOT_SET = new Set(SLOTS);
 const MAX_REQUIREMENT_NAME_LENGTH = 80;
-const MAX_REQUIREMENT_DEFINITION_LENGTH = 500;
-const MAX_REQUIREMENT_CLAUSE_ID_LENGTH = 120;
 const MAX_COMPOSITION_NAME_LENGTH = 80;
 const MAX_COMPOSITION_DESCRIPTION_LENGTH = 500;
 
@@ -30,191 +30,6 @@ function normalizeName(rawName, fieldName, maxLength) {
     throw badRequest(`Expected '${fieldName}' to be ${maxLength} characters or fewer.`);
   }
   return normalized;
-}
-
-function normalizeDefinition(rawValue) {
-  if (rawValue === undefined) {
-    return "";
-  }
-  if (typeof rawValue !== "string") {
-    throw badRequest("Expected 'definition' to be a string.");
-  }
-  const normalized = rawValue.trim();
-  if (normalized.length > MAX_REQUIREMENT_DEFINITION_LENGTH) {
-    throw badRequest(
-      `Expected 'definition' to be ${MAX_REQUIREMENT_DEFINITION_LENGTH} characters or fewer.`
-    );
-  }
-  return normalized;
-}
-
-function normalizeRoleFilter(rawRoleFilter, clauseIndex) {
-  if (rawRoleFilter === undefined) {
-    return null;
-  }
-
-  const values = Array.isArray(rawRoleFilter) ? rawRoleFilter : [rawRoleFilter];
-  const roles = [];
-  for (const rawRole of values) {
-    if (typeof rawRole !== "string") {
-      throw badRequest(`Expected 'rules[${clauseIndex}].roleFilter' values to be strings.`);
-    }
-    const normalizedRole = rawRole.trim();
-    if (!SLOT_SET.has(normalizedRole)) {
-      throw badRequest(`Unknown slot '${normalizedRole}' in rules[${clauseIndex}].roleFilter.`);
-    }
-    if (!roles.includes(normalizedRole)) {
-      roles.push(normalizedRole);
-    }
-  }
-
-  return roles.length > 0 ? roles : null;
-}
-
-function normalizeClauseId(rawClauseId, clauseIndex) {
-  if (rawClauseId === undefined) {
-    return null;
-  }
-  if (typeof rawClauseId !== "string" || rawClauseId.trim() === "") {
-    throw badRequest(`Expected 'rules[${clauseIndex}].id' to be a non-empty string.`);
-  }
-  const normalized = rawClauseId.trim();
-  if (normalized.length > MAX_REQUIREMENT_CLAUSE_ID_LENGTH) {
-    throw badRequest(
-      `Expected 'rules[${clauseIndex}].id' to be ${MAX_REQUIREMENT_CLAUSE_ID_LENGTH} characters or fewer.`
-    );
-  }
-  return normalized;
-}
-
-function normalizeClauseReferences(rawReferences, clauseIndex) {
-  if (rawReferences === undefined) {
-    return null;
-  }
-  if (!Array.isArray(rawReferences)) {
-    throw badRequest(`Expected 'rules[${clauseIndex}].separateFrom' to be an array.`);
-  }
-  const references = [];
-  for (const value of rawReferences) {
-    if (typeof value !== "string" || value.trim() === "") {
-      throw badRequest(`Expected 'rules[${clauseIndex}].separateFrom' values to be non-empty strings.`);
-    }
-    const normalizedValue = value.trim();
-    if (normalizedValue.length > MAX_REQUIREMENT_CLAUSE_ID_LENGTH) {
-      throw badRequest(
-        `Expected 'rules[${clauseIndex}].separateFrom' values to be ${MAX_REQUIREMENT_CLAUSE_ID_LENGTH} characters or fewer.`
-      );
-    }
-    if (!references.includes(normalizedValue)) {
-      references.push(normalizedValue);
-    }
-  }
-  return references.length > 0 ? references : null;
-}
-
-function normalizeClauseJoiner(rawClauseJoiner, clauseIndex) {
-  if (rawClauseJoiner === undefined) {
-    return null;
-  }
-  if (typeof rawClauseJoiner !== "string" || rawClauseJoiner.trim() === "") {
-    throw badRequest(`Expected 'rules[${clauseIndex}].clauseJoiner' to be 'and' or 'or'.`);
-  }
-  const normalized = rawClauseJoiner.trim().toLowerCase();
-  if (normalized !== "and" && normalized !== "or") {
-    throw badRequest(`Expected 'rules[${clauseIndex}].clauseJoiner' to be 'and' or 'or'.`);
-  }
-  return normalized;
-}
-
-function normalizeRuleClause(rawClause, clauseIndex) {
-  if (!rawClause || typeof rawClause !== "object" || Array.isArray(rawClause)) {
-    throw badRequest(`Expected 'rules[${clauseIndex}]' to be an object.`);
-  }
-
-  const { id, expr, minCount, maxCount, roleFilter, separateFrom, clauseJoiner } = rawClause;
-  if (expr === undefined || expr === null) {
-    throw badRequest(`Expected 'rules[${clauseIndex}].expr' to be provided.`);
-  }
-  const exprType = typeof expr;
-  if (exprType !== "string" && (exprType !== "object" || Array.isArray(expr))) {
-    throw badRequest(`Expected 'rules[${clauseIndex}].expr' to be a string or object.`);
-  }
-  if (exprType === "string" && expr.trim() === "") {
-    throw badRequest(`Expected 'rules[${clauseIndex}].expr' to be non-empty.`);
-  }
-
-  const normalizedMinCount =
-    minCount === undefined ? 1 : Number.isInteger(minCount) && minCount > 0 ? minCount : null;
-  if (!normalizedMinCount) {
-    throw badRequest(`Expected 'rules[${clauseIndex}].minCount' to be a positive integer.`);
-  }
-
-  if (maxCount !== undefined && (!Number.isInteger(maxCount) || maxCount < normalizedMinCount)) {
-    throw badRequest(
-      `Expected 'rules[${clauseIndex}].maxCount' to be an integer >= minCount (${normalizedMinCount}).`
-    );
-  }
-
-  const normalizedRoleFilter = normalizeRoleFilter(roleFilter, clauseIndex);
-  const normalizedClauseId = normalizeClauseId(id, clauseIndex);
-  const normalizedSeparateFrom = normalizeClauseReferences(separateFrom, clauseIndex);
-  const normalizedClauseJoiner = normalizeClauseJoiner(clauseJoiner, clauseIndex);
-  if (normalizedSeparateFrom && !normalizedClauseId) {
-    throw badRequest(`Expected 'rules[${clauseIndex}].id' when using separateFrom.`);
-  }
-
-  return {
-    ...(normalizedClauseId ? { id: normalizedClauseId } : {}),
-    expr,
-    minCount: normalizedMinCount,
-    ...(maxCount === undefined ? {} : { maxCount }),
-    ...(normalizedRoleFilter ? { roleFilter: normalizedRoleFilter } : {}),
-    ...(normalizedClauseJoiner ? { clauseJoiner: normalizedClauseJoiner } : {}),
-    ...(normalizedSeparateFrom ? { separateFrom: normalizedSeparateFrom } : {})
-  };
-}
-
-function normalizeRequirementRules(rawRules) {
-  if (!Array.isArray(rawRules)) {
-    throw badRequest("Expected 'rules' to be an array of requirement clauses.");
-  }
-  if (rawRules.length < 1) {
-    throw badRequest("Expected 'rules' to include at least one clause.");
-  }
-  const normalizedRules = rawRules.map((rule, index) => normalizeRuleClause(rule, index));
-  for (const [index, rule] of normalizedRules.entries()) {
-    if (index < 1) {
-      delete rule.clauseJoiner;
-      continue;
-    }
-    if (!rule.clauseJoiner) {
-      rule.clauseJoiner = "and";
-    }
-  }
-  const clauseIdSet = new Set();
-  for (const [index, rule] of normalizedRules.entries()) {
-    if (!rule.id) {
-      continue;
-    }
-    if (clauseIdSet.has(rule.id)) {
-      throw badRequest(`Duplicate rules[${index}].id '${rule.id}' is not allowed.`);
-    }
-    clauseIdSet.add(rule.id);
-  }
-  for (const [index, rule] of normalizedRules.entries()) {
-    if (!Array.isArray(rule.separateFrom) || rule.separateFrom.length < 1) {
-      continue;
-    }
-    for (const referenceId of rule.separateFrom) {
-      if (!clauseIdSet.has(referenceId)) {
-        throw badRequest(`Unknown clause id '${referenceId}' in rules[${index}].separateFrom.`);
-      }
-      if (rule.id === referenceId) {
-        throw badRequest(`rules[${index}].separateFrom cannot reference its own id.`);
-      }
-    }
-  }
-  return normalizedRules;
 }
 
 function normalizeRequirementIds(rawRequirementIds) {
@@ -499,7 +314,7 @@ export function createCompositionsCatalogRouter({
       globalWriteMessage: "Only admins or global editors can create requirements."
     });
     const name = normalizeName(body.name, "name", MAX_REQUIREMENT_NAME_LENGTH);
-    const definition = normalizeDefinition(body.definition);
+    const definition = normalizeRequirementDefinitionText(body.definition);
     const rules = normalizeRequirementRules(body.rules);
 
     try {
@@ -552,7 +367,7 @@ export function createCompositionsCatalogRouter({
 
     const updates = {
       name: hasName ? normalizeName(body.name, "name", MAX_REQUIREMENT_NAME_LENGTH) : undefined,
-      definition: hasDefinition ? normalizeDefinition(body.definition) : undefined,
+      definition: hasDefinition ? normalizeRequirementDefinitionText(body.definition) : undefined,
       rules: hasRules ? normalizeRequirementRules(body.rules) : undefined,
       actorUserId: userId
     };

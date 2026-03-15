@@ -59,6 +59,33 @@ function normalizeTagName(rawValue) {
   return typeof rawValue === "string" ? rawValue.trim().toLowerCase() : "";
 }
 
+function normalizeRequirementIdentifier(rawValue, fallback = 0) {
+  if (typeof rawValue === "string") {
+    const normalized = rawValue.trim();
+    if (normalized !== "") {
+      return normalized;
+    }
+  }
+  if (Number.isInteger(rawValue)) {
+    return rawValue;
+  }
+  return fallback;
+}
+
+function cloneRequirementDefinition(requirement) {
+  return JSON.parse(JSON.stringify(requirement));
+}
+
+function normalizeChampionCompositionSynergies(rawValue) {
+  const source = rawValue && typeof rawValue === "object" && !Array.isArray(rawValue) ? rawValue : {};
+  const definition = typeof source.definition === "string" ? source.definition.trim() : "";
+  const rules = Array.isArray(source.rules) ? source.rules : [];
+  return {
+    definition,
+    rules
+  };
+}
+
 const LEGACY_BOOLEAN_TAG_MAP = new Map(
   BOOLEAN_TAGS.map((tag) => [normalizeTagName(tag), tag])
 );
@@ -371,11 +398,59 @@ function combineClauseStatuses(leftStatus, rightStatus, joiner) {
   return "pending";
 }
 
+function buildChampionCompositionSynergyRequirements({
+  teamState,
+  championsByName
+}) {
+  const normalizedTeamState = normalizeTeamState(teamState);
+  const derivedRequirements = [];
+
+  for (const role of SLOTS) {
+    const championName = normalizedTeamState[role];
+    if (!championName) {
+      continue;
+    }
+    const champion = championsByName?.[championName];
+    const compositionSynergies = normalizeChampionCompositionSynergies(champion?.compositionSynergies);
+    if (!Array.isArray(compositionSynergies.rules) || compositionSynergies.rules.length < 1) {
+      continue;
+    }
+
+    const surroundingTeamState = {
+      ...normalizedTeamState,
+      [role]: null
+    };
+
+    derivedRequirements.push({
+      id: `champion-synergy:${championName}:${role}`,
+      sourceChampionName: championName,
+      sourceRole: role,
+      sourceType: "composition_synergy",
+      name: `${championName} Composition Synergy`,
+      definition:
+        compositionSynergies.definition !== ""
+          ? compositionSynergies.definition
+          : `${championName} wants specific support from the rest of the team.`,
+      rules: cloneRequirementDefinition(compositionSynergies.rules),
+      evaluationTeamState: surroundingTeamState
+    });
+  }
+
+  return derivedRequirements;
+}
+
 function evaluateRequirement(requirement, context) {
   const clauses = Array.isArray(requirement?.rules) ? requirement.rules : [];
+  const evaluationTeamState = normalizeTeamState(requirement?.evaluationTeamState ?? context.teamState);
+  const evaluationPickedChampionNames = getPickedChampionNames(evaluationTeamState);
   if (clauses.length < 1) {
     return {
-      id: Number(requirement?.id ?? 0),
+      id: normalizeRequirementIdentifier(requirement?.id, 0),
+      sourceRequirementId: normalizeRequirementIdentifier(requirement?.sourceRequirementId, null),
+      sourceChampionName:
+        typeof requirement?.sourceChampionName === "string" ? requirement.sourceChampionName : "",
+      sourceRole: typeof requirement?.sourceRole === "string" ? requirement.sourceRole : "",
+      sourceType: typeof requirement?.sourceType === "string" ? requirement.sourceType : "",
       name: typeof requirement?.name === "string" ? requirement.name : "Unnamed requirement",
       definition: typeof requirement?.definition === "string" ? requirement.definition : "",
       status: "pass",
@@ -389,7 +464,9 @@ function evaluateRequirement(requirement, context) {
     evaluateClause({
       clause,
       clauseIndex,
-      ...context
+      ...context,
+      teamState: evaluationTeamState,
+      pickedChampionNames: evaluationPickedChampionNames
     })
   );
   const clauseById = new Map(clauseResults.map((result) => [result.id, result]));
@@ -452,7 +529,12 @@ function evaluateRequirement(requirement, context) {
   }
 
   return {
-    id: Number(requirement?.id ?? 0),
+    id: normalizeRequirementIdentifier(requirement?.id, 0),
+    sourceRequirementId: normalizeRequirementIdentifier(requirement?.sourceRequirementId, null),
+    sourceChampionName:
+      typeof requirement?.sourceChampionName === "string" ? requirement.sourceChampionName : "",
+    sourceRole: typeof requirement?.sourceRole === "string" ? requirement.sourceRole : "",
+    sourceType: typeof requirement?.sourceType === "string" ? requirement.sourceType : "",
     name: typeof requirement?.name === "string" ? requirement.name : "Unnamed requirement",
     definition: typeof requirement?.definition === "string" ? requirement.definition : "",
     status: aggregateStatus,
@@ -479,6 +561,11 @@ export function evaluateCompositionRequirements({
       : []
   );
   const normalizedRequirements = Array.isArray(requirements) ? requirements : [];
+  const championCompositionSynergies = buildChampionCompositionSynergyRequirements({
+    teamState: normalizedTeamState,
+    championsByName
+  });
+  const allRequirements = [...normalizedRequirements, ...championCompositionSynergies];
 
   const context = {
     teamState: normalizedTeamState,
@@ -490,7 +577,7 @@ export function evaluateCompositionRequirements({
     pickedChampionNames
   };
 
-  const results = normalizedRequirements.map((requirement) => evaluateRequirement(requirement, context));
+  const results = allRequirements.map((requirement) => evaluateRequirement(requirement, context));
   const requiredTotal = results.length;
   const requiredPassed = results.filter((result) => result.status === "pass").length;
   const requiredGaps = requiredTotal - requiredPassed;

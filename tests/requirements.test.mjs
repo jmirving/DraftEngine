@@ -294,4 +294,111 @@ describe("evaluateCompositionRequirements", () => {
     expect(new Set(tree.children.map((child) => child.addedRole))).toEqual(new Set(["Jungle"]));
     expect(new Set(tree.children.map((child) => child.addedChampion))).toEqual(new Set(["Beta", "Gamma"]));
   });
+
+  test("champion composition synergies evaluate against the surrounding team instead of the champion itself", () => {
+    const championsWithSynergy = {
+      ...championsByName,
+      Beta: {
+        ...championsByName.Beta,
+        compositionSynergies: {
+          definition: "Needs frontline or engage around the pick.",
+          rules: [
+            {
+              id: "frontline-support",
+              expr: { tag: "Frontline" },
+              minCount: 1,
+              roleFilter: ["Top", "Jungle", "Support"]
+            }
+          ]
+        }
+      }
+    };
+
+    const failResult = evaluateCompositionRequirements({
+      teamState: {
+        Top: null,
+        Jungle: null,
+        Mid: "Beta",
+        ADC: null,
+        Support: null
+      },
+      championsByName: championsWithSynergy,
+      tagById,
+      requirements: []
+    });
+
+    expect(failResult.requirements).toHaveLength(1);
+    expect(failResult.requirements[0].name).toContain("Beta");
+    expect(failResult.requirements[0].status).toBe("pending");
+
+    const passResult = evaluateCompositionRequirements({
+      teamState: {
+        Top: "Alpha",
+        Jungle: null,
+        Mid: "Beta",
+        ADC: null,
+        Support: null
+      },
+      championsByName: championsWithSynergy,
+      tagById,
+      requirements: []
+    });
+
+    expect(passResult.requirements).toHaveLength(1);
+    expect(passResult.requirements[0].status).toBe("pass");
+    expect(passResult.requirements[0].clauses[0].currentMatchSlots).toEqual(["Top"]);
+  });
+
+  test("tree scoring accounts for picked champion composition synergies", () => {
+    const championsWithSynergy = {
+      ...championsByName,
+      Beta: {
+        ...championsByName.Beta,
+        compositionSynergies: {
+          definition: "Needs frontline beside the pick.",
+          rules: [
+            {
+              id: "frontline-top",
+              expr: { tag: "Frontline" },
+              minCount: 1,
+              roleFilter: ["Top"]
+            }
+          ]
+        }
+      }
+    };
+
+    const tree = generatePossibilityTree({
+      teamState: {
+        Top: null,
+        Jungle: null,
+        Mid: "Beta",
+        ADC: null,
+        Support: null
+      },
+      teamId: "team-a",
+      nextRole: "Top",
+      roleOrder: ["Top", "Jungle", "ADC", "Support"],
+      teamPools: {
+        "team-a": {
+          Top: ["Alpha"],
+          Jungle: [],
+          Mid: ["Beta"],
+          ADC: [],
+          Support: []
+        }
+      },
+      championsByName: championsWithSynergy,
+      requirements: [],
+      tagById,
+      maxDepth: 1,
+      maxBranch: 3,
+      minCandidateScore: 0
+    });
+
+    expect(tree.requiredSummary.requiredGaps).toBe(1);
+    expect(tree.children).toHaveLength(1);
+    expect(tree.children[0].addedChampion).toBe("Alpha");
+    expect(tree.children[0].requiredSummary.requiredGaps).toBe(0);
+  });
 });
