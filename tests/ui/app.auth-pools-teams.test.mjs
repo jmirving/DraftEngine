@@ -2727,8 +2727,12 @@ describe("auth + pools + team management", () => {
     optionalSection.querySelector(".req-card").click();
     await flush();
 
-    const goToChampionButton = Array.from(doc.querySelectorAll(".draft-modal-footer button")).find((node) =>
-      node.textContent.trim() === "Go to Ashe"
+    expect(doc.querySelector(".draft-modal-body").textContent).toContain(
+      "Optional: open Ashe in Edit Champions for more info or to edit this synergy."
+    );
+
+    const goToChampionButton = Array.from(doc.querySelectorAll(".draft-modal button")).find((node) =>
+      node.textContent.trim() === "Open Ashe in Editor"
     );
     expect(goToChampionButton).toBeTruthy();
     goToChampionButton.click();

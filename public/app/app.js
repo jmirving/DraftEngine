@@ -15849,9 +15849,6 @@ function openClauseDetailModal(requirementResult, requirementScore) {
 
   const body = runtimeDocument.createElement("div");
   body.className = "draft-modal-body";
-  const footer = runtimeDocument.createElement("div");
-  footer.className = "draft-modal-footer";
-
   const statusBadge = runtimeDocument.createElement("span");
   statusBadge.className = `req-card-badge ${passed ? "is-passed" : "is-failed"}`;
   if (!isRequired) {
@@ -16042,26 +16039,24 @@ function openClauseDetailModal(requirementResult, requirementScore) {
     sourceChampionName !== "" &&
     Boolean(state.data?.championIdsByName?.[sourceChampionName]);
   if (canOpenSourceChampion) {
-    const closeBtn = runtimeDocument.createElement("button");
-    closeBtn.type = "button";
-    closeBtn.className = "ghost";
-    closeBtn.textContent = "Close";
-    closeBtn.addEventListener("click", closeModal);
+    const sourceMeta = runtimeDocument.createElement("p");
+    sourceMeta.className = "meta";
+    sourceMeta.style.marginTop = "0.75rem";
+    sourceMeta.textContent = `Optional: open ${sourceChampionName} in Edit Champions for more info or to edit this synergy.`;
 
     const openChampionBtn = runtimeDocument.createElement("button");
     openChampionBtn.type = "button";
-    openChampionBtn.textContent = `Go to ${sourceChampionName}`;
+    openChampionBtn.className = "ghost";
+    openChampionBtn.style.marginTop = "0.35rem";
+    openChampionBtn.textContent = `Open ${sourceChampionName} in Editor`;
     openChampionBtn.addEventListener("click", async () => {
       closeModal();
       await navigateToChampionEditorByName(sourceChampionName);
     });
-    footer.append(closeBtn, openChampionBtn);
+    body.append(sourceMeta, openChampionBtn);
   }
 
   dialog.append(header, body);
-  if (footer.childElementCount > 0) {
-    dialog.append(footer);
-  }
   overlay.append(dialog);
   runtimeDocument.body.append(overlay);
   const scheduleOpen = runtimeWindow?.requestAnimationFrame ?? ((callback) => callback());
