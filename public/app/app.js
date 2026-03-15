@@ -883,9 +883,11 @@ function createElements() {
     requirementsTourCallout: runtimeDocument.querySelector("#requirements-tour-callout"),
     requirementsTourBtn: runtimeDocument.querySelector("#requirements-tour-btn"),
     requirementsTourDismiss: runtimeDocument.querySelector("#requirements-tour-dismiss"),
+    requirementsTourHide: runtimeDocument.querySelector("#requirements-tour-hide"),
     compositionsTourCallout: runtimeDocument.querySelector("#compositions-tour-callout"),
     compositionsTourBtn: runtimeDocument.querySelector("#compositions-tour-btn"),
     compositionsTourDismiss: runtimeDocument.querySelector("#compositions-tour-dismiss"),
+    compositionsTourHide: runtimeDocument.querySelector("#compositions-tour-hide"),
     profileShowGettingStarted: runtimeDocument.querySelector("#profile-show-getting-started"),
     profileSaveGettingStarted: runtimeDocument.querySelector("#profile-save-getting-started"),
     profileGettingStartedFeedback: runtimeDocument.querySelector("#profile-getting-started-feedback"),
@@ -968,6 +970,7 @@ function createElements() {
     builderTourCallout: runtimeDocument.querySelector("#builder-tour-callout"),
     builderTourBtn: runtimeDocument.querySelector("#builder-tour-btn"),
     builderTourDismiss: runtimeDocument.querySelector("#builder-tour-dismiss"),
+    builderTourHide: runtimeDocument.querySelector("#builder-tour-hide"),
     builderDraftSetupSave: runtimeDocument.querySelector("#builder-draft-setup-save"),
     builderDraftSetupLoad: runtimeDocument.querySelector("#builder-draft-setup-load"),
     builderSaveDraftModal: runtimeDocument.querySelector("#builder-save-draft-modal"),
@@ -8439,7 +8442,8 @@ function openRequirementEditorModal(requirement = null) {
   } else {
     setRequirementDefinitionDraft(null);
   }
-  const draftAtOpen = JSON.stringify(state.api.requirementDefinitionDraft);
+  // draftAtOpen captured after initial render to avoid false dirty flags from normalization
+  let draftAtOpen = null;
 
   const overlay = runtimeDocument.createElement("div");
   overlay.className = "draft-modal-overlay";
@@ -8644,6 +8648,8 @@ function openRequirementEditorModal(requirement = null) {
   runtimeDocument.body.append(overlay);
   requestAnimationFrame(() => overlay.classList.add("is-open"));
   renderClauseEditorInModal(clauseContainer);
+  // Snapshot after render so normalization side-effects are included in the baseline
+  draftAtOpen = JSON.stringify(state.api.requirementDefinitionDraft);
 }
 
 function renderCompositionsWorkspace() {
@@ -15526,7 +15532,7 @@ function openClauseEditorModal(requirementResult, requirementScore, clauseIndex)
     }
   }
 
-  const draftAtOpen = JSON.stringify(state.api.requirementDefinitionDraft);
+  let draftAtOpen = null;
 
   const overlay = runtimeDocument.createElement("div");
   overlay.className = "draft-modal-overlay";
@@ -15622,6 +15628,7 @@ function openClauseEditorModal(requirementResult, requirementScore, clauseIndex)
   requestAnimationFrame(() => overlay.classList.add("is-open"));
 
   renderClauseEditorInModal(clauseContainer);
+  draftAtOpen = JSON.stringify(state.api.requirementDefinitionDraft);
 }
 
 function renderClauseEditorInModal(container) {
@@ -16721,7 +16728,7 @@ function openDraftPicksModal(root, rootNodeId, nextRole) {
       list.append(empty);
     }
     for (const entry of branches) {
-      list.append(buildBranchCard(entry, branches));
+      list.append(buildBranchCard(entry, branches, nextRole));
     }
     body.append(list);
 
@@ -16755,7 +16762,7 @@ function openDraftPicksModal(root, rootNodeId, nextRole) {
   requestAnimationFrame(() => overlay.classList.add("is-open"));
 }
 
-function buildBranchCard(entry, allEntries) {
+function buildBranchCard(entry, allEntries, selectorRole = null) {
   const card = runtimeDocument.createElement("article");
   card.className = "summary-card branch-card";
 
@@ -16837,7 +16844,16 @@ function buildBranchCard(entry, allEntries) {
   inspect.textContent = "Select";
   inspect.addEventListener("click", () => {
     closeDraftModal();
-    inspectNode(entry.node, entry.id, entry.title);
+    if (selectorRole) {
+      // From Draft Selector — only set the clicked role, not the entire team
+      state.builder.draftPathSelections[selectorRole] = entry.node.addedChampion;
+      state.builder.teamState[selectorRole] = entry.node.addedChampion;
+      renderTeamConfig();
+      renderChecks();
+      renderTreeMap();
+    } else {
+      inspectNode(entry.node, entry.id, entry.title);
+    }
   });
   actions.append(inspect);
 
@@ -18654,6 +18670,14 @@ function attachEvents() {
     });
   }
 
+  if (elements.requirementsTourHide) {
+    elements.requirementsTourHide.addEventListener("click", () => {
+      state.ui.showGettingStarted = false;
+      saveUiState();
+      renderAllGettingStartedBars();
+    });
+  }
+
   if (elements.requirementsNavCompositions) {
     elements.requirementsNavCompositions.addEventListener("click", () => {
       setTab("compositions", { syncRoute: true });
@@ -18721,6 +18745,14 @@ function attachEvents() {
       state.ui.gettingStartedDismissed = true;
       renderAllGettingStartedBars();
       if (elements.compositionsTourCallout) elements.compositionsTourCallout.hidden = true;
+    });
+  }
+
+  if (elements.compositionsTourHide) {
+    elements.compositionsTourHide.addEventListener("click", () => {
+      state.ui.showGettingStarted = false;
+      saveUiState();
+      renderAllGettingStartedBars();
     });
   }
 
@@ -18871,6 +18903,14 @@ function attachEvents() {
       state.ui.gettingStartedDismissed = true;
       renderAllGettingStartedBars();
       if (elements.builderTourCallout) elements.builderTourCallout.hidden = true;
+    });
+  }
+
+  if (elements.builderTourHide) {
+    elements.builderTourHide.addEventListener("click", () => {
+      state.ui.showGettingStarted = false;
+      saveUiState();
+      renderAllGettingStartedBars();
     });
   }
 
@@ -19110,10 +19150,20 @@ function attachEvents() {
 
   elements.builderClearSticky.addEventListener("click", () => {
     state.builder.teamState = createEmptyTeamState();
+    state.builder.excludedChampions = [];
+    state.builder.excludedSearch = "";
+    state.builder.treeValidLeavesOnly = true;
+    state.builder.treeMinCandidateScore = 1;
+    state.builder.treeRankGoal = BUILDER_RANK_GOAL_VALID_END_STATES;
+    state.builder.candidateScoringWeights = { ...BUILDER_DEFAULT_CANDIDATE_SCORING_WEIGHTS };
+    state.builder.draftOrder = [...SLOTS];
+    state.builder.slotPoolRole = Object.fromEntries(SLOTS.map((s) => [s, s]));
+    state.builder.maxBranch = 8;
     resetBuilderTreeState();
     setBuilderStage("setup");
     validateTeamSelections();
     clearBuilderFeedback();
+    setSetupFeedback("");
     renderTeamConfig();
     renderBuilder();
   });

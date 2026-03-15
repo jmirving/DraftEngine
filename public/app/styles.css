@@ -2397,6 +2397,19 @@ button.pool-snapshot-order-btn:disabled {
   color: var(--warn);
 }
 
+.tour-callout-hide {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-decoration: underline;
+  cursor: pointer;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.tour-callout-hide:hover {
+  color: var(--warn);
+}
+
 .builder-context-row {
   display: grid;
   grid-template-columns: 1fr 1fr;

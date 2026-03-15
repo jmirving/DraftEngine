@@ -277,13 +277,15 @@ A prominent banner displayed on the page to invite the user to start the tour.
   </div>
   <button id="{page}-tour-btn" type="button" class="tour-callout-btn">Start Tour</button>
   <button id="{page}-tour-dismiss" type="button" class="ghost tour-callout-dismiss" aria-label="Dismiss">&times;</button>
+  <a id="{page}-tour-hide" class="tour-callout-hide" href="javascript:void(0)">Don't show again</a>
 </div>
 ```
 
 - Placed below the section header, above page content
 - Visible when `state.ui.showGettingStarted` is true and session is not dismissed
-- Dismiss (`×`) is session-only — callout reappears on next page load
-- Profile setting ("Getting Started Guide") controls persistent visibility across sessions
+- **Dismiss (`×`)**: session-only — callout reappears on next page load
+- **"Don't show again"**: persistent — sets `state.ui.showGettingStarted = false` and calls `saveUiState()`. Hidden until re-enabled from Profile → Guided Tours
+- Profile setting ("Guided Tours") controls persistent visibility across sessions
 
 ### Tour Popover (`.tour-popover`)
 Positioned popovers that highlight each element in sequence during the tour.
@@ -324,9 +326,12 @@ function start{Page}Tour() {
 | `before` | function | No | Runs before the step renders — use to open modals, add elements, etc. |
 
 ### Adding a Tour to a New Page
-1. Add `.tour-callout` HTML below the section header
-2. Register callout, button, and dismiss elements in `createElements()`
+1. Add `.tour-callout` HTML below the section header (include dismiss `×`, "Don't show again" link, and Start Tour button)
+2. Register callout, button, dismiss, and hide elements in `createElements()`
 3. Add visibility logic in the page render function: `callout.hidden = !state.ui.showGettingStarted || state.ui.gettingStartedDismissed`
-4. Wire click events: tour button calls `start{Page}Tour()`, dismiss sets `state.ui.gettingStartedDismissed = true`
-5. Add `renderAllGettingStartedBars()` call in dismiss handler to sync all callouts
+4. Wire click events:
+   - Tour button → calls `start{Page}Tour()`
+   - Dismiss (`×`) → sets `state.ui.gettingStartedDismissed = true` (session-only)
+   - "Don't show again" → sets `state.ui.showGettingStarted = false`, calls `saveUiState()` (persistent)
+5. Add `renderAllGettingStartedBars()` call in both dismiss and hide handlers to sync all callouts
 6. Define `start{Page}Tour()` with steps array and `onFinish` callback

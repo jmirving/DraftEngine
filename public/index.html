@@ -355,6 +355,7 @@
                   </div>
                   <button id="builder-tour-btn" type="button" class="tour-callout-btn">Start Tour</button>
                   <button id="builder-tour-dismiss" type="button" class="ghost tour-callout-dismiss" aria-label="Dismiss">&times;</button>
+                  <a id="builder-tour-hide" class="tour-callout-hide" href="javascript:void(0)">Don't show again</a>
                 </div>
                 <div class="stack">
                   <div class="builder-context-row">
@@ -1027,14 +1028,14 @@
                 </li>
                 <li class="profile-setting-item" data-setting="getting-started">
                   <div class="profile-setting-row">
-                    <span class="profile-setting-label">Getting Started Guide</span>
+                    <span class="profile-setting-label">Guided Tours</span>
                     <span class="profile-setting-value" id="profile-setting-getting-started-value"></span>
                     <span class="profile-setting-chevron">›</span>
                   </div>
                   <div class="profile-setting-editor" id="profile-setting-getting-started-editor" hidden>
                     <label class="selection-option">
                       <input type="checkbox" id="profile-show-getting-started" />
-                      Show Getting Started guides in Composer Setup, Compositions, and Requirements
+                      Show guided tour banners on Composer, Requirements, and Compositions pages
                     </label>
                     <div class="button-row">
                       <button id="profile-save-getting-started" type="button">Save</button>
@@ -1158,6 +1159,7 @@
                 </div>
                 <button id="requirements-tour-btn" type="button" class="tour-callout-btn">Start Tour</button>
                 <button id="requirements-tour-dismiss" type="button" class="ghost tour-callout-dismiss" aria-label="Dismiss">&times;</button>
+                <a id="requirements-tour-hide" class="tour-callout-hide" href="javascript:void(0)">Don't show again</a>
               </div>
               <div class="ced-scope-panel">
                 <div class="ced-scope-inline">
@@ -1212,6 +1214,7 @@
                 </div>
                 <button id="compositions-tour-btn" type="button" class="tour-callout-btn">Start Tour</button>
                 <button id="compositions-tour-dismiss" type="button" class="ghost tour-callout-dismiss" aria-label="Dismiss">&times;</button>
+                <a id="compositions-tour-hide" class="tour-callout-hide" href="javascript:void(0)">Don't show again</a>
               </div>
               <div class="ced-scope-panel">
                 <div class="ced-scope-inline">
@@ -1320,6 +1323,11 @@
                   <li>Primary buttons globally set to `width: auto` — compact by default, matching ghost button sizing.</li>
                   <li>Draft Selector "Detailed View" modal now correctly shows champion picks for the selected role instead of always showing Top lane picks.</li>
                   <li>Old Getting Started CSS classes removed (dead code cleanup).</li>
+                  <li>Tour banners now include a "Don't show again" link for persistent hide — stays hidden until re-enabled from Profile → Guided Tours.</li>
+                  <li>Draft Selector "Detailed View" Select button now only sets the clicked role instead of overwriting the entire team state.</li>
+                  <li>Clear Draft fully resets Composer to initial load state (excluded champions, scoring weights, draft order, all tree settings).</li>
+                  <li>Requirement editor dirty check no longer false-triggers when no user edits were made (snapshot taken after normalization).</li>
+                  <li>Profile setting renamed from "Getting Started Guide" to "Guided Tours".</li>
                 </ul>
                 <h4>Version 0.9.8 (Contributor — IWantWaffleFries1999)</h4>
                 <ul class="coming-soon-list">
