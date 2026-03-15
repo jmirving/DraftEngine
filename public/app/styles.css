@@ -3830,31 +3830,38 @@ button.pool-snapshot-order-btn:disabled {
 
 .tags-workspace-list {
   list-style: none;
-  padding: 0;
   margin: 0;
   display: grid;
-  gap: 0.36rem;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem;
+  max-height: 24rem;
+  overflow-y: auto;
 }
 
 .tags-workspace-item {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: start;
-  gap: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: #fffcf5;
-  padding: 0.45rem 0.5rem;
+  border-radius: 12px;
+  background: var(--surface-card);
+  padding: 0.6rem 0.7rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .tags-workspace-content {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 0.2rem;
 }
 
 .tags-workspace-name {
   margin: 0;
   font-weight: 700;
+  font-size: 0.88rem;
 }
 
 .tags-workspace-item .meta {
@@ -3864,6 +3871,10 @@ button.pool-snapshot-order-btn:disabled {
 .tags-workspace-actions {
   display: flex;
   gap: 0.35rem;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+  padding-top: 0.35rem;
+  margin-top: auto;
 }
 
 .tags-workspace-actions button {
