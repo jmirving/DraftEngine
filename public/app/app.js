@@ -548,6 +548,7 @@ function createInitialState() {
       isNavOpen: false,
       isNavCollapsed: false,
       showGettingStarted: true,
+      gettingStartedDismissed: false,
       teamWorkspaceTab: TEAM_WORKSPACE_TAB_DEFAULT,
       updatesReleaseTab: UPDATES_RELEASE_TAB_DEFAULT,
       teamManageAction: null,
@@ -11235,7 +11236,7 @@ function hasCompositions() {
 
 function renderGettingStartedBar(container, { steps = [], message = null, actionLabel = null, actionTab = null, hideWhenAllDone = false } = {}) {
   if (!container) return;
-  if (!state.ui.showGettingStarted) {
+  if (!state.ui.showGettingStarted || state.ui.gettingStartedDismissed) {
     container.hidden = true;
     return;
   }
@@ -11262,8 +11263,7 @@ function renderGettingStartedBar(container, { steps = [], message = null, action
     dismissBtn.textContent = "\u00d7";
     dismissBtn.title = "Dismiss Getting Started guide";
     dismissBtn.addEventListener("click", () => {
-      state.ui.showGettingStarted = false;
-      saveUiState();
+      state.ui.gettingStartedDismissed = true;
       renderAllGettingStartedBars();
     });
     container.append(dismissBtn);
@@ -11305,8 +11305,7 @@ function renderGettingStartedBar(container, { steps = [], message = null, action
     dismissBtn.textContent = "\u00d7";
     dismissBtn.title = "Dismiss Getting Started guide";
     dismissBtn.addEventListener("click", () => {
-      state.ui.showGettingStarted = false;
-      saveUiState();
+      state.ui.gettingStartedDismissed = true;
       renderAllGettingStartedBars();
     });
     bar.append(dismissBtn);
@@ -17964,6 +17963,7 @@ function attachEvents() {
   if (elements.profileSaveGettingStarted) {
     elements.profileSaveGettingStarted.addEventListener("click", () => {
       state.ui.showGettingStarted = elements.profileShowGettingStarted?.checked ?? true;
+      state.ui.gettingStartedDismissed = false;
       saveUiState();
       renderAllGettingStartedBars();
       renderPlayerConfig();
