@@ -377,15 +377,27 @@ function scoreCandidatesForRole({
       normalizedCandidateScoringWeights
     );
     const score = scoreBreakdown.totalScore - scoreBreakdown.unreachablePenalty;
+    const { score: projectedNodeScore, scoreBreakdown: projectedNodeScoreBreakdown } = scoreRequirementNode(
+      projectedEvaluation,
+      childState,
+      normalizedCandidateScoringWeights
+    );
     const rationale = buildCandidateRationale(scoreBreakdown, projectedEvaluation);
     rationale.push("keeps slot progression (+1)");
 
     scored.push({
       role,
       championName,
+      teamState: childState,
       score,
       selectionScore: score,
       scoreBreakdown,
+      nodeScore: projectedNodeScore,
+      nodeScoreBreakdown: projectedNodeScoreBreakdown,
+      requiredSummary: projectedEvaluation.requiredSummary,
+      optionalSummary: projectedEvaluation.optionalSummary,
+      unreachableRequired: projectedEvaluation.unreachableRequirements,
+      remainingSteps: getRemainingDraftSlots(childState),
       rationale,
       passesMinScore: score >= minCandidateScore
     });

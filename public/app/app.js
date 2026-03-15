@@ -16992,6 +16992,14 @@ function getNodeCandidateScore(node) {
 
 function getDraftPathMetricMeta(node, data = {}) {
   const viableCount = data.viableCount ?? data.totalValidLeaves ?? 0;
+  if (node?.syntheticCandidate) {
+    const candidateScore = getNodeCandidateScore(node);
+    return {
+      badgeText: String(candidateScore),
+      badgeTitle: `Candidate score ${candidateScore} (branch-cap backfill)`,
+      headline: `Candidate score ${candidateScore} | backfilled beyond current branch cap`
+    };
+  }
   if (normalizeBuilderRankGoal(state.builder.treeRankGoal) === BUILDER_RANK_GOAL_CANDIDATE_SCORE) {
     const candidateScore = getNodeCandidateScore(node);
     return {
@@ -17338,7 +17346,7 @@ function openDraftPicksModal(entries, nextRole) {
         state.builder.treeMinScore,
         state.builder.treeSearch,
         SLOTS,
-        state.builder.treeValidLeavesOnly
+        entry.node?.syntheticCandidate ? false : state.builder.treeValidLeavesOnly
       )
     );
 
@@ -17649,14 +17657,39 @@ function upsertDraftSelectorRoleEntry(champMap, role, step, leaf) {
   }
 }
 
-function createSyntheticDraftSelectorNode(role, championName, candidate, node) {
+function createSyntheticDraftSelectorNode(role, championName, candidate) {
   return {
-    ...node,
+    depth: 1,
+    teamSlots: normalizeTeamState(candidate.teamState),
+    score: candidate.nodeScore ?? 0,
+    checks: {},
+    missingNeeds: {
+      tags: [],
+      needsAD: false,
+      needsAP: false,
+      needsTopThreat: false
+    },
+    requiredSummary: candidate.requiredSummary ?? { requiredGaps: 0 },
+    optionalSummary: candidate.optionalSummary ?? { optionalPassed: 0, optionalTotal: 0, optionalBonus: 0 },
+    scoreBreakdown: candidate.nodeScoreBreakdown ?? { totalUnderBy: 0, totalOverBy: 0, totalScore: 0, requirements: [] },
+    viability: {
+      remainingSteps: candidate.remainingSteps ?? 0,
+      unreachableRequired: Array.isArray(candidate.unreachableRequired) ? candidate.unreachableRequired : [],
+      isDraftComplete: (candidate.remainingSteps ?? 0) === 0,
+      isTerminalValid: false,
+      fallbackApplied: false
+    },
+    branchPotential: {
+      validLeafCount: 0,
+      bestLeafScore: null
+    },
+    children: [],
     addedRole: role,
     addedChampion: championName,
     candidateScore: candidate.score,
     passesMinScore: candidate.passesMinScore,
     candidateBreakdown: candidate.scoreBreakdown,
+    syntheticCandidate: true,
     rationale: candidate.rationale,
     pathRationale: [
       `${role} -> ${championName} (candidate score ${candidate.score})`,
@@ -17700,33 +17733,10 @@ function buildDraftSelectorRoleEntries(role, viablePaths, selections) {
       if (champMap.has(candidate.championName)) {
         continue;
       }
-      const candidateState = {
-        ...baseTeamState,
-        [role]: candidate.championName
-      };
-      const candidateNode = generatePossibilityTree({
-        teamState: candidateState,
-        teamId,
-        roleOrder: state.builder.draftOrder,
-        teamPools,
-        championsByName,
-        requirements,
-        tagById,
-        excludedChampions: state.builder.excludedChampions,
-        maxBranch: state.builder.maxBranch,
-        minCandidateScore: state.builder.treeMinCandidateScore,
-        candidateScoringWeights,
-        pruneUnreachableRequired: true,
-        rankGoal: normalizeBuilderRankGoal(state.builder.treeRankGoal)
-      });
-      const viableCount = candidateNode.branchPotential?.validLeafCount ?? 0;
-      if (state.builder.treeValidLeavesOnly && !candidateNode.viability?.isTerminalValid && viableCount < 1) {
-        continue;
-      }
       champMap.set(candidate.championName, {
-        bestNode: createSyntheticDraftSelectorNode(role, candidate.championName, candidate, candidateNode),
+        bestNode: createSyntheticDraftSelectorNode(role, candidate.championName, candidate),
         bestId: `synthetic.${role}.${candidate.championName}`,
-        viableCount,
+        viableCount: 0,
         pathCount: 0
       });
     }
