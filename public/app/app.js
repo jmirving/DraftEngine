@@ -2433,8 +2433,42 @@ function openTagsManageModal() {
 
 function closeTagsManageModal() {
   state.api.isTagsManageModalOpen = false;
+  state.api.tagManageSnapshot = null;
   clearTagsManagerState();
   renderTagsManageModal();
+}
+
+async function confirmAndCloseTagsManageModal() {
+  const isEditing = Boolean(getManagedTagById(state.api.selectedTagManagerId));
+  if (isEditing) {
+    const snapshot = state.api.tagManageSnapshot;
+    const currentName = (elements.tagsManageName?.value ?? "").trim();
+    const currentDef = (elements.tagsManageDefinition?.value ?? "").trim();
+    const isDirty = currentName !== (snapshot?.name ?? "") || currentDef !== (snapshot?.definition ?? "");
+    if (isDirty) {
+      const confirmed = await showUSSConfirm({
+        title: "Unsaved Tag Changes",
+        body: "You have unsaved changes to this tag. Discard them?",
+        affirmLabel: "Discard",
+        cancelLabel: "Keep Editing",
+        destructive: true
+      });
+      if (!confirmed) return;
+    }
+  } else {
+    const hasContent = (elements.tagsManageName?.value ?? "").trim() !== "";
+    if (hasContent) {
+      const confirmed = await showUSSConfirm({
+        title: "Unsaved Tag",
+        body: "You have unsaved tag changes. Discard them?",
+        affirmLabel: "Discard",
+        cancelLabel: "Keep Editing",
+        destructive: true
+      });
+      if (!confirmed) return;
+    }
+  }
+  closeTagsManageModal();
 }
 
 function renderTagsManageModal() {
@@ -4477,6 +4511,7 @@ function beginManagedTagEdit(tagId) {
     return;
   }
   state.api.selectedTagManagerId = tag.id;
+  state.api.tagManageSnapshot = { name: tag.name, definition: String(tag.definition ?? "") };
   if (elements.tagsManageName) {
     elements.tagsManageName.value = tag.name;
   }
@@ -4615,35 +4650,7 @@ async function saveManagedTag() {
     });
 
     await refreshTagCatalogViews();
-    if (isEditing) {
-      const savedTagId = normalizeApiEntityId(payload?.tag?.id) ?? tagId;
-      state.api.selectedTagManagerId = savedTagId;
-      const savedTag = getManagedTagById(savedTagId);
-      if (savedTag) {
-        if (elements.tagsManageName) {
-          elements.tagsManageName.value = savedTag.name;
-        }
-        if (elements.tagsManageDefinition) {
-          elements.tagsManageDefinition.value = String(savedTag.definition ?? "");
-        }
-      }
-      setTagsManageFeedback(isUpdatingExact || context.scope === "all" ? "Tag updated." : "Scoped tag definition created.");
-    } else {
-      const savedTagId = normalizeApiEntityId(payload?.tag?.id);
-      const savedTag = savedTagId ? getManagedTagById(savedTagId) : null;
-      if (savedTagId && savedTag) {
-        state.api.selectedTagManagerId = savedTagId;
-        if (elements.tagsManageName) {
-          elements.tagsManageName.value = savedTag.name;
-        }
-        if (elements.tagsManageDefinition) {
-          elements.tagsManageDefinition.value = String(savedTag.definition ?? "");
-        }
-      } else {
-        clearTagsManagerState();
-      }
-      setTagsManageFeedback("Tag created.");
-    }
+    closeTagsManageModal();
   } catch (error) {
     setTagsManageFeedback(normalizeApiErrorMessage(error, "Failed to save tag."));
   } finally {
@@ -4771,32 +4778,41 @@ function renderTagsWorkspace() {
     item.className = "tags-workspace-item";
 
     const usageCount = (usageByTagId.get(tag.id) ?? []).length;
-    const content = runtimeDocument.createElement("div");
-    content.className = "tags-workspace-content";
+
+    const header = runtimeDocument.createElement("div");
+    header.className = "tags-workspace-header";
 
     const name = runtimeDocument.createElement("p");
     name.className = "tags-workspace-name";
     name.textContent = tag.name;
 
-    const definition = runtimeDocument.createElement("p");
-    definition.className = "meta tags-workspace-definition";
-    definition.textContent = String(tag.definition ?? "").trim() || "No definition set.";
-
-    const usage = runtimeDocument.createElement("p");
-    usage.className = "meta tags-workspace-usage";
+    let usageTitle = "";
     if (context.scope === "all") {
-      usage.textContent = usageCount === 1 ? "Used by 1 champion" : `Used by ${usageCount} champions`;
+      usageTitle = usageCount === 1 ? "Used by 1 champion" : `Used by ${usageCount} champions`;
     } else if (tag.hasCustomDefinition) {
-      usage.textContent =
+      usageTitle =
         tag.resolvedScope === context.scope
           ? `Custom ${scopeLabel.toLowerCase()} definition`
           : `Resolved from ${tag.resolvedScope === "all" ? "global" : tag.resolvedScope} scope`;
     } else {
-      usage.textContent = "Inherited from global definition";
+      usageTitle = "Inherited from global definition";
     }
 
-    content.append(name, definition, usage);
-    item.append(content);
+    const usageBtn = runtimeDocument.createElement("span");
+    usageBtn.className = "uss-stats-btn tags-workspace-usage-icon";
+    usageBtn.title = usageTitle;
+    usageBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+    header.append(name, usageBtn);
+
+    const content = runtimeDocument.createElement("div");
+    content.className = "tags-workspace-content";
+
+    const definition = runtimeDocument.createElement("p");
+    definition.className = "meta tags-workspace-definition";
+    definition.textContent = String(tag.definition ?? "").trim() || "No definition set.";
+
+    content.append(definition);
+    item.append(header, content);
 
     if (canWriteTagCatalogScope()) {
       const actions = runtimeDocument.createElement("div");
@@ -18586,13 +18602,15 @@ function attachEvents() {
   }
 
   if (elements.tagsManageModalClose) {
-    elements.tagsManageModalClose.addEventListener("click", closeTagsManageModal);
+    elements.tagsManageModalClose.addEventListener("click", () => {
+      void confirmAndCloseTagsManageModal();
+    });
   }
 
   if (elements.tagsManageModal) {
     elements.tagsManageModal.addEventListener("click", (event) => {
       if (event.target === elements.tagsManageModal) {
-        closeTagsManageModal();
+        void confirmAndCloseTagsManageModal();
       }
     });
   }
@@ -18604,9 +18622,28 @@ function attachEvents() {
   }
 
   if (elements.tagsManageCancel) {
-    elements.tagsManageCancel.addEventListener("click", () => {
-      clearTagsManagerState();
-      renderTagsManageModal();
+    elements.tagsManageCancel.addEventListener("click", async () => {
+      const isEditing = Boolean(getManagedTagById(state.api.selectedTagManagerId));
+      if (isEditing) {
+        const snapshot = state.api.tagManageSnapshot;
+        const currentName = (elements.tagsManageName?.value ?? "").trim();
+        const currentDef = (elements.tagsManageDefinition?.value ?? "").trim();
+        const isDirty = currentName !== (snapshot?.name ?? "") || currentDef !== (snapshot?.definition ?? "");
+        if (isDirty) {
+          const confirmed = await showUSSConfirm({
+            title: "Unsaved Tag Changes",
+            body: "You have unsaved changes to this tag. Discard them?",
+            affirmLabel: "Discard",
+            cancelLabel: "Keep Editing",
+            destructive: true
+          });
+          if (!confirmed) return;
+        }
+        closeTagsManageModal();
+      } else {
+        clearTagsManagerState();
+        renderTagsManageModal();
+      }
     });
   }
 

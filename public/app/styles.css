@@ -3852,6 +3852,19 @@ button.pool-snapshot-order-btn:disabled {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
+.tags-workspace-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.3rem;
+}
+
+.tags-workspace-usage-icon {
+  width: 1.6rem;
+  height: 1.6rem;
+  flex-shrink: 0;
+}
+
 .tags-workspace-content {
   display: flex;
   flex-direction: column;
