@@ -1174,7 +1174,8 @@ label.inline-checkbox input[type="checkbox"] {
 
 input,
 select,
-button {
+button,
+textarea {
   width: 100%;
   margin-top: 0.26rem;
   border: 1px solid var(--border);
@@ -3541,7 +3542,6 @@ button.pool-snapshot-order-btn:disabled {
 
 .issue-report-panel textarea {
   min-height: auto;
-  width: 100%;
 }
 
 .issue-report-modal-content {
