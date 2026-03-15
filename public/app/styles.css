@@ -2116,18 +2116,38 @@ button.pool-snapshot-order-btn:disabled {
   color: var(--muted);
 }
 
+/* Clause List on Requirement Cards */
+.req-clause-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.req-clause-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-decoration: underline dotted;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
 /* Clause Popover */
 .clause-popover-anchor {
   position: relative;
-  display: inline-block;
+  display: block;
 }
 
 .clause-popover {
   display: none;
   position: absolute;
-  bottom: calc(100% + 6px);
-  left: 0;
-  z-index: 90;
+  left: calc(100% + 8px);
+  top: 0;
+  z-index: 100;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -2261,6 +2281,36 @@ button.pool-snapshot-order-btn:disabled {
 .getting-started-arrow {
   font-size: 0.75rem;
   color: var(--muted);
+}
+
+.getting-started-dismiss {
+  font-size: 0.9rem;
+  padding: 0 0.3rem;
+  line-height: 1;
+  color: var(--muted);
+  border: none;
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.getting-started-dismiss:hover {
+  color: var(--warn);
+}
+
+.builder-context-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem;
+}
+
+.builder-context-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
 }
 
 .builder-comp-label {

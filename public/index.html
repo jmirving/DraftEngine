@@ -347,25 +347,31 @@
                 <div class="uss-section-header">
                   <h2 id="builder-stage-setup-title">Draft Setup</h2>
                 </div>
-                <p id="builder-stage-setup-meta" class="meta">Choose team context and lock known picks.</p>
+                <p id="builder-stage-setup-meta" class="meta" hidden></p>
                 <div id="builder-getting-started" class="getting-started-bar" hidden></div>
                 <div class="stack">
-                  <label>
-                    Active Team
-                    <select id="builder-active-team"></select>
-                  </label>
-                  <p id="builder-team-help" class="meta"></p>
-                  <div class="comp-card-header">
-                    <span class="builder-comp-label">Active Composition</span>
-                    <div class="comp-header-actions">
-                      <button id="builder-comp-edit" type="button" class="clause-edit-btn" title="Edit selected composition">
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-                      </button>
-                      <button id="builder-comp-create" type="button" class="ghost comp-action-btn">+ New</button>
-                      <button id="builder-comp-manage" type="button" class="ghost comp-action-btn comp-nav-link">Manage Compositions</button>
+                  <div class="builder-context-row">
+                    <div class="builder-context-col">
+                      <label>
+                        Active Team
+                        <select id="builder-active-team"></select>
+                      </label>
+                    </div>
+                    <div class="builder-context-col">
+                      <div class="comp-card-header">
+                        <span class="builder-comp-label">Active Composition</span>
+                        <div class="comp-header-actions">
+                          <button id="builder-comp-edit" type="button" class="clause-edit-btn" title="Edit selected composition">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                          </button>
+                          <button id="builder-comp-create" type="button" class="ghost comp-action-btn">+ New</button>
+                          <button id="builder-comp-manage" type="button" class="ghost comp-action-btn comp-nav-link">Manage Compositions</button>
+                        </div>
+                      </div>
+                      <select id="builder-active-composition"></select>
                     </div>
                   </div>
-                  <select id="builder-active-composition"></select>
+                  <p id="builder-team-help" class="meta" hidden></p>
                   <div class="panel draft-board-panel">
                     <div class="uss-section-header">
                       <h3>Draft Roster</h3>
@@ -1031,6 +1037,23 @@
                     <p id="profile-roles-feedback" class="meta"></p>
                   </div>
                 </li>
+                <li class="profile-setting-item" data-setting="getting-started">
+                  <div class="profile-setting-row">
+                    <span class="profile-setting-label">Getting Started Guide</span>
+                    <span class="profile-setting-value" id="profile-setting-getting-started-value"></span>
+                    <span class="profile-setting-chevron">›</span>
+                  </div>
+                  <div class="profile-setting-editor" id="profile-setting-getting-started-editor" hidden>
+                    <label class="selection-option">
+                      <input type="checkbox" id="profile-show-getting-started" />
+                      Show Getting Started guides in Composer Setup, Compositions, and Requirements
+                    </label>
+                    <div class="button-row">
+                      <button id="profile-save-getting-started" type="button">Save</button>
+                    </div>
+                    <p id="profile-getting-started-feedback" class="meta"></p>
+                  </div>
+                </li>
                 <li class="profile-setting-item profile-setting-nav" data-setting="admin-users" id="profile-admin-link" hidden>
                   <div class="profile-setting-row">
                     <span class="profile-setting-label">Admin: Users</span>
@@ -1140,6 +1163,7 @@
                   <button id="requirements-nav-compositions" type="button" class="ghost comp-action-btn comp-nav-link">Manage Compositions</button>
                 </div>
               </div>
+              <div id="requirements-getting-started" class="getting-started-bar" hidden></div>
               <div class="ced-scope-panel">
                 <div class="ced-scope-inline">
                   <span class="ced-scope-editing-label">Editing</span>
@@ -1269,6 +1293,16 @@
               >
                 <h3>What's New</h3>
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
+                <h4>Version 0.9.7</h4>
+                <ul class="coming-soon-list">
+                  <li>Active Team and Active Composition combined into a bordered side-by-side section in Composer Setup.</li>
+                  <li>Requirement cards now list each clause inline with individual hover popovers showing expression, constraints, and clause details.</li>
+                  <li>Getting Started guides added to Compositions and Requirements pages with cross-page navigation.</li>
+                  <li>Getting Started guides are dismissible — click the dismiss button to hide. Re-enable from Profile settings.</li>
+                  <li>New profile setting: "Getting Started Guide" toggle to control visibility across all pages.</li>
+                  <li>Removed setup meta text ("Choose team context..." and "Team context is set...") from Composer Setup for a cleaner layout.</li>
+                  <li>Reduced page load renders from 3-4 to 2 by consolidating init render calls.</li>
+                </ul>
                 <h4>Version 0.9.6</h4>
                 <ul class="coming-soon-list">
                   <li>Requirement status cards in Draft Review now update live when champions are selected or cleared in the Draft Selector.</li>

@@ -547,6 +547,7 @@ function createInitialState() {
     ui: {
       isNavOpen: false,
       isNavCollapsed: false,
+      showGettingStarted: true,
       teamWorkspaceTab: TEAM_WORKSPACE_TAB_DEFAULT,
       updatesReleaseTab: UPDATES_RELEASE_TAB_DEFAULT,
       teamManageAction: null,
@@ -876,6 +877,11 @@ function createElements() {
     compositionsCreateBtn: runtimeDocument.querySelector("#compositions-create-btn"),
     compositionsNavRequirements: runtimeDocument.querySelector("#compositions-nav-requirements"),
     compositionsGettingStarted: runtimeDocument.querySelector("#compositions-getting-started"),
+    requirementsGettingStarted: runtimeDocument.querySelector("#requirements-getting-started"),
+    profileShowGettingStarted: runtimeDocument.querySelector("#profile-show-getting-started"),
+    profileSaveGettingStarted: runtimeDocument.querySelector("#profile-save-getting-started"),
+    profileGettingStartedFeedback: runtimeDocument.querySelector("#profile-getting-started-feedback"),
+    profileSettingGettingStartedValue: runtimeDocument.querySelector("#profile-setting-getting-started-value"),
     comingSoonTitle: runtimeDocument.querySelector("#coming-soon-title"),
     comingSoonMeta: runtimeDocument.querySelector("#coming-soon-meta"),
     tabExplorer: runtimeDocument.querySelector("#tab-explorer"),
@@ -7833,6 +7839,17 @@ function renderRequirementDefinitionsWorkspace() {
     elements.requirementsDelete.disabled = controlsDisabled || !isEditing;
   }
 
+  /* Requirements Getting Started */
+  if (!hasCompositions()) {
+    renderGettingStartedBar(elements.requirementsGettingStarted, {
+      message: "Define requirements here, then create compositions to group them.",
+      actionLabel: "Go to Compositions",
+      actionTab: "compositions"
+    });
+  } else if (elements.requirementsGettingStarted) {
+    elements.requirementsGettingStarted.hidden = true;
+  }
+
   elements.requirementsList.innerHTML = "";
   if (!isAuthenticated()) {
     const empty = runtimeDocument.createElement("p");
@@ -7890,24 +7907,11 @@ function renderRequirementDefinitionsWorkspace() {
       card.append(defEl);
     }
 
-    const clauseCount = runtimeDocument.createElement("span");
-    clauseCount.className = "req-clause-count";
-    const clauseNum = Array.isArray(requirement.rules) ? requirement.rules.length : 0;
-    clauseCount.textContent = `${clauseNum} clause${clauseNum === 1 ? "" : "s"}`;
-
-    if (clauseNum > 0) {
-      clauseCount.style.cursor = "help";
-      clauseCount.style.textDecoration = "underline dotted";
-
-      const popoverWrap = runtimeDocument.createElement("span");
-      popoverWrap.className = "clause-popover-anchor";
-
-      const popoverCard = runtimeDocument.createElement("div");
-      popoverCard.className = "clause-popover";
-      const popoverList = runtimeDocument.createElement("ul");
-      popoverList.className = "clause-popover-list";
-
-      for (const [idx, rule] of requirement.rules.entries()) {
+    const clauses = Array.isArray(requirement.rules) ? requirement.rules : [];
+    if (clauses.length > 0) {
+      const clauseList = runtimeDocument.createElement("ul");
+      clauseList.className = "req-clause-list";
+      for (const [idx, rule] of clauses.entries()) {
         const clauseDraft = createRequirementRuleClauseDraft(rule);
         const exprSummary = formatRequirementClauseExpressionSummary(clauseDraft);
         const minCount = Number.parseInt(String(clauseDraft.minCount), 10) || 1;
@@ -7917,17 +7921,25 @@ function renderRequirementDefinitionsWorkspace() {
         const separateCount = normalizeRequirementClauseReferenceIds(clauseDraft.separateFrom).length;
 
         const li = runtimeDocument.createElement("li");
-        li.className = "clause-popover-item";
+        li.className = "clause-popover-anchor";
 
+        const label = runtimeDocument.createElement("span");
+        label.className = "req-clause-label";
+        label.textContent = exprSummary;
+        label.style.cursor = "help";
+        li.append(label);
+
+        const popoverCard = runtimeDocument.createElement("div");
+        popoverCard.className = "clause-popover";
+        const popoverInner = runtimeDocument.createElement("div");
+        popoverInner.className = "clause-popover-item";
         const heading = runtimeDocument.createElement("strong");
         heading.textContent = `Clause ${idx + 1}`;
-        li.append(heading);
-
-        const details = runtimeDocument.createElement("span");
-        details.className = "clause-popover-detail";
-        details.textContent = exprSummary;
-        li.append(details);
-
+        popoverInner.append(heading);
+        const detail = runtimeDocument.createElement("span");
+        detail.className = "clause-popover-detail";
+        detail.textContent = exprSummary;
+        popoverInner.append(detail);
         const constraints = [];
         constraints.push(`min ${minCount}`);
         constraints.push(maxLabel);
@@ -7935,16 +7947,18 @@ function renderRequirementDefinitionsWorkspace() {
         if (separateCount > 0) constraints.push(`separate from ${separateCount} clause${separateCount === 1 ? "" : "s"}`);
         const constraintEl = runtimeDocument.createElement("span");
         constraintEl.className = "clause-popover-constraints";
-        constraintEl.textContent = constraints.join(" · ");
-        li.append(constraintEl);
-
-        popoverList.append(li);
+        constraintEl.textContent = constraints.join(" \u00b7 ");
+        popoverInner.append(constraintEl);
+        popoverCard.append(popoverInner);
+        li.append(popoverCard);
+        clauseList.append(li);
       }
-      popoverCard.append(popoverList);
-      popoverWrap.append(clauseCount, popoverCard);
-      card.append(popoverWrap);
+      card.append(clauseList);
     } else {
-      card.append(clauseCount);
+      const emptyClause = runtimeDocument.createElement("span");
+      emptyClause.className = "req-clause-count";
+      emptyClause.textContent = "No clauses";
+      card.append(emptyClause);
     }
 
     const audit = formatAuditMeta(
@@ -8014,23 +8028,14 @@ function renderCompositionBundlesWorkspace() {
       : "No active composition selected.";
   }
 
-  if (elements.compositionsGettingStarted) {
-    const requirements = Array.isArray(state.api.requirementDefinitions) ? state.api.requirementDefinitions : [];
-    if (requirements.length < 1) {
-      elements.compositionsGettingStarted.hidden = false;
-      elements.compositionsGettingStarted.innerHTML = "";
-      const msg = runtimeDocument.createElement("span");
-      msg.className = "getting-started-msg";
-      msg.textContent = "Create at least one requirement before building a composition.";
-      const navBtn = runtimeDocument.createElement("button");
-      navBtn.type = "button";
-      navBtn.className = "ghost getting-started-action";
-      navBtn.textContent = "Go to Requirements";
-      navBtn.addEventListener("click", () => setTab("requirements", { syncRoute: true }));
-      elements.compositionsGettingStarted.append(msg, navBtn);
-    } else {
-      elements.compositionsGettingStarted.hidden = true;
-    }
+  if (!hasRequirements()) {
+    renderGettingStartedBar(elements.compositionsGettingStarted, {
+      message: "Create at least one requirement before building a composition.",
+      actionLabel: "Go to Requirements",
+      actionTab: "requirements"
+    });
+  } else if (elements.compositionsGettingStarted) {
+    elements.compositionsGettingStarted.hidden = true;
   }
 
   elements.compositionsList.innerHTML = "";
@@ -11169,6 +11174,135 @@ function getBuilderSelectedRequirements() {
     .filter(Boolean);
 }
 
+function hasRequirements() {
+  return Array.isArray(state.api.requirementDefinitions) && state.api.requirementDefinitions.length > 0;
+}
+
+function hasCompositions() {
+  return Array.isArray(state.api.compositionBundles) && state.api.compositionBundles.length > 0;
+}
+
+function renderGettingStartedBar(container, { steps = [], message = null, actionLabel = null, actionTab = null, hideWhenAllDone = false } = {}) {
+  if (!container) return;
+  if (!state.ui.showGettingStarted) {
+    container.hidden = true;
+    return;
+  }
+
+  if (message) {
+    /* Simple message + action style (Compositions/Requirements pages) */
+    container.hidden = false;
+    container.innerHTML = "";
+    const msg = runtimeDocument.createElement("span");
+    msg.className = "getting-started-msg";
+    msg.textContent = message;
+    container.append(msg);
+    if (actionLabel && actionTab) {
+      const navBtn = runtimeDocument.createElement("button");
+      navBtn.type = "button";
+      navBtn.className = "ghost getting-started-action";
+      navBtn.textContent = actionLabel;
+      navBtn.addEventListener("click", () => setTab(actionTab, { syncRoute: true }));
+      container.append(navBtn);
+    }
+    const dismissBtn = runtimeDocument.createElement("button");
+    dismissBtn.type = "button";
+    dismissBtn.className = "ghost getting-started-dismiss";
+    dismissBtn.textContent = "\u00d7";
+    dismissBtn.title = "Dismiss Getting Started guide";
+    dismissBtn.addEventListener("click", () => {
+      state.ui.showGettingStarted = false;
+      saveUiState();
+      renderAllGettingStartedBars();
+    });
+    container.append(dismissBtn);
+    return;
+  }
+
+  if (steps.length > 0) {
+    /* Step indicator style (Composer Setup) */
+    const allDone = steps.every((step) => step.done);
+    if (hideWhenAllDone && allDone) {
+      container.hidden = true;
+      return;
+    }
+    container.hidden = false;
+    container.innerHTML = "";
+
+    const bar = runtimeDocument.createElement("div");
+    bar.className = "getting-started-steps";
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      const el = runtimeDocument.createElement("span");
+      el.className = "getting-started-step" + (step.done ? " is-done" : "");
+      el.textContent = step.done ? "\u2713 " + step.label : step.label;
+      if (!step.done && step.tab) {
+        el.classList.add("is-actionable");
+        el.addEventListener("click", () => setTab(step.tab, { syncRoute: true }));
+      }
+      bar.append(el);
+      if (i < steps.length - 1) {
+        const arrow = runtimeDocument.createElement("span");
+        arrow.className = "getting-started-arrow";
+        arrow.textContent = "\u2192";
+        bar.append(arrow);
+      }
+    }
+    const dismissBtn = runtimeDocument.createElement("button");
+    dismissBtn.type = "button";
+    dismissBtn.className = "ghost getting-started-dismiss";
+    dismissBtn.textContent = "\u00d7";
+    dismissBtn.title = "Dismiss Getting Started guide";
+    dismissBtn.addEventListener("click", () => {
+      state.ui.showGettingStarted = false;
+      saveUiState();
+      renderAllGettingStartedBars();
+    });
+    bar.append(dismissBtn);
+    container.append(bar);
+  }
+}
+
+function renderAllGettingStartedBars() {
+  /* Composer Setup */
+  const selectedComposition = getBuilderSelectedComposition();
+  renderGettingStartedBar(elements.builderGettingStarted, {
+    steps: [
+      { label: "1. Create Requirements", done: hasRequirements(), tab: "requirements" },
+      { label: "2. Build Composition", done: hasCompositions(), tab: "compositions" },
+      { label: "3. Start Drafting", done: !!selectedComposition, tab: null }
+    ],
+    hideWhenAllDone: true
+  });
+
+  /* Compositions page */
+  if (!hasRequirements()) {
+    renderGettingStartedBar(elements.compositionsGettingStarted, {
+      message: "Create at least one requirement before building a composition.",
+      actionLabel: "Go to Requirements",
+      actionTab: "requirements"
+    });
+  } else if (elements.compositionsGettingStarted) {
+    elements.compositionsGettingStarted.hidden = true;
+  }
+
+  /* Requirements page */
+  if (!hasCompositions()) {
+    renderGettingStartedBar(elements.requirementsGettingStarted, {
+      message: "Define requirements here, then create compositions to group them.",
+      actionLabel: "Go to Compositions",
+      actionTab: "compositions"
+    });
+  } else if (elements.requirementsGettingStarted) {
+    elements.requirementsGettingStarted.hidden = true;
+  }
+
+  /* Profile setting value */
+  if (elements.profileSettingGettingStartedValue) {
+    elements.profileSettingGettingStartedValue.textContent = state.ui.showGettingStarted ? "Visible" : "Hidden";
+  }
+}
+
 function syncBuilderCompositionControls() {
   const compositionOptions = getBuilderCompositionOptions();
   state.builder.activeCompositionId = resolveBuilderActiveCompositionId(state.builder.activeCompositionId);
@@ -11189,47 +11323,14 @@ function syncBuilderCompositionControls() {
   }
 
   /* Getting Started step indicator */
-  if (elements.builderGettingStarted) {
-    const requirements = Array.isArray(state.api.requirementDefinitions) ? state.api.requirementDefinitions : [];
-    const compositions = Array.isArray(state.api.compositionBundles) ? state.api.compositionBundles : [];
-    const hasRequirements = requirements.length > 0;
-    const hasCompositions = compositions.length > 0;
-    const hasSelection = !!selectedComposition;
-
-    if (hasRequirements && hasCompositions && hasSelection) {
-      elements.builderGettingStarted.hidden = true;
-    } else {
-      elements.builderGettingStarted.hidden = false;
-      elements.builderGettingStarted.innerHTML = "";
-
-      const steps = [
-        { label: "1. Create Requirements", done: hasRequirements, tab: "requirements" },
-        { label: "2. Build Composition", done: hasCompositions, tab: "compositions" },
-        { label: "3. Start Drafting", done: hasSelection, tab: null }
-      ];
-
-      const bar = runtimeDocument.createElement("div");
-      bar.className = "getting-started-steps";
-      for (let i = 0; i < steps.length; i++) {
-        const step = steps[i];
-        const el = runtimeDocument.createElement("span");
-        el.className = "getting-started-step" + (step.done ? " is-done" : "");
-        el.textContent = step.done ? "\u2713 " + step.label : step.label;
-        if (!step.done && step.tab) {
-          el.classList.add("is-actionable");
-          el.addEventListener("click", () => setTab(step.tab, { syncRoute: true }));
-        }
-        bar.append(el);
-        if (i < steps.length - 1) {
-          const arrow = runtimeDocument.createElement("span");
-          arrow.className = "getting-started-arrow";
-          arrow.textContent = "\u2192";
-          bar.append(arrow);
-        }
-      }
-      elements.builderGettingStarted.append(bar);
-    }
-  }
+  renderGettingStartedBar(elements.builderGettingStarted, {
+    steps: [
+      { label: "1. Create Requirements", done: hasRequirements(), tab: "requirements" },
+      { label: "2. Build Composition", done: hasCompositions(), tab: "compositions" },
+      { label: "3. Start Drafting", done: !!selectedComposition, tab: null }
+    ],
+    hideWhenAllDone: true
+  });
 
 }
 
@@ -13473,6 +13574,14 @@ function renderPlayerConfig() {
         : "Not signed in";
   }
 
+  // Getting Started setting
+  if (elements.profileSettingGettingStartedValue) {
+    elements.profileSettingGettingStartedValue.textContent = state.ui.showGettingStarted ? "Visible" : "Hidden";
+  }
+  if (elements.profileShowGettingStarted) {
+    elements.profileShowGettingStarted.checked = state.ui.showGettingStarted;
+  }
+
   // Admin link visibility
   if (elements.profileAdminLink) {
     elements.profileAdminLink.hidden = !isAdminUser();
@@ -13854,11 +13963,13 @@ function savePlayerConfig() {
 function loadStoredUiState() {
   const stored = tryReadJsonStorage(UI_STATE_STORAGE_KEY, {});
   state.ui.isNavCollapsed = stored.navCollapsed === true;
+  state.ui.showGettingStarted = stored.showGettingStarted !== false;
 }
 
 function saveUiState() {
   return tryWriteJsonStorage(UI_STATE_STORAGE_KEY, {
-    navCollapsed: state.ui.isNavCollapsed
+    navCollapsed: state.ui.isNavCollapsed,
+    showGettingStarted: state.ui.showGettingStarted
   });
 }
 
@@ -17804,6 +17915,22 @@ function attachEvents() {
     });
   }
 
+  // Getting Started toggle — Profile page
+  if (elements.profileSaveGettingStarted) {
+    elements.profileSaveGettingStarted.addEventListener("click", () => {
+      state.ui.showGettingStarted = elements.profileShowGettingStarted?.checked ?? true;
+      saveUiState();
+      renderAllGettingStartedBars();
+      renderPlayerConfig();
+      if (elements.profileGettingStartedFeedback) {
+        elements.profileGettingStartedFeedback.textContent = "Saved.";
+        setTimeout(() => {
+          if (elements.profileGettingStartedFeedback) elements.profileGettingStartedFeedback.textContent = "";
+        }, 2000);
+      }
+    });
+  }
+
   // Role links — Profile page
   if (elements.profileSetPrimaryRole) {
     elements.profileSetPrimaryRole.addEventListener("click", (e) => {
@@ -19513,11 +19640,13 @@ async function init() {
       syncRoute: true,
       replaceRoute: initialRoute.status !== "valid" || initialRoute.shouldNormalize
     });
+    clearBuilderFeedback();
+    await fetchBuilderDraftContext(state.builder.teamId);
+    await loadComposerContextFromApi();
     validateTeamSelections();
     renderTeamConfig();
     renderTeamAdmin();
     renderPlayerConfig();
-    renderBuilder();
     renderChampionTagCatalog();
     renderTagsWorkspace();
     renderUsersWorkspace();
@@ -19526,13 +19655,9 @@ async function init() {
     renderChampionTagEditor();
     renderIssueReportingPanel();
     renderAuth();
-    clearBuilderFeedback();
-    await fetchBuilderDraftContext(state.builder.teamId);
-    await loadComposerContextFromApi();
-    validateTeamSelections();
-    renderTeamConfig();
-    renderBuilder();
-    // Auto-generate tree on load so Draft Selector is immediately populated
+    renderAllGettingStartedBars();
+    // Auto-generate tree on load so Draft Selector is immediately populated.
+    // generateTreeFromCurrentState calls renderBuilder() internally.
     generateTreeFromCurrentState({ scrollToResults: false });
   } catch (error) {
     setSetupFeedback(error instanceof Error ? error.message : "Failed to initialize app.");
