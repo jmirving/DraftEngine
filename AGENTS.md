@@ -30,6 +30,9 @@ When refactoring existing UI (moving elements, removing sections, restructuring 
 
 Do this during the refactor — don't leave it for the user to discover via visual glitches.
 
+### USS Pattern Audit on Touch
+When a refactor or change touches a UI code path, audit **all** USS patterns that apply to that code path — not just the one explicitly requested. For example, if a card grid refactor touches a modal's edit flow, also apply the modal snapshot/draft pattern, cancel dirty check, and close-on-save behavior documented in USS.md. Read USS.md before any UI work and cross-check every touched modal, card, or component against documented patterns.
+
 ### Removal vs Hide
 - **Removal** ("remove X", "not needed anymore"): Fully delete the HTML element, render function, element registration in `createElements()`, CSS rules, and all call sites. No orphaned code.
 - **Hide** ("hide X"): Keep the element and code intact, just add `hidden` attribute. The element may be re-enabled later.
