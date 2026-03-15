@@ -497,12 +497,19 @@ function createMockContext({ riotChampionStatsService = null, issueReporter = nu
             definition: typeof source.compositionSynergies.definition === "string"
               ? source.compositionSynergies.definition
               : "",
+            optional: source.compositionSynergies.optional === true,
+            bonusWeight:
+              Number.isFinite(Number(source.compositionSynergies.bonusWeight))
+                ? Number(source.compositionSynergies.bonusWeight)
+                : 1,
             rules: Array.isArray(source.compositionSynergies.rules)
               ? source.compositionSynergies.rules.map((rule) => ({ ...rule }))
               : []
           }
         : {
             definition: "",
+            optional: false,
+            bonusWeight: 1,
             rules: []
           };
     return {
@@ -2519,6 +2526,8 @@ describe("API routes", () => {
     };
     const compositionSynergiesPayload = {
       definition: "Wants knockup follow-through and engage around the pick.",
+      optional: true,
+      bonusWeight: 2,
       rules: [
         {
           id: "knockups",
@@ -2550,7 +2559,12 @@ describe("API routes", () => {
       .send({
         roles: ["Top"],
         role_profiles: roleProfilesPayload,
-        composition_synergies: compositionSynergiesPayload
+        composition_synergies: {
+          definition: compositionSynergiesPayload.definition,
+          optional: compositionSynergiesPayload.optional,
+          bonus_weight: compositionSynergiesPayload.bonusWeight,
+          rules: compositionSynergiesPayload.rules
+        }
       });
     expect(globalWrite.status).toBe(200);
     expect(globalWrite.body.champion.metadata.roleProfiles.Top.primaryDamageType).toBe("ad");
@@ -2580,7 +2594,12 @@ describe("API routes", () => {
             effectiveness: { early: "neutral", mid: "strong", late: "weak" }
           }
         },
-        composition_synergies: compositionSynergiesPayload
+        composition_synergies: {
+          definition: compositionSynergiesPayload.definition,
+          optional: compositionSynergiesPayload.optional,
+          bonus_weight: compositionSynergiesPayload.bonusWeight,
+          rules: compositionSynergiesPayload.rules
+        }
       });
     expect(adminWrite.status).toBe(200);
     expect(adminWrite.body.champion.role).toBe("Top");

@@ -142,9 +142,10 @@ function compareChildrenForRank(left, right, rankGoal) {
 function buildRequirementCheckMap(requirementEvaluation) {
   const checks = {};
   for (const requirement of requirementEvaluation.requirements) {
+    const isRequired = requirement.required !== false;
     checks[requirement.name] = {
       id: requirement.id,
-      required: true,
+      required: isRequired,
       satisfied: requirement.status === "pass",
       status: requirement.status === "pass" ? "good" : "warn",
       reason: requirement.reason
@@ -220,11 +221,16 @@ function buildClauseDeltaScoreBreakdown(currentEvaluation, projectedEvaluation, 
         scoreContribution
       };
     });
+    const bonusDelta = (projectedRequirement.optionalBonus ?? 0) - (currentRequirement?.optionalBonus ?? 0);
 
     return {
       requirementId: projectedRequirement.requirementId,
       requirementName: projectedRequirement.requirementName,
-      totalScore: clauses.reduce((sum, clause) => sum + clause.scoreContribution, 0),
+      required: projectedRequirement.required !== false,
+      bonusWeight: Number.isFinite(projectedRequirement.bonusWeight) ? projectedRequirement.bonusWeight : 0,
+      optionalBonus: Number.isFinite(projectedRequirement.optionalBonus) ? projectedRequirement.optionalBonus : 0,
+      bonusDelta,
+      totalScore: clauses.reduce((sum, clause) => sum + clause.scoreContribution, 0) + bonusDelta,
       clauses
     };
   });
@@ -244,12 +250,20 @@ function buildClauseDeltaScoreBreakdown(currentEvaluation, projectedEvaluation, 
 function buildCandidateRationale(scoreBreakdown, projectedEvaluation) {
   const rationale = [];
   for (const requirement of scoreBreakdown.requirements) {
+    if (requirement.required === false) {
+      if (requirement.bonusDelta > 0) {
+        rationale.push(`${requirement.requirementName}: gains optional bonus ${requirement.bonusDelta}`);
+      } else if (requirement.bonusDelta < 0) {
+        rationale.push(`${requirement.requirementName}: loses optional bonus ${Math.abs(requirement.bonusDelta)}`);
+      }
+    }
     for (const clause of requirement.clauses) {
+      const matchLabel = requirement.required === false ? "optional match(es)" : "required match(es)";
       if (clause.underDelta > 0) {
-        rationale.push(`${requirement.requirementName} ${clause.label}: closes ${clause.underDelta} required match(es)`);
+        rationale.push(`${requirement.requirementName} ${clause.label}: closes ${clause.underDelta} ${matchLabel}`);
       } else if (clause.underDelta < 0) {
         rationale.push(
-          `${requirement.requirementName} ${clause.label}: loses ${Math.abs(clause.underDelta)} required match(es)`
+          `${requirement.requirementName} ${clause.label}: loses ${Math.abs(clause.underDelta)} ${matchLabel}`
         );
       }
       if (clause.overDelta > 0) {
@@ -438,6 +452,7 @@ function buildNodeByRequirements({
     tagById
   });
   const requiredSummary = requirementEvaluation.requiredSummary;
+  const optionalSummary = requirementEvaluation.optionalSummary;
   const { score: nodeScore, scoreBreakdown } = scoreRequirementNode(
     requirementEvaluation,
     normalized,
@@ -460,6 +475,7 @@ function buildNodeByRequirements({
       needsTopThreat: false
     },
     requiredSummary,
+    optionalSummary,
     scoreBreakdown,
     viability: {
       remainingSteps,

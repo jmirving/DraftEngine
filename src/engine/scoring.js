@@ -40,7 +40,7 @@ function normalizeRequirementIdentifier(rawValue, fallback = 0) {
   return fallback;
 }
 
-function createClauseScoreDetail(clause, clauseIndex, redundancyPenalty) {
+function createClauseScoreDetail(clause, clauseIndex, redundancyPenalty, isRequired = true) {
   const underBy = Number.isFinite(clause?.underBy) ? clause.underBy : 0;
   const overBy = Number.isFinite(clause?.overBy) ? clause.overBy : 0;
   return {
@@ -64,7 +64,7 @@ function createClauseScoreDetail(clause, clauseIndex, redundancyPenalty) {
     progressToMin: Number.isFinite(clause?.progressToMin) ? clause.progressToMin : 0,
     currentMatchSlots: Array.isArray(clause?.currentMatchSlots) ? clause.currentMatchSlots : [],
     potentialMatchRoles: Array.isArray(clause?.potentialMatchRoles) ? clause.potentialMatchRoles : [],
-    rawScoreContribution: -underBy - overBy * redundancyPenalty,
+    rawScoreContribution: isRequired ? -underBy - overBy * redundancyPenalty : 0,
     effectiveUnderBy: 0,
     effectiveOverBy: 0,
     effectiveScoreContribution: 0,
@@ -138,9 +138,16 @@ export function buildRequirementScoreBreakdown(
     ? requirementEvaluation.requirements
     : [];
   const requirementBreakdown = requirements.map((requirement) => {
+    const isRequired = requirement?.required !== false;
+    const bonusWeight =
+      isRequired
+        ? 0
+        : Number.isFinite(Number(requirement?.bonusWeight)) && Number(requirement?.bonusWeight) > 0
+          ? Number(requirement?.bonusWeight)
+          : 1;
     const clauses = Array.isArray(requirement?.clauses)
       ? requirement.clauses.map((clause, clauseIndex) =>
-        createClauseScoreDetail(clause, clauseIndex, redundancyPenalty)
+        createClauseScoreDetail(clause, clauseIndex, redundancyPenalty, isRequired)
       )
       : [];
     const aggregate = buildAggregateSelection(clauses);
@@ -153,23 +160,33 @@ export function buildRequirementScoreBreakdown(
       clause.effectiveOverBy = clause.overBy;
       clause.effectiveScoreContribution = clause.rawScoreContribution;
     }
+    const optionalBonus = !isRequired && requirement?.status === "pass" ? bonusWeight : 0;
 
     return {
       requirementId: normalizeRequirementIdentifier(requirement?.id, 0),
       requirementName: typeof requirement?.name === "string" ? requirement.name : "Unnamed requirement",
+      required: isRequired,
+      bonusWeight,
       status: requirement?.status ?? "pending",
       reason: requirement?.reason ?? "",
       totalUnderBy: aggregate.totalUnderBy,
       totalOverBy: aggregate.totalOverBy,
-      totalScore: aggregate.totalScore,
+      totalScore: isRequired ? aggregate.totalScore : optionalBonus,
+      optionalBonus,
       clauses
     };
   });
 
   return {
     requirements: requirementBreakdown,
-    totalUnderBy: requirementBreakdown.reduce((sum, requirement) => sum + requirement.totalUnderBy, 0),
-    totalOverBy: requirementBreakdown.reduce((sum, requirement) => sum + requirement.totalOverBy, 0),
+    totalUnderBy: requirementBreakdown.reduce(
+      (sum, requirement) => sum + (requirement.required === false ? 0 : requirement.totalUnderBy),
+      0
+    ),
+    totalOverBy: requirementBreakdown.reduce(
+      (sum, requirement) => sum + (requirement.required === false ? 0 : requirement.totalOverBy),
+      0
+    ),
     totalScore: requirementBreakdown.reduce((sum, requirement) => sum + requirement.totalScore, 0)
   };
 }

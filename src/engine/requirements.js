@@ -6,6 +6,7 @@ const EFFECTIVENESS_RANK = Object.freeze({
   neutral: 2,
   strong: 3
 });
+const DEFAULT_OPTIONAL_REQUIREMENT_BONUS_WEIGHT = 1;
 
 function normalizeJoiner(rawJoiner, fallback = "and") {
   const normalized = typeof rawJoiner === "string" ? rawJoiner.trim().toLowerCase() : "";
@@ -80,8 +81,16 @@ function normalizeChampionCompositionSynergies(rawValue) {
   const source = rawValue && typeof rawValue === "object" && !Array.isArray(rawValue) ? rawValue : {};
   const definition = typeof source.definition === "string" ? source.definition.trim() : "";
   const rules = Array.isArray(source.rules) ? source.rules : [];
+  const optional = source.optional === true;
+  const rawBonusWeight = source.bonusWeight ?? source.bonus_weight;
+  const parsedBonusWeight = Number(rawBonusWeight);
   return {
     definition,
+    optional,
+    bonusWeight:
+      Number.isFinite(parsedBonusWeight) && parsedBonusWeight > 0
+        ? parsedBonusWeight
+        : DEFAULT_OPTIONAL_REQUIREMENT_BONUS_WEIGHT,
     rules
   };
 }
@@ -426,6 +435,8 @@ function buildChampionCompositionSynergyRequirements({
       sourceChampionName: championName,
       sourceRole: role,
       sourceType: "composition_synergy",
+      required: compositionSynergies.optional !== true,
+      bonusWeight: compositionSynergies.optional === true ? compositionSynergies.bonusWeight : 0,
       name: `${championName} Composition Synergy`,
       definition:
         compositionSynergies.definition !== ""
@@ -451,6 +462,13 @@ function evaluateRequirement(requirement, context) {
         typeof requirement?.sourceChampionName === "string" ? requirement.sourceChampionName : "",
       sourceRole: typeof requirement?.sourceRole === "string" ? requirement.sourceRole : "",
       sourceType: typeof requirement?.sourceType === "string" ? requirement.sourceType : "",
+      required: requirement?.required !== false,
+      bonusWeight:
+        requirement?.required === false
+          ? Number.isFinite(Number(requirement?.bonusWeight)) && Number(requirement?.bonusWeight) > 0
+            ? Number(requirement?.bonusWeight)
+            : DEFAULT_OPTIONAL_REQUIREMENT_BONUS_WEIGHT
+          : 0,
       name: typeof requirement?.name === "string" ? requirement.name : "Unnamed requirement",
       definition: typeof requirement?.definition === "string" ? requirement.definition : "",
       status: "pass",
@@ -535,6 +553,13 @@ function evaluateRequirement(requirement, context) {
       typeof requirement?.sourceChampionName === "string" ? requirement.sourceChampionName : "",
     sourceRole: typeof requirement?.sourceRole === "string" ? requirement.sourceRole : "",
     sourceType: typeof requirement?.sourceType === "string" ? requirement.sourceType : "",
+    required: requirement?.required !== false,
+    bonusWeight:
+      requirement?.required === false
+        ? Number.isFinite(Number(requirement?.bonusWeight)) && Number(requirement?.bonusWeight) > 0
+          ? Number(requirement?.bonusWeight)
+          : DEFAULT_OPTIONAL_REQUIREMENT_BONUS_WEIGHT
+        : 0,
     name: typeof requirement?.name === "string" ? requirement.name : "Unnamed requirement",
     definition: typeof requirement?.definition === "string" ? requirement.definition : "",
     status: aggregateStatus,
@@ -578,10 +603,15 @@ export function evaluateCompositionRequirements({
   };
 
   const results = allRequirements.map((requirement) => evaluateRequirement(requirement, context));
-  const requiredTotal = results.length;
-  const requiredPassed = results.filter((result) => result.status === "pass").length;
+  const requiredResults = results.filter((result) => result.required !== false);
+  const optionalResults = results.filter((result) => result.required === false);
+  const requiredTotal = requiredResults.length;
+  const requiredPassed = requiredResults.filter((result) => result.status === "pass").length;
   const requiredGaps = requiredTotal - requiredPassed;
-  const unreachableRequirements = results
+  const optionalTotal = optionalResults.length;
+  const optionalPassed = optionalResults.filter((result) => result.status === "pass").length;
+  const optionalMisses = optionalTotal - optionalPassed;
+  const unreachableRequirements = requiredResults
     .filter((result) => result.unreachable)
     .map((result) => result.name);
 
@@ -591,6 +621,11 @@ export function evaluateCompositionRequirements({
       requiredTotal,
       requiredPassed,
       requiredGaps
+    },
+    optionalSummary: {
+      optionalTotal,
+      optionalPassed,
+      optionalMisses
     },
     unreachableRequirements
   };

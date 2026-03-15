@@ -462,12 +462,19 @@ function createFetchHarness({
               definition: typeof source.compositionSynergies.definition === "string"
                 ? source.compositionSynergies.definition
                 : "",
+              optional: source.compositionSynergies.optional === true,
+              bonusWeight:
+                Number.isFinite(Number(source.compositionSynergies.bonusWeight))
+                  ? Number(source.compositionSynergies.bonusWeight)
+                  : 1,
               rules: Array.isArray(source.compositionSynergies.rules)
                 ? source.compositionSynergies.rules.map((rule) => ({ ...rule }))
                 : []
             }
           : {
               definition: "",
+              optional: false,
+              bonusWeight: 1,
               rules: []
             },
       roleProfiles: Object.fromEntries(
@@ -893,6 +900,11 @@ function createFetchHarness({
                 definition: typeof body.composition_synergies.definition === "string"
                   ? body.composition_synergies.definition
                   : "",
+                optional: body.composition_synergies.optional === true,
+                bonusWeight:
+                  Number.isFinite(Number(body.composition_synergies.bonus_weight))
+                    ? Number(body.composition_synergies.bonus_weight)
+                    : 1,
                 rules: Array.isArray(body.composition_synergies.rules)
                   ? body.composition_synergies.rules.map((rule) => ({ ...rule }))
                   : []
@@ -2565,6 +2577,16 @@ describe("auth + pools + team management", () => {
     summaryInput.value = "Wants knockup and follow-up setup around the pick.";
     summaryInput.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
 
+    const optionalToggle = doc.querySelector("#champion-composition-synergy-optional");
+    expect(optionalToggle).toBeTruthy();
+    optionalToggle.checked = true;
+    optionalToggle.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+    const bonusWeightInput = doc.querySelector("#champion-composition-synergy-bonus-weight");
+    expect(bonusWeightInput).toBeTruthy();
+    bonusWeightInput.value = "2";
+    bonusWeightInput.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+
     doc.querySelector("#champion-composition-synergy-edit").click();
     await flush();
 
@@ -2599,8 +2621,108 @@ describe("auth + pools + team management", () => {
     expect(metadataSaveCall.body.composition_synergies.definition).toBe(
       "Wants knockup and follow-up setup around the pick."
     );
+    expect(metadataSaveCall.body.composition_synergies.optional).toBe(true);
+    expect(metadataSaveCall.body.composition_synergies.bonus_weight).toBe(2);
     expect(metadataSaveCall.body.composition_synergies.rules).toHaveLength(1);
     expect(metadataSaveCall.body.composition_synergies.rules[0].expr).toEqual({ tag: "engage" });
+  });
+
+  test("saved optional champion synergies appear in Draft Review during the same session", async () => {
+    const storage = createStorageStub({
+      "draftflow.authSession.v1": JSON.stringify({
+        token: "token-123",
+        user: { id: 11, email: "lead@example.com", gameName: "LeadPlayer", tagline: "NA1" }
+      })
+    });
+    const harness = createFetchHarness();
+    const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
+    const doc = dom.window.document;
+
+    openExplorerEditChampions(doc);
+    await flush();
+
+    const editButton = getChampionCardByName(doc, "Ashe")?.querySelector(".champ-card-edit-btn");
+    expect(editButton).toBeTruthy();
+    editButton.click();
+    await flush();
+
+    const summaryInput = doc.querySelector("#champion-composition-synergy-definition");
+    summaryInput.value = "Likes engage follow-up from mid.";
+    summaryInput.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+
+    const optionalToggle = doc.querySelector("#champion-composition-synergy-optional");
+    optionalToggle.checked = true;
+    optionalToggle.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+    const bonusWeightInput = doc.querySelector("#champion-composition-synergy-bonus-weight");
+    bonusWeightInput.value = "2";
+    bonusWeightInput.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+
+    doc.querySelector("#champion-composition-synergy-edit").click();
+    await flush();
+
+    const addClauseButton = Array.from(doc.querySelectorAll(".draft-modal .comp-action-btn")).find((node) =>
+      node.textContent.includes("Add Clause")
+    );
+    addClauseButton.click();
+    await flush();
+
+    const engageOption = Array.from(doc.querySelectorAll(".draft-modal .requirement-tag-picker-list li")).find((node) =>
+      node.textContent.trim() === "engage"
+    );
+    engageOption.click();
+    await flush();
+
+    const midRoleCheckbox = Array.from(doc.querySelectorAll(".draft-modal .selection-option")).find((node) =>
+      node.textContent.includes("Mid")
+    )?.querySelector("input");
+    expect(midRoleCheckbox).toBeTruthy();
+    if (!midRoleCheckbox.checked) {
+      midRoleCheckbox.click();
+    }
+    await flush();
+
+    const roleCheckboxes = Array.from(doc.querySelectorAll(".draft-modal .selection-option"))
+      .filter((node) => ["Top", "Jungle", "ADC", "Support"].some((label) => node.textContent.includes(label)))
+      .map((node) => node.querySelector("input"))
+      .filter(Boolean);
+    for (const checkbox of roleCheckboxes) {
+      if (checkbox.checked) {
+        checkbox.click();
+      }
+    }
+    await flush();
+
+    const applyButton = Array.from(doc.querySelectorAll(".draft-modal-footer button")).find((node) =>
+      node.textContent.trim() === "Apply"
+    );
+    applyButton.click();
+    await flush();
+
+    doc.querySelector("#champion-tag-editor-save").click();
+    await flush();
+
+    clickTab(doc, "workflow");
+    await flush();
+
+    const pickChampion = (slot, championName) => {
+      const items = Array.from(
+        doc.querySelectorAll(`#team-config-pool-grid [data-slot='${slot}'] .pool-snapshot-list li:not(.pool-snapshot-empty)`)
+      );
+      const item = items.find((candidate) => candidate.textContent.trim() === championName);
+      expect(item).toBeTruthy();
+      item.click();
+    };
+
+    pickChampion("ADC", "Ashe");
+    await flush();
+    pickChampion("Mid", "Ahri");
+    await flush();
+
+    const optionalSection = doc.querySelector("#builder-optional-checks-section");
+    expect(optionalSection.hidden).toBe(false);
+    expect(optionalSection.textContent).toContain("Ashe Composition Synergy");
+    expect(optionalSection.textContent).toContain("+2 Bonus");
   });
 
   test("champion explorer shows metadata scope indicators and defaults members to self scope", async () => {

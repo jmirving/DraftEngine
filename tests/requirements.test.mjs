@@ -401,4 +401,158 @@ describe("evaluateCompositionRequirements", () => {
     expect(tree.children[0].addedChampion).toBe("Alpha");
     expect(tree.children[0].requiredSummary.requiredGaps).toBe(0);
   });
+
+  test("optional champion composition synergies do not create required gaps", () => {
+    const championsWithOptionalSynergy = {
+      ...championsByName,
+      Beta: {
+        ...championsByName.Beta,
+        compositionSynergies: {
+          definition: "Likes frontline backup around the pick.",
+          optional: true,
+          bonusWeight: 2,
+          rules: [
+            {
+              id: "frontline-support",
+              expr: { tag: "Frontline" },
+              minCount: 1,
+              roleFilter: ["Top", "Support"]
+            }
+          ]
+        }
+      }
+    };
+
+    const result = evaluateCompositionRequirements({
+      teamState: {
+        Top: null,
+        Jungle: null,
+        Mid: "Beta",
+        ADC: null,
+        Support: null
+      },
+      championsByName: championsWithOptionalSynergy,
+      tagById,
+      requirements: []
+    });
+
+    expect(result.requiredSummary).toEqual({
+      requiredTotal: 0,
+      requiredPassed: 0,
+      requiredGaps: 0
+    });
+    expect(result.optionalSummary).toEqual({
+      optionalTotal: 1,
+      optionalPassed: 0,
+      optionalMisses: 1
+    });
+    expect(result.requirements[0]).toMatchObject({
+      required: false,
+      bonusWeight: 2,
+      status: "pending"
+    });
+  });
+
+  test("optional champion composition synergies reward matching candidates in tree ranking", () => {
+    const championsWithOptionalSynergy = {
+      Samira: {
+        name: "Samira",
+        tagIds: [2],
+        roles: ["ADC"],
+        roleProfiles: {
+          ADC: {
+            primaryDamageType: "ad",
+            effectiveness: {
+              early: "neutral",
+              mid: "strong",
+              late: "neutral"
+            }
+          }
+        },
+        compositionSynergies: {
+          definition: "Prefers engage support.",
+          optional: true,
+          bonusWeight: 2,
+          rules: [
+            {
+              id: "support-engage",
+              expr: { tag: "Frontline" },
+              minCount: 1,
+              roleFilter: ["Support"]
+            }
+          ]
+        }
+      },
+      Alistar: {
+        name: "Alistar",
+        tagIds: [1],
+        roles: ["Support"],
+        roleProfiles: {
+          Support: {
+            primaryDamageType: "utility",
+            effectiveness: {
+              early: "strong",
+              mid: "neutral",
+              late: "weak"
+            }
+          }
+        }
+      },
+      Yuumi: {
+        name: "Yuumi",
+        tagIds: [],
+        roles: ["Support"],
+        roleProfiles: {
+          Support: {
+            primaryDamageType: "utility",
+            effectiveness: {
+              early: "weak",
+              mid: "neutral",
+              late: "strong"
+            }
+          }
+        }
+      }
+    };
+
+    const tree = generatePossibilityTree({
+      teamState: {
+        Top: null,
+        Jungle: null,
+        Mid: null,
+        ADC: "Samira",
+        Support: null
+      },
+      teamId: "team-a",
+      nextRole: "Support",
+      roleOrder: ["Support", "Top", "Jungle", "Mid"],
+      teamPools: {
+        "team-a": {
+          Top: [],
+          Jungle: [],
+          Mid: [],
+          ADC: ["Samira"],
+          Support: ["Alistar", "Yuumi"]
+        }
+      },
+      championsByName: championsWithOptionalSynergy,
+      requirements: [],
+      tagById,
+      maxDepth: 1,
+      maxBranch: 5,
+      minCandidateScore: -5
+    });
+
+    expect(tree.requiredSummary.requiredGaps).toBe(0);
+    expect(tree.optionalSummary).toEqual({
+      optionalTotal: 1,
+      optionalPassed: 0,
+      optionalMisses: 1
+    });
+    expect(tree.children).toHaveLength(2);
+    expect(tree.children[0].addedChampion).toBe("Alistar");
+    expect(tree.children[0].candidateScore).toBeGreaterThan(tree.children[1].candidateScore);
+    expect(tree.children[0].optionalSummary.optionalPassed).toBe(1);
+    expect(tree.children[1].optionalSummary.optionalPassed).toBe(0);
+  });
 });

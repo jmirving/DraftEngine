@@ -459,6 +459,7 @@ const REQUIREMENT_EFFECTIVENESS_FOCUS_OPTIONS = Object.freeze(
   }))
 );
 let requirementClauseDraftIdSeed = 0;
+const DEFAULT_COMPOSITION_SYNERGY_BONUS_WEIGHT = 1;
 
 function createRequirementClauseDraftId() {
   requirementClauseDraftIdSeed += 1;
@@ -491,6 +492,8 @@ function createDefaultRequirementRuleClauseDraft() {
 function createEmptyChampionCompositionSynergiesDraft() {
   return {
     definition: "",
+    optional: false,
+    bonusWeight: DEFAULT_COMPOSITION_SYNERGY_BONUS_WEIGHT,
     rules: []
   };
 }
@@ -953,6 +956,8 @@ function createElements() {
     cedChampImage: runtimeDocument.querySelector("#ced-champ-image"),
     cedChampRoles: runtimeDocument.querySelector("#ced-champ-roles"),
     championCompositionSynergyDefinition: runtimeDocument.querySelector("#champion-composition-synergy-definition"),
+    championCompositionSynergyOptional: runtimeDocument.querySelector("#champion-composition-synergy-optional"),
+    championCompositionSynergyBonusWeight: runtimeDocument.querySelector("#champion-composition-synergy-bonus-weight"),
     championCompositionSynergyMeta: runtimeDocument.querySelector("#champion-composition-synergy-meta"),
     championCompositionSynergyClear: runtimeDocument.querySelector("#champion-composition-synergy-clear"),
     championCompositionSynergyEdit: runtimeDocument.querySelector("#champion-composition-synergy-edit"),
@@ -1032,6 +1037,8 @@ function createElements() {
     builderStatsBtn: runtimeDocument.querySelector("#builder-stats-btn"),
     builderRequiredChecks: runtimeDocument.querySelector("#builder-required-checks"),
     builderOptionalChecks: runtimeDocument.querySelector("#builder-optional-checks"),
+    builderOptionalChecksMeta: runtimeDocument.querySelector("#builder-optional-checks-meta"),
+    builderOptionalChecksSection: runtimeDocument.querySelector("#builder-optional-checks-section"),
     builderTree: runtimeDocument.querySelector("#builder-tree"),
     builderTreeMap: runtimeDocument.querySelector("#builder-tree-map"),
     treeDensity: runtimeDocument.querySelector("#tree-density"),
@@ -2350,6 +2357,7 @@ function syncChampionMetadataDraftToState(championId, payload) {
   const scope = normalizeChampionTagScope(payload.scope);
   const hasCustomMetadata = payload.has_custom_metadata === true || payload.hasCustomMetadata === true;
   const resolvedScope = normalizeChampionTagScope(payload.resolved_scope ?? payload.resolvedScope ?? "all");
+  const nextCompositionSynergies = normalizeChampionCompositionSynergiesFromMetadata(metadata.compositionSynergies);
 
   if (scope === "all") {
     const nextRoles = normalizeChampionMetadataRoles(metadata.roles);
@@ -2358,7 +2366,7 @@ function syncChampionMetadataDraftToState(championId, payload) {
       champion.roles = nextRoles;
     }
     champion.roleProfiles = nextRoleProfiles;
-    champion.compositionSynergies = normalizeChampionCompositionSynergiesFromMetadata(metadata.compositionSynergies);
+    champion.compositionSynergies = nextCompositionSynergies;
     const previewProfile = getChampionRoleProfile(champion, champion.roles[0]);
     champion.damageType = deriveDisplayDamageTypeFromProfile(previewProfile);
     champion.scaling = deriveLegacyScalingFromProfile(previewProfile);
@@ -2369,6 +2377,15 @@ function syncChampionMetadataDraftToState(championId, payload) {
   }
   if (payload.reviewed !== undefined) {
     champion.reviewed = payload.reviewed === true;
+  }
+  if (champion.name && state.builder.composerChampionsByName?.[champion.name]) {
+    state.builder.composerChampionsByName = {
+      ...state.builder.composerChampionsByName,
+      [champion.name]: {
+        ...state.builder.composerChampionsByName[champion.name],
+        compositionSynergies: nextCompositionSynergies
+      }
+    };
   }
   updateChampionMetadataScopeIndicator(championId, scope, hasCustomMetadata);
   cacheExplorerScopedMetadataPayload(championId, scope, payload);
@@ -7259,6 +7276,8 @@ function createRequirementRuleClauseDraft(rawClause = null) {
 function normalizeChampionCompositionSynergiesFromMetadata(rawValue) {
   const source = rawValue && typeof rawValue === "object" && !Array.isArray(rawValue) ? rawValue : {};
   const definition = typeof source.definition === "string" ? source.definition.trim() : "";
+  const optional = source.optional === true;
+  const parsedBonusWeight = Number(source.bonusWeight ?? source.bonus_weight);
   const rules = Array.isArray(source.rules)
     ? source.rules
         .filter((rule) => rule && typeof rule === "object" && !Array.isArray(rule))
@@ -7266,6 +7285,11 @@ function normalizeChampionCompositionSynergiesFromMetadata(rawValue) {
     : [];
   return {
     definition,
+    optional,
+    bonusWeight:
+      Number.isFinite(parsedBonusWeight) && parsedBonusWeight > 0
+        ? parsedBonusWeight
+        : DEFAULT_COMPOSITION_SYNERGY_BONUS_WEIGHT,
     rules
   };
 }
@@ -7274,6 +7298,8 @@ function normalizeChampionCompositionSynergyDraft(rawValue) {
   const normalized = normalizeChampionCompositionSynergiesFromMetadata(rawValue);
   return {
     definition: normalized.definition,
+    optional: normalized.optional,
+    bonusWeight: normalized.bonusWeight,
     rules: normalized.rules.map((rule) => createRequirementRuleClauseDraft(rule))
   };
 }
@@ -8883,6 +8909,11 @@ function openChampionCompositionSynergyEditorModal() {
     }
     state.api.championMetadataDraft.compositionSynergies = {
       definition,
+      optional: snapshotSynergies.optional === true,
+      bonusWeight:
+        Number.isFinite(Number(snapshotSynergies.bonusWeight)) && Number(snapshotSynergies.bonusWeight) > 0
+          ? Number(snapshotSynergies.bonusWeight)
+          : DEFAULT_COMPOSITION_SYNERGY_BONUS_WEIGHT,
       rules: draftRules.length > 0 ? JSON.parse(JSON.stringify(draftRules)) : []
     };
     state.api.requirementDefinitionDraft = JSON.parse(JSON.stringify(snapshotDraft));
@@ -10110,16 +10141,31 @@ function renderChampionCompositionSynergySection() {
     state.api.championMetadataDraft?.compositionSynergies ?? createEmptyChampionCompositionSynergiesDraft();
   const clauseCount = Array.isArray(compositionSynergies.rules) ? compositionSynergies.rules.length : 0;
   const controlsDisabled = state.api.isSavingChampionTags || state.api.isLoadingChampionTags;
+  const optional = compositionSynergies.optional === true;
+  const bonusWeight =
+    Number.isFinite(Number(compositionSynergies.bonusWeight)) && Number(compositionSynergies.bonusWeight) > 0
+      ? Number(compositionSynergies.bonusWeight)
+      : DEFAULT_COMPOSITION_SYNERGY_BONUS_WEIGHT;
 
   if (elements.championCompositionSynergyDefinition) {
     elements.championCompositionSynergyDefinition.value = compositionSynergies.definition ?? "";
     elements.championCompositionSynergyDefinition.disabled = controlsDisabled;
   }
+  if (elements.championCompositionSynergyOptional) {
+    elements.championCompositionSynergyOptional.checked = optional;
+    elements.championCompositionSynergyOptional.disabled = controlsDisabled;
+  }
+  if (elements.championCompositionSynergyBonusWeight) {
+    elements.championCompositionSynergyBonusWeight.value = String(bonusWeight);
+    elements.championCompositionSynergyBonusWeight.disabled = controlsDisabled || !optional;
+  }
 
   if (elements.championCompositionSynergyMeta) {
     elements.championCompositionSynergyMeta.textContent =
       clauseCount > 0
-        ? `${clauseCount} synergy clause${clauseCount === 1 ? "" : "s"} will be evaluated against the rest of the team, not this champion.`
+        ? optional
+          ? `${clauseCount} synergy clause${clauseCount === 1 ? "" : "s"} will be evaluated against the rest of the team. Passing adds ${bonusWeight} bonus point${bonusWeight === 1 ? "" : "s"}.`
+          : `${clauseCount} synergy clause${clauseCount === 1 ? "" : "s"} will be evaluated against the rest of the team as required draft coverage.`
         : "Add optional champion-specific synergy clauses for what this pick wants from the surrounding comp.";
   }
 
@@ -10587,6 +10633,8 @@ async function saveChampionMetadataTab(championId) {
   const compositionSynergyDefinition = String(
     state.api.championMetadataDraft?.compositionSynergies?.definition ?? ""
   ).trim();
+  const compositionSynergyOptional = state.api.championMetadataDraft?.compositionSynergies?.optional === true;
+  const compositionSynergyBonusWeight = Number(state.api.championMetadataDraft?.compositionSynergies?.bonusWeight);
   const compositionSynergyDraftRules = Array.isArray(state.api.championMetadataDraft?.compositionSynergies?.rules)
     ? state.api.championMetadataDraft.compositionSynergies.rules
     : [];
@@ -10596,11 +10644,18 @@ async function saveChampionMetadataTab(championId) {
     }
     payload.composition_synergies = {
       definition: compositionSynergyDefinition,
+      optional: compositionSynergyOptional,
+      bonus_weight:
+        Number.isFinite(compositionSynergyBonusWeight) && compositionSynergyBonusWeight > 0
+          ? compositionSynergyBonusWeight
+          : DEFAULT_COMPOSITION_SYNERGY_BONUS_WEIGHT,
       rules: parseRequirementRulesFromDraftClauses(compositionSynergyDraftRules)
     };
   } else {
     payload.composition_synergies = {
       definition: "",
+      optional: false,
+      bonus_weight: DEFAULT_COMPOSITION_SYNERGY_BONUS_WEIGHT,
       rules: []
     };
   }
@@ -15677,6 +15732,18 @@ function buildComposerRequirementScoreBreakdown(requirementEvaluation) {
 }
 
 function formatRequirementHeadline(requirementResult, requirementScore = null) {
+  const isRequired = requirementResult?.required !== false;
+  if (!isRequired) {
+    const bonusWeight =
+      Number.isFinite(Number(requirementResult?.bonusWeight)) && Number(requirementResult?.bonusWeight) > 0
+        ? Number(requirementResult.bonusWeight)
+        : Number.isFinite(Number(requirementScore?.bonusWeight)) && Number(requirementScore?.bonusWeight) > 0
+          ? Number(requirementScore.bonusWeight)
+          : DEFAULT_COMPOSITION_SYNERGY_BONUS_WEIGHT;
+    return requirementResult?.status === "pass"
+      ? `Optional bonus +${bonusWeight} active.`
+      : `Optional bonus +${bonusWeight} available if this check is met.`;
+  }
   const clauses = Array.isArray(requirementResult?.clauses) ? requirementResult.clauses : [];
   const totalUnderBy = Number.isFinite(requirementScore?.totalUnderBy)
     ? requirementScore.totalUnderBy
@@ -15696,6 +15763,7 @@ function formatRequirementHeadline(requirementResult, requirementScore = null) {
 function buildRequirementStatusCard(requirementResult, requirementScore = null) {
   const status = requirementResult.status;
   const passed = status === "pass";
+  const isRequired = requirementResult?.required !== false;
   const card = runtimeDocument.createElement("div");
   card.className = `req-card ${passed ? "is-passed" : "is-failed"}`;
   if (requirementResult.definition) {
@@ -15708,7 +15776,15 @@ function buildRequirementStatusCard(requirementResult, requirementScore = null) 
 
   const badge = runtimeDocument.createElement("span");
   badge.className = `req-card-badge ${passed ? "is-passed" : "is-failed"}`;
-  if (passed) {
+  if (!isRequired) {
+    const bonusWeight =
+      Number.isFinite(Number(requirementResult?.bonusWeight)) && Number(requirementResult?.bonusWeight) > 0
+        ? Number(requirementResult.bonusWeight)
+        : Number.isFinite(Number(requirementScore?.bonusWeight)) && Number(requirementScore?.bonusWeight) > 0
+          ? Number(requirementScore.bonusWeight)
+          : DEFAULT_COMPOSITION_SYNERGY_BONUS_WEIGHT;
+    badge.textContent = passed ? `+${bonusWeight} Bonus` : "Optional";
+  } else if (passed) {
     badge.textContent = "\u2713 Pass";
   } else {
     const clauses = Array.isArray(requirementResult.clauses) ? requirementResult.clauses : [];
@@ -15729,6 +15805,7 @@ function buildRequirementStatusCard(requirementResult, requirementScore = null) 
 function openClauseDetailModal(requirementResult, requirementScore) {
   closeDraftModal();
   const passed = requirementResult.status === "pass";
+  const isRequired = requirementResult?.required !== false;
 
   const overlay = runtimeDocument.createElement("div");
   overlay.className = "draft-modal-overlay";
@@ -15759,7 +15836,17 @@ function openClauseDetailModal(requirementResult, requirementScore) {
 
   const statusBadge = runtimeDocument.createElement("span");
   statusBadge.className = `req-card-badge ${passed ? "is-passed" : "is-failed"}`;
-  statusBadge.textContent = passed ? "\u2713 Pass" : "\u2717 Fail";
+  if (!isRequired) {
+    const bonusWeight =
+      Number.isFinite(Number(requirementResult?.bonusWeight)) && Number(requirementResult?.bonusWeight) > 0
+        ? Number(requirementResult.bonusWeight)
+        : Number.isFinite(Number(requirementScore?.bonusWeight)) && Number(requirementScore?.bonusWeight) > 0
+          ? Number(requirementScore.bonusWeight)
+          : DEFAULT_COMPOSITION_SYNERGY_BONUS_WEIGHT;
+    statusBadge.textContent = passed ? `+${bonusWeight} Bonus` : "Optional";
+  } else {
+    statusBadge.textContent = passed ? "\u2713 Pass" : "\u2717 Fail";
+  }
   body.append(statusBadge);
 
   if (requirementResult.definition) {
@@ -15922,8 +16009,11 @@ function openClauseDetailModal(requirementResult, requirementScore) {
     const scoreMeta = runtimeDocument.createElement("p");
     scoreMeta.className = "meta";
     scoreMeta.style.marginTop = "0.5rem";
-    scoreMeta.textContent =
-      `Missing matches ${requirementScore.totalUnderBy} | redundancy overflow ${requirementScore.totalOverBy}.`;
+    scoreMeta.textContent = isRequired
+      ? `Missing matches ${requirementScore.totalUnderBy} | redundancy overflow ${requirementScore.totalOverBy}.`
+      : passed
+        ? `Optional bonus awarded: +${requirementScore.optionalBonus ?? requirementScore.totalScore ?? 0}.`
+        : `Optional bonus available: +${requirementScore.bonusWeight ?? DEFAULT_COMPOSITION_SYNERGY_BONUS_WEIGHT}.`;
     body.append(scoreMeta);
   }
 
@@ -16430,7 +16520,12 @@ function renderChecks() {
   const completion = getTeamCompletionInfo(state.builder.teamState);
   if (elements.builderOptionalChecks) {
     elements.builderOptionalChecks.innerHTML = "";
-    elements.builderOptionalChecks.hidden = true;
+  }
+  if (elements.builderOptionalChecksSection) {
+    elements.builderOptionalChecksSection.hidden = true;
+  }
+  if (elements.builderOptionalChecksMeta) {
+    elements.builderOptionalChecksMeta.textContent = "";
   }
   const selectedComposition = getBuilderSelectedComposition();
   if (!selectedComposition) {
@@ -16449,30 +16544,55 @@ function renderChecks() {
   const requiredTotal = requirementEvaluation.requiredSummary.requiredTotal;
   const requiredPassed = requirementEvaluation.requiredSummary.requiredPassed;
   const requiredGaps = requirementEvaluation.requiredSummary.requiredGaps;
+  const optionalTotal = requirementEvaluation.optionalSummary?.optionalTotal ?? 0;
+  const optionalPassed = requirementEvaluation.optionalSummary?.optionalPassed ?? 0;
+  const optionalBonusActive = scoreBreakdown.requirements
+    .filter((candidate) => candidate.required === false)
+    .reduce((sum, candidate) => sum + (candidate.optionalBonus ?? 0), 0);
 
   if (completion.completionState === "empty" || completion.completionState === "partial") {
     elements.builderChecksReadiness.textContent =
       `Composition '${selectedComposition.name}': ${completion.filledSlots}/${completion.totalSlots} slots filled. ` +
-      `Requirements passed: ${requiredPassed}/${requiredTotal}.`;
+      `Requirements passed: ${requiredPassed}/${requiredTotal}.` +
+      (optionalTotal > 0 ? ` Optional bonuses active: ${optionalPassed}/${optionalTotal} for +${optionalBonusActive}.` : "");
   } else {
     elements.builderChecksReadiness.textContent =
       `Composition '${selectedComposition.name}': Requirements passed ${requiredPassed}/${requiredTotal}. ` +
-      (requiredGaps > 0 ? `${requiredGaps} requirement gap(s) remain.` : "No requirement gaps.");
+      (requiredGaps > 0 ? `${requiredGaps} requirement gap(s) remain.` : "No requirement gaps.") +
+      (optionalTotal > 0 ? ` Optional bonuses active: ${optionalPassed}/${optionalTotal} for +${optionalBonusActive}.` : "");
   }
 
   elements.builderRequiredChecks.innerHTML = "";
   const requirementResults = requirementEvaluation.requirements;
-  if (!Array.isArray(requirementResults) || requirementResults.length < 1) {
+  const requiredResults = Array.isArray(requirementResults)
+    ? requirementResults.filter((requirementResult) => requirementResult.required !== false)
+    : [];
+  const optionalResults = Array.isArray(requirementResults)
+    ? requirementResults.filter((requirementResult) => requirementResult.required === false)
+    : [];
+  if (requiredResults.length < 1) {
     const empty = runtimeDocument.createElement("p");
     empty.className = "meta";
     empty.textContent = "Selected composition has no requirements.";
     elements.builderRequiredChecks.append(empty);
-    return;
   }
-  for (const requirementResult of requirementResults) {
+  for (const requirementResult of requiredResults) {
     const requirementScore =
       scoreBreakdown.requirements.find((candidate) => candidate.requirementId === requirementResult.id) ?? null;
     elements.builderRequiredChecks.append(buildRequirementStatusCard(requirementResult, requirementScore));
+  }
+
+  if (elements.builderOptionalChecks && elements.builderOptionalChecksSection && optionalResults.length > 0) {
+    elements.builderOptionalChecksSection.hidden = false;
+    if (elements.builderOptionalChecksMeta) {
+      elements.builderOptionalChecksMeta.textContent =
+        `Optional checks met ${optionalPassed}/${optionalTotal}. Current bonus +${optionalBonusActive}.`;
+    }
+    for (const requirementResult of optionalResults) {
+      const requirementScore =
+        scoreBreakdown.requirements.find((candidate) => candidate.requirementId === requirementResult.id) ?? null;
+      elements.builderOptionalChecks.append(buildRequirementStatusCard(requirementResult, requirementScore));
+    }
   }
 }
 
@@ -16685,9 +16805,17 @@ function getCandidateBreakdownLines(candidateBreakdown, limit = 3) {
 
   const lines = [];
   for (const requirement of candidateBreakdown.requirements) {
+    if (requirement.required === false) {
+      if ((requirement.bonusDelta ?? 0) > 0) {
+        lines.push(`${requirement.requirementName}: +${requirement.bonusDelta} optional bonus`);
+      } else if ((requirement.bonusDelta ?? 0) < 0) {
+        lines.push(`${requirement.requirementName}: -${Math.abs(requirement.bonusDelta)} optional bonus`);
+      }
+    }
     for (const clause of requirement.clauses ?? []) {
+      const coverageLabel = requirement.required === false ? "optional coverage" : "required coverage";
       if (clause.underDelta > 0) {
-        lines.push(`${requirement.requirementName} ${clause.label}: +${clause.underDelta} required coverage`);
+        lines.push(`${requirement.requirementName} ${clause.label}: +${clause.underDelta} ${coverageLabel}`);
       }
       if (clause.overDelta > 0) {
         lines.push(`${requirement.requirementName} ${clause.label}: +${clause.overDelta} redundancy overflow`);
@@ -19294,6 +19422,22 @@ function attachEvents() {
     elements.championCompositionSynergyDefinition.addEventListener("input", () => {
       state.api.championMetadataDraft.compositionSynergies.definition =
         elements.championCompositionSynergyDefinition.value;
+    });
+  }
+
+  if (elements.championCompositionSynergyOptional) {
+    elements.championCompositionSynergyOptional.addEventListener("change", () => {
+      state.api.championMetadataDraft.compositionSynergies.optional =
+        elements.championCompositionSynergyOptional.checked;
+      renderChampionTagEditor();
+    });
+  }
+
+  if (elements.championCompositionSynergyBonusWeight) {
+    elements.championCompositionSynergyBonusWeight.addEventListener("input", () => {
+      const parsed = Number(elements.championCompositionSynergyBonusWeight.value);
+      state.api.championMetadataDraft.compositionSynergies.bonusWeight =
+        Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_COMPOSITION_SYNERGY_BONUS_WEIGHT;
     });
   }
 

@@ -34,6 +34,7 @@ const POWER_SPIKE_MAX_RANGES = 2;
 const MAX_TAG_NAME_LENGTH = 64;
 const MAX_TAG_DEFINITION_LENGTH = 280;
 const MAX_PROMOTION_COMMENT_LENGTH = 500;
+const DEFAULT_COMPOSITION_SYNERGY_BONUS_WEIGHT = 1;
 
 function normalizeTagIds(tagIds) {
   const deduplicated = Array.from(new Set(tagIds));
@@ -51,6 +52,27 @@ function normalizeReviewedFlag(rawValue) {
     throw badRequest("Expected 'reviewed' to be a boolean.");
   }
   return rawValue;
+}
+
+function normalizeOptionalBoolean(rawValue, fieldName, fallback = false) {
+  if (rawValue === undefined) {
+    return fallback;
+  }
+  if (typeof rawValue !== "boolean") {
+    throw badRequest(`Expected '${fieldName}' to be a boolean.`);
+  }
+  return rawValue;
+}
+
+function normalizePositiveBonusWeight(rawValue, fieldName) {
+  if (rawValue === undefined || rawValue === null || rawValue === "") {
+    return DEFAULT_COMPOSITION_SYNERGY_BONUS_WEIGHT;
+  }
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw badRequest(`Expected '${fieldName}' to be a positive number.`);
+  }
+  return parsed;
 }
 
 function normalizeOptionalComment(rawValue, fieldName) {
@@ -228,6 +250,8 @@ function normalizeCompositionSynergies(rawValue) {
   if (rawValue === undefined || rawValue === null) {
     return {
       definition: "",
+      optional: false,
+      bonusWeight: DEFAULT_COMPOSITION_SYNERGY_BONUS_WEIGHT,
       rules: []
     };
   }
@@ -239,11 +263,18 @@ function normalizeCompositionSynergies(rawValue) {
     rawValue.definition,
     "composition_synergies.definition"
   );
+  const optional = normalizeOptionalBoolean(rawValue.optional, "composition_synergies.optional", false);
+  const bonusWeight = normalizePositiveBonusWeight(
+    rawValue.bonus_weight ?? rawValue.bonusWeight,
+    "composition_synergies.bonus_weight"
+  );
   const rawRules = rawValue.rules ?? [];
   if (!Array.isArray(rawRules) || rawRules.length < 1) {
     if (definition === "") {
       return {
         definition: "",
+        optional: false,
+        bonusWeight: DEFAULT_COMPOSITION_SYNERGY_BONUS_WEIGHT,
         rules: []
       };
     }
@@ -252,6 +283,8 @@ function normalizeCompositionSynergies(rawValue) {
 
   return {
     definition,
+    optional,
+    bonusWeight,
     rules: normalizeRequirementRules(rawRules, "composition_synergies.rules")
   };
 }
