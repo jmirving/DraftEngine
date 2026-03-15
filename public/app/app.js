@@ -609,6 +609,7 @@ function createInitialState() {
       isLoadingTagPromotions: false,
       isSubmittingTagPromotion: false,
       isTagPromotionModalOpen: false,
+      isTagsManageModalOpen: false,
       tagPromotionDraftComment: "",
       championEditorTags: [],
       championEditorTagById: {},
@@ -971,6 +972,9 @@ function createElements() {
     builderLoadDraftList: runtimeDocument.querySelector("#builder-load-draft-list"),
     builderLoadDraftFeedback: runtimeDocument.querySelector("#builder-load-draft-feedback"),
     builderLoadDraftClose: runtimeDocument.querySelector("#builder-load-draft-close"),
+    tagsManageModal: runtimeDocument.querySelector("#tags-manage-modal"),
+    tagsManageModalClose: runtimeDocument.querySelector("#tags-manage-modal-close"),
+    tagsManageOpen: runtimeDocument.querySelector("#tags-manage-open"),
     tagsPromotionModal: runtimeDocument.querySelector("#tags-promotion-modal"),
     tagsPromotionModalTitle: runtimeDocument.querySelector("#tags-promotion-modal-title"),
     tagsPromotionModalContext: runtimeDocument.querySelector("#tags-promotion-modal-context"),
@@ -2387,11 +2391,14 @@ function clearChampionTagEditorState() {
   closeChampionTagEditor();
 }
 
-function clearTagsManagerState({ clearInputs = true } = {}) {
+function clearTagsManagerState({ clearInputs = true, closeManageModal = false } = {}) {
   state.api.selectedTagManagerId = null;
   state.api.isSavingTagCatalog = false;
   state.api.isTagPromotionModalOpen = false;
   state.api.tagPromotionDraftComment = "";
+  if (closeManageModal) {
+    state.api.isTagsManageModalOpen = false;
+  }
   setTagsManageFeedback("");
   setTagPromotionModalFeedback("");
   if (clearInputs) {
@@ -2402,6 +2409,31 @@ function clearTagsManagerState({ clearInputs = true } = {}) {
       elements.tagsManageDefinition.value = "";
     }
   }
+}
+
+function openTagsManageModal() {
+  state.api.isTagsManageModalOpen = true;
+  renderTagsManageModal();
+  runtimeWindow.setTimeout(() => {
+    elements.tagsManageName?.focus();
+  }, 0);
+}
+
+function closeTagsManageModal() {
+  state.api.isTagsManageModalOpen = false;
+  clearTagsManagerState();
+  renderTagsManageModal();
+}
+
+function renderTagsManageModal() {
+  if (!elements.tagsManageModal) {
+    return;
+  }
+  elements.tagsManageModal.hidden = !state.api.isTagsManageModalOpen;
+  if (state.api.isTagsManageModalOpen) {
+    renderTagsManagerControls();
+  }
+  updateBodyModalState();
 }
 
 function getTagPromotionScopeLabel(scope) {
@@ -4442,11 +4474,11 @@ function beginManagedTagEdit(tagId) {
       `Editing inherited '${tag.name}'. Saving will create a ${scopeLabel.toLowerCase()} tag definition.`
     );
   }
+  state.api.isTagsManageModalOpen = true;
   renderTagsWorkspace();
 }
 
 function renderTagsManagerControls() {
-  renderTagCatalogScopeControls();
   const canManageTags = canWriteTagCatalogScope();
   if (
     Number.isInteger(state.api.selectedTagManagerId) &&
@@ -4682,7 +4714,11 @@ function renderTagsWorkspace() {
     return;
   }
 
-  renderTagsManagerControls();
+  renderTagCatalogScopeControls();
+  if (elements.tagsManageOpen) {
+    elements.tagsManageOpen.hidden = !isAuthenticated() || !canWriteTagCatalogScope();
+  }
+  renderTagsManageModal();
   renderTagPromotionPanels();
   renderTagPromotionModal();
   const context = getTagCatalogScopeRequestContext();
@@ -5059,6 +5095,7 @@ function updateBodyModalState() {
     state?.api?.issueReporting?.isOpen === true ||
     state?.api?.confirmation?.isOpen === true ||
     state?.api?.isTagPromotionModalOpen === true ||
+    state?.api?.isTagsManageModalOpen === true ||
     state?.builder?.isSaveDraftModalOpen === true ||
     state?.builder?.isLoadDraftModalOpen === true;
   runtimeDocument.body.classList.toggle("has-modal-open", hasOpenModal);
@@ -18198,6 +18235,22 @@ function attachEvents() {
     renderExplorer();
   });
 
+  if (elements.tagsManageOpen) {
+    elements.tagsManageOpen.addEventListener("click", openTagsManageModal);
+  }
+
+  if (elements.tagsManageModalClose) {
+    elements.tagsManageModalClose.addEventListener("click", closeTagsManageModal);
+  }
+
+  if (elements.tagsManageModal) {
+    elements.tagsManageModal.addEventListener("click", (event) => {
+      if (event.target === elements.tagsManageModal) {
+        closeTagsManageModal();
+      }
+    });
+  }
+
   if (elements.tagsManageSave) {
     elements.tagsManageSave.addEventListener("click", () => {
       void saveManagedTag();
@@ -18207,7 +18260,7 @@ function attachEvents() {
   if (elements.tagsManageCancel) {
     elements.tagsManageCancel.addEventListener("click", () => {
       clearTagsManagerState();
-      renderTagsWorkspace();
+      renderTagsManageModal();
     });
   }
 
