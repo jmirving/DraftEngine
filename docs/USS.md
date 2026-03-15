@@ -229,6 +229,15 @@ Compact status cards for requirement evaluation results.
 - Cancel/close with dirty check → `showUSSConfirm()`
 - Save validates, updates in-memory definitions, returns to Clause Detail Modal
 
+## Form Input Rules
+
+### Textarea
+- All `<textarea>` elements use `resize: none` — users should not manually resize form fields. The developer sets the appropriate size via the `rows` attribute.
+
+### Stacked Form Fields
+- When a form has multiple labeled fields (e.g. Name + Definition), stack them vertically rather than side-by-side. Each field gets the full container width.
+- Do not use `.grid-2` for label+input pairs inside modals — the two-column layout crowds buttons and wastes vertical space.
+
 ## Filter Pattern
 
 ### Collapsible Filter Section

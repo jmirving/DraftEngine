@@ -704,9 +704,12 @@ body:has(#app-shell.is-nav-collapsed) .composer-bottom-bar {
   width: min(560px, calc(100vw - 2rem));
 }
 
+textarea {
+  resize: none;
+}
+
 .draft-setup-modal-content textarea {
   min-height: 6.5rem;
-  resize: vertical;
 }
 
 .draft-setup-modal-list {
@@ -3442,7 +3445,6 @@ button.pool-snapshot-order-btn:disabled {
 }
 
 .issue-report-panel textarea {
-  resize: vertical;
   min-height: 8rem;
 }
 
@@ -3710,6 +3712,13 @@ button.pool-snapshot-order-btn:disabled {
   border-color: rgba(35, 109, 63, 0.45);
   background: #eaf7ee;
   color: #1f6a3b;
+}
+
+.tags-promotion-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem;
+  margin-top: 0.5rem;
 }
 
 .tags-workspace-categories {

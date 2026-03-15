@@ -511,13 +511,8 @@
 
           <section id="tab-tags" class="tab-panel tab-surface">
             <div class="panel draft-board-panel">
-              <div class="uss-section-header">
-                <h2 id="tags-title">Tags</h2>
-                <button id="tags-manage-open" class="ghost icon-button" type="button" aria-label="Create Tags" title="Create Tags">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                </button>
-              </div>
-              <p id="tags-meta" class="meta">Manage shared tag definitions and current champion coverage.</p>
+              <h2 id="tags-title">Tags</h2>
+              <p id="tags-meta" class="meta" hidden>Manage shared tag definitions and current champion coverage.</p>
               <div class="ced-scope-panel">
                 <div class="ced-scope-inline">
                   <span class="ced-scope-editing-label">Editing</span>
@@ -527,6 +522,7 @@
                     <svg class="ced-scope-tip-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><text x="12" y="17" text-anchor="middle" fill="currentColor" font-size="14" font-weight="700" font-family="serif">i</text></svg>
                     <span id="tags-scope-help" class="ced-scope-tip-text"></span>
                   </span>
+                  <button id="tags-manage-open" class="ghost" type="button" aria-label="Create Tag" title="Create Tag">Create Tag</button>
                 </div>
                 <p id="tags-scope-readout" class="sr-only">Global</p>
                 <div id="tags-team-group" class="ced-scope-team-row" hidden>
@@ -535,29 +531,31 @@
                 </div>
               </div>
               <p id="tags-workspace-summary" class="meta"></p>
-              <div class="compact-section-heading">
-                <h3>Tag Promotions</h3>
-                <div class="meta-action-row">
-                  <p id="tags-promotion-feedback" class="meta"></p>
-                  <button
-                    id="tags-promotion-refresh"
-                    class="ghost icon-button"
-                    type="button"
-                    aria-label="Refresh tag promotion requests"
-                    title="Refresh tag promotion requests"
-                  >
-                    &#x21bb;
-                  </button>
+              <div class="tags-promotion-section">
+                <div class="compact-section-heading">
+                  <h3>Tag Promotions</h3>
+                  <div class="meta-action-row">
+                    <p id="tags-promotion-feedback" class="meta"></p>
+                    <button
+                      id="tags-promotion-refresh"
+                      class="ghost icon-button"
+                      type="button"
+                      aria-label="Refresh tag promotion requests"
+                      title="Refresh tag promotion requests"
+                    >
+                      &#x21bb;
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div class="grid grid-2">
-                <div>
-                  <p class="panel-kicker">My Requests</p>
-                  <div id="tags-promotion-request-list" class="summary-card-list"></div>
-                </div>
-                <div>
-                  <p class="panel-kicker">Review Queue</p>
-                  <div id="tags-promotion-review-list" class="summary-card-list"></div>
+                <div class="grid grid-2">
+                  <div>
+                    <p class="panel-kicker">My Requests</p>
+                    <div id="tags-promotion-request-list" class="summary-card-list"></div>
+                  </div>
+                  <div>
+                    <p class="panel-kicker">Review Queue</p>
+                    <div id="tags-promotion-review-list" class="summary-card-list"></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1276,9 +1274,10 @@
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
                 <h4>Version 0.9.9 (Contributor — IWantWaffleFries1999)</h4>
                 <ul class="coming-soon-list">
-                  <li>Tags page restructured into two sections: top panel with scope controls, tag promotions, and Create Tags button; bottom panel with the tag card list.</li>
-                  <li>Tag CRUD (create, edit, delete) moved into a Create Tags modal, accessible via pencil icon in the Tags section header. Modal follows USS modal pattern with close button and overlay dismiss.</li>
-                  <li>Removed inline MVP meta text from Tags page for a cleaner layout.</li>
+                  <li>Tags page restructured into two sections: top panel with scope controls, tag promotions, and Create Tag button; bottom panel with the tag card list.</li>
+                  <li>Tag CRUD (create, edit, delete) moved into a Create Tag modal, accessible via inline button next to scope controls. Modal uses stacked form fields (Name above Definition) per USS form input rules.</li>
+                  <li>Tag Promotions wrapped in a bordered section for visual grouping within the top panel.</li>
+                  <li>USS design system updated: textarea resize disabled globally, stacked form field rule added for modal forms.</li>
                 </ul>
                 <h4>Version 0.9.8 (Contributor — IWantWaffleFries1999)</h4>
                 <ul class="coming-soon-list">
@@ -1812,20 +1811,18 @@
       <div class="modal-overlay" id="tags-manage-modal" hidden>
         <div class="modal-content draft-setup-modal-content" role="dialog" aria-modal="true" aria-labelledby="tags-manage-modal-title">
           <div class="modal-header">
-            <h3 id="tags-manage-modal-title">Create Tags</h3>
+            <h3 id="tags-manage-modal-title">Create Tag</h3>
             <button id="tags-manage-modal-close" class="draft-modal-close" type="button" aria-label="Close">X</button>
           </div>
-          <p id="tags-manage-access" class="meta"></p>
-          <div class="grid grid-2">
-            <label>
-              Name
-              <input id="tags-manage-name" type="text" placeholder="e.g. splitpush" />
-            </label>
-            <label>
-              Definition
-              <textarea id="tags-manage-definition" rows="3" placeholder="Describe exactly when this tag should be used."></textarea>
-            </label>
-          </div>
+          <p id="tags-manage-access" class="meta" hidden></p>
+          <label>
+            Name
+            <input id="tags-manage-name" type="text" placeholder="e.g. splitpush" />
+          </label>
+          <label>
+            Definition
+            <textarea id="tags-manage-definition" rows="2" placeholder="Describe exactly when this tag should be used."></textarea>
+          </label>
           <div class="button-row">
             <button id="tags-manage-cancel" class="ghost" type="button">Clear</button>
             <button id="tags-promotion-open" class="ghost" type="button" hidden>Request Promotion</button>
