@@ -3723,7 +3723,6 @@ button.pool-snapshot-order-btn:disabled {
 .tags-scope-row {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
   gap: 1rem;
 }
 

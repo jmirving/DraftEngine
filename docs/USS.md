@@ -16,7 +16,7 @@ Before presenting work for commit, verify:
 
 ## Layout Philosophy
 
-- **No stretch** — Elements should not stretch to fill space. Use fixed/compact sizing.
+- **No stretch** — Elements should not stretch to fill space. Use fixed/compact sizing. Buttons must never expand to fill available width — they stay compact at their content size. When placing buttons in flex containers, do not use `justify-content: space-between` or `flex: 1` on buttons; keep them inline at natural width.
 - **Section-based design** — Pages use nested sections at non-default sizes depending on the page function. Sections create visual hierarchy without full-width stretching.
 - **Minimize scrolling** — Display relevant data compactly so the user doesn't have to scroll the main page excessively.
 - **Settings in modals** — Configuration and settings go in modals, not inline on the page. Only core functionality and data the user needs to actively reference belongs on the page surface.
