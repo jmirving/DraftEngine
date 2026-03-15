@@ -2191,6 +2191,23 @@ button.pool-snapshot-order-btn:disabled {
   line-height: 1.3;
 }
 
+.clause-popover-expr {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.clause-popover-joiner {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--muted);
+  padding-left: 1rem;
+}
+
+.clause-popover-term {
+  font-size: 0.78rem;
+}
+
 .clause-popover-constraints {
   font-size: 0.7rem;
   color: var(--muted);
@@ -2313,11 +2330,11 @@ button.pool-snapshot-order-btn:disabled {
   gap: 0.3rem;
 }
 
-.builder-comp-label {
-  flex: 1;
+.builder-context-label {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--ink);
+  flex: 1;
 }
 
 .preview {

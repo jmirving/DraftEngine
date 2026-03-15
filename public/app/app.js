@@ -956,6 +956,7 @@ function createElements() {
     builderCompEdit: runtimeDocument.querySelector("#builder-comp-edit"),
     builderCompCreate: runtimeDocument.querySelector("#builder-comp-create"),
     builderCompManage: runtimeDocument.querySelector("#builder-comp-manage"),
+    builderReqManage: runtimeDocument.querySelector("#builder-req-manage"),
     builderGettingStarted: runtimeDocument.querySelector("#builder-getting-started"),
     builderDraftSetupSave: runtimeDocument.querySelector("#builder-draft-setup-save"),
     builderDraftSetupLoad: runtimeDocument.querySelector("#builder-draft-setup-load"),
@@ -7925,7 +7926,7 @@ function renderRequirementDefinitionsWorkspace() {
 
         const label = runtimeDocument.createElement("span");
         label.className = "req-clause-label";
-        label.textContent = exprSummary;
+        label.textContent = `Clause ${idx + 1}`;
         label.style.cursor = "help";
         li.append(label);
 
@@ -7936,9 +7937,28 @@ function renderRequirementDefinitionsWorkspace() {
         const heading = runtimeDocument.createElement("strong");
         heading.textContent = `Clause ${idx + 1}`;
         popoverInner.append(heading);
-        const detail = runtimeDocument.createElement("span");
-        detail.className = "clause-popover-detail";
-        detail.textContent = exprSummary;
+        const detail = runtimeDocument.createElement("div");
+        detail.className = "clause-popover-detail clause-popover-expr";
+        const terms = normalizeRequirementClauseTerms(clauseDraft.terms);
+        const termJoiners = normalizeRequirementClauseTermJoiners(clauseDraft.termJoiners, terms.length);
+        for (let ti = 0; ti < terms.length; ti++) {
+          if (ti > 0) {
+            const joinerEl = runtimeDocument.createElement("span");
+            joinerEl.className = "clause-popover-joiner";
+            joinerEl.textContent = normalizeRequirementJoiner(termJoiners[ti - 1], "and").toUpperCase();
+            detail.append(joinerEl);
+          }
+          const termEl = runtimeDocument.createElement("span");
+          termEl.className = "clause-popover-term";
+          termEl.textContent = formatRequirementClauseTermSummary(terms[ti]);
+          detail.append(termEl);
+        }
+        if (terms.length === 0) {
+          const emptyEl = runtimeDocument.createElement("span");
+          emptyEl.className = "clause-popover-term";
+          emptyEl.textContent = "No conditions selected.";
+          detail.append(emptyEl);
+        }
         popoverInner.append(detail);
         const constraints = [];
         constraints.push(`min ${minCount}`);
@@ -18573,6 +18593,12 @@ function attachEvents() {
   if (elements.builderCompManage) {
     elements.builderCompManage.addEventListener("click", () => {
       setTab("compositions", { syncRoute: true });
+    });
+  }
+
+  if (elements.builderReqManage) {
+    elements.builderReqManage.addEventListener("click", () => {
+      setTab("requirements", { syncRoute: true });
     });
   }
 

@@ -352,20 +352,19 @@
                 <div class="stack">
                   <div class="builder-context-row">
                     <div class="builder-context-col">
-                      <label>
-                        Active Team
-                        <select id="builder-active-team"></select>
-                      </label>
+                      <span class="builder-context-label">Active Team</span>
+                      <select id="builder-active-team"></select>
                     </div>
                     <div class="builder-context-col">
                       <div class="comp-card-header">
-                        <span class="builder-comp-label">Active Composition</span>
+                        <span class="builder-context-label">Active Composition</span>
                         <div class="comp-header-actions">
                           <button id="builder-comp-edit" type="button" class="clause-edit-btn" title="Edit selected composition">
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
                           </button>
                           <button id="builder-comp-create" type="button" class="ghost comp-action-btn">+ New</button>
                           <button id="builder-comp-manage" type="button" class="ghost comp-action-btn comp-nav-link">Manage Compositions</button>
+                          <button id="builder-req-manage" type="button" class="ghost comp-action-btn comp-nav-link">Manage Requirements</button>
                         </div>
                       </div>
                       <select id="builder-active-composition"></select>
@@ -1293,6 +1292,12 @@
               >
                 <h3>What's New</h3>
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
+                <h4>Version 0.9.8</h4>
+                <ul class="coming-soon-list">
+                  <li>Active Team and Active Composition labels aligned and styled uniformly in Composer Setup.</li>
+                  <li>"Manage Requirements" link added to Composer Setup alongside "Manage Compositions".</li>
+                  <li>Clause cards now show "Clause 1", "Clause 2" as simple labels. Hover popovers display each expression term on its own line with AND/OR joiners.</li>
+                </ul>
                 <h4>Version 0.9.7</h4>
                 <ul class="coming-soon-list">
                   <li>Active Team and Active Composition combined into a bordered side-by-side section in Composer Setup.</li>
