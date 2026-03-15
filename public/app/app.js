@@ -947,7 +947,6 @@ function createElements() {
     builderInspectFeedback: runtimeDocument.querySelector("#builder-inspect-feedback"),
     builderActiveTeam: runtimeDocument.querySelector("#builder-active-team"),
     builderActiveComposition: runtimeDocument.querySelector("#builder-active-composition"),
-    builderCompositionHelp: runtimeDocument.querySelector("#builder-composition-help"),
     builderCompEdit: runtimeDocument.querySelector("#builder-comp-edit"),
     builderCompCreate: runtimeDocument.querySelector("#builder-comp-create"),
     builderCompManage: runtimeDocument.querySelector("#builder-comp-manage"),
@@ -7897,7 +7896,17 @@ function renderRequirementDefinitionsWorkspace() {
     clauseCount.textContent = `${clauseNum} clause${clauseNum === 1 ? "" : "s"}`;
 
     if (clauseNum > 0) {
-      const popoverLines = [];
+      clauseCount.style.cursor = "help";
+      clauseCount.style.textDecoration = "underline dotted";
+
+      const popoverWrap = runtimeDocument.createElement("span");
+      popoverWrap.className = "clause-popover-anchor";
+
+      const popoverCard = runtimeDocument.createElement("div");
+      popoverCard.className = "clause-popover";
+      const popoverList = runtimeDocument.createElement("ul");
+      popoverList.className = "clause-popover-list";
+
       for (const [idx, rule] of requirement.rules.entries()) {
         const clauseDraft = createRequirementRuleClauseDraft(rule);
         const exprSummary = formatRequirementClauseExpressionSummary(clauseDraft);
@@ -7906,16 +7915,37 @@ function renderRequirementDefinitionsWorkspace() {
         const maxLabel = maxCountRaw === "" ? "no max" : `max ${maxCountRaw}`;
         const roleFilterCount = normalizeRequirementRoleFilter(clauseDraft.roleFilter).length;
         const separateCount = normalizeRequirementClauseReferenceIds(clauseDraft.separateFrom).length;
-        let line = `Clause ${idx + 1}: ${exprSummary} — min ${minCount}, ${maxLabel}`;
-        if (roleFilterCount > 0) line += `, ${roleFilterCount} role filter${roleFilterCount === 1 ? "" : "s"}`;
-        if (separateCount > 0) line += `, separate from ${separateCount} clause${separateCount === 1 ? "" : "s"}`;
-        popoverLines.push(line);
+
+        const li = runtimeDocument.createElement("li");
+        li.className = "clause-popover-item";
+
+        const heading = runtimeDocument.createElement("strong");
+        heading.textContent = `Clause ${idx + 1}`;
+        li.append(heading);
+
+        const details = runtimeDocument.createElement("span");
+        details.className = "clause-popover-detail";
+        details.textContent = exprSummary;
+        li.append(details);
+
+        const constraints = [];
+        constraints.push(`min ${minCount}`);
+        constraints.push(maxLabel);
+        if (roleFilterCount > 0) constraints.push(`${roleFilterCount} role filter${roleFilterCount === 1 ? "" : "s"}`);
+        if (separateCount > 0) constraints.push(`separate from ${separateCount} clause${separateCount === 1 ? "" : "s"}`);
+        const constraintEl = runtimeDocument.createElement("span");
+        constraintEl.className = "clause-popover-constraints";
+        constraintEl.textContent = constraints.join(" · ");
+        li.append(constraintEl);
+
+        popoverList.append(li);
       }
-      clauseCount.title = popoverLines.join("\n");
-      clauseCount.style.cursor = "help";
-      clauseCount.style.textDecoration = "underline dotted";
+      popoverCard.append(popoverList);
+      popoverWrap.append(clauseCount, popoverCard);
+      card.append(popoverWrap);
+    } else {
+      card.append(clauseCount);
     }
-    card.append(clauseCount);
 
     const audit = formatAuditMeta(
       "Last edited",
@@ -11201,18 +11231,6 @@ function syncBuilderCompositionControls() {
     }
   }
 
-  if (elements.builderCompositionHelp) {
-    if (!selectedComposition) {
-      elements.builderCompositionHelp.textContent = "No composition selected. Create one in the Compositions page.";
-      return;
-    }
-    const requirementCount = Array.isArray(selectedComposition.requirement_ids)
-      ? selectedComposition.requirement_ids.length
-      : 0;
-    elements.builderCompositionHelp.textContent = requirementCount > 0
-      ? `Using composition '${selectedComposition.name}' (${requirementCount} requirement${requirementCount === 1 ? "" : "s"}).`
-      : `Using composition '${selectedComposition.name}' (no requirements).`;
-  }
 }
 
 function initializeBuilderControls() {
@@ -16759,6 +16777,7 @@ function renderTreeMap() {
       delete state.builder.draftPathSelections[role];
       state.builder.teamState[role] = null;
       renderTeamConfig();
+      renderChecks();
       renderTreeMap();
     });
 
@@ -16810,6 +16829,7 @@ function renderTreeMap() {
           state.builder.teamState[role] = champName;
         }
         renderTeamConfig();
+        renderChecks();
         renderTreeMap();
       });
 

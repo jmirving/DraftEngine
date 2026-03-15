@@ -347,7 +347,7 @@
                 <div class="uss-section-header">
                   <h2 id="builder-stage-setup-title">Draft Setup</h2>
                 </div>
-                <p id="builder-stage-setup-meta" class="meta"></p>
+                <p id="builder-stage-setup-meta" class="meta">Choose team context and lock known picks.</p>
                 <div id="builder-getting-started" class="getting-started-bar" hidden></div>
                 <div class="stack">
                   <label>
@@ -356,21 +356,16 @@
                   </label>
                   <p id="builder-team-help" class="meta"></p>
                   <div class="comp-card-header">
-                    <label style="flex:1">
-                      Active Composition
-                      <select id="builder-active-composition"></select>
-                    </label>
+                    <span class="builder-comp-label">Active Composition</span>
                     <div class="comp-header-actions">
                       <button id="builder-comp-edit" type="button" class="clause-edit-btn" title="Edit selected composition">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
                       </button>
                       <button id="builder-comp-create" type="button" class="ghost comp-action-btn">+ New</button>
+                      <button id="builder-comp-manage" type="button" class="ghost comp-action-btn comp-nav-link">Manage Compositions</button>
                     </div>
                   </div>
-                  <div class="builder-comp-meta-row">
-                    <p id="builder-composition-help" class="meta" style="flex:1;margin:0"></p>
-                    <button id="builder-comp-manage" type="button" class="ghost comp-action-btn comp-nav-link">Manage Compositions</button>
-                  </div>
+                  <select id="builder-active-composition"></select>
                   <div class="panel draft-board-panel">
                     <div class="uss-section-header">
                       <h3>Draft Roster</h3>
@@ -457,7 +452,7 @@
                   </button>
                 </div>
                 <p id="builder-stage-inspect-meta" class="meta" hidden></p>
-                <p id="builder-checks-readiness" class="meta" hidden></p>
+                <p id="builder-checks-readiness" class="meta"></p>
                 <div class="inspect-overview-grid">
                   <section class="inspect-column">
                     <h3>Requirement Status</h3>
@@ -1274,6 +1269,17 @@
               >
                 <h3>What's New</h3>
                 <p class="meta">Shipped updates that are available now (latest releases).</p>
+                <h4>Version 0.9.6</h4>
+                <ul class="coming-soon-list">
+                  <li>Requirement status cards in Draft Review now update live when champions are selected or cleared in the Draft Selector.</li>
+                  <li>Clause hover popovers on Requirement cards replaced native tooltips with styled card popovers showing clause heading, expression summary, and constraints.</li>
+                  <li>Scope panel on Requirements and Compositions pages no longer stretches full width — uses fit-content sizing per USS scope pattern.</li>
+                  <li>Card grid sections (requirement status, compositions, requirements) now have bordered containers with padding for visual grouping and scrollable overflow.</li>
+                  <li>Composition access row in Composer Setup restructured: label and icons (pencil, + New, Manage Compositions) share one row, dropdown below.</li>
+                  <li>Removed redundant "Using composition..." meta text from Composer Setup — composition info is already in the dropdown label.</li>
+                  <li>CSS hardcoded hex colors replaced with semantic variables: <code>--surface-card</code>, <code>--good-bg</code>, <code>--good-soft</code>, <code>--good-border</code>, <code>--warn-bg</code>, <code>--warn-soft</code>, <code>--warn-border</code>.</li>
+                  <li>USS design system updated with Card Grid Section pattern, Hover Popover pattern, and expanded CSS variable table.</li>
+                </ul>
                 <h4>Version 0.9.5</h4>
                 <ul class="coming-soon-list">
                   <li>Compositions page restructured: top two sections merged into a single panel with USS section header, card grid, and Getting Started guidance when no requirements exist.</li>
@@ -1449,6 +1455,10 @@
                   <li>Promotion moderation for scoped requirement/composition changes is still deferred (draftflow-171).</li>
                   <li>Clause labels are auto-generated (C1, C2, etc.) — descriptive clause naming is planned for a future release.</li>
                   <li>Composition and Requirement pages are accessible via URL hash routing but no longer in the side nav — deep link bookmarks still work.</li>
+                </ul>
+                <h4>CSS / Design System</h4>
+                <ul class="coming-soon-list">
+                  <li>Secondary hint colors (#6b2a12, #8fb5a1, #d3a895) are still hardcoded — planned migration to CSS variables in a future pass.</li>
                 </ul>
               </div>
 

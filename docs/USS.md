@@ -15,14 +15,22 @@
 | `--bg`            | `#f5f2e9` | Page background            |
 | `--surface`       | `#fffdf7` | Card/panel background      |
 | `--surface-strong`| `#f7f1e5` | Emphasized surface (footers, headers) |
+| `--surface-card`  | `#fffefa` | Card/input backgrounds     |
 | `--accent`        | `#cc5b34` | Primary action color       |
 | `--accent-soft`   | `#f7d8ce` | Hover highlight, soft accent |
+| `--good`          | `#236d3f` | Positive/pass text         |
+| `--good-bg`       | `#edf7f0` | Pass badge background      |
+| `--good-soft`     | `#f0f7f2` | Pass card tint             |
+| `--good-border`   | `#b7d3be` | Pass border                |
 | `--warn`          | `#9c3f1e` | Destructive/negative actions |
+| `--warn-bg`       | `#fff1eb` | Fail badge background      |
+| `--warn-soft`     | `#fdf0ec` | Fail card tint             |
+| `--warn-border`   | `#e9b4a0` | Fail border                |
 | `--border`        | `#d6d0c0` | Borders, separators        |
 | `--muted`         | `#5b6a71` | Secondary text             |
 | `--ink`           | `#1a2730` | Primary text               |
 
-All new UI must use these variables. No dark themes. No monospace fonts outside code blocks.
+All new UI must use these variables. Never use hardcoded hex colors — always reference the variable. No dark themes. No monospace fonts outside code blocks.
 
 ## Typography
 
@@ -132,21 +140,63 @@ All scope panels use the "Editing [dropdown] Scope (i)" inline pattern:
 
 ### Standard Pattern
 - SVG pencil icon (inline `innerHTML`)
-- Default: `color: var(--accent); border-color: var(--accent-soft); background: #fff4ef`
+- Default: `color: var(--accent); border-color: var(--accent-soft); background: var(--surface-card)`
 - Hover: same styling (the "card edit hover" is the default)
 - Used on champion cards (`.champ-card-edit-btn`) and advanced scope (`.advanced-scope-edit-btn`)
 
-## Card Grid
+## Card Grid Section Pattern
 
-- `.card-grid` with `max-height: 40rem; overflow-y: auto` for scrollable 3-row display
-- Champion cards use consistent border-radius and surface background
+All card grids that display collections use a bordered scrollable container:
+
+```css
+border: 1px solid var(--border);
+border-radius: 8px;
+padding: 0.6rem;
+max-height: [appropriate value];
+overflow-y: auto;
+```
+
+- The border creates a visual group boundary for the card collection
+- Padding separates cards from the border edge
+- `max-height` prevents the grid from pushing the page layout — content scrolls within
+- Used by: `.card-grid` (champions), `.req-card-grid` (requirement status), `.comp-card-grid` (compositions/requirements pages)
+
+### Grid Column Sizing
+- Champions: `repeat(auto-fit, minmax(320px, 1fr))`
+- Requirement status cards: `repeat(auto-fill, minmax(200px, 1fr))`
+- Page cards (compositions, requirements): `repeat(auto-fill, minmax(260px, 1fr))`
+
+## Hover Popover Pattern (`.clause-popover`)
+
+Styled card popovers appear on hover to show structured detail. Do NOT use native `title` attribute tooltips for multi-line or structured data.
+
+```html
+<span class="clause-popover-anchor">
+  <span class="trigger-text">hover target</span>
+  <div class="clause-popover">
+    <ul class="clause-popover-list">
+      <li class="clause-popover-item">
+        <strong>Heading</strong>
+        <span class="clause-popover-detail">Detail text</span>
+        <span class="clause-popover-constraints">Constraint · list</span>
+      </li>
+    </ul>
+  </div>
+</span>
+```
+
+- Anchor: `position: relative; display: inline-block`
+- Popover: `position: absolute; bottom: calc(100% + 6px)`; hidden by default, shown on `:hover`
+- Card items: bordered pills with heading, detail, and constraint rows
+- Uses `var(--surface)` background, `var(--shadow)` for elevation, `z-index: 90`
+- `pointer-events: none` on popover to prevent flicker
 
 ## Requirement Card Grid (`.req-card-grid`)
 
 Compact status cards for requirement evaluation results.
 
-- Grid: `repeat(auto-fill, minmax(200px, 1fr))`, `max-height: 16rem`, scrollable
-- Cards: green tint (`#f0f7f2`) for pass, red tint (`#fdf0ec`) for fail
+- Grid: `repeat(auto-fill, minmax(200px, 1fr))`, `max-height: 16rem`, scrollable, bordered section
+- Cards: green tint (`var(--good-soft)`) for pass, red tint (`var(--warn-soft)`) for fail
 - Badge pill: `[✓ Pass]` (good) or `[✗ N fail]` (warn) — Option 3 compact badge style
 - Background tint: Option C — color wash for instant scanability
 - Definition on hover via `title` attribute
@@ -174,7 +224,7 @@ Compact status cards for requirement evaluation results.
 - "Clear All Filters" row at bottom
 
 ### Filter Labels
-- `border: 1px solid var(--border); border-radius: 12px; background: #fffefa; padding: 0.5rem 0.6rem`
+- `border: 1px solid var(--border); border-radius: 12px; background: var(--surface-card); padding: 0.5rem 0.6rem`
 
 ### Checkbox-Multi Dropdowns
 - Absolute positioning with `z-index: 80`
