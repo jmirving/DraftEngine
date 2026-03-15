@@ -965,7 +965,9 @@ function createElements() {
     builderCompCreate: runtimeDocument.querySelector("#builder-comp-create"),
     builderCompManage: runtimeDocument.querySelector("#builder-comp-manage"),
     builderReqManage: runtimeDocument.querySelector("#builder-req-manage"),
-    builderGettingStarted: runtimeDocument.querySelector("#builder-getting-started"),
+    builderTourCallout: runtimeDocument.querySelector("#builder-tour-callout"),
+    builderTourBtn: runtimeDocument.querySelector("#builder-tour-btn"),
+    builderTourDismiss: runtimeDocument.querySelector("#builder-tour-dismiss"),
     builderDraftSetupSave: runtimeDocument.querySelector("#builder-draft-setup-save"),
     builderDraftSetupLoad: runtimeDocument.querySelector("#builder-draft-setup-load"),
     builderSaveDraftModal: runtimeDocument.querySelector("#builder-save-draft-modal"),
@@ -11233,103 +11235,18 @@ function hasCompositions() {
   return Array.isArray(state.api.compositionBundles) && state.api.compositionBundles.length > 0;
 }
 
-function renderGettingStartedBar(container, { steps = [], message = null, actionLabel = null, actionTab = null, hideWhenAllDone = false } = {}) {
-  if (!container) return;
-  if (!state.ui.showGettingStarted || state.ui.gettingStartedDismissed) {
-    container.hidden = true;
-    return;
-  }
-
-  if (message) {
-    /* Simple message + action style (Compositions/Requirements pages) */
-    container.hidden = false;
-    container.innerHTML = "";
-    const msg = runtimeDocument.createElement("span");
-    msg.className = "getting-started-msg";
-    msg.textContent = message;
-    container.append(msg);
-    if (actionLabel && actionTab) {
-      const navBtn = runtimeDocument.createElement("button");
-      navBtn.type = "button";
-      navBtn.className = "ghost getting-started-action";
-      navBtn.textContent = actionLabel;
-      navBtn.addEventListener("click", () => setTab(actionTab, { syncRoute: true }));
-      container.append(navBtn);
-    }
-    const dismissBtn = runtimeDocument.createElement("button");
-    dismissBtn.type = "button";
-    dismissBtn.className = "ghost getting-started-dismiss";
-    dismissBtn.textContent = "\u00d7";
-    dismissBtn.title = "Dismiss Getting Started guide";
-    dismissBtn.addEventListener("click", () => {
-      state.ui.gettingStartedDismissed = true;
-      renderAllGettingStartedBars();
-    });
-    container.append(dismissBtn);
-    return;
-  }
-
-  if (steps.length > 0) {
-    /* Step indicator style (Composer Setup) */
-    const allDone = steps.every((step) => step.done);
-    if (hideWhenAllDone && allDone) {
-      container.hidden = true;
-      return;
-    }
-    container.hidden = false;
-    container.innerHTML = "";
-
-    const bar = runtimeDocument.createElement("div");
-    bar.className = "getting-started-steps";
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
-      const el = runtimeDocument.createElement("span");
-      el.className = "getting-started-step" + (step.done ? " is-done" : "");
-      el.textContent = step.done ? "\u2713 " + step.label : step.label;
-      if (!step.done && step.tab) {
-        el.classList.add("is-actionable");
-        el.addEventListener("click", () => setTab(step.tab, { syncRoute: true }));
-      }
-      bar.append(el);
-      if (i < steps.length - 1) {
-        const arrow = runtimeDocument.createElement("span");
-        arrow.className = "getting-started-arrow";
-        arrow.textContent = "\u2192";
-        bar.append(arrow);
-      }
-    }
-    const dismissBtn = runtimeDocument.createElement("button");
-    dismissBtn.type = "button";
-    dismissBtn.className = "ghost getting-started-dismiss";
-    dismissBtn.textContent = "\u00d7";
-    dismissBtn.title = "Dismiss Getting Started guide";
-    dismissBtn.addEventListener("click", () => {
-      state.ui.gettingStartedDismissed = true;
-      renderAllGettingStartedBars();
-    });
-    bar.append(dismissBtn);
-    container.append(bar);
-  }
-}
-
 function renderAllGettingStartedBars() {
-  /* Composer Setup */
-  const selectedComposition = getBuilderSelectedComposition();
-  renderGettingStartedBar(elements.builderGettingStarted, {
-    steps: [
-      { label: "1. Create Requirements", done: hasRequirements(), tab: "requirements" },
-      { label: "2. Build Composition", done: hasCompositions(), tab: "compositions" },
-      { label: "3. Start Drafting", done: !!selectedComposition, tab: null }
-    ],
-    hideWhenAllDone: true
-  });
+  const tourHidden = !state.ui.showGettingStarted || state.ui.gettingStartedDismissed;
 
-  /* Compositions + Requirements — now use tour callouts, no bars */
+  /* All three pages now use tour callouts */
+  if (elements.builderTourCallout) {
+    elements.builderTourCallout.hidden = tourHidden;
+  }
   if (elements.compositionsTourCallout) {
-    elements.compositionsTourCallout.hidden = !state.ui.showGettingStarted || state.ui.gettingStartedDismissed;
+    elements.compositionsTourCallout.hidden = tourHidden;
   }
   if (elements.requirementsTourCallout) {
-    elements.requirementsTourCallout.hidden = !state.ui.showGettingStarted || state.ui.gettingStartedDismissed;
+    elements.requirementsTourCallout.hidden = tourHidden;
   }
 
   /* Profile setting value */
@@ -11357,6 +11274,7 @@ function runGuidedTour(steps, { onFinish = null } = {}) {
 
   function restart() {
     cleanup();
+    closeAllDraftModals();
     currentStep = 0;
     showStep();
   }
@@ -11572,6 +11490,31 @@ function startCompositionsTour() {
   });
 }
 
+function startComposerTour() {
+  runGuidedTour([
+    {
+      target: "#builder-active-team",
+      message: "Select the team you want to draft for. This determines which player pools and scoped data are available."
+    },
+    {
+      target: "#builder-active-composition",
+      message: "Choose a composition to use during the draft. Compositions group requirements that will be evaluated as you pick champions."
+    },
+    {
+      target: () => runtimeDocument.querySelector("#builder-stage-setup .comp-header-actions"),
+      message: "Use these links to create or manage compositions and requirements if you haven't set them up yet."
+    },
+    {
+      target: "#builder-generate",
+      message: "Click \"Start Draft\" to begin drafting. The Draft Roster, Draft Selector, and Requirement Status panels will guide your picks."
+    }
+  ], {
+    onFinish: () => {
+      closeAllDraftModals();
+    }
+  });
+}
+
 function syncBuilderCompositionControls() {
   const compositionOptions = getBuilderCompositionOptions();
   state.builder.activeCompositionId = resolveBuilderActiveCompositionId(state.builder.activeCompositionId);
@@ -11591,15 +11534,10 @@ function syncBuilderCompositionControls() {
     elements.builderCompEdit.disabled = !selectedComposition;
   }
 
-  /* Getting Started step indicator */
-  renderGettingStartedBar(elements.builderGettingStarted, {
-    steps: [
-      { label: "1. Create Requirements", done: hasRequirements(), tab: "requirements" },
-      { label: "2. Build Composition", done: hasCompositions(), tab: "compositions" },
-      { label: "3. Start Drafting", done: !!selectedComposition, tab: null }
-    ],
-    hideWhenAllDone: true
-  });
+  /* Tour callout visibility */
+  if (elements.builderTourCallout) {
+    elements.builderTourCallout.hidden = !state.ui.showGettingStarted || state.ui.gettingStartedDismissed;
+  }
 
 }
 
@@ -18907,6 +18845,20 @@ function attachEvents() {
   if (elements.builderReqManage) {
     elements.builderReqManage.addEventListener("click", () => {
       setTab("requirements", { syncRoute: true });
+    });
+  }
+
+  if (elements.builderTourBtn) {
+    elements.builderTourBtn.addEventListener("click", () => {
+      startComposerTour();
+    });
+  }
+
+  if (elements.builderTourDismiss) {
+    elements.builderTourDismiss.addEventListener("click", () => {
+      state.ui.gettingStartedDismissed = true;
+      renderAllGettingStartedBars();
+      if (elements.builderTourCallout) elements.builderTourCallout.hidden = true;
     });
   }
 

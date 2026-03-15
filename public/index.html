@@ -348,7 +348,14 @@
                   <h2 id="builder-stage-setup-title">Draft Setup</h2>
                 </div>
                 <p id="builder-stage-setup-meta" class="meta" hidden></p>
-                <div id="builder-getting-started" class="getting-started-bar" hidden></div>
+                <div id="builder-tour-callout" class="tour-callout">
+                  <div class="tour-callout-content">
+                    <strong>New to Drafting?</strong>
+                    <span>Learn how to set up your team, composition, and start a draft.</span>
+                  </div>
+                  <button id="builder-tour-btn" type="button" class="tour-callout-btn">Start Tour</button>
+                  <button id="builder-tour-dismiss" type="button" class="ghost tour-callout-dismiss" aria-label="Dismiss">&times;</button>
+                </div>
                 <div class="stack">
                   <div class="builder-context-row">
                     <div class="builder-context-col">
@@ -1198,6 +1205,14 @@
                   <button id="compositions-nav-requirements" type="button" class="ghost comp-action-btn comp-nav-link">Manage Requirements</button>
                 </div>
               </div>
+              <div id="compositions-tour-callout" class="tour-callout">
+                <div class="tour-callout-content">
+                  <strong>New to Compositions?</strong>
+                  <span>Learn how to group requirements into a composition for drafting.</span>
+                </div>
+                <button id="compositions-tour-btn" type="button" class="tour-callout-btn">Start Tour</button>
+                <button id="compositions-tour-dismiss" type="button" class="ghost tour-callout-dismiss" aria-label="Dismiss">&times;</button>
+              </div>
               <div class="ced-scope-panel">
                 <div class="ced-scope-inline">
                   <span class="ced-scope-editing-label">Editing</span>
@@ -1213,14 +1228,6 @@
                   <span class="ced-scope-team-label">Team</span>
                   <select id="compositions-team" class="ced-scope-team-select"></select>
                 </div>
-              </div>
-              <div id="compositions-tour-callout" class="tour-callout">
-                <div class="tour-callout-content">
-                  <strong>New to Compositions?</strong>
-                  <span>Learn how to group requirements into a composition for drafting.</span>
-                </div>
-                <button id="compositions-tour-btn" type="button" class="tour-callout-btn">Start Tour</button>
-                <button id="compositions-tour-dismiss" type="button" class="ghost tour-callout-dismiss" aria-label="Dismiss">&times;</button>
               </div>
               <p id="compositions-summary" class="meta"></p>
               <div id="compositions-list" class="comp-card-grid"></div>
@@ -1302,11 +1309,14 @@
                   <li>Tag Promotions wrapped in a bordered section for visual grouping within the top panel.</li>
                   <li>Clause Detail Modal: champion pills now use first-match-wins — once a champion is claimed by a clause, it won't appear as a duplicate pill in subsequent clauses.</li>
                   <li>"Back to Composer" navigation button added to the lower-right of Requirements and Compositions pages.</li>
-                  <li>Guided Tour system: Requirements and Compositions pages now feature prominent "New to...?" callout banners with "Start Tour" buttons. Tours walk users through creating requirements/compositions step by step with highlighted elements and positioned popovers.</li>
-                  <li>Tour controls: Exit Tour, Restart, and Next/Finish buttons on every step. Finish closes any modals opened during the tour.</li>
-                  <li>Getting Started dismiss (×) is now session-only — callouts reappear on next page load. Profile toggle controls persistent visibility.</li>
-                  <li>Fixed ghost buttons globally — `button.ghost` now defaults to `width: auto` so ghost buttons never stretch full-width.</li>
-                  <li>USS design system updated: Guided Tour pattern documented, Ghost Button Sizing rule added, textarea resize disabled globally, stacked form field rule added for modal forms.</li>
+                  <li>Guided Tour system: Composer, Requirements, and Compositions pages all feature prominent "New to...?" callout banners with "Start Tour" buttons. Tours walk users through key workflows step by step with highlighted elements and positioned popovers.</li>
+                  <li>Tour controls: Exit Tour, Restart, and Next/Finish buttons on every step. Restart closes any open modals and resets to step 1. Finish/Exit closes modals and returns to the page.</li>
+                  <li>Requirements and Compositions section layouts unified: header → tour callout → scope → content → footer ordering is now identical across both pages.</li>
+                  <li>Getting Started dismiss (×) is session-only — callouts reappear on next page load. Profile toggle controls persistent visibility.</li>
+                  <li>Modal and tour button sizing fixed: all buttons in `.draft-modal-footer` and `.tour-btn-row` use `width: auto`, single-line text, right-aligned per USS button orientation rules.</li>
+                  <li>Ghost buttons globally set to `width: auto` — no more full-width stretching.</li>
+                  <li>Old `renderGettingStartedBar()` step indicator system removed — replaced entirely by tour callout pattern.</li>
+                  <li>USS design system updated: Guided Tour pattern, Button Sizing in Containers rule, Ghost Button Sizing rule, textarea resize, stacked form fields.</li>
                 </ul>
                 <h4>Version 0.9.8 (Contributor — IWantWaffleFries1999)</h4>
                 <ul class="coming-soon-list">

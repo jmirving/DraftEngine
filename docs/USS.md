@@ -57,6 +57,11 @@ All new UI must use these variables. Never use hardcoded hex colors — always r
 - Ghost buttons (`button.ghost`) always use `width: auto` — they are compact action buttons, never full-width. This is set globally in CSS and must not be overridden to stretch.
 - Primary (solid) buttons default to `width: 100%` for form contexts but should use `width: auto` when placed inline (e.g. in header action rows, flex containers, or alongside ghost buttons).
 
+### Button Sizing in Containers (Modals, Popovers, Footers)
+- Buttons in `.draft-modal-footer`, `.button-row`, and `.tour-btn-row` must be `width: auto`, single-line (`white-space: nowrap`), and `margin-top: 0`.
+- Button text must be fully visible — if a container is too narrow for the text, the button width expands to fit (this is the one case where width is not strictly compact).
+- All button containers use `display: flex; justify-content: flex-end` — buttons align to the **lower-right** of their container, like OK/Cancel on a standard dialog.
+
 ### Orientation
 - Buttons align to the **lower-right corner** of their containing section/element.
 - **Right button**: primary/affirm action (accent color) — Accept, Save, Stay, Update
