@@ -3700,13 +3700,19 @@ function updateLocationHashForTab(tab, { replace = false } = {}) {
   runtimeWindow.location.hash = targetHash;
 }
 
-function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
+async function setTab(tabName, { syncRoute = false, replaceRoute = false } = {}) {
   const requestedTab = typeof tabName === "string" ? tabName : "";
   const normalizedRequestedTab = resolveTabRoute(requestedTab);
   const resolvedTab = hasAuthSession() ? normalizedRequestedTab : DEFAULT_TAB_ROUTE;
   const shouldNormalizeRoute = requestedTab !== resolvedTab || resolveTabRoute(requestedTab) !== requestedTab;
   const shouldSyncRoute = syncRoute || shouldNormalizeRoute;
   const tabChanged = state.activeTab !== resolvedTab;
+
+  // Close open modals on tab change (with dirty checks)
+  if (tabChanged) {
+    const canNavigate = await closeAllModalsOnNavigate();
+    if (!canNavigate) return;
+  }
 
   state.activeTab = resolvedTab;
 
@@ -11422,6 +11428,53 @@ function runGuidedTour(steps, { onFinish = null } = {}) {
 function closeAllDraftModals() {
   const overlays = runtimeDocument.querySelectorAll(".draft-modal-overlay");
   for (const o of overlays) o.remove();
+}
+
+async function closeAllModalsOnNavigate() {
+  // Close body-appended popovers
+  for (const p of runtimeDocument.body.querySelectorAll(":scope > .clause-popover")) p.remove();
+
+  // Issue report: dirty check if title or description has user-entered content
+  if (state.api.issueReporting.isOpen) {
+    const hasContent = (elements.issueReportSubject?.value ?? "").trim() !== "" ||
+      (elements.issueReportDescription?.value ?? "").trim() !== "";
+    if (hasContent) {
+      const confirmed = await showUSSConfirm({
+        title: "Unsaved Issue Report",
+        body: "You have unsaved issue report content. Discard it?",
+        affirmLabel: "Discard",
+        cancelLabel: "Keep Editing",
+        destructive: true
+      });
+      if (!confirmed) return false;
+    }
+    closeIssueReportingPanel();
+  }
+
+  // Tags manage modal: dirty check if name has content (covers both create and edit)
+  if (state.api.isTagsManageModalOpen) {
+    const hasContent = (elements.tagsManageName?.value ?? "").trim() !== "";
+    if (hasContent) {
+      const confirmed = await showUSSConfirm({
+        title: "Unsaved Tag",
+        body: "You have unsaved tag changes. Discard them?",
+        affirmLabel: "Discard",
+        cancelLabel: "Keep Editing",
+        destructive: true
+      });
+      if (!confirmed) return false;
+    }
+    closeTagsManageModal();
+  }
+
+  // Close tag promotion modal if open
+  if (state.api.isTagPromotionModalOpen) {
+    closeTagPromotionModal();
+  }
+
+  // Close all draft modals (compositions editor, requirement editor, etc.)
+  closeAllDraftModals();
+  return true;
 }
 
 function startRequirementsTour() {
