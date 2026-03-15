@@ -11957,6 +11957,7 @@ function renderTeamConfig() {
           renderTeamConfig();
           renderBuilder();
           setSetupFeedback("");
+          generateTreeFromCurrentState({ scrollToResults: false });
         });
         ul.append(li);
       }
@@ -11983,6 +11984,7 @@ function renderTeamConfig() {
       resetBuilderTreeState();
       renderTeamConfig();
       renderBuilder();
+      generateTreeFromCurrentState({ scrollToResults: false });
     });
 
     // Drag-to-reorder
@@ -12008,6 +12010,7 @@ function renderTeamConfig() {
       setBuilderStage("setup");
       resetBuilderTreeState();
       renderBuilder();
+      generateTreeFromCurrentState({ scrollToResults: false });
     });
 
     card.append(header, controlsRow, count, filter, ul);
