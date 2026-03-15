@@ -881,7 +881,7 @@ function createElements() {
     compositionsNavRequirements: runtimeDocument.querySelector("#compositions-nav-requirements"),
     compositionsNavComposer: runtimeDocument.querySelector("#compositions-nav-composer"),
     compositionsGettingStarted: runtimeDocument.querySelector("#compositions-getting-started"),
-    requirementsGettingStarted: runtimeDocument.querySelector("#requirements-getting-started"),
+    requirementsTourBtn: runtimeDocument.querySelector("#requirements-tour-btn"),
     profileShowGettingStarted: runtimeDocument.querySelector("#profile-show-getting-started"),
     profileSaveGettingStarted: runtimeDocument.querySelector("#profile-save-getting-started"),
     profileGettingStartedFeedback: runtimeDocument.querySelector("#profile-getting-started-feedback"),
@@ -7880,12 +7880,9 @@ function renderRequirementDefinitionsWorkspace() {
     elements.requirementsDelete.disabled = controlsDisabled || !isEditing;
   }
 
-  /* Requirements Getting Started */
-  renderGettingStartedBar(elements.requirementsGettingStarted, {
-    message: "Define requirements here, then create compositions to group them.",
-    actionLabel: "Go to Compositions",
-    actionTab: "compositions"
-  });
+  if (elements.requirementsTourBtn) {
+    elements.requirementsTourBtn.hidden = !state.ui.showGettingStarted || state.ui.gettingStartedDismissed;
+  }
 
   elements.requirementsList.innerHTML = "";
   if (!isAuthenticated()) {
@@ -11332,17 +11329,179 @@ function renderAllGettingStartedBars() {
     actionTab: "requirements"
   });
 
-  /* Requirements page */
-  renderGettingStartedBar(elements.requirementsGettingStarted, {
-    message: "Define requirements here, then create compositions to group them.",
-    actionLabel: "Go to Compositions",
-    actionTab: "compositions"
-  });
+  /* Requirements page — now uses tour button, no bar */
 
   /* Profile setting value */
   if (elements.profileSettingGettingStartedValue) {
     elements.profileSettingGettingStartedValue.textContent = state.ui.showGettingStarted ? "Visible" : "Hidden";
   }
+}
+
+/* ── Guided Tour System ── */
+
+function runGuidedTour(steps) {
+  let currentStep = 0;
+
+  function cleanup() {
+    const existing = runtimeDocument.querySelector(".tour-overlay");
+    if (existing) existing.remove();
+    const highlighted = runtimeDocument.querySelectorAll(".tour-highlight");
+    for (const el of highlighted) el.classList.remove("tour-highlight");
+  }
+
+  function showStep() {
+    cleanup();
+    if (currentStep >= steps.length) return;
+
+    const step = steps[currentStep];
+    const target = typeof step.target === "function" ? step.target() : runtimeDocument.querySelector(step.target);
+
+    if (step.before) step.before();
+
+    if (!target) {
+      /* Target not found — skip to next step after a tick (element may need to render) */
+      runtimeWindow.setTimeout(() => {
+        const retryTarget = typeof step.target === "function" ? step.target() : runtimeDocument.querySelector(step.target);
+        if (retryTarget) {
+          renderPopover(retryTarget, step);
+        } else {
+          currentStep++;
+          showStep();
+        }
+      }, 120);
+      return;
+    }
+
+    renderPopover(target, step);
+  }
+
+  function renderPopover(target, step) {
+    target.classList.add("tour-highlight");
+    target.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+    const overlay = runtimeDocument.createElement("div");
+    overlay.className = "tour-overlay";
+
+    const popover = runtimeDocument.createElement("div");
+    popover.className = "tour-popover";
+
+    const stepLabel = runtimeDocument.createElement("span");
+    stepLabel.className = "tour-step-label";
+    stepLabel.textContent = `Step ${currentStep + 1} of ${steps.length}`;
+
+    const msg = runtimeDocument.createElement("p");
+    msg.className = "tour-message";
+    msg.textContent = step.message;
+
+    const btnRow = runtimeDocument.createElement("div");
+    btnRow.className = "tour-btn-row";
+
+    const exitBtn = runtimeDocument.createElement("button");
+    exitBtn.type = "button";
+    exitBtn.className = "ghost tour-exit-btn";
+    exitBtn.textContent = "Exit Tour";
+    exitBtn.addEventListener("click", cleanup);
+    btnRow.append(exitBtn);
+
+    if (currentStep < steps.length - 1) {
+      const nextBtn = runtimeDocument.createElement("button");
+      nextBtn.type = "button";
+      nextBtn.className = "tour-next-btn";
+      nextBtn.textContent = "Next";
+      nextBtn.addEventListener("click", () => {
+        currentStep++;
+        showStep();
+      });
+      btnRow.append(nextBtn);
+    } else {
+      const finishBtn = runtimeDocument.createElement("button");
+      finishBtn.type = "button";
+      finishBtn.className = "tour-next-btn";
+      finishBtn.textContent = "Finish";
+      finishBtn.addEventListener("click", cleanup);
+      btnRow.append(finishBtn);
+    }
+
+    popover.append(stepLabel, msg, btnRow);
+    overlay.append(popover);
+    runtimeDocument.body.append(overlay);
+
+    /* Position the popover near the target */
+    requestAnimationFrame(() => {
+      const rect = target.getBoundingClientRect();
+      const popRect = popover.getBoundingClientRect();
+      let top = rect.bottom + 8;
+      let left = rect.left;
+
+      /* Keep within viewport */
+      if (top + popRect.height > runtimeWindow.innerHeight - 12) {
+        top = rect.top - popRect.height - 8;
+      }
+      if (left + popRect.width > runtimeWindow.innerWidth - 12) {
+        left = runtimeWindow.innerWidth - popRect.width - 12;
+      }
+      if (left < 12) left = 12;
+
+      popover.style.top = `${top}px`;
+      popover.style.left = `${left}px`;
+    });
+  }
+
+  showStep();
+}
+
+function startRequirementsTour() {
+  const steps = [
+    {
+      target: "#requirements-create-btn",
+      message: "Click \"+ New\" to open the requirement editor and start building a new requirement."
+    },
+    {
+      target: () => runtimeDocument.querySelector(".draft-modal.clause-editor-modal .draft-modal-body label input[type='text'][placeholder*='Frontline']"),
+      message: "Enter a name for your requirement — e.g. \"Frontline Anchor\" or \"AP Carry\".",
+      before: () => {
+        if (!runtimeDocument.querySelector(".draft-modal.clause-editor-modal")) {
+          openRequirementEditorModal(null);
+        }
+      }
+    },
+    {
+      target: () => runtimeDocument.querySelector(".draft-modal.clause-editor-modal .draft-modal-body label input[type='text'][placeholder*='enforces']"),
+      message: "Add a short definition describing what this requirement enforces. This is optional but helps other team members."
+    },
+    {
+      target: () => runtimeDocument.querySelector(".draft-modal.clause-editor-modal .comp-card-header .comp-action-btn"),
+      message: "Click \"+ Add Clause\" to create your first clause. Clauses define which champions satisfy this requirement."
+    },
+    {
+      target: () => runtimeDocument.querySelector(".draft-modal.clause-editor-modal .requirement-clause-card"),
+      message: "Set the expression to define what champions must match — e.g. a specific tag, role, or damage type.",
+      before: () => {
+        /* Auto-add a clause if none exist so user sees the clause card */
+        if (!runtimeDocument.querySelector(".draft-modal.clause-editor-modal .requirement-clause-card")) {
+          const addBtn = runtimeDocument.querySelector(".draft-modal.clause-editor-modal .comp-card-header .comp-action-btn");
+          if (addBtn) addBtn.click();
+        }
+      }
+    },
+    {
+      target: () => {
+        const cards = runtimeDocument.querySelectorAll(".draft-modal.clause-editor-modal .requirement-clause-card");
+        if (cards.length > 0) {
+          const lastCard = cards[cards.length - 1];
+          return lastCard.querySelector(".requirement-clause-summary") || lastCard;
+        }
+        return null;
+      },
+      message: "Set the min count (how many champions must satisfy this clause). Default is 1. You can also set max count, role filters, and separation rules."
+    },
+    {
+      target: () => runtimeDocument.querySelector(".draft-modal.clause-editor-modal .draft-modal-footer button:not(.ghost)"),
+      message: "Click \"Create\" to save your requirement. It will appear as a card on the Requirements page."
+    }
+  ];
+
+  runGuidedTour(steps);
 }
 
 function syncBuilderCompositionControls() {
@@ -18460,6 +18619,12 @@ function attachEvents() {
   if (elements.requirementsCreateBtn) {
     elements.requirementsCreateBtn.addEventListener("click", () => {
       openRequirementEditorModal(null);
+    });
+  }
+
+  if (elements.requirementsTourBtn) {
+    elements.requirementsTourBtn.addEventListener("click", () => {
+      startRequirementsTour();
     });
   }
 

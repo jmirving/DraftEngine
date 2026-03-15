@@ -1140,11 +1140,11 @@
               <div class="uss-section-header">
                 <h2 id="requirements-title">Requirements</h2>
                 <div class="comp-header-actions">
+                  <button id="requirements-tour-btn" type="button" class="ghost comp-action-btn" title="Getting Started tour">Getting Started</button>
                   <button id="requirements-create-btn" type="button" class="ghost comp-action-btn">+ New</button>
                   <button id="requirements-nav-compositions" type="button" class="ghost comp-action-btn comp-nav-link">Manage Compositions</button>
                 </div>
               </div>
-              <div id="requirements-getting-started" class="getting-started-bar" hidden></div>
               <div class="ced-scope-panel">
                 <div class="ced-scope-inline">
                   <span class="ced-scope-editing-label">Editing</span>
@@ -1288,7 +1288,10 @@
                   <li>Tag Promotions wrapped in a bordered section for visual grouping within the top panel.</li>
                   <li>Clause Detail Modal: champion pills now use first-match-wins — once a champion is claimed by a clause, it won't appear as a duplicate pill in subsequent clauses.</li>
                   <li>"Back to Composer" navigation button added to the lower-right of Requirements and Compositions pages.</li>
-                  <li>USS design system updated: textarea resize disabled globally, stacked form field rule added for modal forms.</li>
+                  <li>Requirements page: Getting Started bar replaced with a "Getting Started" tour button. Clicking it launches a guided popover tour that walks through creating a valid requirement step by step, highlighting each element with a green outline.</li>
+                  <li>Getting Started dismiss (×) is now session-only — guides reappear on next page load. Profile toggle controls persistent visibility.</li>
+                  <li>Fixed "+ Add Clause" button in Requirement Editor modal — no longer stretches across the modal width.</li>
+                  <li>USS design system updated: textarea resize disabled globally, stacked form field rule added for modal forms, no-stretch rule expanded with explicit button guidance.</li>
                 </ul>
                 <h4>Version 0.9.8 (Contributor — IWantWaffleFries1999)</h4>
                 <ul class="coming-soon-list">

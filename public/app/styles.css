@@ -2052,6 +2052,10 @@ button.pool-snapshot-order-btn:disabled {
   max-width: 56rem;
 }
 
+.clause-editor-modal .comp-card-header {
+  justify-content: flex-start;
+}
+
 /* Composition Cards */
 .comp-card-grid {
   display: grid;
@@ -2322,6 +2326,80 @@ button.pool-snapshot-order-btn:disabled {
 
 .getting-started-dismiss:hover {
   color: var(--warn);
+}
+
+/* ── Guided Tour ── */
+
+.tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+}
+
+.tour-highlight {
+  position: relative;
+  z-index: 9999;
+  outline: 3px solid var(--good);
+  outline-offset: 2px;
+  border-radius: 4px;
+  pointer-events: auto;
+}
+
+.tour-popover {
+  position: fixed;
+  z-index: 10000;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  max-width: 320px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  pointer-events: auto;
+}
+
+.tour-step-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tour-message {
+  font-size: 0.85rem;
+  color: var(--ink);
+  margin: 0.3rem 0 0.6rem;
+  line-height: 1.4;
+}
+
+.tour-btn-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.tour-exit-btn {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.5rem;
+  color: var(--muted);
+}
+
+.tour-exit-btn:hover {
+  color: var(--warn);
+}
+
+.tour-next-btn {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.7rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tour-next-btn:hover {
+  background: var(--warn);
 }
 
 .builder-context-row {
