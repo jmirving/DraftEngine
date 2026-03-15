@@ -38,6 +38,22 @@ For every user-facing feature or behavior change:
 - Remove or rewrite items that are now implemented.
 - Add or update items for newly deferred/follow-up functionality so the page stays accurate.
 
+### Contributor Attribution (Mandatory)
+
+All release entries must include the git commit author name. Use `git log --format="%an"` to determine the contributor.
+
+**Version headers** (What's New / Previous Release Notes):
+```html
+<h4>Version X.Y.Z (Contributor — AuthorName)</h4>
+<!-- For multiple contributors: -->
+<h4>Version X.Y.Z (Contributors — AuthorName1, AuthorName2)</h4>
+```
+
+**Coming Soon bullets**:
+```html
+<li><strong>[AuthorName]</strong> Description of deferred work.</li>
+```
+
 ## Landing the Plane (Session Completion)
 
 **When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
