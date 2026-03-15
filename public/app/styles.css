@@ -1899,6 +1899,146 @@ button.pool-snapshot-order-btn:disabled {
   font-size: 0.8rem;
 }
 
+/* Requirement Status Grid */
+.req-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.4rem;
+  max-height: 16rem;
+  overflow-y: auto;
+  margin: 0 0 0.8rem 0;
+}
+
+.req-card {
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+
+.req-card:hover {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.req-card.is-passed {
+  background: #f0f7f2;
+}
+
+.req-card.is-failed {
+  background: #fdf0ec;
+}
+
+.req-card-name {
+  font-size: 0.82rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.req-card-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-weight: 600;
+  width: fit-content;
+}
+
+.req-card-badge.is-passed {
+  border-color: #b7d3be;
+  background: #edf7f0;
+  color: var(--good);
+}
+
+.req-card-badge.is-failed {
+  border-color: #e9b4a0;
+  background: #fff1eb;
+  color: var(--warn);
+}
+
+/* Clause Detail Modal */
+.clause-detail-list {
+  margin-top: 0.6rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.clause-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+}
+
+.clause-detail-row-wrap {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.clause-dot {
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+.clause-dot.is-passed {
+  color: var(--good);
+}
+
+.clause-dot.is-failed {
+  color: var(--warn);
+}
+
+.clause-detail-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.clause-edit-btn {
+  background: none;
+  border: 1px solid var(--accent-soft);
+  border-radius: 6px;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.6rem;
+  height: 1.6rem;
+}
+
+.clause-edit-btn:hover {
+  background: #fff4ef;
+}
+
+.clause-champ-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding-left: 1.1rem;
+}
+
+.clause-champ-pill {
+  font-size: 0.65rem;
+  padding: 0.08rem 0.35rem;
+  border-radius: 999px;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  color: var(--ink);
+}
+
+/* Clause Editor Modal */
+.clause-editor-modal {
+  max-width: 56rem;
+}
+
 .preview {
   border: 1px dashed var(--border);
   border-radius: 10px;
@@ -2794,12 +2934,6 @@ button.pool-snapshot-order-btn:disabled {
   content: "Hide";
 }
 
-.check-clause-list {
-  margin: 0.45rem 0 0;
-  padding-left: 1rem;
-  display: grid;
-  gap: 0.18rem;
-}
 
 .pool-snapshot-card {
   display: flex;

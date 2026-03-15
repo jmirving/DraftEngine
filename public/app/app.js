@@ -14422,77 +14422,88 @@ function formatRequirementHeadline(requirementResult, requirementScore = null) {
   return "Currently in range.";
 }
 
-function buildRequirementStatusRow(requirementResult, requirementScore = null) {
+function buildRequirementStatusCard(requirementResult, requirementScore = null) {
   const status = requirementResult.status;
   const passed = status === "pass";
-  const item = runtimeDocument.createElement("li");
-  item.className = `check is-required ${passed ? "is-passed" : "is-failed"}`;
-
-  const titleRow = runtimeDocument.createElement("div");
-  titleRow.className = "check-title-row";
-  const title = runtimeDocument.createElement("strong");
-  title.textContent = requirementResult.name;
-
-  const badgeRow = runtimeDocument.createElement("div");
-  badgeRow.className = "check-badges";
-  const requirementBadge = runtimeDocument.createElement("span");
-  requirementBadge.className = "check-badge is-required";
-  requirementBadge.textContent = "Required";
-  const stateBadge = runtimeDocument.createElement("span");
-  stateBadge.className = `check-badge ${passed ? "is-passed" : "is-failed"}`;
-  stateBadge.textContent = passed ? "Passed" : status === "pending" ? "Pending" : "Failed";
-  badgeRow.append(requirementBadge, stateBadge);
-  titleRow.append(title, badgeRow);
-
-  const detail = runtimeDocument.createElement("div");
-  detail.className = "check-headline";
-  detail.textContent = formatRequirementHeadline(requirementResult, requirementScore);
-  item.append(titleRow, detail);
-
+  const card = runtimeDocument.createElement("div");
+  card.className = `req-card ${passed ? "is-passed" : "is-failed"}`;
   if (requirementResult.definition) {
-    const definition = runtimeDocument.createElement("p");
-    definition.className = "meta";
-    definition.textContent = requirementResult.definition;
-    item.append(definition);
+    card.title = requirementResult.definition;
   }
 
+  const nameEl = runtimeDocument.createElement("strong");
+  nameEl.className = "req-card-name";
+  nameEl.textContent = requirementResult.name;
+
+  const badge = runtimeDocument.createElement("span");
+  badge.className = `req-card-badge ${passed ? "is-passed" : "is-failed"}`;
+  if (passed) {
+    badge.textContent = "\u2713 Pass";
+  } else {
+    const clauses = Array.isArray(requirementResult.clauses) ? requirementResult.clauses : [];
+    const totalUnderBy = Number.isFinite(requirementScore?.totalUnderBy)
+      ? requirementScore.totalUnderBy
+      : clauses.reduce((sum, clause) => sum + (clause?.underBy ?? 0), 0);
+    badge.textContent = totalUnderBy > 0 ? `\u2717 ${totalUnderBy} fail` : "\u2717 Fail";
+  }
+
+  card.append(nameEl, badge);
+  card.addEventListener("click", () => {
+    openClauseDetailModal(requirementResult, requirementScore);
+  });
+  card.style.cursor = "pointer";
+  return card;
+}
+
+function openClauseDetailModal(requirementResult, requirementScore) {
+  closeDraftModal();
+  const passed = requirementResult.status === "pass";
+
+  const overlay = runtimeDocument.createElement("div");
+  overlay.className = "draft-modal-overlay";
+  overlay.addEventListener("click", (evt) => {
+    if (evt.target === overlay) overlay.remove();
+  });
+
+  const dialog = runtimeDocument.createElement("div");
+  dialog.className = "draft-modal";
+
+  const header = runtimeDocument.createElement("div");
+  header.className = "draft-modal-header";
+  const title = runtimeDocument.createElement("h3");
+  title.textContent = requirementResult.name;
+  const close = runtimeDocument.createElement("button");
+  close.type = "button";
+  close.className = "draft-modal-close";
+  close.textContent = "\u00D7";
+  close.addEventListener("click", () => overlay.remove());
+  header.append(title, close);
+
+  const body = runtimeDocument.createElement("div");
+  body.className = "draft-modal-body";
+
+  const statusBadge = runtimeDocument.createElement("span");
+  statusBadge.className = `req-card-badge ${passed ? "is-passed" : "is-failed"}`;
+  statusBadge.textContent = passed ? "\u2713 Pass" : "\u2717 Fail";
+  body.append(statusBadge);
+
+  if (requirementResult.definition) {
+    const defEl = runtimeDocument.createElement("p");
+    defEl.className = "meta";
+    defEl.style.marginTop = "0.5rem";
+    defEl.textContent = requirementResult.definition;
+    body.append(defEl);
+  }
+
+  const clauseScoreById = new Map(
+    Array.isArray(requirementScore?.clauses)
+      ? requirementScore.clauses.map((clause) => [clause.id, clause])
+      : []
+  );
+
   if (Array.isArray(requirementResult.clauses) && requirementResult.clauses.length > 0) {
-    const clauseSummary = runtimeDocument.createElement("p");
-    clauseSummary.className = "meta";
-    const scoredClauses = Array.isArray(requirementScore?.clauses)
-      ? requirementScore.clauses
-      : requirementResult.clauses.map((clause) => ({
-        effectiveUnderBy: clause?.underBy ?? 0,
-        effectiveOverBy: clause?.overBy ?? 0
-      }));
-    const clausesMissing = scoredClauses.filter((clause) => (clause?.effectiveUnderBy ?? 0) > 0).length;
-    const clausesOverflowing = scoredClauses.filter((clause) => (clause?.effectiveOverBy ?? 0) > 0).length;
-    const summaryParts = [];
-    if (clausesMissing > 0) {
-      summaryParts.push(`${clausesMissing} clause${clausesMissing === 1 ? "" : "s"} still need coverage`);
-    }
-    if (clausesOverflowing > 0) {
-      summaryParts.push(`${clausesOverflowing} clause${clausesOverflowing === 1 ? "" : "s"} overflow max`);
-    }
-    if (summaryParts.length < 1) {
-      summaryParts.push("All clause ranges currently satisfied");
-    }
-    clauseSummary.textContent = summaryParts.join(" | ");
-    item.append(clauseSummary);
-
-    const clauseDetails = runtimeDocument.createElement("details");
-    clauseDetails.className = "debug-details";
-    const clauseDetailsSummary = runtimeDocument.createElement("summary");
-    clauseDetailsSummary.textContent = "Clause details";
-    clauseDetails.append(clauseDetailsSummary);
-
-    const clausesList = runtimeDocument.createElement("ul");
-    clausesList.className = "meta check-clause-list";
-    const clauseScoreById = new Map(
-      Array.isArray(requirementScore?.clauses)
-        ? requirementScore.clauses.map((clause) => [clause.id, clause])
-        : []
-    );
+    const clauseList = runtimeDocument.createElement("div");
+    clauseList.className = "clause-detail-list";
 
     for (const [index, clause] of requirementResult.clauses.entries()) {
       const clauseId =
@@ -14500,38 +14511,533 @@ function buildRequirementStatusRow(requirementResult, requirementScore = null) {
           ? clause.id.trim()
           : `clause-${index + 1}`;
       const clauseScore = clauseScoreById.get(clauseId) ?? null;
-      const clauseItem = runtimeDocument.createElement("li");
+      const clauseMet = (clause.underBy ?? 0) === 0 && clauseScore?.countsTowardAggregate !== false;
+
+      const row = runtimeDocument.createElement("div");
+      row.className = "clause-detail-row";
+
+      const dot = runtimeDocument.createElement("span");
+      dot.className = `clause-dot ${clauseMet ? "is-passed" : "is-failed"}`;
+      dot.textContent = "\u25CF";
+
+      const label = runtimeDocument.createElement("span");
+      label.className = "clause-detail-label";
       const rangeLabel = clause.maxCount === null ? `${clause.minCount}+` : `${clause.minCount}-${clause.maxCount}`;
-      const pieces = [`${clause.currentMatches}/${rangeLabel}`];
+      const pieces = [`C${index + 1}: ${clause.currentMatches}/${rangeLabel}`];
       if (clauseScore?.countsTowardAggregate === false) {
-        pieces.push("inactive alternate branch");
+        pieces.push("inactive");
       } else if ((clause.underBy ?? 0) > 0) {
         pieces.push(`needs ${clause.underBy}`);
       } else {
-        pieces.push("minimum met");
+        pieces.push("met");
       }
       if ((clauseScore?.countsTowardAggregate !== false) && (clause.overBy ?? 0) > 0) {
         pieces.push(`overflow ${clause.overBy}`);
       }
-      if (clauseScore) {
-        pieces.push(`score ${clauseScore.effectiveScoreContribution ?? clauseScore.scoreContribution}`);
+      label.textContent = pieces.join(" | ");
+
+      const editBtn = runtimeDocument.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "clause-edit-btn";
+      editBtn.title = `Edit Clause ${index + 1}`;
+      editBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>';
+      editBtn.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        overlay.remove();
+        openClauseEditorModal(requirementResult, requirementScore, index);
+      });
+
+      row.append(dot, label, editBtn);
+
+      if (clauseMet && Array.isArray(clause.currentMatchSlots) && clause.currentMatchSlots.length > 0) {
+        const pillRow = runtimeDocument.createElement("div");
+        pillRow.className = "clause-champ-pills";
+        for (const role of clause.currentMatchSlots) {
+          const champName = state.builder.teamState[role];
+          if (champName) {
+            const pill = runtimeDocument.createElement("span");
+            pill.className = "clause-champ-pill";
+            pill.textContent = champName;
+            pillRow.append(pill);
+          }
+        }
+        const wrapper = runtimeDocument.createElement("div");
+        wrapper.className = "clause-detail-row-wrap";
+        wrapper.append(row, pillRow);
+        clauseList.append(wrapper);
+      } else {
+        clauseList.append(row);
       }
-      clauseItem.textContent = `C${index + 1}: ${pieces.join(" | ")}`;
-      clausesList.append(clauseItem);
     }
-    clauseDetails.append(clausesList);
-    item.append(clauseDetails);
+    body.append(clauseList);
   }
 
   if (requirementScore) {
     const scoreMeta = runtimeDocument.createElement("p");
     scoreMeta.className = "meta";
+    scoreMeta.style.marginTop = "0.5rem";
     scoreMeta.textContent =
       `Missing matches ${requirementScore.totalUnderBy} | redundancy overflow ${requirementScore.totalOverBy}.`;
-    item.append(scoreMeta);
+    body.append(scoreMeta);
   }
 
-  return item;
+  dialog.append(header, body);
+  overlay.append(dialog);
+  runtimeDocument.body.append(overlay);
+  requestAnimationFrame(() => overlay.classList.add("is-open"));
+}
+
+function openClauseEditorModal(requirementResult, requirementScore, clauseIndex) {
+  const requirementDef = (Array.isArray(state.api.requirementDefinitions) ? state.api.requirementDefinitions : [])
+    .find((def) => def.id === requirementResult.id);
+  if (!requirementDef) {
+    openClauseDetailModal(requirementResult, requirementScore);
+    return;
+  }
+
+  const snapshot = JSON.parse(JSON.stringify(state.api.requirementDefinitionDraft));
+  const previousSelectedId = state.api.selectedRequirementDefinitionId;
+
+  setRequirementDefinitionDraft(requirementDef);
+
+  if (Array.isArray(state.api.requirementDefinitionDraft.rules)) {
+    for (const rule of state.api.requirementDefinitionDraft.rules) {
+      rule.isOpen = false;
+    }
+    if (clauseIndex >= 0 && clauseIndex < state.api.requirementDefinitionDraft.rules.length) {
+      state.api.requirementDefinitionDraft.rules[clauseIndex].isOpen = true;
+    }
+  }
+
+  const draftAtOpen = JSON.stringify(state.api.requirementDefinitionDraft);
+
+  const overlay = runtimeDocument.createElement("div");
+  overlay.className = "draft-modal-overlay";
+
+  const dialog = runtimeDocument.createElement("div");
+  dialog.className = "draft-modal clause-editor-modal";
+
+  const header = runtimeDocument.createElement("div");
+  header.className = "draft-modal-header";
+  const title = runtimeDocument.createElement("h3");
+  title.textContent = `Edit Clause ${clauseIndex + 1} — ${requirementResult.name}`;
+  const close = runtimeDocument.createElement("button");
+  close.type = "button";
+  close.className = "draft-modal-close";
+  close.textContent = "\u00D7";
+
+  async function handleClose() {
+    const isDirty = JSON.stringify(state.api.requirementDefinitionDraft) !== draftAtOpen;
+    if (isDirty) {
+      const confirmed = await showUSSConfirm({
+        title: "Unsaved Changes",
+        body: "You have unsaved clause edits. Discard them?",
+        affirmLabel: "Discard",
+        cancelLabel: "Keep Editing",
+        destructive: true
+      });
+      if (!confirmed) return;
+    }
+    state.api.requirementDefinitionDraft = JSON.parse(JSON.stringify(snapshot));
+    state.api.selectedRequirementDefinitionId = previousSelectedId;
+    overlay.remove();
+    const freshEval = evaluateComposerRequirements();
+    const freshScore = buildComposerRequirementScoreBreakdown(freshEval);
+    const freshResult = freshEval.requirements.find((r) => r.id === requirementResult.id) ?? requirementResult;
+    const freshReqScore = freshScore.requirements.find((r) => r.requirementId === requirementResult.id) ?? requirementScore;
+    openClauseDetailModal(freshResult, freshReqScore);
+  }
+
+  close.addEventListener("click", handleClose);
+  overlay.addEventListener("click", (evt) => {
+    if (evt.target === overlay) handleClose();
+  });
+  header.append(title, close);
+
+  const body = runtimeDocument.createElement("div");
+  body.className = "draft-modal-body";
+
+  const clauseContainer = runtimeDocument.createElement("div");
+  clauseContainer.id = "clause-editor-modal-clauses";
+  clauseContainer.className = "requirements-clause-list";
+  body.append(clauseContainer);
+
+  const footer = runtimeDocument.createElement("div");
+  footer.className = "draft-modal-footer";
+  const cancelBtn = runtimeDocument.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "ghost";
+  cancelBtn.textContent = "Cancel";
+  cancelBtn.addEventListener("click", handleClose);
+
+  const saveBtn = runtimeDocument.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.textContent = "Save";
+  saveBtn.addEventListener("click", async () => {
+    let parsedRules;
+    try {
+      parsedRules = parseRequirementRulesFromDraftClauses();
+    } catch (err) {
+      setInspectFeedback(err instanceof Error ? err.message : "Rules are invalid.");
+      return;
+    }
+    const updatedDef = { ...requirementDef, rules: parsedRules };
+    const defIndex = state.api.requirementDefinitions.findIndex((d) => d.id === requirementDef.id);
+    if (defIndex >= 0) {
+      state.api.requirementDefinitions[defIndex] = updatedDef;
+    }
+    state.api.requirementDefinitionDraft = JSON.parse(JSON.stringify(snapshot));
+    state.api.selectedRequirementDefinitionId = previousSelectedId;
+    overlay.remove();
+    renderChecks();
+    const freshEval = evaluateComposerRequirements();
+    const freshScore = buildComposerRequirementScoreBreakdown(freshEval);
+    const freshResult = freshEval.requirements.find((r) => r.id === requirementResult.id) ?? requirementResult;
+    const freshReqScore = freshScore.requirements.find((r) => r.requirementId === requirementResult.id) ?? requirementScore;
+    openClauseDetailModal(freshResult, freshReqScore);
+  });
+
+  footer.append(cancelBtn, saveBtn);
+
+  dialog.append(header, body, footer);
+  overlay.append(dialog);
+  runtimeDocument.body.append(overlay);
+  requestAnimationFrame(() => overlay.classList.add("is-open"));
+
+  renderClauseEditorInModal(clauseContainer);
+}
+
+function renderClauseEditorInModal(container) {
+  container.innerHTML = "";
+  const clauses = Array.isArray(state.api.requirementDefinitionDraft.rules)
+    ? state.api.requirementDefinitionDraft.rules
+    : [];
+  const controlsDisabled = state.api.isSavingRequirementDefinition;
+
+  if (clauses.length < 1) {
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
+    empty.textContent = "Add at least one clause.";
+    container.append(empty);
+    return;
+  }
+
+  for (const [index, clause] of clauses.entries()) {
+    clause.terms = normalizeRequirementClauseTerms(clause.terms);
+    clause.termJoiners = normalizeRequirementClauseTermJoiners(clause.termJoiners, clause.terms.length);
+    clause.clauseJoiner = normalizeRequirementJoiner(clause.clauseJoiner, "and");
+    clause.termSearchByKind = normalizeRequirementTermSearchByKind(clause.termSearchByKind ?? clause.termSearch);
+    const parsedActiveTermIndex = Number.parseInt(String(clause.activeTermIndex), 10);
+    clause.activeTermIndex =
+      Number.isInteger(parsedActiveTermIndex) && parsedActiveTermIndex >= 0 && parsedActiveTermIndex < clause.terms.length
+        ? parsedActiveTermIndex
+        : Math.max(0, clause.terms.length - 1);
+
+    const card = runtimeDocument.createElement("article");
+    card.className = "summary-card requirement-clause-card";
+
+    const summaryRow = runtimeDocument.createElement("div");
+    summaryRow.className = "requirement-clause-summary";
+
+    const summaryText = runtimeDocument.createElement("div");
+    const heading = runtimeDocument.createElement("p");
+    heading.className = "panel-kicker";
+    heading.textContent = `Clause ${index + 1}`;
+    const expressionSummary = runtimeDocument.createElement("p");
+    expressionSummary.className = "meta";
+    expressionSummary.textContent = formatRequirementClauseExpressionSummary(clause);
+    const constraintsSummary = runtimeDocument.createElement("p");
+    constraintsSummary.className = "meta";
+    const roleFilterCount = normalizeRequirementRoleFilter(clause.roleFilter).length;
+    const separateFromCount = normalizeRequirementClauseReferenceIds(clause.separateFrom).length;
+    constraintsSummary.textContent = [
+      `Min ${Number.parseInt(String(clause.minCount), 10) || 1}`,
+      String(clause.maxCount ?? "").trim() === "" ? "Max none" : `Max ${String(clause.maxCount).trim()}`,
+      roleFilterCount > 0 ? `${roleFilterCount} role filter${roleFilterCount === 1 ? "" : "s"}` : "No role filter",
+      separateFromCount > 0
+        ? `${separateFromCount} separate-champion link${separateFromCount === 1 ? "" : "s"}`
+        : "No separation links"
+    ].join(" | ");
+    summaryText.append(heading, expressionSummary, constraintsSummary);
+
+    const summaryControls = runtimeDocument.createElement("div");
+    summaryControls.className = "button-row requirement-inline-actions";
+    if (index > 0) {
+      const clauseJoinerSelect = runtimeDocument.createElement("select");
+      clauseJoinerSelect.className = "requirement-inline-select";
+      replaceOptions(clauseJoinerSelect, [
+        { value: "and", label: "AND" },
+        { value: "or", label: "OR" }
+      ]);
+      clauseJoinerSelect.value = normalizeRequirementJoiner(clause.clauseJoiner, "and");
+      clauseJoinerSelect.disabled = controlsDisabled;
+      clauseJoinerSelect.addEventListener("change", () => {
+        clause.clauseJoiner = normalizeRequirementJoiner(clauseJoinerSelect.value, "and");
+      });
+      summaryControls.append(clauseJoinerSelect);
+    }
+
+    const editButton = runtimeDocument.createElement("button");
+    editButton.type = "button";
+    editButton.className = "ghost requirement-inline-button";
+    editButton.textContent = clause.isOpen ? "Close" : "Edit";
+    editButton.disabled = controlsDisabled;
+    editButton.addEventListener("click", () => {
+      clause.isOpen = !clause.isOpen;
+      renderClauseEditorInModal(container);
+    });
+    summaryControls.append(editButton);
+
+    summaryRow.append(summaryText, summaryControls);
+    card.append(summaryRow);
+
+    if (!clause.isOpen) {
+      container.append(card);
+      continue;
+    }
+
+    const editor = runtimeDocument.createElement("div");
+    editor.className = "requirement-clause-editor";
+
+    const termsTitle = runtimeDocument.createElement("p");
+    termsTitle.className = "meta";
+    termsTitle.textContent = "Conditions";
+
+    const termChain = runtimeDocument.createElement("div");
+    termChain.className = "requirement-tag-chain";
+    for (let termIndex = 0; termIndex < clause.terms.length; termIndex += 1) {
+      if (termIndex > 0) {
+        const termJoinerSelect = runtimeDocument.createElement("select");
+        termJoinerSelect.className = "requirement-inline-select";
+        replaceOptions(termJoinerSelect, [
+          { value: "and", label: "AND" },
+          { value: "or", label: "OR" }
+        ]);
+        termJoinerSelect.value = normalizeRequirementJoiner(clause.termJoiners[termIndex - 1], "and");
+        termJoinerSelect.disabled = controlsDisabled;
+        termJoinerSelect.addEventListener("change", () => {
+          clause.termJoiners = normalizeRequirementClauseTermJoiners(clause.termJoiners, clause.terms.length);
+          clause.termJoiners[termIndex - 1] = normalizeRequirementJoiner(termJoinerSelect.value, "and");
+        });
+        termChain.append(termJoinerSelect);
+      }
+
+      const termButton = runtimeDocument.createElement("button");
+      termButton.type = "button";
+      termButton.className = `ghost requirement-inline-button requirement-tag-token${
+        clause.activeTermIndex === termIndex ? " is-active" : ""
+      }`;
+      const termSummary = formatRequirementClauseTermSummary(clause.terms[termIndex]);
+      termButton.textContent = termSummary;
+      termButton.disabled = controlsDisabled;
+      termButton.addEventListener("click", () => {
+        clause.activeTermIndex = termIndex;
+        renderClauseEditorInModal(container);
+      });
+      termChain.append(termButton);
+
+      if (clause.terms.length > 1) {
+        const removeTermButton = runtimeDocument.createElement("button");
+        removeTermButton.type = "button";
+        removeTermButton.className = "ghost requirement-inline-button";
+        removeTermButton.textContent = "x";
+        removeTermButton.disabled = controlsDisabled;
+        removeTermButton.addEventListener("click", () => {
+          clause.terms = clause.terms.filter((_term, ci) => ci !== termIndex);
+          clause.termJoiners = normalizeRequirementClauseTermJoiners(
+            clause.termJoiners.filter((_joiner, ci) => ci !== termIndex - 1),
+            clause.terms.length
+          );
+          clause.activeTermIndex = Math.max(0, Math.min(clause.activeTermIndex, clause.terms.length - 1));
+          renderClauseEditorInModal(container);
+        });
+        termChain.append(removeTermButton);
+      }
+    }
+
+    const addTermButton = runtimeDocument.createElement("button");
+    addTermButton.type = "button";
+    addTermButton.className = "ghost requirement-inline-button";
+    addTermButton.textContent = "Add Condition";
+    addTermButton.disabled = controlsDisabled;
+    addTermButton.addEventListener("click", () => {
+      clause.terms = [...clause.terms, createEmptyRequirementClauseTerm()];
+      clause.termJoiners = [...normalizeRequirementClauseTermJoiners(clause.termJoiners, clause.terms.length - 1), "and"];
+      clause.activeTermIndex = clause.terms.length - 1;
+      renderClauseEditorInModal(container);
+    });
+    termChain.append(addTermButton);
+
+    const activeTerm = clause.terms[clause.activeTermIndex] ?? createEmptyRequirementClauseTerm();
+    const activeKind = normalizeRequirementTermKind(activeTerm.kind, "tag");
+    const activeValue = normalizeRequirementTermValue(activeKind, activeTerm.value);
+    const conditionGrid = runtimeDocument.createElement("div");
+    conditionGrid.className = "requirement-condition-grid";
+
+    for (const kindOption of REQUIREMENT_TERM_KIND_OPTIONS) {
+      const conditionKind = normalizeRequirementTermKind(kindOption.value, "tag");
+      const termPicker = runtimeDocument.createElement("div");
+      termPicker.className = "requirement-tag-picker requirement-condition-picker";
+
+      const pickerTitle = runtimeDocument.createElement("p");
+      pickerTitle.className = "meta requirement-condition-picker-title";
+      pickerTitle.textContent = kindOption.label;
+      termPicker.append(pickerTitle);
+
+      const termFilterInput = runtimeDocument.createElement("input");
+      termFilterInput.type = "text";
+      termFilterInput.className = "pool-snapshot-filter";
+      termFilterInput.placeholder = `Filter ${kindOption.label.toLowerCase()}...`;
+      termFilterInput.value = clause.termSearchByKind[conditionKind] ?? "";
+      termFilterInput.disabled = controlsDisabled;
+      termFilterInput.addEventListener("input", () => {
+        clause.termSearchByKind[conditionKind] = termFilterInput.value;
+        renderClauseEditorInModal(container);
+      });
+      termPicker.append(termFilterInput);
+
+      const termList = runtimeDocument.createElement("ul");
+      termList.className = "pool-snapshot-list requirement-tag-picker-list";
+      const filterText = String(clause.termSearchByKind[conditionKind] ?? "").trim().toLowerCase();
+      const filteredOptions = getRequirementTermOptions(conditionKind).filter((option) =>
+        option.label.toLowerCase().includes(filterText)
+      );
+      if (filteredOptions.length < 1) {
+        const emptyTerm = runtimeDocument.createElement("li");
+        emptyTerm.className = "pool-snapshot-empty";
+        emptyTerm.textContent = "No options match.";
+        termList.append(emptyTerm);
+      } else {
+        for (const option of filteredOptions) {
+          const optionItem = runtimeDocument.createElement("li");
+          if (activeKind === conditionKind && activeValue === option.value) {
+            optionItem.classList.add("is-selected");
+          }
+          optionItem.textContent = option.label;
+          if (option.description) {
+            optionItem.title = option.description;
+          }
+          if (!controlsDisabled) {
+            optionItem.addEventListener("click", () => {
+              clause.terms[clause.activeTermIndex] = { kind: conditionKind, value: option.value };
+              renderClauseEditorInModal(container);
+            });
+          }
+          termList.append(optionItem);
+        }
+      }
+      termPicker.append(termList);
+      conditionGrid.append(termPicker);
+    }
+
+    const minMaxGrid = runtimeDocument.createElement("div");
+    minMaxGrid.className = "grid grid-2";
+    const minLabel = runtimeDocument.createElement("label");
+    minLabel.textContent = "Min Count";
+    const minInput = runtimeDocument.createElement("input");
+    minInput.type = "number";
+    minInput.min = "1";
+    minInput.step = "1";
+    minInput.value = String(clause.minCount ?? 1);
+    minInput.disabled = controlsDisabled;
+    minInput.addEventListener("change", () => {
+      const parsed = Number.parseInt(minInput.value, 10);
+      clause.minCount = Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+      minInput.value = String(clause.minCount);
+      if (String(clause.maxCount ?? "").trim() !== "" && Number.parseInt(String(clause.maxCount), 10) < clause.minCount) {
+        clause.maxCount = String(clause.minCount);
+      }
+      renderClauseEditorInModal(container);
+    });
+    minLabel.append(runtimeDocument.createElement("br"), minInput);
+
+    const maxLabel = runtimeDocument.createElement("label");
+    maxLabel.textContent = "Max Count (optional)";
+    const maxInput = runtimeDocument.createElement("input");
+    maxInput.type = "number";
+    maxInput.min = "1";
+    maxInput.step = "1";
+    maxInput.placeholder = "No max";
+    maxInput.value = String(clause.maxCount ?? "");
+    maxInput.disabled = controlsDisabled;
+    maxInput.addEventListener("input", () => {
+      clause.maxCount = maxInput.value.trim();
+    });
+    maxLabel.append(runtimeDocument.createElement("br"), maxInput);
+    minMaxGrid.append(minLabel, maxLabel);
+
+    const roleFilterWrap = runtimeDocument.createElement("div");
+    const roleFilterTitle = runtimeDocument.createElement("p");
+    roleFilterTitle.className = "meta";
+    roleFilterTitle.textContent = "Role Filter (optional)";
+    roleFilterWrap.append(roleFilterTitle);
+    const roleSet = new Set(normalizeRequirementRoleFilter(clause.roleFilter));
+    for (const slot of SLOTS) {
+      const roleLabel = runtimeDocument.createElement("label");
+      roleLabel.className = "selection-option";
+      const roleCheckbox = runtimeDocument.createElement("input");
+      roleCheckbox.type = "checkbox";
+      roleCheckbox.checked = roleSet.has(slot);
+      roleCheckbox.disabled = controlsDisabled;
+      roleCheckbox.addEventListener("change", () => {
+        const next = new Set(normalizeRequirementRoleFilter(clause.roleFilter));
+        if (roleCheckbox.checked) {
+          next.add(slot);
+        } else {
+          next.delete(slot);
+        }
+        clause.roleFilter = [...next].sort((left, right) => SLOTS.indexOf(left) - SLOTS.indexOf(right));
+      });
+      const roleText = runtimeDocument.createElement("span");
+      roleText.textContent = slot;
+      roleLabel.append(roleCheckbox, roleText);
+      roleFilterWrap.append(roleLabel);
+    }
+
+    const separationWrap = runtimeDocument.createElement("div");
+    const separationTitle = runtimeDocument.createElement("p");
+    separationTitle.className = "meta";
+    separationTitle.textContent = "Champion Separation (optional)";
+    separationWrap.append(separationTitle);
+    if (clauses.length <= 1) {
+      const separationEmpty = runtimeDocument.createElement("p");
+      separationEmpty.className = "meta";
+      separationEmpty.textContent = "Add another clause to enforce separate champions.";
+      separationWrap.append(separationEmpty);
+    } else {
+      const selectedReferenceSet = new Set(normalizeRequirementClauseReferenceIds(clause.separateFrom));
+      for (const [candidateIndex, candidateClause] of clauses.entries()) {
+        if (candidateIndex === index) continue;
+        const candidateId =
+          typeof candidateClause.clauseId === "string" && candidateClause.clauseId.trim() !== ""
+            ? candidateClause.clauseId.trim()
+            : "";
+        if (!candidateId) continue;
+        const candidateLabel = runtimeDocument.createElement("label");
+        candidateLabel.className = "selection-option";
+        const candidateCheckbox = runtimeDocument.createElement("input");
+        candidateCheckbox.type = "checkbox";
+        candidateCheckbox.checked = selectedReferenceSet.has(candidateId);
+        candidateCheckbox.disabled = controlsDisabled;
+        candidateCheckbox.addEventListener("change", () => {
+          const next = new Set(normalizeRequirementClauseReferenceIds(clause.separateFrom));
+          if (candidateCheckbox.checked) {
+            next.add(candidateId);
+          } else {
+            next.delete(candidateId);
+          }
+          clause.separateFrom = Array.from(next);
+        });
+        const candidateText = runtimeDocument.createElement("span");
+        candidateText.textContent = `Different champion than Clause ${candidateIndex + 1}`;
+        candidateLabel.append(candidateCheckbox, candidateText);
+        separationWrap.append(candidateLabel);
+      }
+    }
+    editor.append(termsTitle, termChain, conditionGrid, minMaxGrid, roleFilterWrap, separationWrap);
+    card.append(editor);
+    container.append(card);
+  }
 }
 
 function renderChecks() {
@@ -14545,8 +15051,8 @@ function renderChecks() {
     elements.builderChecksReadiness.textContent =
       "Select a composition to evaluate requirement clauses and generate a composition-aware tree.";
     elements.builderRequiredChecks.innerHTML = "";
-    const empty = runtimeDocument.createElement("li");
-    empty.className = "check is-optional";
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
     empty.textContent = "No composition selected.";
     elements.builderRequiredChecks.append(empty);
     return;
@@ -14571,8 +15077,8 @@ function renderChecks() {
   elements.builderRequiredChecks.innerHTML = "";
   const requirementResults = requirementEvaluation.requirements;
   if (!Array.isArray(requirementResults) || requirementResults.length < 1) {
-    const empty = runtimeDocument.createElement("li");
-    empty.className = "check is-optional";
+    const empty = runtimeDocument.createElement("p");
+    empty.className = "meta";
     empty.textContent = "Selected composition has no requirements.";
     elements.builderRequiredChecks.append(empty);
     return;
@@ -14580,7 +15086,7 @@ function renderChecks() {
   for (const requirementResult of requirementResults) {
     const requirementScore =
       scoreBreakdown.requirements.find((candidate) => candidate.requirementId === requirementResult.id) ?? null;
-    elements.builderRequiredChecks.append(buildRequirementStatusRow(requirementResult, requirementScore));
+    elements.builderRequiredChecks.append(buildRequirementStatusCard(requirementResult, requirementScore));
   }
 }
 
