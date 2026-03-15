@@ -2154,10 +2154,8 @@ button.pool-snapshot-order-btn:disabled {
 
 .clause-popover {
   display: none;
-  position: absolute;
-  left: calc(100% + 8px);
-  top: 0;
-  z-index: 100;
+  position: fixed;
+  z-index: 9500;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -2168,9 +2166,7 @@ button.pool-snapshot-order-btn:disabled {
   pointer-events: none;
 }
 
-.clause-popover-anchor:hover .clause-popover {
-  display: block;
-}
+/* Popover shown/positioned via JS mouseenter — no CSS :hover needed */
 
 .clause-popover-list {
   list-style: none;
@@ -3543,7 +3539,8 @@ button.pool-snapshot-order-btn:disabled {
 }
 
 .issue-report-panel textarea {
-  min-height: 8rem;
+  min-height: auto;
+  width: 100%;
 }
 
 .issue-report-modal-content {

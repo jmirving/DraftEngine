@@ -1328,6 +1328,11 @@
                   <li>Clear Draft fully resets Composer to initial load state (excluded champions, scoring weights, draft order, all tree settings).</li>
                   <li>Requirement editor dirty check no longer false-triggers when no user edits were made (snapshot taken after normalization).</li>
                   <li>Profile setting renamed from "Getting Started Guide" to "Guided Tours".</li>
+                  <li>Clear Draft now auto-regenerates the draft tree so Draft Selector repopulates (matches page-load behavior).</li>
+                  <li>Issue report description textarea reduced to 2 rows; full-width layout matching Title field.</li>
+                  <li>Clause popovers now use fixed positioning (appended to body) — no longer clipped by scrollable card grid containers.</li>
+                  <li>Clause Detail Modal: clause rows now show expression popover on hover with terms, joiners, and constraints.</li>
+                  <li>USS textarea rule: definition/description textareas default to `rows="2"` for compact layout.</li>
                 </ul>
                 <h4>Version 0.9.8 (Contributor — IWantWaffleFries1999)</h4>
                 <ul class="coming-soon-list">
@@ -1764,7 +1769,7 @@
           </label>
           <label>
             Description
-            <textarea id="issue-report-description" rows="6" placeholder="What happened, what you expected, and any useful reproduction steps"></textarea>
+            <textarea id="issue-report-description" rows="2" placeholder="What happened, what you expected, and any useful reproduction steps"></textarea>
           </label>
           <div class="button-row">
             <button id="issue-report-cancel" class="ghost" type="button">Cancel</button>

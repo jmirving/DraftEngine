@@ -242,6 +242,7 @@ Compact status cards for requirement evaluation results.
 
 ### Textarea
 - All `<textarea>` elements use `resize: none` — users should not manually resize form fields. The developer sets the appropriate size via the `rows` attribute.
+- Definition/description textareas use `rows="2"` — keep compact; users rarely need more than two visible lines for short-form text like tag definitions, issue descriptions, or requirement definitions.
 
 ### Stacked Form Fields
 - When a form has multiple labeled fields (e.g. Name + Definition), stack them vertically rather than side-by-side. Each field gets the full container width.

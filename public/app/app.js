@@ -8012,7 +8012,19 @@ function renderRequirementDefinitionsWorkspace() {
         constraintEl.textContent = constraints.join(" \u00b7 ");
         popoverInner.append(constraintEl);
         popoverCard.append(popoverInner);
-        li.append(popoverCard);
+        // Append popover to body on hover to avoid overflow clipping
+        li.addEventListener("mouseenter", () => {
+          const rect = li.getBoundingClientRect();
+          popoverCard.style.position = "fixed";
+          popoverCard.style.left = `${rect.right + 8}px`;
+          popoverCard.style.top = `${rect.top}px`;
+          runtimeDocument.body.append(popoverCard);
+          popoverCard.style.display = "block";
+        });
+        li.addEventListener("mouseleave", () => {
+          popoverCard.style.display = "none";
+          popoverCard.remove();
+        });
         clauseList.append(li);
       }
       card.append(clauseList);
@@ -15423,6 +15435,10 @@ function openClauseDetailModal(requirementResult, requirementScore) {
   );
 
   if (Array.isArray(requirementResult.clauses) && requirementResult.clauses.length > 0) {
+    // Look up original requirement definition for clause expression details
+    const originalReqDef = getBuilderRequirementDefinitions().find((r) => r.id === requirementResult.id);
+    const originalRules = Array.isArray(originalReqDef?.rules) ? originalReqDef.rules : [];
+
     const clauseList = runtimeDocument.createElement("div");
     clauseList.className = "clause-detail-list";
     const claimedChampions = new Set();
@@ -15470,6 +15486,68 @@ function openClauseDetailModal(requirementResult, requirementScore) {
       });
 
       row.append(dot, label, editBtn);
+
+      // Clause expression popover on hover (uses original definition terms)
+      const clauseDef = originalRules[index];
+      if (clauseDef) {
+        const popover = runtimeDocument.createElement("div");
+        popover.className = "clause-popover";
+        const popoverInner = runtimeDocument.createElement("div");
+        popoverInner.className = "clause-popover-item";
+        const popoverHeading = runtimeDocument.createElement("strong");
+        popoverHeading.textContent = `Clause ${index + 1}`;
+        popoverInner.append(popoverHeading);
+        const popoverExpr = runtimeDocument.createElement("div");
+        popoverExpr.className = "clause-popover-detail clause-popover-expr";
+        const defTerms = normalizeRequirementClauseTerms(clauseDef.terms);
+        const defJoiners = normalizeRequirementClauseTermJoiners(clauseDef.termJoiners, defTerms.length);
+        for (let ti = 0; ti < defTerms.length; ti++) {
+          if (ti > 0) {
+            const j = runtimeDocument.createElement("span");
+            j.className = "clause-popover-joiner";
+            j.textContent = normalizeRequirementJoiner(defJoiners[ti - 1], "and").toUpperCase();
+            popoverExpr.append(j);
+          }
+          const t = runtimeDocument.createElement("span");
+          t.className = "clause-popover-term";
+          t.textContent = formatRequirementClauseTermSummary(defTerms[ti]);
+          popoverExpr.append(t);
+        }
+        if (defTerms.length === 0) {
+          const empty = runtimeDocument.createElement("span");
+          empty.className = "clause-popover-term";
+          empty.textContent = "No conditions selected.";
+          popoverExpr.append(empty);
+        }
+        popoverInner.append(popoverExpr);
+        const roleFilterCount = normalizeRequirementRoleFilter(clauseDef.roleFilter).length;
+        const separateCount = normalizeRequirementClauseReferenceIds(clauseDef.separateFrom).length;
+        const constraintParts = [
+          `min ${Number.parseInt(String(clauseDef.minCount), 10) || 1}`,
+          String(clauseDef.maxCount ?? "").trim() === "" ? "no max" : `max ${String(clauseDef.maxCount).trim()}`,
+          roleFilterCount > 0 ? `${roleFilterCount} role filter${roleFilterCount === 1 ? "" : "s"}` : null,
+          separateCount > 0 ? `separate from ${separateCount} clause${separateCount === 1 ? "" : "s"}` : null
+        ].filter(Boolean);
+        const cEl = runtimeDocument.createElement("span");
+        cEl.className = "clause-popover-constraints";
+        cEl.textContent = constraintParts.join(" \u00b7 ");
+        popoverInner.append(cEl);
+        popover.append(popoverInner);
+
+        row.style.cursor = "help";
+        row.addEventListener("mouseenter", () => {
+          const rect = row.getBoundingClientRect();
+          popover.style.position = "fixed";
+          popover.style.left = `${rect.right + 8}px`;
+          popover.style.top = `${rect.top}px`;
+          runtimeDocument.body.append(popover);
+          popover.style.display = "block";
+        });
+        row.addEventListener("mouseleave", () => {
+          popover.style.display = "none";
+          popover.remove();
+        });
+      }
 
       if (clauseMet && Array.isArray(clause.currentMatchSlots) && clause.currentMatchSlots.length > 0) {
         const pillRow = runtimeDocument.createElement("div");
@@ -19166,6 +19244,8 @@ function attachEvents() {
     setSetupFeedback("");
     renderTeamConfig();
     renderBuilder();
+    // Re-generate tree so Draft Selector repopulates (matches page-load behavior)
+    generateTreeFromCurrentState({ scrollToResults: false });
   });
 
   elements.treeExpandAll.addEventListener("click", () => {
