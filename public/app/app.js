@@ -11,6 +11,7 @@ import {
   buildRequirementScoreBreakdown,
   evaluateCompositionRequirements,
   generatePossibilityTree,
+  rankRoleCandidates,
   normalizeTeamState
 } from "../../src/index.js";
 import {
@@ -17274,7 +17275,7 @@ function renderTreeSummary(root, rootNodeId, visibleIds) {
   }
 }
 
-function openDraftPicksModal(root, rootNodeId, nextRole) {
+function openDraftPicksModal(entries, nextRole) {
   closeDraftModal();
   const overlay = runtimeDocument.createElement("div");
   overlay.className = "draft-modal-overlay";
@@ -17331,22 +17332,15 @@ function openDraftPicksModal(root, rootNodeId, nextRole) {
   body.className = "draft-modal-body";
 
   function rebuildCards() {
-    const ids = new Set();
-    collectVisibleNodeIds(
-      root, rootNodeId, ids,
-      state.builder.treeMinScore,
-      state.builder.treeSearch,
-      SLOTS,
-      state.builder.treeValidLeavesOnly
+    const branches = entries.filter((entry) =>
+      nodePassesTreeFilters(
+        entry.node,
+        state.builder.treeMinScore,
+        state.builder.treeSearch,
+        SLOTS,
+        state.builder.treeValidLeavesOnly
+      )
     );
-    const branches = root.children
-      .map((node, index) => ({
-        node,
-        id: `${rootNodeId}.${index}`,
-        title: `${node.addedRole}: ${node.addedChampion}`
-      }))
-      .filter((entry) => ids.has(entry.id))
-      .slice(0, 8);
 
     body.innerHTML = "";
     const list = runtimeDocument.createElement("div");
@@ -17625,6 +17619,134 @@ function collectDraftPaths(node, nodeId = "0", current = [], all = []) {
   return all;
 }
 
+function upsertDraftSelectorRoleEntry(champMap, role, step, leaf) {
+  if (step.role !== role || !step.champion) {
+    return;
+  }
+  const existing = champMap.get(step.champion);
+  const isViable = leaf.viability?.isTerminalValid;
+  if (!existing) {
+    champMap.set(step.champion, { bestNode: step.node, bestId: step.id, viableCount: isViable ? 1 : 0, pathCount: 1 });
+    return;
+  }
+
+  existing.pathCount += 1;
+  if (isViable) {
+    existing.viableCount += 1;
+  }
+
+  const existingPrimary = normalizeBuilderRankGoal(state.builder.treeRankGoal) === BUILDER_RANK_GOAL_CANDIDATE_SCORE
+    ? getNodeCandidateScore(existing.bestNode)
+    : existing.bestNode.branchPotential?.validLeafCount ?? 0;
+  const nextPrimary = normalizeBuilderRankGoal(state.builder.treeRankGoal) === BUILDER_RANK_GOAL_CANDIDATE_SCORE
+    ? getNodeCandidateScore(step.node)
+    : step.node.branchPotential?.validLeafCount ?? 0;
+  const existingSecondary = existing.bestNode.branchPotential?.validLeafCount ?? 0;
+  const nextSecondary = step.node.branchPotential?.validLeafCount ?? 0;
+  if (nextPrimary > existingPrimary || (nextPrimary === existingPrimary && nextSecondary > existingSecondary)) {
+    existing.bestNode = step.node;
+    existing.bestId = step.id;
+  }
+}
+
+function createSyntheticDraftSelectorNode(role, championName, candidate, node) {
+  return {
+    ...node,
+    addedRole: role,
+    addedChampion: championName,
+    candidateScore: candidate.score,
+    passesMinScore: candidate.passesMinScore,
+    candidateBreakdown: candidate.scoreBreakdown,
+    rationale: candidate.rationale,
+    pathRationale: [
+      `${role} -> ${championName} (candidate score ${candidate.score})`,
+      ...candidate.rationale.map((reason) => `${championName}: ${reason}`)
+    ]
+  };
+}
+
+function buildDraftSelectorRoleEntries(role, viablePaths, selections) {
+  const champMap = new Map();
+  for (const path of viablePaths) {
+    const leaf = path[path.length - 1].node;
+    for (const step of path) {
+      upsertDraftSelectorRoleEntry(champMap, role, step, leaf);
+    }
+  }
+
+  if (!selections[role]) {
+    const baseTeamState = normalizeTeamState(state.builder.teamState);
+    baseTeamState[role] = null;
+    const { teamId, teamPools } = getEnginePoolContext();
+    const candidateScoringWeights = normalizeBuilderCandidateScoringWeights(state.builder.candidateScoringWeights);
+    const requirements = getBuilderSelectedRequirements();
+    const tagById = getBuilderTagById();
+    const championsByName = getBuilderChampionsByName();
+    const ranked = rankRoleCandidates({
+      teamState: baseTeamState,
+      teamId,
+      nextRole: role,
+      roleOrder: state.builder.draftOrder,
+      teamPools,
+      championsByName,
+      requirements,
+      excludedChampions: state.builder.excludedChampions,
+      tagById,
+      minCandidateScore: state.builder.treeMinCandidateScore,
+      candidateScoringWeights
+    });
+
+    for (const candidate of ranked.candidates) {
+      if (champMap.has(candidate.championName)) {
+        continue;
+      }
+      const candidateState = {
+        ...baseTeamState,
+        [role]: candidate.championName
+      };
+      const candidateNode = generatePossibilityTree({
+        teamState: candidateState,
+        teamId,
+        roleOrder: state.builder.draftOrder,
+        teamPools,
+        championsByName,
+        requirements,
+        tagById,
+        excludedChampions: state.builder.excludedChampions,
+        maxBranch: state.builder.maxBranch,
+        minCandidateScore: state.builder.treeMinCandidateScore,
+        candidateScoringWeights,
+        pruneUnreachableRequired: true,
+        rankGoal: normalizeBuilderRankGoal(state.builder.treeRankGoal)
+      });
+      const viableCount = candidateNode.branchPotential?.validLeafCount ?? 0;
+      if (state.builder.treeValidLeavesOnly && !candidateNode.viability?.isTerminalValid && viableCount < 1) {
+        continue;
+      }
+      champMap.set(candidate.championName, {
+        bestNode: createSyntheticDraftSelectorNode(role, candidate.championName, candidate, candidateNode),
+        bestId: `synthetic.${role}.${candidate.championName}`,
+        viableCount,
+        pathCount: 0
+      });
+    }
+  }
+
+  return [...champMap.entries()].sort((a, b) => {
+    const primaryDelta = normalizeBuilderRankGoal(state.builder.treeRankGoal) === BUILDER_RANK_GOAL_CANDIDATE_SCORE
+      ? getNodeCandidateScore(b[1].bestNode) - getNodeCandidateScore(a[1].bestNode)
+      : b[1].viableCount - a[1].viableCount;
+    if (primaryDelta !== 0) {
+      return primaryDelta;
+    }
+    const secondaryDelta = (b[1].bestNode.branchPotential?.validLeafCount ?? 0) - (a[1].bestNode.branchPotential?.validLeafCount ?? 0);
+    if (secondaryDelta !== 0) {
+      return secondaryDelta;
+    }
+    return a[0].localeCompare(b[0]);
+  });
+}
+
 function renderTreeMap() {
   elements.builderTreeMap.innerHTML = "";
   if (!state.builder.tree) {
@@ -17677,46 +17799,7 @@ function renderTreeMap() {
 
   // Build one column per role
   for (const role of roleOrder) {
-    const champMap = new Map();
-
-    for (const path of viablePaths) {
-      for (const step of path) {
-        if (step.role !== role) continue;
-        const name = step.champion;
-        if (!name) continue;
-        const leaf = path[path.length - 1].node;
-        const isViable = leaf.viability?.isTerminalValid;
-        const existing = champMap.get(name);
-        if (!existing) {
-          champMap.set(name, { bestNode: step.node, bestId: step.id, viableCount: isViable ? 1 : 0, pathCount: 1 });
-        } else {
-          existing.pathCount += 1;
-          if (isViable) existing.viableCount += 1;
-          const existingPrimary = normalizeBuilderRankGoal(state.builder.treeRankGoal) === BUILDER_RANK_GOAL_CANDIDATE_SCORE
-            ? getNodeCandidateScore(existing.bestNode)
-            : existing.bestNode.branchPotential?.validLeafCount ?? 0;
-          const nextPrimary = normalizeBuilderRankGoal(state.builder.treeRankGoal) === BUILDER_RANK_GOAL_CANDIDATE_SCORE
-            ? getNodeCandidateScore(step.node)
-            : step.node.branchPotential?.validLeafCount ?? 0;
-          const existingSecondary = existing.bestNode.branchPotential?.validLeafCount ?? 0;
-          const nextSecondary = step.node.branchPotential?.validLeafCount ?? 0;
-          if (nextPrimary > existingPrimary || (nextPrimary === existingPrimary && nextSecondary > existingSecondary)) {
-            existing.bestNode = step.node;
-            existing.bestId = step.id;
-          }
-        }
-      }
-    }
-
-    const sorted = [...champMap.entries()].sort((a, b) => {
-      const primaryDelta = normalizeBuilderRankGoal(state.builder.treeRankGoal) === BUILDER_RANK_GOAL_CANDIDATE_SCORE
-        ? getNodeCandidateScore(b[1].bestNode) - getNodeCandidateScore(a[1].bestNode)
-        : b[1].viableCount - a[1].viableCount;
-      if (primaryDelta !== 0) {
-        return primaryDelta;
-      }
-      return b[1].viableCount - a[1].viableCount;
-    });
+    const sorted = buildDraftSelectorRoleEntries(role, viablePaths, selections);
     const isSelected = !!selections[role];
 
     const col = runtimeDocument.createElement("div");
@@ -17754,19 +17837,14 @@ function renderTreeMap() {
     detailBtn.title = `Draft Picks for ${role}`;
     detailBtn.addEventListener("click", (evt) => {
       evt.stopPropagation();
-      // Build a virtual root whose children are all nodes for this role
-      const roleNodes = [];
-      const seenChampions = new Set();
-      for (const path of viablePaths) {
-        for (const step of path) {
-          if (step.role === role && !seenChampions.has(step.champion)) {
-            seenChampions.add(step.champion);
-            roleNodes.push(step.node);
-          }
-        }
-      }
-      const virtualRoot = { children: roleNodes };
-      openDraftPicksModal(virtualRoot, "0", role);
+      openDraftPicksModal(
+        sorted.map(([champName, data]) => ({
+          node: data.bestNode,
+          id: data.bestId,
+          title: `${role}: ${champName}`
+        })),
+        role
+      );
     });
 
     actionRow.append(clearBtn, detailBtn);

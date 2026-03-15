@@ -221,6 +221,16 @@ function getPoolChampionItems(doc, slot) {
   return Array.from(getPoolCard(doc, slot)?.querySelectorAll(".pool-snapshot-list li:not(.pool-snapshot-empty)") ?? []);
 }
 
+function getDraftSelectorColumn(doc, role) {
+  return Array.from(doc.querySelectorAll("#builder-tree-map .draft-path-column")).find(
+    (column) => column.querySelector(".draft-path-column-header span")?.textContent.trim() === role
+  ) ?? null;
+}
+
+function getDraftSelectorItems(doc, role) {
+  return Array.from(getDraftSelectorColumn(doc, role)?.querySelectorAll(".draft-path-item") ?? []);
+}
+
 function pickSlotChampion(doc, slot, championName = null) {
   const items = getPoolChampionItems(doc, slot);
   const item = championName
@@ -334,6 +344,53 @@ describe("workflow app integration", () => {
     const treeSummaryText = doc.querySelector("#builder-tree-summary").textContent;
     expect(treeSummaryText).toContain("Generation Stats");
     expect(treeSummaryText).toContain("Draft Picks for");
+  });
+
+  test("draft selector backfills later-role options omitted by tree branch pruning", async () => {
+    const { dom, state } = await bootApp();
+    const doc = dom.window.document;
+    const generateButton = doc.querySelector("#builder-generate");
+    const teamSelect = doc.querySelector("#builder-active-team");
+    const extraSupports = [
+      "Janna",
+      "Milio",
+      "Rakan",
+      "Soraka",
+      "Taric",
+      "Thresh"
+    ];
+
+    for (const name of extraSupports) {
+      state.data.championsByName[name] = {
+        id: expectedChampionCount + Object.keys(state.data.championsByName).length,
+        name,
+        roles: ["Support"],
+        damageType: "AP",
+        scaling: "Mid",
+        tagIds: [],
+        tags: {}
+      };
+    }
+    state.data.noneTeamPools.Support = [...state.data.noneTeamPools.Support, ...extraSupports];
+
+    teamSelect.value = "__NONE_TEAM__";
+    teamSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+
+    pickSlotChampion(doc, "Top");
+    generateButton.click();
+
+    const supportItems = getDraftSelectorItems(doc, "Support");
+    expect(supportItems).toHaveLength(state.data.noneTeamPools.Support.length);
+
+    const supportColumn = getDraftSelectorColumn(doc, "Support");
+    expect(supportColumn).toBeTruthy();
+    const detailButton = Array.from(supportColumn.querySelectorAll("button")).find(
+      (button) => button.textContent.trim() === "Detailed View"
+    );
+    expect(detailButton).toBeTruthy();
+    detailButton.click();
+
+    expect(doc.querySelectorAll(".draft-modal .branch-card")).toHaveLength(state.data.noneTeamPools.Support.length);
   });
 
   test("advanced scoring controls in setup update generation floor, rank goal, and redundancy penalty", async () => {

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { buildDraftflowData } from "../src/data/loaders.js";
-import { generatePossibilityTree } from "../src/engine/tree.js";
+import { generatePossibilityTree, rankRoleCandidates } from "../src/engine/tree.js";
 
 const championsCsv = readFileSync(resolve("docs/deprecated/DraftFlow_champions.csv"), "utf8");
 const teamPoolsCsv = readFileSync(resolve("docs/deprecated/DraftFlow_team_pools.csv"), "utf8");
@@ -119,6 +119,33 @@ test("roleOrder controls which unfilled role expands first", () => {
   for (const child of tree.children) {
     expect(child.addedRole).toBe("Top");
   }
+});
+
+test("rankRoleCandidates returns all eligible champions for the requested role", () => {
+  const result = rankRoleCandidates({
+    teamState: {
+      Top: "Aatrox",
+      Jungle: "Hecarim",
+      Mid: "Azir",
+      ADC: "Ashe",
+      Support: null
+    },
+    teamId: "TTT",
+    nextRole: "Support",
+    roleOrder: ["Support", "Top", "Jungle", "Mid", "ADC"],
+    teamPools: data.teamPools,
+    championsByName: data.championsByName,
+    requirements: [],
+    excludedChampions: []
+  });
+
+  const expectedSupportPool = data.teamPools.TTT.Support.filter((championName) =>
+    !["Aatrox", "Hecarim", "Azir", "Ashe"].includes(championName)
+  ).slice().sort((left, right) => left.localeCompare(right));
+
+  expect(result.role).toBe("Support");
+  expect(result.candidates.map((candidate) => candidate.championName)).toEqual(expectedSupportPool);
+  expect(result.eligibleBeforeScoreCount).toBe(expectedSupportPool.length);
 });
 
 test("tree exposes requiredSummary, viability, and generation stats metadata", () => {

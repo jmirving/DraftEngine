@@ -308,7 +308,7 @@ function evaluateRequirementBundleForTree({
   };
 }
 
-function generateNextCandidatesByRequirements({
+function scoreCandidatesForRole({
   teamState,
   teamId,
   nextRole,
@@ -328,13 +328,9 @@ function generateNextCandidatesByRequirements({
   if (!role) {
     return {
       role: null,
-      candidates: [],
-      prunedLowCandidateScoreCount: 0,
-      prunedRelativeCandidateScoreCount: 0,
-      filteredTopThreatCount: 0,
+      scoredCandidates: [],
       eligibleBeforeScoreCount: 0,
-      fallbackUsed: false,
-      fallbackCandidateCount: 0
+      currentEvaluation: null
     };
   }
 
@@ -402,8 +398,62 @@ function generateNextCandidatesByRequirements({
     return left.championName.localeCompare(right.championName);
   });
 
-  const aboveFloor = scored.filter((candidate) => candidate.passesMinScore);
-  const belowFloor = scored.filter((candidate) => !candidate.passesMinScore);
+  return {
+    role,
+    scoredCandidates: scored,
+    eligibleBeforeScoreCount,
+    currentEvaluation
+  };
+}
+
+function generateNextCandidatesByRequirements({
+  teamState,
+  teamId,
+  nextRole,
+  roleOrder = SLOTS,
+  teamPools,
+  championsByName,
+  requirements,
+  excludedChampions = [],
+  tagById = {},
+  maxBranch = DEFAULT_TREE_SETTINGS.maxBranch,
+  minCandidateScore = DEFAULT_MIN_CANDIDATE_SCORE,
+  candidateScoringWeights = DEFAULT_CANDIDATE_SCORING_WEIGHTS
+}) {
+  const {
+    role,
+    scoredCandidates,
+    eligibleBeforeScoreCount
+  } = scoreCandidatesForRole({
+    teamState,
+    teamId,
+    nextRole,
+    roleOrder,
+    teamPools,
+    championsByName,
+    requirements,
+    excludedChampions,
+    tagById,
+    maxBranch,
+    minCandidateScore,
+    candidateScoringWeights
+  });
+
+  if (!role) {
+    return {
+      role: null,
+      candidates: [],
+      prunedLowCandidateScoreCount: 0,
+      prunedRelativeCandidateScoreCount: 0,
+      filteredTopThreatCount: 0,
+      eligibleBeforeScoreCount: 0,
+      fallbackUsed: false,
+      fallbackCandidateCount: 0
+    };
+  }
+
+  const aboveFloor = scoredCandidates.filter((candidate) => candidate.passesMinScore);
+  const belowFloor = scoredCandidates.filter((candidate) => !candidate.passesMinScore);
   const selectedCandidates = aboveFloor.length > 0
     ? aboveFloor.slice(0, maxBranch)
     : belowFloor.slice(0, Math.min(maxBranch, MAX_FALLBACK_KEEP));
@@ -411,12 +461,50 @@ function generateNextCandidatesByRequirements({
   return {
     role,
     candidates: selectedCandidates,
-    prunedLowCandidateScoreCount: scored.length - aboveFloor.length,
+    prunedLowCandidateScoreCount: scoredCandidates.length - aboveFloor.length,
     prunedRelativeCandidateScoreCount: Math.max(0, aboveFloor.length - selectedCandidates.length),
     filteredTopThreatCount: 0,
     eligibleBeforeScoreCount,
     fallbackUsed: aboveFloor.length < 1 && selectedCandidates.length > 0,
     fallbackCandidateCount: aboveFloor.length < 1 ? selectedCandidates.length : 0
+  };
+}
+
+export function rankRoleCandidates({
+  teamState,
+  teamId,
+  nextRole,
+  roleOrder = SLOTS,
+  teamPools,
+  championsByName,
+  requirements = [],
+  excludedChampions = [],
+  tagById = {},
+  minCandidateScore = DEFAULT_MIN_CANDIDATE_SCORE,
+  candidateScoringWeights = DEFAULT_CANDIDATE_SCORING_WEIGHTS
+}) {
+  const {
+    role,
+    scoredCandidates,
+    eligibleBeforeScoreCount
+  } = scoreCandidatesForRole({
+    teamState,
+    teamId,
+    nextRole,
+    roleOrder,
+    teamPools,
+    championsByName,
+    requirements,
+    excludedChampions,
+    tagById,
+    minCandidateScore,
+    candidateScoringWeights
+  });
+
+  return {
+    role,
+    candidates: scoredCandidates,
+    eligibleBeforeScoreCount
   };
 }
 
