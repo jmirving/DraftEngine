@@ -182,12 +182,23 @@ overflow-y: auto;
 - The border creates a visual group boundary for the card collection
 - Padding separates cards from the border edge
 - `max-height` prevents the grid from pushing the page layout — content scrolls within
-- Used by: `.card-grid` (champions), `.req-card-grid` (requirement status), `.comp-card-grid` (compositions/requirements pages)
+- Used by: `.card-grid` (champions), `.req-card-grid` (requirement status), `.comp-card-grid` (compositions/requirements pages), `.tags-workspace-list` (tags)
 
 ### Grid Column Sizing
 - Champions: `repeat(auto-fit, minmax(320px, 1fr))`
 - Requirement status cards: `repeat(auto-fill, minmax(200px, 1fr))`
 - Page cards (compositions, requirements): `repeat(auto-fill, minmax(260px, 1fr))`
+- Tag cards: `repeat(auto-fill, minmax(260px, 1fr))`
+
+### Tag Card Pattern (`.tags-workspace-item`)
+
+Elevated card for tag catalog entries. Distinct from composition/requirement cards — uses column layout with actions at the bottom.
+
+- Layout: `flex-direction: column` — name, definition, usage text stack vertically
+- Background: `var(--surface-card)`, `border-radius: 12px`
+- Elevation: `box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06)`
+- Actions row: Edit/Delete buttons at card bottom, right-aligned, separated by `border-top: 1px solid var(--border)`
+- `margin-top: auto` on actions pushes them to the bottom when cards have varying content height
 
 ## Hover Popover Pattern (`.clause-popover`)
 
