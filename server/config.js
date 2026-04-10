@@ -37,10 +37,32 @@ function readOptionalPort(env, key, fallback) {
   return parsed;
 }
 
+function readOptionalString(env, key, fallback = "") {
+  const value = env[key];
+  if (typeof value !== "string" || value.trim() === "") {
+    return fallback;
+  }
+  return value.trim();
+}
+
 export function loadConfig(env = process.env) {
   return {
     databaseUrl: readRequiredString(env, "DATABASE_URL"),
     jwtSecret: readRequiredString(env, "JWT_SECRET"),
+    nexusAppSigningSecret: readOptionalString(
+      env,
+      "NEXUS_APP_SIGNING_SECRET",
+      readOptionalString(env, "NEXUS_JWT_SECRET")
+    ),
+    nexusAuthIssuer: readOptionalString(env, "NEXUS_AUTH_ISSUER", "nexus"),
+    nexusAuthAudience: readOptionalString(env, "NEXUS_AUTH_AUDIENCE", "draftengine"),
+    nexusExchangeUrl: readOptionalString(env, "NEXUS_EXCHANGE_URL"),
+    nexusExchangeSecret: readOptionalString(
+      env,
+      "NEXUS_DRAFTENGINE_EXCHANGE_SECRET",
+      readOptionalString(env, "DRAFTENGINE_EXCHANGE_SECRET")
+    ),
+    nexusPortalBaseUrl: readOptionalString(env, "NEXUS_PORTAL_BASE_URL", "http://127.0.0.1:3000"),
     port: readOptionalPort(env, "PORT", 3000),
     corsOrigin: typeof env.CORS_ORIGIN === "string" && env.CORS_ORIGIN.trim() !== ""
       ? env.CORS_ORIGIN.trim()

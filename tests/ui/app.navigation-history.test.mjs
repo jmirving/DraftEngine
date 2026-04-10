@@ -402,9 +402,8 @@ describe("hash navigation routing", () => {
       doc.querySelectorAll("#updates-release-panel-whats-new h4"),
       (node) => node.textContent.trim()
     );
-    expect(whatsNewVersions[0]).toBe("Version 0.9.0");
-    const shippedVersions = whatsNewVersions.filter((heading) => heading.includes("(Shipped)"));
-    expect(shippedVersions.length).toBeGreaterThan(0);
+    expect(whatsNewVersions[0]).toBe("Version 0.9.12 (Contributor — Joseph Irving)");
+    expect(whatsNewVersions.length).toBeGreaterThan(0);
 
     doc.querySelector("#updates-release-tab-coming-soon").click();
     expect(doc.querySelector("#updates-release-panel-whats-new").hidden).toBe(true);

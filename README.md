@@ -33,6 +33,13 @@ Optional environment variables:
 - `GITHUB_ISSUES_OWNER` (optional override; defaults to `jmirving`)
 - `GITHUB_ISSUES_REPO` (optional override; defaults to `DraftEngine`)
 - `GITHUB_ISSUES_FALLBACK_URL` (optional override for the external issues page URL)
+- `NEXUS_APP_SIGNING_SECRET` (shared signing secret for hosted Nexus launch tokens)
+- `NEXUS_AUTH_ISSUER` (default `nexus`; local Nexus commonly uses `nexus-local`)
+- `NEXUS_AUTH_AUDIENCE` (default `draftengine`)
+- `NEXUS_EXCHANGE_URL` (Nexus grant exchange endpoint for hosted app launch)
+- `NEXUS_DRAFTENGINE_EXCHANGE_SECRET` (preferred DraftEngine app exchange secret)
+- `DRAFTENGINE_EXCHANGE_SECRET` (legacy fallback DraftEngine app exchange secret)
+- `NEXUS_PORTAL_BASE_URL` (link target for hosted-auth error recovery)
 - `NEXUS_API_KEY` (preferred Riot API key env var; enables Riot profile champion-mastery enrichment on `GET /me/profile`)
 - `RIOT_API_KEY` (legacy fallback Riot API key env var)
 - `RIOT_PLATFORM_ROUTING` (default `na1`)
@@ -44,6 +51,27 @@ Start API:
 ```bash
 npm run start:api
 ```
+
+Hosted Nexus launch uses the existing local DraftEngine session model:
+- Nexus redirects the browser to `GET /auth/nexus/callback?grant=...`
+- DraftEngine redeems the grant at `NEXUS_EXCHANGE_URL`
+- DraftEngine verifies the hosted Nexus token for `aud=draftengine`
+- DraftEngine resolves or provisions a local user by email, then writes the normal `draftflow.authSession.v1` payload before redirecting into the app
+
+Local hosted-auth validation example:
+```bash
+PORT=3102 \
+DATABASE_URL=postgres://draftengine:draftengine@127.0.0.1:5432/draftengine \
+JWT_SECRET=change-me-draftengine-local-secret \
+NEXUS_APP_SIGNING_SECRET=change-me-local-dev-secret \
+NEXUS_AUTH_ISSUER=nexus-local \
+NEXUS_EXCHANGE_URL=http://127.0.0.1:3000/api/auth/exchange \
+DRAFTENGINE_EXCHANGE_SECRET=change-me-draftengine-exchange-secret \
+NEXUS_PORTAL_BASE_URL=http://127.0.0.1:3000 \
+npm run start:api
+```
+
+For product scope and validation criteria, see [docs/hosted-nexus-auth-callback.md](docs/hosted-nexus-auth-callback.md).
 
 Database checks and migrations:
 ```bash
@@ -57,6 +85,7 @@ npm run seed:champions
 MVP API routes:
 - `POST /auth/register`
 - `POST /auth/login`
+- `GET /auth/nexus/callback` (hosted Nexus launch callback; resolves or provisions a local DraftEngine session)
 - `GET /champions`
 - `GET /champions/:id`
 - `GET /tags`
