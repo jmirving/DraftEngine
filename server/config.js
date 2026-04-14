@@ -45,7 +45,25 @@ function readOptionalString(env, key, fallback = "") {
   return value.trim();
 }
 
+function deriveExchangeUrl(baseUrl) {
+  if (!baseUrl) {
+    return "";
+  }
+
+  try {
+    return new URL("/api/auth/exchange", baseUrl).toString();
+  } catch {
+    return "";
+  }
+}
+
 export function loadConfig(env = process.env) {
+  const nexusPortalBaseUrl = readOptionalString(
+    env,
+    "NEXUS_PORTAL_BASE_URL",
+    readOptionalString(env, "NEXUS_PUBLIC_BASE_URL", "http://127.0.0.1:3000")
+  );
+
   return {
     databaseUrl: readRequiredString(env, "DATABASE_URL"),
     jwtSecret: readRequiredString(env, "JWT_SECRET"),
@@ -56,13 +74,25 @@ export function loadConfig(env = process.env) {
     ),
     nexusAuthIssuer: readOptionalString(env, "NEXUS_AUTH_ISSUER", "nexus"),
     nexusAuthAudience: readOptionalString(env, "NEXUS_AUTH_AUDIENCE", "draftengine"),
-    nexusExchangeUrl: readOptionalString(env, "NEXUS_EXCHANGE_URL"),
+    nexusExchangeUrl: readOptionalString(
+      env,
+      "NEXUS_EXCHANGE_URL",
+      deriveExchangeUrl(nexusPortalBaseUrl)
+    ),
     nexusExchangeSecret: readOptionalString(
       env,
       "NEXUS_DRAFTENGINE_EXCHANGE_SECRET",
-      readOptionalString(env, "DRAFTENGINE_EXCHANGE_SECRET")
+      readOptionalString(
+        env,
+        "DRAFTENGINE_EXCHANGE_SECRET",
+        readOptionalString(
+          env,
+          "NEXUS_EXCHANGE_SECRET",
+          readOptionalString(env, "NEXUS_APP_EXCHANGE_SECRET")
+        )
+      )
     ),
-    nexusPortalBaseUrl: readOptionalString(env, "NEXUS_PORTAL_BASE_URL", "http://127.0.0.1:3000"),
+    nexusPortalBaseUrl,
     port: readOptionalPort(env, "PORT", 3000),
     corsOrigin: typeof env.CORS_ORIGIN === "string" && env.CORS_ORIGIN.trim() !== ""
       ? env.CORS_ORIGIN.trim()

@@ -23,7 +23,7 @@ describe("loadConfig", () => {
       nexusAuthAudience: "draftengine",
       nexusAuthIssuer: "nexus",
       nexusExchangeSecret: "",
-      nexusExchangeUrl: "",
+      nexusExchangeUrl: "http://127.0.0.1:3000/api/auth/exchange",
       nexusPortalBaseUrl: "http://127.0.0.1:3000",
       nodeEnv: "development",
       port: 3000
@@ -79,5 +79,19 @@ describe("loadConfig", () => {
     expect(config.nexusExchangeUrl).toBe("http://127.0.0.1:3000/api/auth/exchange");
     expect(config.nexusExchangeSecret).toBe("draftengine-secret");
     expect(config.nexusPortalBaseUrl).toBe("http://127.0.0.1:3000");
+  });
+
+  it("derives hosted Nexus config from the portal base url and generic exchange secret fallback", () => {
+    const config = loadConfig({
+      DATABASE_URL: "postgres://user:pass@localhost:5432/draftengine",
+      JWT_SECRET: "local-secret",
+      NEXUS_APP_SIGNING_SECRET: "hosted-secret",
+      NEXUS_PUBLIC_BASE_URL: "https://nexus.example.com",
+      NEXUS_APP_EXCHANGE_SECRET: "generic-exchange-secret"
+    });
+
+    expect(config.nexusPortalBaseUrl).toBe("https://nexus.example.com");
+    expect(config.nexusExchangeUrl).toBe("https://nexus.example.com/api/auth/exchange");
+    expect(config.nexusExchangeSecret).toBe("generic-exchange-secret");
   });
 });

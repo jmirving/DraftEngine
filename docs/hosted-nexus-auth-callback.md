@@ -113,6 +113,11 @@ frontend session model.
 - The callback shall require a `grant` query parameter.
 - DraftEngine shall redeem the grant through `NEXUS_EXCHANGE_URL` using
   `NEXUS_DRAFTENGINE_EXCHANGE_SECRET` or `DRAFTENGINE_EXCHANGE_SECRET`.
+- DraftEngine may derive `NEXUS_EXCHANGE_URL` from the configured Nexus
+  base URL when the explicit exchange URL env is omitted.
+- DraftEngine may accept generic exchange-secret fallback env names for
+  hosted rollout compatibility as long as the value still resolves to
+  the DraftEngine app secret.
 - DraftEngine shall verify the exchanged token using the configured
   signing secret, issuer, and `draftengine` audience before trusting it.
 - DraftEngine shall require an email claim before creating or resolving

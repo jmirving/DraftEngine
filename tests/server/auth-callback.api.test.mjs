@@ -219,4 +219,58 @@ describe("DraftEngine hosted auth callback", () => {
     expect(usersRepository.findByEmail).not.toHaveBeenCalled();
     expect(usersRepository.createUser).not.toHaveBeenCalled();
   });
+
+  it("accepts the portal-base fallback exchange config instead of rendering hosted-auth unavailable", async () => {
+    const config = createTestConfig({
+      nexusExchangeUrl: "http://127.0.0.1:3000/api/auth/exchange",
+      nexusExchangeSecret: "generic-exchange-secret"
+    });
+    const usersRepository = {
+      findByEmail: vi.fn().mockResolvedValue({
+        id: 12,
+        email: "fallback@example.com",
+        role: "member",
+        game_name: "FallbackUser",
+        tagline: "NA1",
+        first_name: "Fallback",
+        last_name: "User",
+        primary_role: null,
+        secondary_roles: [],
+        default_team_id: null,
+        avatar_champion_id: null
+      }),
+      createUser: vi.fn()
+    };
+    const redeemLaunchGrant = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      payload: {
+        accessToken: signHostedToken(
+          {
+            iss: config.nexusAuthIssuer,
+            sub: "usr_fallback",
+            aud: config.nexusAuthAudience,
+            iat: Math.floor(Date.now() / 1000),
+            exp: Math.floor(Date.now() / 1000) + 3600,
+            email: "fallback@example.com",
+            displayName: "Fallback User"
+          },
+          config
+        ),
+        user: {
+          userId: "usr_fallback"
+        }
+      }
+    });
+    const app = createHostedAuthApp({ config, usersRepository, redeemLaunchGrant });
+
+    const response = await request(app).get("/auth/nexus/callback?grant=grant_fallback");
+
+    expect(response.status).toBe(200);
+    expect(response.text).not.toContain("Hosted auth is unavailable");
+    expect(redeemLaunchGrant).toHaveBeenCalledWith({
+      config,
+      grantId: "grant_fallback"
+    });
+  });
 });
