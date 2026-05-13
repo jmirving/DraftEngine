@@ -13517,6 +13517,9 @@ function normalizePlayerConfigTeamId(teamId) {
       return candidate;
     }
   }
+  if (preferredOrder.length > 0) {
+    return preferredOrder[0];
+  }
   const fallback = Object.keys(state.playerConfig.byTeam);
   return fallback[0] ?? "";
 }
