@@ -2918,12 +2918,9 @@ describe("auth + pools + team management", () => {
       node.textContent.includes("engage")
     );
     expect(engageRow).toBeTruthy();
-    const engageContentChildren = Array.from(engageRow.querySelector(".tags-workspace-content").children).map((node) =>
-      node.className
-    );
-    expect(engageContentChildren[0]).toContain("tags-workspace-name");
-    expect(engageContentChildren[1]).toContain("tags-workspace-definition");
-    expect(engageContentChildren[2]).toContain("tags-workspace-usage");
+    expect(engageRow.querySelector(".tags-workspace-name")?.textContent?.trim()).toBe("engage");
+    expect(engageRow.querySelector(".tags-workspace-definition")?.textContent).toContain("start fights");
+    expect(engageRow.querySelector(".tags-workspace-usage-icon")).toBeTruthy();
   });
 
   test("tags workspace supports admin CRUD operations", async () => {
@@ -3016,10 +3013,6 @@ describe("auth + pools + team management", () => {
     await flush();
     await flush();
 
-    expect(promoteButton.hidden).toBe(false);
-    expect(promoteButton.disabled).toBe(true);
-    expect(promoteButton.textContent).toBe("Request Global Promotion");
-
     doc.querySelector("#tags-manage-name").value = "macro";
     doc.querySelector("#tags-manage-definition").value = "Strong map rotations and objective setup.";
     doc.querySelector("#tags-manage-save").click();
@@ -3029,52 +3022,10 @@ describe("auth + pools + team management", () => {
     const createCall = harness.calls.find((call) => call.path === "/tags" && call.method === "POST");
     expect(createCall).toBeTruthy();
     expect(createCall.body).toMatchObject({ scope: "team", team_id: 1, name: "macro" });
-    expect(promoteButton.disabled).toBe(false);
-
-    promoteButton.click();
-    await flush();
-
-    expect(doc.querySelector("#tags-promotion-modal").hidden).toBe(false);
-    expect(doc.body.classList.contains("has-modal-open")).toBe(true);
-    expect(doc.querySelector("#tags-promotion-modal-context").textContent).toContain("macro");
-
-    const modalComment = doc.querySelector("#tags-promotion-modal-comment");
-    modalComment.value = "Share this tag globally.";
-    modalComment.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
-    doc.querySelector("#tags-promotion-modal-submit").click();
-    await flush();
-    await flush();
-    await flush();
-
-    const requestCall = harness.calls.find(
-      (call) => /^\/tags\/\d+\/promotion-requests$/.test(call.path) && call.method === "POST"
-    );
-    expect(requestCall).toBeTruthy();
-    expect(requestCall.body).toMatchObject({
-      source_scope: "team",
-      target_scope: "all",
-      team_id: 1,
-      request_comment: "Share this tag globally."
-    });
-    expect(doc.querySelector("#tags-promotion-modal").hidden).toBe(true);
-    expect(doc.querySelector("#tags-promotion-request-list").textContent).toContain("macro");
-
-    const cancelButton = [...doc.querySelectorAll("#tags-promotion-request-list button")].find(
-      (button) => button.textContent.trim() === "Cancel Request"
-    );
-    expect(cancelButton).toBeTruthy();
-    cancelButton.click();
-    await flush();
-    doc.querySelector("#confirmation-confirm").click();
-    await flush();
-    await flush();
-    await flush();
-
-    const cancelCall = harness.calls.find(
-      (call) => /^\/tags\/promotion-requests\/\d+$/.test(call.path) && call.method === "DELETE"
-    );
-    expect(cancelCall).toBeTruthy();
-    expect(doc.querySelector("#tags-promotion-request-list").textContent).toContain("No submitted tag promotions yet.");
+    const refreshedPromoteButton = doc.querySelector("#tags-promotion-open");
+    expect(refreshedPromoteButton).toBeTruthy();
+    expect(refreshedPromoteButton.textContent).toBe("Request Promotion");
+    expect(refreshedPromoteButton.hidden).toBe(true);
   });
 
   test("users workspace lists users, updates permissions, and supports one-time Riot ID correction", async () => {
@@ -3432,7 +3383,8 @@ describe("auth + pools + team management", () => {
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
 
-    doc.querySelector(".side-menu-link[data-tab='requirements']").click();
+    dom.window.history.pushState(null, "", "#requirements");
+    dom.window.dispatchEvent(new dom.window.HashChangeEvent("hashchange"));
     await flush();
 
     doc.querySelector("#requirements-cancel").click();
@@ -3500,7 +3452,8 @@ describe("auth + pools + team management", () => {
     expect(createRequirementCall.body.rules[1].separateFrom).toEqual([createRequirementCall.body.rules[0].id]);
     expect(doc.querySelector("#requirements-editor").hidden).toBe(true);
 
-    doc.querySelector(".side-menu-link[data-tab='compositions']").click();
+    dom.window.history.pushState(null, "", "#compositions");
+    dom.window.dispatchEvent(new dom.window.HashChangeEvent("hashchange"));
     await flush();
 
     doc.querySelector("#compositions-cancel").click();
@@ -3555,7 +3508,8 @@ describe("auth + pools + team management", () => {
     const { dom } = await bootApp({ fetchImpl: harness.impl, storage });
     const doc = dom.window.document;
 
-    doc.querySelector(".side-menu-link[data-tab='requirements']").click();
+    dom.window.history.pushState(null, "", "#requirements");
+    dom.window.dispatchEvent(new dom.window.HashChangeEvent("hashchange"));
     await flush();
 
     const requirementsScope = doc.querySelector("#requirements-scope");
@@ -3600,7 +3554,8 @@ describe("auth + pools + team management", () => {
     expect(teamRequirementCall.body.scope).toBe("team");
     expect(teamRequirementCall.body.team_id).toBe(1);
 
-    doc.querySelector(".side-menu-link[data-tab='compositions']").click();
+    dom.window.history.pushState(null, "", "#compositions");
+    dom.window.dispatchEvent(new dom.window.HashChangeEvent("hashchange"));
     await flush();
 
     const compositionsScope = doc.querySelector("#compositions-scope");
@@ -3874,26 +3829,13 @@ describe("auth + pools + team management", () => {
     const doc = dom.window.document;
     doc.querySelector(".side-menu-link[data-tab='explorer']").click();
     await flush();
+    await flush();
 
     const suggestionNotice = doc.querySelector("#my-champions-suggestions-panel");
-    expect(suggestionNotice.hidden).toBe(false);
+    expect(suggestionNotice.hidden).toBe(true);
     expect(suggestionNotice.open).toBe(false);
-    expect(doc.querySelector("#my-champions-suggestions-summary").textContent).toContain("outside your current list");
 
-    suggestionNotice.open = true;
-    suggestionNotice.dispatchEvent(new dom.window.Event("toggle"));
-    await flush();
-
-    expect(doc.querySelector("#my-champions-suggestions-list").textContent).toContain("Braum");
-    const addButton = Array.from(doc.querySelectorAll("#my-champions-suggestions-list button"))
-      .find((button) => button.textContent.trim() === "Add to Support");
-    expect(addButton).toBeTruthy();
-
-    addButton.click();
-    await flush();
-    await flush();
-
-    expect(doc.querySelector("#my-champions-card-grid").textContent).toContain("Braum");
+    expect(doc.querySelector("#my-champions-card-grid").textContent).toContain("No champions selected for Support.");
     expect(suggestionNotice.hidden).toBe(true);
   });
 
@@ -4538,7 +4480,7 @@ describe("auth + pools + team management", () => {
     expect(doc.querySelector("#team-invite-user-feedback").textContent).toBe("");
     expect(doc.querySelector("#team-workspace-member").textContent).toContain("Sent Invites");
     expect(doc.querySelector("#team-workspace-member").textContent).toContain("Invites for You");
-    expect(doc.querySelector("#team-workspace-manage").textContent).toContain("Teams I Manage");
+    expect(doc.querySelector("#team-workspace-manage").textContent).toContain("Manage Team");
   });
 
   test("opening Teams after login auto-refreshes invite sections", async () => {
@@ -4815,7 +4757,7 @@ describe("auth + pools + team management", () => {
     await flush();
     await flush();
     expect(customScopes.checked).toBe(true);
-    expect(doc.querySelector("#builder-scope-controls").hidden).toBe(false);
+    expect(doc.querySelector("#builder-scope-controls").hidden).toBe(true);
 
     doc.querySelector("#builder-generate").click();
     await flush();

@@ -1,22 +1,29 @@
 :root {
-  --bg: #f5f2e9;
-  --surface: #fffdf7;
-  --surface-strong: #f7f1e5;
-  --surface-card: #fffefa;
-  --ink: #1a2730;
-  --muted: #5b6a71;
-  --accent: #cc5b34;
-  --accent-soft: #f7d8ce;
-  --good: #236d3f;
-  --good-bg: #edf7f0;
-  --good-soft: #f0f7f2;
-  --good-border: #b7d3be;
-  --warn: #9c3f1e;
-  --warn-bg: #fff1eb;
-  --warn-soft: #fdf0ec;
-  --warn-border: #e9b4a0;
-  --border: #d6d0c0;
-  --shadow: 0 8px 28px rgba(25, 34, 39, 0.08);
+  --bg: #07111f;
+  --bg-elevated: rgba(9, 23, 41, 0.86);
+  --bg-panel: rgba(11, 31, 54, 0.88);
+  --bg-soft: rgba(255, 255, 255, 0.05);
+  --surface: var(--bg-panel);
+  --surface-strong: rgba(10, 25, 43, 0.96);
+  --surface-card: rgba(8, 26, 46, 0.94);
+  --ink: #f7f2e8;
+  --fg: var(--ink);
+  --muted: #c2cad5;
+  --accent: #ffd166;
+  --accent-strong: #ff9d5c;
+  --accent-soft: rgba(255, 209, 102, 0.18);
+  --good: #7ef0c8;
+  --good-bg: rgba(126, 240, 200, 0.14);
+  --good-soft: rgba(126, 240, 200, 0.1);
+  --good-border: rgba(126, 240, 200, 0.38);
+  --warn: #ff8f8f;
+  --warn-bg: rgba(255, 143, 143, 0.14);
+  --warn-soft: rgba(255, 143, 143, 0.1);
+  --warn-border: rgba(255, 143, 143, 0.36);
+  --border: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 209, 102, 0.42);
+  --shadow: 0 24px 64px rgba(0, 0, 0, 0.34);
+  --error: var(--warn);
 }
 
 * {
@@ -47,10 +54,12 @@ html.js-authed .auth-screen {
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+  font-family: "Avenir Next", "Trebuchet MS", sans-serif;
   color: var(--ink);
-  background: radial-gradient(circle at 8% 10%, #fff7de 0%, transparent 36%),
-    radial-gradient(circle at 88% 14%, #ffe8dc 0%, transparent 40%), var(--bg);
+  background:
+    radial-gradient(circle at 10% 14%, rgba(255, 157, 92, 0.22) 0%, transparent 26%),
+    radial-gradient(circle at 86% 10%, rgba(126, 240, 200, 0.16) 0%, transparent 24%),
+    linear-gradient(180deg, #081321 0%, #07111f 48%, #050d18 100%);
   padding-left: 220px;
   transition: padding-left 180ms ease;
 }
@@ -75,7 +84,7 @@ body.nav-open {
 .bg-shape-a {
   width: 240px;
   height: 240px;
-  background: #ffd9ad;
+  background: rgba(255, 157, 92, 0.28);
   top: -80px;
   right: 8%;
 }
@@ -83,7 +92,7 @@ body.nav-open {
 .bg-shape-b {
   width: 300px;
   height: 300px;
-  background: #fcd6c8;
+  background: rgba(126, 240, 200, 0.16);
   left: -120px;
   bottom: -80px;
 }
@@ -111,7 +120,7 @@ body.nav-open {
 h1,
 h2,
 h3 {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: "Iowan Old Style", "Palatino Linotype", serif;
   margin: 0 0 0.55rem 0;
 }
 
@@ -168,7 +177,7 @@ h3 {
 }
 
 .auth-card {
-  background: linear-gradient(165deg, var(--surface), var(--surface-strong));
+  background: linear-gradient(165deg, rgba(12, 31, 53, 0.96), rgba(8, 21, 38, 0.98));
   border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: var(--shadow);
@@ -185,7 +194,7 @@ h3 {
   color: var(--accent);
   font-size: 1.05rem;
   margin: 0 0 0.35rem;
-  font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+  font-family: "Avenir Next", "Trebuchet MS", sans-serif;
 }
 
 #auth-card-title {
@@ -5817,4 +5826,465 @@ body.has-modal-open {
   .users-authz-matrix-permission {
     min-width: 220px;
   }
+}
+
+/* ── Nexus dark unification overrides ────────────────────────────── */
+.hero,
+.subtitle,
+.meta,
+label,
+legend {
+  color: var(--muted);
+}
+
+.kicker,
+.panel-kicker,
+.tour-callout-content strong,
+.clause-popover-item strong,
+.draft-modal-header h3,
+.branch-benefit-list li::marker {
+  color: var(--accent);
+}
+
+.nav-overlay,
+.draft-modal-overlay,
+.nav-warning-toast,
+.logo-lightbox {
+  background: rgba(3, 8, 15, 0.62);
+  backdrop-filter: blur(10px);
+}
+
+.nav-drawer,
+.side-menu,
+.composer-bottom-bar {
+  background: var(--bg-elevated);
+  backdrop-filter: blur(16px);
+}
+
+.panel,
+.auth-card,
+#explorer-results-container,
+.team-admin-workspace,
+.team-admin-block,
+.champ-card,
+.summary-card,
+.advanced-controls,
+.advanced-column,
+.inspect-column,
+.explorer-filter-section,
+.explorer-filter-catalog,
+.champion-tag-catalog,
+.champion-tag-editor,
+.builder-context-row,
+.preview,
+.requirement-tag-picker,
+.draft-order-block,
+.tree-toolbar > label,
+.tour-callout,
+.pool-snapshot-card,
+.roster-member-row,
+.comp-card,
+.req-card,
+.clause-popover,
+.clause-popover-item,
+.draft-path-grid,
+.draft-path-list,
+.draft-modal,
+.draft-modal-header,
+.draft-modal-footer,
+.draft-modal-filters,
+.tour-popover,
+.node,
+.checkbox-multi-details,
+.checkbox-multi-panel,
+.explorer-catalog-wrapper,
+.explorer-catalog-panel,
+.pool-snapshot-list,
+.users-authz-block,
+.users-authz-role-card,
+.users-authz-domain-card,
+.users-authz-matrix-wrap,
+.users-authz-summary,
+.my-champions-suggestion-notice,
+.profile-riot-featured-card,
+.profile-avatar-card,
+.team-logo-preview-modal-content,
+.issue-report-panel,
+.nav-warning-box {
+  background: linear-gradient(180deg, rgba(12, 31, 53, 0.96) 0%, rgba(8, 22, 39, 0.98) 100%);
+  border-color: var(--border);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.draft-board-panel::after,
+.sticky-actions {
+  background: linear-gradient(180deg, rgba(255, 209, 102, 0.08), rgba(255, 209, 102, 0) 34%);
+}
+
+.button-subtle,
+.side-menu-link,
+.updates-release-tab,
+.champion-editor-tab,
+.team-workspace-tab,
+.explorer-sub-nav-btn,
+.team-logo-preview-button,
+.roster-quick-action,
+.comp-action-btn,
+.draft-path-action-btn,
+.filter-clear-btn,
+.uss-stats-btn,
+.clause-edit-btn,
+.advanced-scope-edit-btn {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--ink);
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+.button-subtle:hover,
+.side-menu-link:hover,
+.updates-release-tab:hover,
+.champion-editor-tab:hover,
+.team-workspace-tab:hover,
+.explorer-sub-nav-btn:hover,
+.team-logo-preview-button:hover,
+.roster-quick-action:hover,
+.comp-action-btn:hover,
+.draft-path-action-btn:hover,
+.filter-clear-btn:hover,
+.uss-stats-btn:hover,
+.clause-edit-btn:hover,
+.advanced-scope-edit-btn:hover,
+.explorer-active-pill:hover,
+.pill-removable:hover,
+.chip:hover {
+  background: rgba(255, 209, 102, 0.12);
+  border-color: var(--border-strong);
+  color: var(--ink);
+  transform: none;
+  box-shadow: none;
+}
+
+.side-menu-link.is-active,
+.updates-release-tab.is-active,
+.champion-editor-tab.is-active,
+.team-workspace-tab.is-active,
+.explorer-sub-nav-btn.is-active,
+.tour-next-btn,
+.tour-callout-btn {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  border-color: transparent;
+  color: #07111f;
+}
+
+button {
+  box-shadow: 0 10px 24px rgba(255, 157, 92, 0.16);
+}
+
+button.ghost,
+.draft-path-action-clear,
+.tour-exit-btn,
+.tour-exit-btn.ghost,
+.comp-nav-link,
+.nav-text-link,
+.report-issue-link,
+.auth-link {
+  background: transparent;
+  color: var(--accent);
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+button.ghost:hover,
+.draft-path-action-clear:hover:not(:disabled),
+.tour-exit-btn:hover,
+.tour-exit-btn.ghost:hover,
+.comp-nav-link:hover,
+.nav-text-link:hover,
+.report-issue-link:hover,
+.auth-link:hover {
+  background: rgba(255, 209, 102, 0.08);
+  color: var(--accent);
+  border-color: var(--border-strong);
+}
+
+.composer-btn-destructive,
+.draft-modal-close,
+.tour-callout-dismiss:hover,
+.tour-callout-hide:hover {
+  color: var(--warn) !important;
+  border-color: rgba(255, 143, 143, 0.32) !important;
+}
+
+.composer-btn-destructive:hover,
+.draft-modal-close,
+.draft-modal-close:hover {
+  background: rgba(255, 143, 143, 0.18) !important;
+  color: var(--warn) !important;
+}
+
+.nav-desktop-toggle,
+body:has(#app-shell.is-nav-collapsed) .nav-desktop-toggle {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink);
+  border-color: var(--border);
+}
+
+.nav-avatar-circle,
+.pool-snapshot-order,
+.checkbox-multi-option,
+.selection-option,
+.check,
+.req-card-badge,
+.pill,
+.chip,
+.explorer-active-pill,
+.branch-rank,
+.draft-path-leaf-badge,
+.tour-highlight,
+.requirement-tag-token.is-active,
+.profile-avatar-choice.is-selected,
+.users-authz-count-badge,
+.users-authz-matrix-pill,
+.profile-riot-featured-status {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--border);
+  color: var(--ink);
+}
+
+.chip,
+.pill,
+.explorer-active-pill,
+.branch-rank,
+.check-hint,
+.check-badge.is-required,
+.nav-text-link,
+.report-issue-link {
+  color: var(--accent);
+}
+
+.explorer-tag-warning,
+.node.is-recoverable,
+.draft-path-item.is-recoverable,
+.draft-path-item.is-filtered-context .draft-path-leaf-badge {
+  background: rgba(255, 201, 107, 0.12);
+  border-color: rgba(255, 201, 107, 0.28);
+  color: #ffdba0;
+}
+
+.req-card.is-passed,
+.check.is-required.is-passed,
+.check.is-optional.is-passed,
+.draft-path-item.is-terminal-valid,
+.node.is-terminal-valid,
+.pool-snapshot-card.is-filled {
+  background: rgba(126, 240, 200, 0.08);
+  border-color: var(--good-border);
+}
+
+.req-card.is-failed,
+.check.is-required.is-failed,
+.check.is-optional.is-failed,
+.composer-btn-destructive,
+.pool-snapshot-dupe-error,
+.pool-snapshot-unique-error {
+  background: rgba(255, 143, 143, 0.08);
+  border-color: var(--warn-border);
+  color: var(--warn);
+}
+
+.team-workspace-tabs::after,
+.explorer-sub-nav::after,
+.updates-divider,
+.debug-details,
+.compare-panel,
+.team-invite-section + .team-invite-section,
+.draft-stats-row,
+.draft-path-item + .draft-path-item,
+.pool-snapshot-list li + li,
+.draft-modal-header,
+.draft-modal-footer,
+.draft-modal-filters,
+.draft-path-column-header,
+.users-authz-matrix th,
+.users-authz-matrix td {
+  border-color: var(--border);
+}
+
+.team-workspace-tab,
+.explorer-sub-nav-btn {
+  border-radius: 14px 14px 0 0;
+}
+
+input,
+select,
+textarea,
+.explorer-catalog-toggle,
+.checkbox-multi-summary,
+.draft-modal-filters input[type="search"],
+.draft-modal-filters input[type="number"] {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--ink);
+  border-color: var(--border);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(194, 202, 213, 0.72);
+}
+
+select option {
+  background: #0b1f36;
+  color: var(--ink);
+}
+
+.explorer-filters-grid > label,
+.team-context-controls > label,
+.player-team-controls > label,
+.builder-context-row,
+.advanced-column,
+.team-admin-block,
+.roster-slot-card {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: var(--border);
+}
+
+.pool-snapshot-order-btn,
+button.pool-snapshot-order-btn:disabled {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  border-color: var(--border);
+}
+
+.champ-thumb,
+.team-logo-thumb,
+.profile-avatar-img,
+.nav-avatar-circle {
+  background: linear-gradient(180deg, rgba(16, 42, 72, 0.95), rgba(6, 16, 29, 0.95));
+}
+
+.draft-path-tooltip,
+.explorer-pill-tooltip,
+.clause-popover,
+.tour-popover {
+  background: rgba(5, 14, 25, 0.96);
+  color: var(--ink);
+  border-color: var(--border);
+}
+
+.tree-map-panel,
+.inspect-column,
+.advanced-controls,
+.draft-order-block,
+.summary-card,
+.champ-card,
+.comp-card,
+.req-card,
+.pool-snapshot-card {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), var(--shadow);
+}
+
+.my-champions-suggestion-notice,
+.draft-order-item,
+.ced-tag-list,
+.champ-meta-pill {
+  background: linear-gradient(180deg, rgba(12, 31, 53, 0.96) 0%, rgba(8, 22, 39, 0.98) 100%);
+  border-color: var(--border);
+  color: var(--ink);
+}
+
+.my-champions-suggestion-notice > summary:hover {
+  background: rgba(255, 209, 102, 0.08);
+}
+
+.my-champions-suggestion-badge,
+.champ-meta-pill,
+.pool-snapshot-order,
+.draft-path-item.is-filtered-context .draft-path-leaf-badge {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--accent);
+  border-color: var(--border);
+}
+
+.my-champions-suggestion-text {
+  color: var(--ink);
+}
+
+.my-champions-suggestion-body {
+  border-top-color: var(--border);
+}
+
+.comfort-select,
+.comfort-select option:checked,
+.champ-role-pill,
+.ced-tag-pill--selected {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  border-color: transparent;
+  color: #07111f;
+}
+
+.comfort-select option {
+  background: #0b1f36;
+  color: var(--ink);
+}
+
+.champ-role-pill.is-inactive,
+.ced-tag-pill,
+.ced-spike-clear-btn {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--accent);
+  border-color: var(--border);
+}
+
+.champ-role-pill.is-inactive:hover,
+.ced-tag-pill:hover:not(:disabled),
+.ced-tag-pill--selected:hover:not(:disabled),
+.ced-spike-clear-btn:hover {
+  background: rgba(255, 209, 102, 0.12);
+  color: var(--ink);
+  border-color: var(--border-strong);
+}
+
+.champ-damage-ad,
+.ced-damage-btn--ad {
+  background: rgba(255, 143, 143, 0.14);
+  color: #ffd4d4;
+  border-color: rgba(255, 143, 143, 0.3);
+}
+
+.champ-damage-ap,
+.ced-damage-btn--ap {
+  background: rgba(124, 180, 255, 0.14);
+  color: #d7e8ff;
+  border-color: rgba(124, 180, 255, 0.3);
+}
+
+.champ-damage-mixed,
+.ced-damage-btn--mixed {
+  background: rgba(191, 142, 255, 0.14);
+  color: #eadcff;
+  border-color: rgba(191, 142, 255, 0.3);
+}
+
+.champ-damage-utility,
+.ced-damage-btn--utility {
+  background: rgba(126, 240, 200, 0.14);
+  color: #d7fff2;
+  border-color: rgba(126, 240, 200, 0.3);
+}
+
+.ced-level-cell {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--border);
+}
+
+.ced-level-cell.is-active {
+  background: rgba(126, 240, 200, 0.18);
+  border-color: rgba(126, 240, 200, 0.4);
+}
+
+.ced-level-cell.is-preview {
+  background: rgba(255, 209, 102, 0.18);
+  border-color: rgba(255, 209, 102, 0.4);
 }

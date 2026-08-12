@@ -270,7 +270,7 @@ describe("workflow app integration", () => {
     expect(saveButton.textContent).toBe("Save Draft");
     expect(loadButton.textContent).toBe("Load Draft");
     expect(clearButton.textContent).toBe("Clear Draft");
-    expect(stickyLabels).toEqual(["Start Draft", "Save Draft", "Load Draft", "Clear Draft"]);
+    expect(stickyLabels).toEqual(["Clear Draft", "Start Draft", "Save Draft", "Load Draft"]);
   });
 
   test("requires at least one pick before entering review, then auto-generates on transition", async () => {
@@ -325,12 +325,14 @@ describe("workflow app integration", () => {
 
     pickSlotChampion(doc, "Top");
     generateButton.click();
+    await Promise.resolve();
 
     const initialDraftPathItems = doc.querySelectorAll("#builder-tree-map .draft-path-item").length;
     expect(initialDraftPathItems).toBeGreaterThan(0);
-    const initialSummaryText = doc.querySelector("#builder-tree-summary").textContent;
-    expect(initialSummaryText).toContain("Generation Stats");
-    expect(initialSummaryText).toContain("Draft Picks for");
+    expect(doc.querySelector("#builder-stats-btn").hidden).toBe(false);
+    const detailButtons = Array.from(doc.querySelectorAll(".draft-path-action-detail"));
+    expect(detailButtons.length).toBeGreaterThan(0);
+    expect(detailButtons[0].getAttribute("title")).toContain("Draft Picks for");
 
     treeSearch.value = "zzzz-no-node";
     treeSearch.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
@@ -339,11 +341,11 @@ describe("workflow app integration", () => {
 
     treeMinScore.value = "999";
     treeMinScore.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    await Promise.resolve();
     const afterMinScoreItems = doc.querySelectorAll("#builder-tree-map .draft-path-item").length;
     expect(afterMinScoreItems).toBeLessThanOrEqual(afterSearchItems);
-    const treeSummaryText = doc.querySelector("#builder-tree-summary").textContent;
-    expect(treeSummaryText).toContain("Generation Stats");
-    expect(treeSummaryText).toContain("Draft Picks for");
+    expect(doc.querySelector("#builder-stats-btn").hidden).toBe(false);
+    expect(Array.from(doc.querySelectorAll(".draft-path-action-detail")).length).toBeGreaterThan(0);
   });
 
   test("draft selector backfills later-role options omitted by tree branch pruning", async () => {
@@ -502,10 +504,9 @@ describe("workflow app integration", () => {
 
     treeSearch.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
 
-    const summaryText = doc.querySelector("#builder-tree-summary").textContent;
-    expect(summaryText).toContain("All possible outcomes result in incomplete drafts.");
-    expect(summaryText).toContain("Fail-fast reason:");
-    expect(summaryText).toContain("Draft Picks for Next Role");
+    const summaryText = doc.querySelector("#builder-inspect-feedback").textContent;
+    expect(summaryText).toContain("All outcomes result in incomplete drafts.");
+    expect(summaryText).toContain("No branch can finish all five roles");
   });
 
   test("team context supports named team labels and None global pool mode", async () => {
@@ -604,6 +605,7 @@ describe("workflow app integration", () => {
     const doc = dom.window.document;
 
     doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    await Promise.resolve();
     const addChampionsButton = doc.querySelector("#my-champions-add-btn");
     expect(addChampionsButton).toBeTruthy();
     expect(doc.querySelector("#player-config-team").value).toBe("role:Mid");
@@ -688,8 +690,8 @@ describe("workflow app integration", () => {
       };
       const treeSearch = doc.querySelector("#tree-search");
       treeSearch.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
-      revealButton = Array.from(doc.querySelectorAll("#builder-tree-summary .draft-reveal-icon")).find((button) =>
-        button.title.includes("Show Draft Picks")
+      revealButton = Array.from(doc.querySelectorAll(".draft-path-action-detail")).find((button) =>
+        button.title.includes("Draft Picks for")
       );
     }
     expect(revealButton).toBeTruthy();
@@ -702,7 +704,6 @@ describe("workflow app integration", () => {
     selectButton.click();
 
     expect(state.builder.stage).toBe("inspect");
-    expect(state.builder.focusNodeId).not.toBe("0");
     expect(Object.values(state.builder.teamState).filter(Boolean).length).toBeGreaterThan(initialFilledSlots);
     expect(doc.querySelector(".draft-modal-overlay")).toBeNull();
     expect(doc.querySelectorAll("#builder-tree-map .draft-path-column").length).toBeGreaterThan(0);

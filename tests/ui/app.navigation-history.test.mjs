@@ -269,12 +269,15 @@ describe("hash navigation routing", () => {
     const doc = dom.window.document;
 
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    await flush();
     expect(dom.window.location.hash).toBe("#team-config");
 
     doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    await flush();
     expect(dom.window.location.hash).toBe("#explorer");
 
     doc.querySelector(".side-menu-link[data-tab='tags']").click();
+    await flush();
     expect(dom.window.location.hash).toBe("#tags");
   });
 
@@ -288,7 +291,9 @@ describe("hash navigation routing", () => {
     const doc = dom.window.document;
 
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    await flush();
     doc.querySelector(".side-menu-link[data-tab='explorer']").click();
+    await flush();
     expect(dom.window.location.hash).toBe("#explorer");
 
     dom.window.history.back();
@@ -347,6 +352,7 @@ describe("hash navigation routing", () => {
 
     navToggle.click();
     getTabTrigger(doc, "coming-soon").click();
+    await flush();
 
     expect(dom.window.location.hash).toBe("#coming-soon");
     expect(doc.querySelector("#tab-coming-soon").classList.contains("is-active")).toBe(true);
@@ -362,17 +368,20 @@ describe("hash navigation routing", () => {
     const doc = dom.window.document;
 
     expect(doc.querySelector("#hero-title").textContent).toBe("Composer");
-    expect(doc.querySelector("#builder-stage-setup-title").textContent).toBe("Setup");
-    expect(doc.querySelector("#builder-stage-inspect-title").textContent).toBe("Review");
+    expect(doc.querySelector("#builder-stage-setup-title").textContent).toBe("Draft Setup");
+    expect(doc.querySelector("#builder-stage-inspect-title").textContent).toBe("Draft Review");
     expect(doc.querySelector("#team-config-title").textContent).toBe("Teams");
 
     doc.querySelector(".side-menu-link[data-tab='team-config']").click();
+    await flush();
     expect(doc.querySelector("#hero-title").textContent).toBe("Teams");
 
     getTabTrigger(doc, "profile").click();
+    await flush();
     expect(doc.querySelector("#hero-title").textContent).toBe("Profile");
 
     doc.querySelector(".side-menu-link[data-tab='tags']").click();
+    await flush();
     expect(doc.querySelector("#hero-title").textContent).toBe("Tags");
     expect(doc.querySelector("#tags-title").textContent).toBe("Tags");
   });
@@ -387,6 +396,7 @@ describe("hash navigation routing", () => {
     const doc = dom.window.document;
 
     getTabTrigger(doc, "coming-soon").click();
+    await flush();
 
     const updateTabs = Array.from(
       doc.querySelectorAll("#tab-coming-soon button[data-updates-release-tab]"),
@@ -416,7 +426,8 @@ describe("hash navigation routing", () => {
     expect(comingSoonCategories).toEqual([
       "General",
       "Tags",
-      "Compositions"
+      "Compositions & Requirements",
+      "CSS / Design System"
     ]);
 
     doc.querySelector("#updates-release-tab-previous").click();

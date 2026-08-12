@@ -1,5 +1,9 @@
 # Unified Site Styling (USS) — DraftEngine Design System
 
+This file preserves DraftEngine's interaction and layout rules. When visual
+guidance here conflicts with the shared Nexus frontend direction, prefer
+`../Nexus/docs/unified-frontend-guide.md` and the current app implementation.
+
 ## Design Checklist (Pre-Commit Gate)
 
 Before presenting work for commit, verify:
@@ -24,32 +28,40 @@ Before presenting work for commit, verify:
 
 ## CSS Variables (Theme)
 
-| Variable          | Value     | Purpose                    |
-|-------------------|-----------|----------------------------|
-| `--bg`            | `#f5f2e9` | Page background            |
-| `--surface`       | `#fffdf7` | Card/panel background      |
-| `--surface-strong`| `#f7f1e5` | Emphasized surface (footers, headers) |
-| `--surface-card`  | `#fffefa` | Card/input backgrounds     |
-| `--accent`        | `#cc5b34` | Primary action color       |
-| `--accent-soft`   | `#f7d8ce` | Hover highlight, soft accent |
-| `--good`          | `#236d3f` | Positive/pass text         |
-| `--good-bg`       | `#edf7f0` | Pass badge background      |
-| `--good-soft`     | `#f0f7f2` | Pass card tint             |
-| `--good-border`   | `#b7d3be` | Pass border                |
-| `--warn`          | `#9c3f1e` | Destructive/negative actions |
-| `--warn-bg`       | `#fff1eb` | Fail badge background      |
-| `--warn-soft`     | `#fdf0ec` | Fail card tint             |
-| `--warn-border`   | `#e9b4a0` | Fail border                |
-| `--border`        | `#d6d0c0` | Borders, separators        |
-| `--muted`         | `#5b6a71` | Secondary text             |
-| `--ink`           | `#1a2730` | Primary text               |
+DraftEngine now uses the shared Nexus-family dark palette. The older
+parchment/orange light palette is deprecated and should not be used as the
+target state for future work.
 
-All new UI must use these variables. Never use hardcoded hex colors — always reference the variable. No dark themes. No monospace fonts outside code blocks.
+| Variable | Value | Purpose |
+|---|---:|---|
+| `--bg` | `#07111f` | App background |
+| `--bg-elevated` | `rgba(9, 23, 41, 0.86)` | Rail and elevated frame |
+| `--surface` | `rgba(11, 31, 54, 0.88)` | Shared panel surface |
+| `--surface-strong` | `rgba(10, 25, 43, 0.96)` | Headers, footers, active grouped surfaces |
+| `--surface-card` | `rgba(8, 26, 46, 0.94)` | Cards and input backgrounds |
+| `--accent` | `#ffd166` | Primary action and highlight |
+| `--accent-strong` | `#ff9d5c` | Warm emphasis and active gradient tail |
+| `--good` | `#7ef0c8` | Positive/pass text |
+| `--good-bg` | `rgba(126, 240, 200, 0.14)` | Pass badge background |
+| `--good-soft` | `rgba(126, 240, 200, 0.10)` | Pass card tint |
+| `--good-border` | `rgba(126, 240, 200, 0.38)` | Pass border |
+| `--warn` | `#ff8f8f` | Destructive/negative actions |
+| `--warn-bg` | `rgba(255, 143, 143, 0.14)` | Fail badge background |
+| `--warn-soft` | `rgba(255, 143, 143, 0.10)` | Fail card tint |
+| `--warn-border` | `rgba(255, 143, 143, 0.36)` | Fail border |
+| `--border` | `rgba(255, 255, 255, 0.12)` | Borders and separators |
+| `--muted` | `#c2cad5` | Secondary text |
+| `--ink` | `#f7f2e8` | Primary text |
+
+All new UI must use these variables. Never use hardcoded hex colors for
+shared surfaces. Dark Nexus framing is now the default. No monospace fonts
+outside code blocks.
 
 ## Typography
 
-- Primary font: system font stack (no custom font imports)
-- All UI text uses the inherited font; no monospace outside code contexts
+- UI/body: `"Avenir Next", "Trebuchet MS", sans-serif`
+- Display headings: `"Iowan Old Style", "Palatino Linotype", serif`
+- No monospace outside code contexts
 
 ## Button Set Rules
 
