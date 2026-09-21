@@ -252,3 +252,11 @@ Tree generation behavior:
 - `Lower Min Candidate Score to 0` (returns to setup and clears generated tree)
 - In team mode, slot labels include player names when available.
 - Data ingestion is schema-validated and fails fast on malformed CSV/JSON.
+
+## License and reuse
+
+This repository is not open source. Copyright © 2026 Joseph Irving. All rights reserved.
+
+No permission is granted to copy, modify, distribute, sublicense, sell, or incorporate this repository's original code, documentation, designs, prompts, schemas, models, or other original material into another project without prior written permission from the copyright owner.
+
+Third-party software, data, trademarks, game assets, APIs, and other third-party materials remain subject to their respective owners' rights and licenses. See [LICENSE](LICENSE).
