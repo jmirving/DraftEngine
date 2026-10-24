@@ -1,3 +1,4 @@
+import { gzipSync } from "node:zlib";
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 
@@ -3481,6 +3482,21 @@ describe("API routes", () => {
       .set("Authorization", user1Auth)
       .send({ familiarity: 9 });
     expect(invalidFamiliarity.status).toBe(400);
+  });
+
+  it("accepts ordinary gzip JSON team requests with the patched body parser", async () => {
+    const { app, config } = createMockContext();
+    const body = gzipSync(JSON.stringify({ name: "Compressed Team", tag: "gzip" }));
+    const response = await request(app)
+      .post("/teams")
+      .set("Authorization", buildAuthHeader(1, config))
+      .set("Content-Type", "application/json")
+      .set("Content-Encoding", "gzip")
+      .serialize((value) => value)
+      .send(body);
+    expect(response.status).toBe(201);
+    expect(response.body.team.name).toBe("Compressed Team");
+    expect(response.body.team.tag).toBe("GZIP");
   });
 
   it("supports JSON and multipart team logo contracts", async () => {
